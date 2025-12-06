@@ -1,0 +1,68 @@
+<mxfile host="app.diagrams.net" modified="2025-12-06T00:00:00Z" agent="7.3.8" version="20.8.3" type="device">
+  <diagram id="evidence-dossier-flow" name="Evidence Dossier Flow">
+    <mxGraphModel dx="1600" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="cases" value="Case Queue&#10;(SQL / Firestore)" style="shape=process;rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="40" y="220" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="bundler" value="Bundle Builder&#10;(queues dossiers)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="280" y="220" width="180" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="retriever" value="Hybrid Retriever&#10;+ Tool Suite" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="520" y="140" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="generator" value="Dossier Generator&#10;(Templates + Visuals)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="520" y="300" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="signatures" value="Signature Manifest&#10;(+ hashes for assets)" style="shape=process;rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="760" y="300" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="drive" value="Drive Uploads&#10;(manifest / PDF / HTML / assets)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="1000" y="220" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="api" value="FastAPI `/reports/dossiers`&#10;+ download proxy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="1240" y="220" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="portal" value="Next.js Console&#10;(list, download, verify)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="1240" y="360" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="lea" value="LEA / Analyst&#10;(handoff + hashes)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffdada;strokeColor=#c46060;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="1480" y="300" width="200" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="smoke" value="Smoke: `scripts/smoke_dossiers.py`&#10;(download + hash verify)" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="760" y="140" width="220" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1" edge="1" parent="1" source="cases" target="bundler">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1" edge="1" parent="1" source="bundler" target="retriever">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1" edge="1" parent="1" source="retriever" target="generator">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1" edge="1" parent="1" source="generator" target="signatures">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1" edge="1" parent="1" source="signatures" target="drive">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1" edge="1" parent="1" source="drive" target="api">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1" edge="1" parent="1" source="api" target="portal">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1" edge="1" parent="1" source="portal" target="lea">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e9" value="hash verify" style="dashed=1;edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#b85450" edge="1" parent="1" source="smoke" target="drive">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
