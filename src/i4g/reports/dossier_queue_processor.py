@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
 
+from i4g.observability import Observability, get_observability
 from i4g.reports.bundle_builder import DossierPlan
 from i4g.reports.dossier_pipeline import DossierGenerationResult, DossierGenerator
 from i4g.services.factories import build_dossier_queue_store
@@ -31,9 +32,11 @@ class DossierQueueProcessor:
         *,
         queue_store: DossierQueueStore | None = None,
         generator: DossierGenerator | None = None,
+        observability: Observability | None = None,
     ) -> None:
         self._queue_store = queue_store or build_dossier_queue_store()
         self._generator = generator or DossierGenerator()
+        self._observability = observability or get_observability(component="dossier_queue")
 
     def process_batch(
         self,
@@ -53,6 +56,7 @@ class DossierQueueProcessor:
             leased = self._queue_store.lease_next()
             if not leased:
                 break
+            self._observability.increment("dossier.queue.leased", tags=self._lease_tags(dry_run=dry_run))
             processed += 1
             plan_payload = leased.get("payload") or {}
             plan = DossierPlan.from_dict(plan_payload)
@@ -70,6 +74,7 @@ class DossierQueueProcessor:
             if dry_run:
                 self._queue_store.reset(plan_id)
                 plan_summaries.append({"plan_id": plan_id, "status": "dry-run"})
+                self._observability.increment("dossier.queue.dry_run", tags=self._plan_tags(plan, outcome="inspected"))
                 if reporter:
                     reporter.update(
                         status="dry_run",
@@ -83,6 +88,9 @@ class DossierQueueProcessor:
                 self._queue_store.mark_complete(plan_id, warnings=result.warnings)
                 plan_summaries.append(self._result_summary(result, status="completed"))
                 completed += 1
+                self._observability.increment(
+                    "dossier.queue.completed", tags=self._plan_tags(plan, outcome="completed")
+                )
                 if reporter:
                     reporter.update(
                         status="completed",
@@ -97,6 +105,10 @@ class DossierQueueProcessor:
                 self._queue_store.mark_failed(plan_id, error=str(exc))
                 plan_summaries.append({"plan_id": plan_id, "status": "failed", "error": str(exc)})
                 failed += 1
+                self._observability.increment(
+                    "dossier.queue.failed",
+                    tags={**self._plan_tags(plan, outcome="failed"), "error": exc.__class__.__name__},
+                )
                 if reporter:
                     reporter.update(
                         status="failed",
@@ -121,6 +133,13 @@ class DossierQueueProcessor:
                 failed=failed,
                 dry_run=dry_run,
             )
+        self._observability.emit_event(
+            "dossier.queue.batch",
+            processed=processed,
+            completed=completed,
+            failed=failed,
+            dry_run=dry_run,
+        )
         return summary
 
     def _result_summary(self, result: DossierGenerationResult, *, status: str) -> dict:
@@ -129,4 +148,17 @@ class DossierQueueProcessor:
             "status": status,
             "artifacts": [str(path) for path in result.artifacts],
             "warnings": list(result.warnings),
+        }
+
+    def _plan_tags(self, plan: DossierPlan, *, outcome: str) -> dict[str, str]:
+        return {
+            "jurisdiction": plan.jurisdiction_key,
+            "cross_border": str(plan.cross_border).lower(),
+            "outcome": outcome,
+            "case_count": str(len(plan.cases)),
+        }
+
+    def _lease_tags(self, *, dry_run: bool) -> dict[str, str]:
+        return {
+            "dry_run": str(dry_run).lower(),
         }

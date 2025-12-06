@@ -49,7 +49,9 @@ cases = sa.Table(
     "cases",
     METADATA,
     sa.Column("case_id", sa.Text(), primary_key=True),
-    sa.Column("ingestion_run_id", UUID_TYPE, sa.ForeignKey("ingestion_runs.run_id", ondelete="SET NULL"), nullable=True),
+    sa.Column(
+        "ingestion_run_id", UUID_TYPE, sa.ForeignKey("ingestion_runs.run_id", ondelete="SET NULL"), nullable=True
+    ),
     sa.Column("dataset", sa.Text(), nullable=False),
     sa.Column("source_type", sa.Text(), nullable=False),
     sa.Column("classification", sa.Text(), nullable=False),
@@ -112,7 +114,9 @@ entity_mentions = sa.Table(
     "entity_mentions",
     METADATA,
     sa.Column("entity_id", UUID_TYPE, sa.ForeignKey("entities.entity_id", ondelete="CASCADE"), nullable=False),
-    sa.Column("document_id", UUID_TYPE, sa.ForeignKey("source_documents.document_id", ondelete="CASCADE"), nullable=False),
+    sa.Column(
+        "document_id", UUID_TYPE, sa.ForeignKey("source_documents.document_id", ondelete="CASCADE"), nullable=False
+    ),
     sa.Column("span_start", sa.Integer(), nullable=True),
     sa.Column("span_end", sa.Integer(), nullable=True),
     sa.Column("sentence", sa.Text(), nullable=True),
@@ -149,7 +153,9 @@ indicator_sources = sa.Table(
     "indicator_sources",
     METADATA,
     sa.Column("indicator_id", UUID_TYPE, sa.ForeignKey("indicators.indicator_id", ondelete="CASCADE"), nullable=False),
-    sa.Column("document_id", UUID_TYPE, sa.ForeignKey("source_documents.document_id", ondelete="CASCADE"), nullable=False),
+    sa.Column(
+        "document_id", UUID_TYPE, sa.ForeignKey("source_documents.document_id", ondelete="CASCADE"), nullable=False
+    ),
     sa.Column("entity_id", UUID_TYPE, sa.ForeignKey("entities.entity_id", ondelete="SET NULL"), nullable=True),
     sa.Column("evidence_score", sa.Numeric(5, 4), nullable=True),
     sa.Column("explanation", sa.Text(), nullable=True),

@@ -8,7 +8,7 @@ import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, Iterator, List, Sequence
 
 import sqlalchemy as sa
@@ -243,7 +243,9 @@ class SqlWriter:
                 now,
             )
 
-        return SqlWriterResult(case_id=case_id, document_ids=doc_ids, entity_ids=entity_ids, indicator_ids=indicator_ids)
+        return SqlWriterResult(
+            case_id=case_id, document_ids=doc_ids, entity_ids=entity_ids, indicator_ids=indicator_ids
+        )
 
     def _upsert_case(
         self,
@@ -290,9 +292,7 @@ class SqlWriter:
             ids.append(document_id)
             if doc.alias:
                 alias_map[doc.alias] = document_id
-            text_hash = doc.text_sha256 or (
-                hashlib.sha256(doc.text.encode("utf-8")).hexdigest() if doc.text else None
-            )
+            text_hash = doc.text_sha256 or (hashlib.sha256(doc.text.encode("utf-8")).hexdigest() if doc.text else None)
             values = {
                 "document_id": document_id,
                 "case_id": case_id,
@@ -476,9 +476,7 @@ class SqlWriter:
                 "indicator_id": indicator_id,
                 "document_id": document_id,
                 "entity_id": entity_id,
-                "evidence_score": None
-                if source.evidence_score is None
-                else _quantize_decimal(source.evidence_score),
+                "evidence_score": None if source.evidence_score is None else _quantize_decimal(source.evidence_score),
                 "explanation": source.explanation,
                 "metadata": source.metadata,
                 "created_at": timestamp,

@@ -1,7 +1,7 @@
 # i4g System Architecture
 
-> **Document Version**: 1.1
-> **Last Updated**: November 30, 2025
+> **Document Version**: 1.2
+> **Last Updated**: December 6, 2025
 > **Audience**: Engineers, technical stakeholders, university partners
 
 ---
@@ -74,6 +74,26 @@ You now run two first-party consoles. The **Next.js portal** on Cloud Run serves
 │  │  LLM Server  │    │   Email    │                      │
 │  └──────────────┘    └────────────┘                      │
 └──────────────────────────────────────────────────────────┘
+```
+
+### Milestone 4 — Dossier Flow (Agentic Evidence Dossiers)
+
+- Source diagram (editable): https://drive.google.com/drive/folders/1z7pg_D0k6fiRQdw_pejeDBav49xdvnqL?usp=drive_link
+- Local mermaid snapshot below mirrors the Drive version for offline readers.
+
+```mermaid
+flowchart LR
+  A[BundleBuilder / DossierQueue] --> B[Context Loader]
+  B --> C[LangChain Tool Suite\nGeoReasoner | Timeline | EntityGraph | Narrative]
+  C --> D[TemplateRegistry\nMarkdown + JSON manifest]
+  D --> E[DossierExporter\nPDF/HTML/Markdown]
+  E --> F[DossierUploader\nShared Drive]
+  E --> G[Signature Manifest\nSHA-256]
+  F --> H[Next.js Portal / Streamlit]
+  G --> H
+  B --> I[DossierVisuals\nTimeline chart, GeoJSON]
+  I --> C
+  I --> D
 ```
 
 ---
@@ -420,16 +440,16 @@ gcloud run deploy i4g-console \
                                  │
               ┌──────────────────┼──────────────────┐
               │                                     │
-    ┌─────────▼────────┐              ┌────────────▼────────┐
-        │   PII Vault      │              │   Cases DB          │
-        │  (Encrypted)     │              │  (Tokenized)        │
-        │  Firestore       │              │  Firestore          │
-        │  /pii_vault      │              │  /cases             │
-        └──────────────────┘              └──────────┬──────────┘
-          ⚠️ RESTRICTED                           │
-         (Backend SA only)                            │
-                     ┌────────▼──────────┐
-                     │ Next.js Analyst   │
+    ┌─────────▼────────┐               ┌────────────▼────────┐
+    │   PII Vault      │               │   Cases DB          │
+    │  (Encrypted)     │               │  (Tokenized)        │
+    │  Firestore       │               │  Firestore          │
+    │  /pii_vault      │               │  /cases             │
+    └──────────────────┘               └──────────┬──────────┘
+         ⚠️ RESTRICTED                            │
+    (Backend SA only)                             │
+                                         ┌────────▼──────────┐
+                                         │ Next.js Analyst   │
                                          │ Console (PII      │
                                          │ masked ███████)   │
                                          └───────────────────┘

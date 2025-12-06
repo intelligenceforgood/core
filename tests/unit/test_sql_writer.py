@@ -88,9 +88,7 @@ def test_writer_persists_case_documents_and_entities(writer):
     assert len(result.indicator_ids) == 1
 
     with engine.connect() as conn:
-        case_row = conn.execute(
-            sa.select(sql_schema.cases).where(sql_schema.cases.c.case_id == "case-123")
-        ).one()
+        case_row = conn.execute(sa.select(sql_schema.cases).where(sql_schema.cases.c.case_id == "case-123")).one()
         assert case_row.dataset == "account_list"
         assert case_row.ingestion_run_id == "run-1"
         assert case_row.classification == "crypto_investment"
@@ -144,9 +142,7 @@ def test_writer_upserts_entities_and_indicator_sources(writer):
                 entity_type="wallet_address",
                 canonical_value="0xabc",
                 confidence=0.95,
-                mentions=[
-                    EntityMentionPayload(document_alias="doc-2", span_start=5, span_end=15, sentence="New ref")
-                ],
+                mentions=[EntityMentionPayload(document_alias="doc-2", span_start=5, span_end=15, sentence="New ref")],
             )
         ],
         indicators=[
@@ -163,9 +159,7 @@ def test_writer_upserts_entities_and_indicator_sources(writer):
     updated_result = sql_writer.persist_case_bundle(second_bundle)
 
     with engine.connect() as conn:
-        case_row = conn.execute(
-            sa.select(sql_schema.cases).where(sql_schema.cases.c.case_id == "case-999")
-        ).one()
+        case_row = conn.execute(sa.select(sql_schema.cases).where(sql_schema.cases.c.case_id == "case-999")).one()
         assert case_row.classification == "romance_scam"
 
         entities = conn.execute(sa.select(sql_schema.entities)).fetchall()

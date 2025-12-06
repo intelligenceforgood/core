@@ -7,13 +7,23 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 
+from i4g.observability import Observability, get_observability
 from i4g.reports.dossier_signatures import verify_manifest_payload
 from i4g.services.factories import build_dossier_queue_store
 from i4g.settings import get_settings
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 ARTIFACTS_DIR = (get_settings().data_dir / "reports" / "dossiers").resolve()
+_OBS: Observability = get_observability(component="reports_api")
+_ALLOWED_ARTIFACTS = {
+    "manifest": "manifest",
+    "markdown": "markdown",
+    "pdf": "pdf",
+    "html": "html",
+    "signature": "signature_manifest",
+}
 
 
 @router.get("/dossiers")
@@ -27,42 +37,70 @@ def list_dossiers(
 
     normalized_status = status.strip().lower()
     status_filter = None if not normalized_status or normalized_status == "all" else normalized_status
-    store = build_dossier_queue_store()
-    entries = store.list_plans(status=status_filter, limit=limit)
-    records: List[Dict[str, Any]] = []
-    for entry in entries:
-        plan_id = entry.get("plan_id")
-        manifest_info = _load_manifest_details(plan_id, include_manifest=include_manifest)
-        records.append(
-            {
-                "plan_id": plan_id,
-                "status": entry.get("status"),
-                "queued_at": entry.get("queued_at"),
-                "updated_at": entry.get("updated_at"),
-                "warnings": entry.get("warnings") or [],
-                "error": entry.get("error"),
-                "payload": entry.get("payload"),
-                **manifest_info,
-            }
-        )
-    return {"count": len(records), "items": records}
+    tags = {"status": status_filter or "all"}
+    try:
+        store = build_dossier_queue_store()
+        entries = store.list_plans(status=status_filter, limit=limit)
+        records: List[Dict[str, Any]] = []
+        for entry in entries:
+            plan_id = entry.get("plan_id")
+            manifest_info = _load_manifest_details(plan_id, include_manifest=include_manifest)
+            records.append(
+                {
+                    "plan_id": plan_id,
+                    "status": entry.get("status"),
+                    "queued_at": entry.get("queued_at"),
+                    "updated_at": entry.get("updated_at"),
+                    "warnings": entry.get("warnings") or [],
+                    "error": entry.get("error"),
+                    "payload": entry.get("payload"),
+                    **manifest_info,
+                }
+            )
+        _OBS.increment("reports.dossiers.list.success", tags=tags)
+        _OBS.emit_event("reports.dossiers.list", status=status_filter or "all", count=len(records))
+        return {"count": len(records), "items": records}
+    except HTTPException:
+        _OBS.increment("reports.dossiers.list.error", tags={**tags, "code": "http"})
+        raise
+    except Exception:
+        _OBS.increment("reports.dossiers.list.error", tags={**tags, "code": "unhandled"})
+        raise
 
 
 @router.post("/dossiers/{plan_id}/verify")
 def verify_dossier(plan_id: str) -> Dict[str, Any]:
     """Run an artifact verification pass for the provided dossier plan."""
 
+    tags = {"plan_id": plan_id}
     manifest_info = _load_manifest_details(plan_id, include_manifest=False)
     signature_manifest = manifest_info.get("signature_manifest")
     signature_path = manifest_info.get("signature_manifest_path")
     if not signature_manifest:
+        _OBS.increment("reports.dossiers.verify.error", tags={**tags, "code": "missing_signature"})
         raise HTTPException(status_code=404, detail=f"Signature manifest unavailable for plan {plan_id}")
 
     base_path = Path(signature_path).parent if signature_path else ARTIFACTS_DIR
     try:
         report = verify_manifest_payload(signature_manifest, base_path=base_path)
     except ValueError as exc:
+        _OBS.increment("reports.dossiers.verify.error", tags={**tags, "code": "validation"})
         raise HTTPException(status_code=400, detail=f"Verification failed: {exc}") from exc
+
+    metric_tags = {
+        **tags,
+        "all_verified": str(report.all_verified).lower(),
+        "missing": str(report.missing_count),
+        "mismatch": str(report.mismatch_count),
+    }
+    _OBS.increment("reports.dossiers.verify.success", tags=metric_tags)
+    _OBS.emit_event(
+        "reports.dossiers.verify",
+        plan_id=plan_id,
+        all_verified=report.all_verified,
+        missing=report.missing_count,
+        mismatch=report.mismatch_count,
+    )
 
     return {
         "plan_id": plan_id,
@@ -85,6 +123,47 @@ def verify_dossier(plan_id: str) -> Dict[str, Any]:
             for artifact in report.artifacts
         ],
     }
+
+
+@router.get("/dossiers/{plan_id}/signature_manifest")
+def fetch_signature_manifest(plan_id: str) -> Dict[str, Any]:
+    """Return the raw signature manifest for client-side verification flows."""
+
+    manifest_info = _load_manifest_details(plan_id, include_manifest=False)
+    signature_manifest = manifest_info.get("signature_manifest")
+    if not signature_manifest:
+        raise HTTPException(status_code=404, detail=f"Signature manifest unavailable for plan {plan_id}")
+    try:
+        _OBS.increment("reports.dossiers.signature_manifest", tags={"plan_id": plan_id})
+    except Exception:
+        pass
+    return signature_manifest
+
+
+@router.get("/dossiers/{plan_id}/download/{artifact}")
+def download_dossier_artifact(plan_id: str, artifact: str) -> FileResponse:
+    """Serve local dossier artifacts for portal/analyst download and client-side verification."""
+
+    normalized = artifact.strip().lower()
+    if normalized not in _ALLOWED_ARTIFACTS:
+        raise HTTPException(status_code=400, detail=f"Unsupported artifact '{artifact}'")
+
+    manifest_info = _load_manifest_details(plan_id, include_manifest=False)
+    local_downloads = manifest_info.get("downloads", {}).get("local", {})
+    key = _ALLOWED_ARTIFACTS[normalized]
+    path_str = local_downloads.get(key)
+    if not path_str:
+        raise HTTPException(status_code=404, detail=f"Artifact '{artifact}' not available for plan {plan_id}")
+
+    path = Path(path_str)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail=f"Artifact path missing for plan {plan_id}: {path}")
+    try:
+        _OBS.increment("reports.dossiers.download", tags={"artifact": key})
+    except Exception:
+        # Observability is best-effort
+        pass
+    return FileResponse(path)
 
 
 def _load_manifest_details(plan_id: str, *, include_manifest: bool) -> Dict[str, Any]:
@@ -168,6 +247,7 @@ def _build_downloads(
     base_dir = manifest_path.parent if manifest_path else ARTIFACTS_DIR
     exports = (manifest_preview or {}).get("exports") or {}
     template_render = (manifest_preview or {}).get("template_render") or {}
+    plan_id = (manifest_preview or {}).get("plan_id")
     local = {
         "manifest": str(manifest_path) if manifest_path else None,
         "markdown": _resolve_relative(template_render.get("path"), base_dir),
@@ -175,6 +255,13 @@ def _build_downloads(
         "html": _resolve_relative(exports.get("html_path"), base_dir),
         "signature_manifest": str(signature_path) if signature_path else None,
     }
+    api_urls = {}
+    if plan_id:
+        api_urls = {
+            api_label: f"/reports/dossiers/{plan_id}/download/{api_label}"
+            for api_label, label in _ALLOWED_ARTIFACTS.items()
+            if local.get(label)
+        }
     remote: List[Dict[str, Any]] = []
     uploads: Iterable[Mapping[str, Any]] | None = None
     if signature_manifest:
@@ -192,7 +279,10 @@ def _build_downloads(
                     "size_bytes": upload.get("size_bytes"),
                 }
             )
-    return {"local": local, "remote": remote}
+    drive_info = {
+        "shared_drive_parent_id": (manifest_preview or {}).get("shared_drive_parent_id"),
+    }
+    return {"local": local, "remote": remote, "api": api_urls, "drive": drive_info}
 
 
 def _resolve_relative(raw_path: object, base_dir: Path) -> str | None:

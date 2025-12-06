@@ -147,6 +147,62 @@ Additional tips:
     `I4G_API_URL` and `I4G_API_KEY` are present in the environment running that command (VS Code tasks do not inherit
     shell profiles by default).
 
+### Dossier download/verification smoke (FastAPI + portal)
+
+Use this quick loop to ensure dossier endpoints, downloads, and hashes work end-to-end:
+
+```bash
+# 1) Ensure artifacts exist locally (generator/queue job) under data/reports/dossiers
+mkdir -p data/reports/dossiers
+
+# 2) Run FastAPI locally
+conda run -n i4g uvicorn i4g.api.app:app --reload
+
+# 3) Run the Next.js console pointed at the API and dossier base path
+cd ../ui
+I4G_API_URL=http://127.0.0.1:8000 \
+I4G_API_KEY=dev-analyst-token \
+I4G_API_KIND=proto \
+I4G_DOSSIER_BASE_PATH=$PWD/../proto/data/reports/dossiers \
+NEXT_PUBLIC_USE_MOCK_DATA=false \
+pnpm --filter web dev
+
+# 4) In the browser, open /reports/dossiers
+#    - Verify Download chips stream files (local via proxy, remote links open Drive)
+#    - Click "Verify signatures" (API) and "Verify client-side" (Web Crypto) to confirm hashes
+```
+
+StatsD exporters (when configured) should observe dossier queue and verification counters; keep `I4G_OBSERVABILITY__STATSD_*`
+set if you want those emitted during the smoke.
+
+### Local pilot verification script
+
+Use `scripts/run_lea_pilot.py` to create a local pilot dossier (manifest + signature + pdf/markdown) and run an in-process
+verification harness via FastAPI TestClient. The script is useful when you cannot run the Next.js console locally and
+want a quick, reproducible check that the server-side verification routes work.
+
+Run it with:
+
+```bash
+conda run -n i4g python scripts/run_lea_pilot.py
+```
+
+The script returns non-zero on verification failures so it can be used as a CI step in a repo check.
+
+#### Dossier portal env vars
+
+Set these when running the console or dossier jobs locally so download and verification links resolve correctly:
+
+| Variable | Purpose | Example |
+| --- | --- | --- |
+| `I4G_DOSSIER_BASE_PATH` | Absolute path to local dossier artifacts for the portal proxy | `/Users/jerry/Work/project/i4g/proto/data/reports/dossiers` |
+| `I4G_REPORT__DRIVE_PARENT_ID` | Shared Drive parent folder where uploaded dossiers land (dev/prod) | `0AJd...pVaUk9PVA` |
+| `I4G_REPORT__HASH_ALGORITHM` | Hash algorithm recorded in signature manifests | `sha256` |
+| `I4G_API_URL` / `I4G_API_KEY` / `I4G_API_KIND` | Console → FastAPI connectivity | `http://127.0.0.1:8000`, `dev-analyst-token`, `proto` |
+| `I4G_CONSOLE_IAP_TOKEN` (when behind IAP) | Passes the IAP bearer token for API calls in secured environments | `<iap-jwt>` |
+
+Keep the table in sync with `docs/config/` when Drive IDs or hash algorithms change.
+
 ### TOML configuration files
 
 When you find yourself exporting a dozen env vars before every command, move

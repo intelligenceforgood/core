@@ -1,0 +1,56 @@
+name: Nightly Dossier Smoke
+
+on:
+  schedule:
+    - cron: '0 4 * * *' # 04:00 UTC daily
+  workflow_dispatch: {}
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Start FastAPI
+        run: |
+          nohup uvicorn i4g.api.app:app --host 0.0.0.0 --port 8000 &
+      - name: Create test dossier artifacts
+        run: |
+          mkdir -p data/reports/dossiers
+          cat > data/reports/dossiers/pilot-plan-001.json <<'JSON'
+          {
+            "plan_id": "pilot-plan-001",
+            "signature_manifest": {"path": "pilot-plan-001.signatures.json"},
+            "exports": {"pdf_path": "pilot-plan-001.pdf", "html_path": "pilot-plan-001.html"},
+            "template_render": {"path": "pilot-plan-001.md"}
+          }
+          JSON
+          echo "pdf-bytes" > data/reports/dossiers/pilot-plan-001.pdf
+          echo "# Pilot Dossier" > data/reports/dossiers/pilot-plan-001.md
+          python - <<'PY'
+          import json, hashlib, time
+          from pathlib import Path
+          sig = {'algorithm':'sha256', 'generated_at':time.strftime('%Y-%m-%dT%H:%M:%SZ'), 'artifacts':[]}
+          for p in ['pilot-plan-001.json','pilot-plan-001.pdf','pilot-plan-001.md']:
+              path = Path('data/reports/dossiers')/p
+              h = hashlib.sha256(path.read_bytes()).hexdigest()
+              sig['artifacts'].append({'label': p.split('.')[-1], 'path': str(path), 'size_bytes': path.stat().st_size, 'hash': h})
+          open('data/reports/dossiers/pilot-plan-001.signatures.json','w').write(json.dumps(sig))
+          PY
+      - name: Enqueue sample dossier plan
+        run: |
+          python scripts/enqueue_sample_dossier.py
+      - name: Run Smoke Script
+        env:
+          I4G_ENV: local
+          I4G_API_KEY: dev-token
+        run: |
+          sleep 3
+          python scripts/smoke_dossiers.py --api-url http://localhost:8000 --token $I4G_API_KEY

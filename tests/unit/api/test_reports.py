@@ -90,6 +90,8 @@ def test_list_dossiers_returns_manifest_and_signature(tmp_path, queue_store, mon
     assert downloads["local"]["pdf"].endswith("test-plan-001.pdf")
     assert downloads["local"]["html"].endswith("test-plan-001.html")
     assert downloads["local"]["markdown"].endswith("test-plan-001.md")
+    assert downloads["api"]["manifest"].endswith("/download/manifest")
+    assert downloads["api"]["signature"].endswith("/download/signature")
     assert downloads["remote"] == []
 
 
@@ -117,3 +119,58 @@ def test_list_dossiers_handles_missing_manifest(tmp_path, queue_store, monkeypat
     assert downloads["local"]["manifest"] is None
     assert downloads["local"]["signature_manifest"] is None
     assert downloads["remote"] == []
+
+
+def test_fetch_signature_manifest(tmp_path, queue_store, monkeypatch) -> None:
+    from i4g.api import reports as reports_api
+
+    plan = _sample_plan(plan_id="plan-sig")
+    queue_store.enqueue_plan(plan)
+    queue_store.mark_complete(plan.plan_id, warnings=[])
+
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = artifact_dir / f"{plan.plan_id}.json"
+    signature_path = artifact_dir / f"{plan.plan_id}.signatures.json"
+    manifest_payload = {"plan_id": plan.plan_id, "signature_manifest": {"path": str(signature_path)}}
+    manifest_path.write_text(json.dumps(manifest_payload))
+    signature_payload = {"algorithm": "sha256", "artifacts": []}
+    signature_path.write_text(json.dumps(signature_payload))
+
+    monkeypatch.setattr(reports_api, "build_dossier_queue_store", lambda: queue_store)
+    monkeypatch.setattr(reports_api, "ARTIFACTS_DIR", artifact_dir)
+
+    client = TestClient(create_app())
+    response = client.get(f"/reports/dossiers/{plan.plan_id}/signature_manifest")
+    assert response.status_code == 200
+    assert response.json()["algorithm"] == "sha256"
+
+
+def test_download_artifact_returns_file(tmp_path, queue_store, monkeypatch) -> None:
+    from i4g.api import reports as reports_api
+
+    plan = _sample_plan(plan_id="plan-dl")
+    queue_store.enqueue_plan(plan)
+    queue_store.mark_complete(plan.plan_id, warnings=[])
+
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = artifact_dir / f"{plan.plan_id}.json"
+    pdf_path = artifact_dir / f"{plan.plan_id}.pdf"
+    pdf_path.write_text("pdf-bytes")
+    manifest_payload = {
+        "plan_id": plan.plan_id,
+        "signature_manifest": {"path": str(artifact_dir / f"{plan.plan_id}.signatures.json")},
+        "exports": {"pdf_path": str(pdf_path)},
+    }
+    manifest_path.write_text(json.dumps(manifest_payload))
+    signature_path = artifact_dir / f"{plan.plan_id}.signatures.json"
+    signature_path.write_text(json.dumps({"algorithm": "sha256", "artifacts": []}))
+
+    monkeypatch.setattr(reports_api, "build_dossier_queue_store", lambda: queue_store)
+    monkeypatch.setattr(reports_api, "ARTIFACTS_DIR", artifact_dir)
+
+    client = TestClient(create_app())
+    response = client.get(f"/reports/dossiers/{plan.plan_id}/download/pdf")
+    assert response.status_code == 200
+    assert response.content == b"pdf-bytes"

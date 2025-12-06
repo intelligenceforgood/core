@@ -31,9 +31,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--location", default="global", help="Discovery location (default: global)")
     parser.add_argument("--collection-id", default="default_collection", help="Discovery collection ID")
     parser.add_argument("--data-store-id", required=True, help="Discovery data store ID")
-    parser.add_argument(
-        "--branch-id", default="default_branch", help="Discovery branch ID (default: default_branch)"
-    )
+    parser.add_argument("--branch-id", default="default_branch", help="Discovery branch ID (default: default_branch)")
     parser.add_argument("--uris", nargs="+", required=True, help="GCS URIs of JSONL files to import")
     parser.add_argument(
         "--reconciliation-mode",
