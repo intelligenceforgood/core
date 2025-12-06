@@ -101,6 +101,69 @@ class DossierUploader:
             )
         return rows, warnings
 
+    def fetch_acl(self, folder_id: str | None = None) -> tuple[dict[str, object] | None, list[str]]:
+        """Return Drive folder metadata and permissions for ACL previews."""
+
+        target_id = folder_id or self._default_parent_id
+        warnings: list[str] = []
+        if not target_id:
+            return None, ["Drive folder id not provided"]
+
+        if self._drive_service is None:
+            self._drive_service = self._build_drive_client()
+        if self._drive_service is None:
+            return None, ["Drive client unavailable"]
+
+        folder_meta: dict[str, object] | None = None
+        try:
+            folder_meta = (
+                self._drive_service.files()  # type: ignore[union-attr]
+                .get(
+                    fileId=target_id,
+                    fields="id,name,webViewLink,driveId,parents",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+        except Exception as exc:  # pragma: no cover - defensive guard
+            warnings.append(f"Unable to load folder metadata: {exc}")
+
+        permissions: list[dict[str, object]] = []
+        try:
+            perm_response = (
+                self._drive_service.permissions()  # type: ignore[union-attr]
+                .list(
+                    fileId=target_id,
+                    supportsAllDrives=True,
+                    fields="permissions(id,type,role,displayName,domain,emailAddress)",
+                )
+                .execute()
+            )
+            for perm in perm_response.get("permissions", []):
+                principal = perm.get("displayName") or perm.get("domain") or perm.get("emailAddress")
+                permissions.append(
+                    {
+                        "id": perm.get("id"),
+                        "type": perm.get("type"),
+                        "role": perm.get("role"),
+                        "principal": principal,
+                    }
+                )
+        except Exception as exc:  # pragma: no cover - defensive guard
+            warnings.append(f"Unable to load folder permissions: {exc}")
+
+        if folder_meta is None and not permissions:
+            return None, warnings or ["Drive ACL unavailable"]
+
+        summary = {
+            "folder_id": (folder_meta or {}).get("id") or target_id,
+            "name": (folder_meta or {}).get("name"),
+            "link": (folder_meta or {}).get("webViewLink"),
+            "drive_id": (folder_meta or {}).get("driveId"),
+            "permissions": permissions,
+        }
+        return summary, warnings
+
     def _upload_to_drive(self, *, path: Path, parent_id: str) -> dict[str, object]:
         if not self._drive_service:
             raise RuntimeError("Drive service not initialized")

@@ -80,6 +80,9 @@ You now run two first-party consoles. The **Next.js portal** on Cloud Run serves
 
 - Source diagram (editable): https://drive.google.com/drive/folders/1z7pg_D0k6fiRQdw_pejeDBav49xdvnqL?usp=drive_link
 - Local mermaid snapshot below mirrors the Drive version for offline readers.
+ - Source diagram (editable): https://drive.google.com/drive/folders/1z7pg_D0k6fiRQdw_pejeDBav49xdvnqL?usp=drive_link
+ - Local draw.io version: `docs/diagrams/dossier_flow.drawio` (importable into diagrams.net)
+ - Local mermaid snapshot below mirrors the Drive version for offline readers.
 
 ```mermaid
 flowchart LR

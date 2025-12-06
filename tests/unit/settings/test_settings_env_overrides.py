@@ -12,6 +12,14 @@ from pydantic import ValidationError
 from i4g.settings.config import PROJECT_ROOT, reload_settings
 
 
+@pytest.fixture(autouse=True)
+def isolate_settings_files(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Prevent developer-local config files from altering defaults."""
+
+    monkeypatch.delenv("I4G_SETTINGS_FILE", raising=False)
+    monkeypatch.setattr("i4g.settings.config.LOCAL_CONFIG_FILE", tmp_path / "settings.local.toml")
+
+
 def _clear_env(monkeypatch: object, *names: str) -> None:
     """Remove env vars for every alias and prefixed variant."""
 

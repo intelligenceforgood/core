@@ -13,9 +13,11 @@ client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def clear_request_log():
+def clear_request_log(monkeypatch: pytest.MonkeyPatch):
     """A fixture to automatically clear the request log before each test."""
+
     REQUEST_LOG.clear()
+    monkeypatch.setattr("i4g.api.app.MAX_REQUESTS_PER_MINUTE", 10)
 
 
 async def mock_call_next(request):

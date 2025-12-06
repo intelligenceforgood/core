@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 
 from i4g.observability import Observability, get_observability
 from i4g.reports.dossier_signatures import verify_manifest_payload
+from i4g.reports.dossier_uploads import DossierUploader
 from i4g.services.factories import build_dossier_queue_store
 from i4g.settings import get_settings
 
@@ -122,6 +123,36 @@ def verify_dossier(plan_id: str) -> Dict[str, Any]:
             }
             for artifact in report.artifacts
         ],
+    }
+
+
+@router.get("/dossiers/{plan_id}/drive_acl")
+def fetch_drive_acl(plan_id: str) -> Dict[str, Any]:
+    """Return Drive folder metadata + permissions for portal ACL previews."""
+
+    tags = {"plan_id": plan_id}
+    manifest_info = _load_manifest_details(plan_id, include_manifest=False)
+    drive_info = (manifest_info.get("downloads") or {}).get("drive") or {}
+    folder_id = drive_info.get("shared_drive_parent_id")
+    if not folder_id:
+        _OBS.increment("reports.dossiers.drive_acl.error", tags={**tags, "code": "missing_folder"})
+        raise HTTPException(status_code=404, detail=f"Drive folder unavailable for plan {plan_id}")
+
+    uploader = DossierUploader(drive_parent_id=folder_id)
+    acl, warnings = uploader.fetch_acl(folder_id=folder_id)
+    if acl is None:
+        _OBS.increment("reports.dossiers.drive_acl.error", tags={**tags, "code": "unavailable"})
+        raise HTTPException(status_code=503, detail=f"Drive ACL unavailable for plan {plan_id}")
+
+    _OBS.increment("reports.dossiers.drive_acl.success", tags=tags)
+    return {
+        "plan_id": plan_id,
+        "folder_id": acl.get("folder_id"),
+        "folder_name": acl.get("name"),
+        "link": acl.get("link"),
+        "drive_id": acl.get("drive_id"),
+        "permissions": acl.get("permissions") or [],
+        "warnings": warnings,
     }
 
 

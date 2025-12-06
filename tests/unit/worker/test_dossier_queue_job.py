@@ -14,8 +14,9 @@ class _StubProcessor:
     completed: int
     failed: int
 
-    def process_batch(self, *, batch_size: int, dry_run: bool):  # noqa: D401 - stub helper
+    def process_batch(self, *, batch_size: int, dry_run: bool, reporter=None):  # noqa: D401 - stub helper
         assert batch_size == self.processed
+        _ = reporter
         summary = QueueProcessSummary(
             processed=self.processed,
             completed=self.completed,
@@ -42,7 +43,11 @@ def test_main_returns_error_code_when_failures(monkeypatch) -> None:
     monkeypatch.setenv("I4G_DOSSIER__DRY_RUN", "false")
     monkeypatch.setenv("I4G_RUNTIME__LOG_LEVEL", "CRITICAL")
     monkeypatch.setattr(
-        dossier_queue, "run_job", lambda batch_size, dry_run: stub.process_batch(batch_size=batch_size, dry_run=dry_run)
+        dossier_queue,
+        "run_job",
+        lambda batch_size, dry_run, reporter=None: stub.process_batch(
+            batch_size=batch_size, dry_run=dry_run, reporter=reporter
+        ),
     )
 
     exit_code = dossier_queue.main()
@@ -56,7 +61,11 @@ def test_main_success(monkeypatch) -> None:
     monkeypatch.setenv("I4G_DOSSIER__BATCH_SIZE", "1")
     monkeypatch.setenv("I4G_DOSSIER__DRY_RUN", "true")
     monkeypatch.setattr(
-        dossier_queue, "run_job", lambda batch_size, dry_run: stub.process_batch(batch_size=batch_size, dry_run=dry_run)
+        dossier_queue,
+        "run_job",
+        lambda batch_size, dry_run, reporter=None: stub.process_batch(
+            batch_size=batch_size, dry_run=dry_run, reporter=reporter
+        ),
     )
 
     exit_code = dossier_queue.main()
