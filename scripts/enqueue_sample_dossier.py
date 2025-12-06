@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from pathlib import Path
 from decimal import Decimal
+from pathlib import Path
 
 from i4g.reports.bundle_builder import DossierCandidate, DossierPlan
-from i4g.store.dossier_queue_store import DossierQueueStore
 from i4g.settings import get_settings
+from i4g.store.dossier_queue_store import DossierQueueStore
 
 
 def main() -> int:
@@ -29,7 +29,10 @@ def main() -> int:
         manifest_payload = {
             "plan_id": plan_id,
             "signature_manifest": {"path": str(artifacts_dir / f"{plan_id}.signatures.json")},
-            "exports": {"pdf_path": str(artifacts_dir / f"{plan_id}.pdf"), "html_path": str(artifacts_dir / f"{plan_id}.html")},
+            "exports": {
+                "pdf_path": str(artifacts_dir / f"{plan_id}.pdf"),
+                "html_path": str(artifacts_dir / f"{plan_id}.html"),
+            },
             "template_render": {"path": str(artifacts_dir / f"{plan_id}.md")},
         }
         manifest_path.write_text(json.dumps(manifest_payload))

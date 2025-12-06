@@ -56,7 +56,10 @@ def create_sample_plan(artifact_dir: Path) -> DossierPlan:
         "plan_id": plan.plan_id,
         "signature_manifest": {"path": str(artifact_dir / f"{plan.plan_id}.signatures.json")},
         "assets": {"timeline_chart": "chart.png"},
-        "exports": {"pdf_path": str(artifact_dir / f"{plan.plan_id}.pdf"), "html_path": str(artifact_dir / f"{plan.plan_id}.html")},
+        "exports": {
+            "pdf_path": str(artifact_dir / f"{plan.plan_id}.pdf"),
+            "html_path": str(artifact_dir / f"{plan.plan_id}.html"),
+        },
         "template_render": {"path": str(artifact_dir / f"{plan.plan_id}.md")},
     }
     manifest_path.write_text(json.dumps(manifest_payload))
@@ -70,7 +73,12 @@ def create_sample_plan(artifact_dir: Path) -> DossierPlan:
         "algorithm": "sha256",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "artifacts": [
-            {"label": "manifest", "path": str(manifest_path), "size_bytes": manifest_path.stat().st_size, "hash": _sha256_hex(manifest_path)},
+            {
+                "label": "manifest",
+                "path": str(manifest_path),
+                "size_bytes": manifest_path.stat().st_size,
+                "hash": _sha256_hex(manifest_path),
+            },
             {"label": "pdf", "path": str(pdf), "size_bytes": pdf.stat().st_size, "hash": _sha256_hex(pdf)},
             {"label": "markdown", "path": str(md), "size_bytes": md.stat().st_size, "hash": _sha256_hex(md)},
         ],
