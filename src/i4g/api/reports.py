@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterable, List, Mapping
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -108,6 +108,15 @@ def _load_manifest_details(plan_id: str, *, include_manifest: bool) -> Dict[str,
         warnings.append(f"Manifest missing for plan {plan_id} at {manifest_path}")
 
     signature_manifest, signature_manifest_path_str = _load_signature_manifest(manifest_path, manifest_preview)
+    signature_path_obj = Path(signature_manifest_path_str) if signature_manifest_path_str else None
+    if signature_manifest is None:
+        signature_path_obj = None
+    downloads = _build_downloads(
+        manifest_preview=manifest_preview,
+        signature_manifest=signature_manifest,
+        manifest_path=manifest_path if manifest_path.exists() else None,
+        signature_path=signature_path_obj,
+    )
     if signature_manifest is None and signature_manifest_path_str:
         warnings.append(f"Signature manifest missing or invalid at {signature_manifest_path_str}")
 
@@ -117,6 +126,7 @@ def _load_manifest_details(plan_id: str, *, include_manifest: bool) -> Dict[str,
         "signature_manifest_path": signature_manifest_path_str,
         "signature_manifest": signature_manifest,
         "artifact_warnings": warnings,
+        "downloads": downloads,
     }
 
 
@@ -144,6 +154,54 @@ def _load_signature_manifest(
         return json.loads(signature_path.read_text()), signature_path_str
     except json.JSONDecodeError:
         return None, signature_path_str
+
+
+def _build_downloads(
+    *,
+    manifest_preview: Mapping[str, Any] | None,
+    signature_manifest: Mapping[str, Any] | None,
+    manifest_path: Path | None,
+    signature_path: Path | None,
+) -> Dict[str, Any]:
+    """Return download metadata for local and uploaded artifacts."""
+
+    base_dir = manifest_path.parent if manifest_path else ARTIFACTS_DIR
+    exports = (manifest_preview or {}).get("exports") or {}
+    template_render = (manifest_preview or {}).get("template_render") or {}
+    local = {
+        "manifest": str(manifest_path) if manifest_path else None,
+        "markdown": _resolve_relative(template_render.get("path"), base_dir),
+        "pdf": _resolve_relative(exports.get("pdf_path"), base_dir),
+        "html": _resolve_relative(exports.get("html_path"), base_dir),
+        "signature_manifest": str(signature_path) if signature_path else None,
+    }
+    remote: List[Dict[str, Any]] = []
+    uploads: Iterable[Mapping[str, Any]] | None = None
+    if signature_manifest:
+        uploads = signature_manifest.get("uploads")  # type: ignore[assignment]
+    if uploads:
+        for upload in uploads:
+            if not isinstance(upload, Mapping):
+                continue
+            remote.append(
+                {
+                    "label": str(upload.get("label") or "artifact"),
+                    "remote_ref": upload.get("remote_ref"),
+                    "hash": upload.get("hash"),
+                    "algorithm": upload.get("algorithm"),
+                    "size_bytes": upload.get("size_bytes"),
+                }
+            )
+    return {"local": local, "remote": remote}
+
+
+def _resolve_relative(raw_path: object, base_dir: Path) -> str | None:
+    if not raw_path:
+        return None
+    candidate = Path(str(raw_path))
+    if not candidate.is_absolute():
+        candidate = (base_dir / candidate).resolve()
+    return str(candidate)
 
 
 __all__ = ["router"]

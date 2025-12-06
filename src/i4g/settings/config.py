@@ -701,6 +701,11 @@ class ReportSettings(BaseSettings):
         default="sha256",
         validation_alias=AliasChoices("REPORT_HASH_ALGORITHM", "REPORT__HASH_ALGORITHM"),
     )
+    tool_timeout_seconds: float | None = Field(
+        default=None,
+        validation_alias=AliasChoices("REPORT_TOOL_TIMEOUT_SECONDS", "REPORT__TOOL_TIMEOUT_SECONDS"),
+        description="Per-tool timeout for LangChain dossier tools; None disables timeouts.",
+    )
 
 
 class Settings(BaseSettings):

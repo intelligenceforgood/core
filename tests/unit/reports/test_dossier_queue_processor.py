@@ -94,8 +94,11 @@ def test_processor_completes_and_marks_queue(tmp_path) -> None:
     assert entry and entry["status"] == "completed"
     assert entry["warnings"] == []
     artifact_paths = [Path(path) for path in summary.plans[0]["artifacts"]]
-    assert len(artifact_paths) == 3
+    assert len(artifact_paths) >= 3
     assert all(path.exists() for path in artifact_paths)
+    assert any(path.suffix == ".pdf" for path in artifact_paths)
+    assert any(path.suffix == ".html" for path in artifact_paths)
+    assert any(path.name.endswith(".signatures.json") for path in artifact_paths)
 
 
 def test_processor_dry_run_restores_pending(tmp_path) -> None:

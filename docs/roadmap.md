@@ -11,6 +11,14 @@
 
 This roadmap outlines the path from prototype to production-ready deployment, prioritized by criticality and dependencies. All tasks are scoped for a single volunteer developer working 10 hours/week with zero budget constraints.
 
+### Current Focus (Milestone 4 – Agentic Evidence Dossiers)
+
+- Ship PDF/HTML dossier exports from existing Markdown manifests and visual assets.
+- Add Drive distribution with hash verification of uploaded artifacts.
+- Harden LangChain tool suite with timeouts/fallbacks and surface warnings in manifests.
+- Stand up golden-sample regression harness (manifest/markdown/signatures) plus smoke script.
+- Refresh analyst/LEA docs and `/reports/dossiers` API notes to match Drive + verification flows.
+
 ---
 
 ## Phase 1: MVP Foundation (Weeks 1-4, 40 hours)

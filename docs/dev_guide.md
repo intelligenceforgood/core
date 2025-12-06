@@ -418,9 +418,10 @@ Use the new CLI + worker helpers when testing the agentic dossier pipeline local
     python -m i4g.worker.jobs.dossier_queue  # Cloud Run job entry point
     ```
 
-    The processor leases queue entries, renders placeholder manifests (JSON stubs today), and marks
-    completion/failure accordingly. Pass `--dry-run` (or `I4G_DOSSIER__DRY_RUN=true`) to inspect queue
-    contents without generating artifacts; the job automatically resets the lease to `pending` after the dry run.
+    The processor leases queue entries, renders the full bundle (JSON manifest, Markdown, PDF/HTML exports,
+    signature files), uploads artifacts to Drive when configured, and marks completion/failure accordingly.
+    Pass `--dry-run` (or `I4G_DOSSIER__DRY_RUN=true`) to inspect queue contents without generating artifacts; the
+    job automatically resets the lease to `pending` after the dry run.
 
 ### Relevant Environment Variables
 
@@ -462,7 +463,8 @@ users will see before we mirror the data into the Next.js console. Recommended s
     metadata for investigators.
 5. **Optional manual hash check** – for double-blind validation, copy the SHA + path from the signature manifest, then run
     `shasum -a 256 <path>` (or `python -m hashlib`) to confirm the command-line result matches the Streamlit verification
-    output.
+    output. For bulk checks, use `conda run -n i4g python scripts/verify_dossier_hashes.py --path data/reports/dossiers`
+    (add `--fail-on-warn` to treat manifest warnings as failures).
 
 Record the outcomes (especially any warnings/errors) as part of the Milestone 4 regression log so we maintain a reproducible
 manual test until the automated LEA portal ships.

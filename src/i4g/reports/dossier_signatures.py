@@ -37,6 +37,7 @@ class SignatureManifest:
     algorithm: str
     generated_at: datetime
     artifacts: Sequence[ArtifactSignature]
+    uploads: Sequence["UploadedArtifactSignature"] = field(default_factory=tuple)
     warnings: Sequence[str] = field(default_factory=tuple)
 
     def to_dict(self) -> dict:
@@ -46,7 +47,45 @@ class SignatureManifest:
             "algorithm": self.algorithm,
             "generated_at": self.generated_at.isoformat(),
             "artifacts": [artifact.to_dict() for artifact in self.artifacts],
+            "uploads": [upload.to_dict() for upload in self.uploads],
             "warnings": list(self.warnings),
+        }
+
+    def with_uploads(
+        self,
+        uploads: Sequence["UploadedArtifactSignature"],
+        *,
+        warnings: Sequence[str] | None = None,
+    ) -> "SignatureManifest":
+        merged_warnings = list(self.warnings)
+        if warnings:
+            merged_warnings.extend(warnings)
+        return SignatureManifest(
+            algorithm=self.algorithm,
+            generated_at=self.generated_at,
+            artifacts=self.artifacts,
+            uploads=tuple(uploads),
+            warnings=tuple(merged_warnings),
+        )
+
+
+@dataclass(frozen=True)
+class UploadedArtifactSignature:
+    """Hash metadata for artifacts after they are uploaded to remote storage."""
+
+    label: str
+    remote_ref: str
+    hash_value: str
+    algorithm: str
+    size_bytes: int | None = None
+
+    def to_dict(self) -> dict:
+        return {
+            "label": self.label,
+            "remote_ref": self.remote_ref,
+            "hash": self.hash_value,
+            "algorithm": self.algorithm,
+            "size_bytes": self.size_bytes,
         }
 
 
@@ -123,8 +162,48 @@ def generate_signature_manifest(
         algorithm=algorithm,
         generated_at=timestamp,
         artifacts=tuple(artifacts),
+        uploads=tuple(),
         warnings=tuple(warnings),
     )
+
+
+def build_uploaded_signatures(
+    uploads: Iterable[Mapping[str, object]] | None,
+    *,
+    default_algorithm: str,
+) -> tuple[Sequence[UploadedArtifactSignature], Sequence[str]]:
+    """Convert raw upload metadata into UploadedArtifactSignature objects."""
+
+    results: list[UploadedArtifactSignature] = []
+    warnings: list[str] = []
+    if not uploads:
+        return tuple(), tuple()
+    for row in uploads:
+        if not isinstance(row, Mapping):
+            warnings.append("Encountered non-mapping upload entry; skipping")
+            continue
+        label = str(row.get("label") or "upload")
+        remote_ref = str(row.get("remote_ref") or row.get("id") or "")
+        hash_value = str(row.get("hash") or "")
+        algorithm = str(row.get("algorithm") or default_algorithm)
+        size_bytes = row.get("size_bytes")
+        if not remote_ref or not hash_value:
+            warnings.append(f"Upload {label} missing remote_ref or hash; skipping")
+            continue
+        if algorithm != default_algorithm:
+            warnings.append(
+                f"Upload {label} hash algorithm {algorithm} differs from manifest algorithm {default_algorithm}"
+            )
+        results.append(
+            UploadedArtifactSignature(
+                label=label,
+                remote_ref=remote_ref,
+                hash_value=hash_value,
+                algorithm=algorithm,
+                size_bytes=int(size_bytes) if size_bytes is not None else None,
+            )
+        )
+    return tuple(results), tuple(warnings)
 
 
 def verify_manifest_payload(

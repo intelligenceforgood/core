@@ -1349,6 +1349,58 @@ if dossier_records:
             else:
                 st.caption("Signature manifest unavailable or unreadable for this plan.")
 
+            downloads = record.get("downloads") or {}
+            local_downloads = downloads.get("local") or {}
+            remote_downloads = downloads.get("remote") or []
+            with st.expander("Downloads & links", expanded=False):
+                local_items = [
+                    ("Manifest JSON", local_downloads.get("manifest")),
+                    ("Signature manifest", local_downloads.get("signature_manifest")),
+                    ("Markdown", local_downloads.get("markdown")),
+                    ("PDF", local_downloads.get("pdf")),
+                    ("HTML", local_downloads.get("html")),
+                ]
+                for label, raw_path in local_items:
+                    if not raw_path:
+                        st.caption(f"{label}: unavailable")
+                        continue
+                    path = Path(str(raw_path))
+                    exists = path.exists()
+                    st.markdown(f"**{label}:** {path}")
+                    if exists:
+                        try:
+                            st.download_button(
+                                label=f"Download {label}",
+                                data=path.read_bytes(),
+                                file_name=path.name,
+                                mime="application/octet-stream",
+                                key=f"download_{safe_plan_key}_{label}",
+                            )
+                        except Exception as exc:
+                            st.warning(f"Unable to load {label}: {exc}")
+                    else:
+                        st.warning("File missing on disk")
+
+                if remote_downloads:
+                    st.markdown("**Drive links**")
+                    for upload in remote_downloads:
+                        if not isinstance(upload, dict):
+                            continue
+                        remote_label = upload.get("label") or "artifact"
+                        remote_ref = upload.get("remote_ref")
+                        hash_value = upload.get("hash")
+                        algo = upload.get("algorithm")
+                        meta = []
+                        if hash_value:
+                            meta.append(f"hash={hash_value}")
+                        if algo:
+                            meta.append(f"algo={algo}")
+                        meta_str = f" ({', '.join(meta)})" if meta else ""
+                        if remote_ref:
+                            st.markdown(f"- [{remote_label}]({remote_ref}){meta_str}")
+                        else:
+                            st.markdown(f"- {remote_label}{meta_str} (no link)")
+
             base_path = Path(signature_path).parent if signature_path else None
             verification_key = f"verify_signatures_{safe_plan_key}"
             can_verify = isinstance(signature_manifest, dict)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -235,7 +236,7 @@ class DossierToolResults:
 class DossierToolSuite:
     """Orchestrates every LangChain tool used during dossier generation."""
 
-    def __init__(self, tools: Sequence[BaseTool] | None = None) -> None:
+    def __init__(self, tools: Sequence[BaseTool] | None = None, *, timeout_seconds: float | None = None) -> None:
         self._tools = (
             list(tools)
             if tools
@@ -247,6 +248,7 @@ class DossierToolSuite:
                 NarrativeWriterTool(),
             ]
         )
+        self._timeout_seconds = timeout_seconds
 
     def run(
         self,
@@ -271,13 +273,25 @@ class DossierToolSuite:
         errors: Dict[str, str] = {}
         for tool in self._tools:
             try:
-                raw = tool._run(input_payload)
+                raw = self._run_tool(tool, input_payload)
+                if raw is None:
+                    continue
                 parsed = json.loads(raw) if isinstance(raw, str) else raw
                 outputs[tool.name] = parsed
+            except TimeoutError:
+                errors[tool.name] = f"timed out after {self._timeout_seconds}s"
+                warnings.append(f"{tool.name} timed out after {self._timeout_seconds}s")
             except Exception as exc:  # pragma: no cover - defensive guardrail
                 errors[tool.name] = str(exc)
                 warnings.append(f"{tool.name} failed: {exc}")
         return DossierToolResults(outputs=outputs, warnings=tuple(warnings), errors=errors)
+
+    def _run_tool(self, tool: BaseTool, payload: DossierToolInput) -> Any:
+        if self._timeout_seconds is None:
+            return tool._run(payload)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(tool._run, payload)
+            return future.result(timeout=self._timeout_seconds)
 
 
 __all__ = [

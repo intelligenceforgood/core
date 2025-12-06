@@ -15,6 +15,8 @@ sync across dev and prod.
   ```
 - **Local job execution:** Clear `I4G_DOSSIER__DRY_RUN` and rerun to emit real manifests + markdown. Inspect
   `data/reports/dossiers/*.json` for warnings and ensure signature manifests reference the markdown + chart artifacts.
+- **Hash verification:** Run `conda run -n i4g python scripts/verify_dossier_hashes.py --path data/reports/dossiers --fail-on-warn`
+  to confirm local artifacts match their recorded signatures before promoting changes.
 - **Console smoke:** Load `/reports/dossiers`, verify the new bundles appear, and run inline signature verification on at
   least one plan.
 - Log the run (plan IDs, warnings, hash fragments) in `planning/change_log.md`.

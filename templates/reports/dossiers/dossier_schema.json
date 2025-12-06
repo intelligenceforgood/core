@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Dossier Render Schema",
+  "type": "object",
+  "required": ["plan", "analysis", "template_render"],
+  "properties": {
+    "plan": {
+      "type": "object",
+      "required": ["plan_id", "jurisdiction_key", "cases", "total_loss_usd"],
+      "properties": {
+        "plan_id": {"type": "string"},
+        "jurisdiction_key": {"type": "string"},
+        "bundle_reason": {"type": "string"},
+        "cross_border": {"type": "boolean"},
+        "total_loss_usd": {"type": "string"},
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["case_id", "jurisdiction", "loss_amount_usd", "accepted_at"],
+            "properties": {
+              "case_id": {"type": "string"},
+              "jurisdiction": {"type": "string"},
+              "loss_amount_usd": {"type": "string"},
+              "accepted_at": {"type": "string", "format": "date-time"},
+              "cross_border": {"type": "boolean"},
+              "primary_entities": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        }
+      }
+    },
+    "analysis": {
+      "type": "object",
+      "required": ["case_count", "total_loss_usd", "accepted_range"],
+      "properties": {
+        "case_count": {"type": "integer"},
+        "total_loss_usd": {"type": "string"},
+        "accepted_range": {
+          "type": "object",
+          "properties": {
+            "earliest": {"type": ["string", "null"], "format": "date-time"},
+            "latest": {"type": ["string", "null"], "format": "date-time"}
+          }
+        },
+        "loss_by_jurisdiction": {"type": "object", "additionalProperties": {"type": "string"}},
+        "cross_border_cases": {"type": "array", "items": {"type": "string"}},
+        "primary_entity_frequencies": {
+          "type": "array",
+          "items": {"type": "object", "properties": {"entity": {"type": "string"}, "count": {"type": "integer"}}}
+        }
+      }
+    },
+    "context": {
+      "type": ["object", "null"],
+      "description": "Structured + review context per case"
+    },
+    "tools": {
+      "type": ["object", "null"],
+      "description": "LangChain tool outputs keyed by tool name"
+    },
+    "assets": {
+      "type": ["object", "null"],
+      "description": "Rendered charts/maps with relative paths and warnings"
+    },
+    "template_render": {
+      "type": "object",
+      "required": ["path", "rendered_parts"],
+      "properties": {
+        "path": {"type": ["string", "null"]},
+        "warnings": {"type": "array", "items": {"type": "string"}},
+        "rendered_parts": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "exports": {
+      "type": ["object", "null"],
+      "properties": {
+        "pdf_path": {"type": ["string", "null"]},
+        "html_path": {"type": ["string", "null"]},
+        "warnings": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "signature_manifest": {
+      "type": "object",
+      "required": ["path", "algorithm"],
+      "properties": {
+        "path": {"type": "string"},
+        "algorithm": {"type": "string"}
+      }
+    }
+  }
+}

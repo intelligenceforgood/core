@@ -57,6 +57,8 @@ def test_list_dossiers_returns_manifest_and_signature(tmp_path, queue_store, mon
         "plan_id": plan.plan_id,
         "signature_manifest": {"path": str(signature_path), "algorithm": "sha256"},
         "assets": {"timeline_chart": "chart.png"},
+        "exports": {"pdf_path": "test-plan-001.pdf", "html_path": "test-plan-001.html"},
+        "template_render": {"path": "test-plan-001.md"},
     }
     manifest_path.write_text(json.dumps(manifest_payload))
     signature_payload = {
@@ -82,6 +84,13 @@ def test_list_dossiers_returns_manifest_and_signature(tmp_path, queue_store, mon
     assert record["signature_manifest"]["algorithm"] == "sha256"
     assert record["signature_manifest"]["artifacts"][0]["label"] == "manifest"
     assert record["artifact_warnings"] == []
+    downloads = record["downloads"]
+    assert downloads["local"]["manifest"].endswith(f"{plan.plan_id}.json")
+    assert downloads["local"]["signature_manifest"].endswith(f"{plan.plan_id}.signatures.json")
+    assert downloads["local"]["pdf"].endswith("test-plan-001.pdf")
+    assert downloads["local"]["html"].endswith("test-plan-001.html")
+    assert downloads["local"]["markdown"].endswith("test-plan-001.md")
+    assert downloads["remote"] == []
 
 
 def test_list_dossiers_handles_missing_manifest(tmp_path, queue_store, monkeypatch) -> None:
@@ -104,3 +113,7 @@ def test_list_dossiers_handles_missing_manifest(tmp_path, queue_store, monkeypat
     assert record["manifest"] is None
     assert record["signature_manifest"] is None
     assert any("Manifest missing" in warning for warning in record["artifact_warnings"])
+    downloads = record["downloads"]
+    assert downloads["local"]["manifest"] is None
+    assert downloads["local"]["signature_manifest"] is None
+    assert downloads["remote"] == []

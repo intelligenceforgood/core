@@ -12,6 +12,7 @@ from typing import Dict, Sequence
 from i4g.reports.bundle_builder import DossierCandidate, DossierPlan
 from i4g.reports.dossier_analysis import DossierAnalysis
 from i4g.reports.dossier_context import CaseContext, DossierContextResult
+from i4g.reports.dossier_exports import ExportArtifacts
 from i4g.reports.dossier_pipeline import DossierGenerator
 from i4g.reports.dossier_templates import TemplateRegistry
 from i4g.reports.dossier_tools import DossierToolResults
@@ -21,9 +22,9 @@ GOLDEN_TIMESTAMP = datetime(2025, 12, 4, tzinfo=timezone.utc)
 
 # Filled after first deterministic render; keep values in sync when templates or tools change.
 EXPECTED_HASHES = {
-    "manifest": "ee1c4d526d3eeea841516f731825ac558ae41daa22863d23f394a25006595180",
+    "manifest": "dd98da54bb04382eea5137832fa4a1d64f0e48a025d71b43b46656464b582231",
     "markdown": "fa9df598c159df8fdc9c97558a1353cbbe86e9cf9c1f9acba97c006177ff171a",
-    "signatures": "0fc6ed1f4d9d6156f2a9c0f915d3601f6a333e84e75fe395ef5f17d1e547fbc2",
+    "signatures": "5feafe9fd90c6552beb651c7192fd0db1097a5c17191fa7e7dca5984d5c4d3aa",
 }
 
 
@@ -35,6 +36,7 @@ def test_dossier_golden_sample_regression(tmp_path) -> None:
         visuals_builder=_GoldenVisualBuilder(artifact_dir),
         tool_suite=_GoldenToolSuite(),
         template_registry=TemplateRegistry(),
+        exporter=_GoldenExporter(artifact_dir),
         now_provider=lambda: GOLDEN_TIMESTAMP,
     )
     plan = _golden_plan()
@@ -44,12 +46,17 @@ def test_dossier_golden_sample_regression(tmp_path) -> None:
     manifest_path = artifact_dir / f"{plan.plan_id}.json"
     markdown_path = artifact_dir / f"{plan.plan_id}.md"
     signature_path = artifact_dir / f"{plan.plan_id}.signatures.json"
+    pdf_path = artifact_dir / f"{plan.plan_id}.pdf"
+    html_path = artifact_dir / f"{plan.plan_id}.html"
     actual_hashes = {
         "manifest": _sha256(manifest_path),
         "markdown": _sha256(markdown_path),
         "signatures": _sha256(signature_path),
     }
     assert actual_hashes == EXPECTED_HASHES
+
+    assert pdf_path.exists(), "PDF export should be emitted"
+    assert html_path.exists(), "HTML export should be emitted"
 
     payload = json.loads(manifest_path.read_text())
     assert payload["plan_id"] == plan.plan_id
@@ -192,6 +199,19 @@ class _GoldenToolSuite:
             },
         }
         return DossierToolResults(outputs=outputs, warnings=tuple(), errors={})
+
+
+class _GoldenExporter:
+    def __init__(self, base_dir: Path) -> None:
+        self._base_dir = base_dir
+
+    def export(self, *, markdown: str, base_name: str) -> ExportArtifacts:  # noqa: D401 - deterministic stub
+        pdf_path = self._base_dir / f"{base_name}.pdf"
+        html_path = self._base_dir / f"{base_name}.html"
+        self._base_dir.mkdir(parents=True, exist_ok=True)
+        pdf_path.write_bytes(b"PDF EXPORT\n" + markdown.encode("utf-8"))
+        html_path.write_text("<html><body>HTML EXPORT</body></html>")
+        return ExportArtifacts(pdf_path=pdf_path, html_path=html_path, warnings=tuple())
 
 
 def _jurisdiction_counts(plan: DossierPlan) -> Dict[str, int]:
