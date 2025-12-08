@@ -43,11 +43,12 @@ All three application services currently reuse the shared runtime service accoun
 
 ## 4. Authentication Strategy
 
-### 4.1 Current State — IAP in front of every Cloud Run surface
-- **Identity-Aware Proxy (IAP)** now fronts every Cloud Run service (FastAPI, Streamlit, Analyst Console). Each service may remain `--allow-unauthenticated` at the Cloud Run layer, but IAP blocks requests before they reach the service unless the caller is signed in with an approved Google account.
-- **Browser experience:** Users hit the Cloud Run HTTPS endpoint, IAP redirects them to Google sign-in (if they are not already signed in), and—after verifying membership in the `roles/iap.httpsResourceAccessor` policy—the request is forwarded to Cloud Run with contextual headers (`X-Goog-Authenticated-User-Email`, signed JWT if enabled).
-- **Access management:** Terraform manages the Cloud Run + IAP IAM policies (fed by `i4g_analyst_members`). It can also provision the IAP brand/OAuth clients when the project belongs to an organization, but that path is disabled by default because our dev/prod projects are standalone. Short-lived exceptions can still be layered on manually via Google Group changes or `gcloud iap web add-iam-policy-binding`, but Terraform remains the source of truth (§6).
-- **CLI / service integrations:** Engineers can still run `gcloud auth print-identity-token --audiences=<run-url>` and call Cloud Run programmatically. When invoking through IAP, include the `X-Goog-IAP-JWT-Assertion` header (gcloud and client libraries handle this automatically). For debugging, you may also bypass IAP by running the service locally with mock auth.
+### 4.1 Current State — IAP via Load Balancer
+- **Global External Load Balancer (ALB)**: We use a Global ALB as the single ingress point for `app.intelligenceforgood.org` and `api.intelligenceforgood.org`.
+- **Identity-Aware Proxy (IAP)**: Enabled on the ALB's backend services. This enforces authentication *before* traffic reaches Cloud Run.
+- **Cloud Run Configuration**: Services are deployed with `--allow-unauthenticated` (to accept traffic from the LB), but the LB is the only path that users can traverse. (Future hardening: use "Ingress: Internal and Cloud Load Balancing" to strictly block direct access).
+- **Browser experience**: Users hit `https://app.intelligenceforgood.org`, are redirected to Google Sign-In by the LB/IAP, and upon success, the request is forwarded to Cloud Run with `X-Goog-Authenticated-User-Email`.
+- **Access Control**: Terraform manages the `roles/iap.httpsResourceAccessor` binding on the *Backend Service*, granting access to `group:gcp-i4g-analyst@intelligenceforgood.org`.
 
 ### 4.2 Medium-Term Enhancements (in parallel)
 - Replace per-user bindings with Google Group bindings (`group:gcp-i4g-analyst@intelligenceforgood.org`, `group:gcp-i4g-leo@intelligenceforgood.org`) so onboarding/offboarding requires only Workspace group membership changes.
