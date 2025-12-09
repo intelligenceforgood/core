@@ -24,31 +24,31 @@ The i4g platform aspires to build a complete intelligence lifecycle that:
 ---
 
 
-<details>
-<summary>🧩 <strong>System Architecture (click to expand)</strong></summary>
-
-```mermaid
-flowchart LR
-    A["Raw Chat / Screenshots"] --> B["OCR (Tesseract)"]
-    B --> C["Semantic NER (LangChain + Ollama)"]
-    C --> D["Fraud Classifier (Rule-based + LLM)"]
-    D --> E["IngestPipeline"]
-    E --> F["StructuredStore (SQLite)"]
-    E --> G["VectorStore (Chroma/FAISS)"]
-    F --> H["Analyst Review Interface"]
-    G --> H
-    H --> I["RAG + Automated Law Enforcement Reports"]
-```
-</details>
+> This repository (proto) contains the canonical architecture, production PRD, and technical design documents for i4g.
+> Planning artifacts (prototypes, milestones, and experimental PRDs) are stored in the separate `planning/` workspace.
 
 ---
 
 ## 📚 Documentation
 
-### Planning & Strategy
-- 📋 **[Prototype PRD](./docs/prd_prototype.md)** - Original product vision and milestones (M1-M6)
-- 🚀 **[Production PRD](./docs/prd_production.md)** - Zero-budget production roadmap with GCP free tier strategy
-- 🗺️ **[Development Roadmap](./docs/roadmap.md)** - 8-week task breakdown from prototype to production
+### Key Docs (Quick Links)
+- 📋 **Production PRD** — `proto/docs/prd_production.md` (Product & deployment requirements)
+- 🏗️ **Architecture** — `proto/docs/architecture.md` (High-level system design, data flow)
+- 🔧 **Technical Design (TDD)** — `proto/docs/tdd.md` (API contracts, schemas, runtime requirements)
+- 💻 **Developer Guide** — `proto/docs/dev_guide.md` (Local setup, bootstrapping, dev workflow)
+- 🧭 **Runbooks & Playbooks** — `proto/docs/runbooks/analyst_runbook.md` (Analyst index + console runbooks)
+- 🧪 **Smoke & Tests** — `proto/docs/smoke_test.md` (Verification scripts and verification playbooks)
+- ☁️ **Infrastructure Ops** — `infra/` (Terraform modules, deploy notes)
+
+Other helpful docs:
+- 🔐 **Identity & IAM** — `proto/docs/iam.md`
+- 🔍 **Hybrid Search Deployment Checklist** — `proto/docs/hybrid_search_deployment_checklist.md`
+- 📦 **Retrieval / Vertex guide** — `proto/docs/retrieval_gcp_guide.md`
+ - 🖼️ **Diagrams** — `proto/docs/diagrams/` (High-level Draw.io exports & copies)
+ - 🧪 **Examples** — `proto/docs/examples/` (test data, example cases)
+ - ⚙️ **Config Recipes** — `proto/docs/config/` (Settings and TOML examples)
+
+ - Planning, milestone tracking, and prototype artifacts are maintained in the separate `planning/` workspace.
 
 ### Technical Documentation
 - 🏗️ **[System Architecture](./docs/architecture.md)** - High-level system design, deployment, and data flow
@@ -58,6 +58,8 @@ flowchart LR
 
 ### Governance & Compliance
 - 🔒 **[Data Compliance Guide](./docs/compliance.md)** - PII handling, FERPA/GDPR compliance, incident response
+ - 📜 **[Confidentiality Agreement](./docs/confidentiality_agreement.md)**
+ - 🤝 **Contribution guide** — `./docs/contributing.md` and `./docs/contributors.md`
 
 ---
 

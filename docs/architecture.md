@@ -29,9 +29,9 @@ You now run two first-party consoles. The **Next.js portal** on Cloud Run serves
 │  │  User    │      │ Analyst  │      │   LEO    │        │
 │  └────┬─────┘      └────┬─────┘      └────┬─────┘        │
 └───────┼─────────────────┼─────────────────┼──────────────┘
-    │                 │                 │
-    │ HTTPS           │ HTTPS           │ HTTPS
-    │                 │                 │
+        │                 │                 │
+        │ HTTPS           │ HTTPS           │ HTTPS
+        │                 │                 │
 ┌───────┼─────────────────┼─────────────────┼──────────────┐
 │       │     GCP Cloud Run (us-central1)   │              │
 │  ┌────▼─────────────────▼─────────────────▼────┐         │
@@ -44,9 +44,9 @@ You now run two first-party consoles. The **Next.js portal** on Cloud Run serves
 │  │  (Python)  │      │  Console      │                   │
 │  └──┬─────────┘      └────┬──────────┘                   │
 └─────┼─────────────────────┼──────────────────────────────┘
-  │                     │
-  │   Firestore API     │
-  │                     │
+      │                     │
+      │   Firestore API     │
+      │                     │
 ┌─────▼─────────────────────▼──────────────────────────────┐
 │                  Data Layer (GCP)                        │
 │  ┌──────────────┐  ┌────────────┐  ┌───────────┐  ┌────────────┐
@@ -76,25 +76,25 @@ You now run two first-party consoles. The **Next.js portal** on Cloud Run serves
 └──────────────────────────────────────────────────────────┘
 ```
 
-### Milestone 4 — Dossier Flow (Agentic Evidence Dossiers)
+### Dossier Flow — Agentic Evidence Dossiers
+
+This section documents the architecture and data-flow for evidence dossier generation and distribution. It is intended as a stable, long-lived reference for engineers and reviewers.
 
 - Source diagram (editable): https://drive.google.com/drive/folders/1z7pg_D0k6fiRQdw_pejeDBav49xdvnqL?usp=drive_link
-- Local mermaid snapshot below mirrors the Drive version for offline readers.
- - Source diagram (editable): https://drive.google.com/drive/folders/1z7pg_D0k6fiRQdw_pejeDBav49xdvnqL?usp=drive_link
- - Local draw.io version: `docs/diagrams/dossier_flow.drawio` (importable into diagrams.net)
- - Local mermaid snapshot below mirrors the Drive version for offline readers.
+- Local draw.io version: `docs/diagrams/dossier_flow.drawio` (importable into diagrams.net)
+ - Local mermaid snapshot mirrors the Drive version for offline readers.
 
 ```mermaid
 flowchart LR
   A[BundleBuilder / DossierQueue] --> B[Context Loader]
-  B --> C[LangChain Tool Suite\nGeoReasoner | Timeline | EntityGraph | Narrative]
-  C --> D[TemplateRegistry\nMarkdown + JSON manifest]
-  D --> E[DossierExporter\nPDF/HTML/Markdown]
-  E --> F[DossierUploader\nShared Drive]
-  E --> G[Signature Manifest\nSHA-256]
+  B --> C[LangChain Tool Suite<br/>GeoReasoner<br/>Timeline<br/>EntityGraph<br/>Narrative]
+  C --> D[TemplateRegistry<br/>Markdown + JSON manifest]
+  D --> E[DossierExporter<br/>PDF/HTML/Markdown]
+  E --> F[DossierUploader<br/>Shared Drive]
+  E --> G[Signature Manifest<br/>SHA-256]
   F --> H[Next.js Portal / Streamlit]
   G --> H
-  B --> I[DossierVisuals\nTimeline chart, GeoJSON]
+  B --> I[DossierVisuals<br/>Timeline chart, GeoJSON]
   I --> C
   I --> D
 ```
