@@ -357,6 +357,16 @@ curl http://localhost:11434/api/chat -d '{
    Email user with secure download link
 ```
 
+### PII Vault Architecture (developer reference)
+
+See `docs/pii_vault.md` for the full design. Highlights:
+
+- Token format: `AAA-XXXXXXXX` (HMAC-SHA256 digest, 3-char prefix + 8 hex), deterministic across environments via shared, versioned KMS-wrapped pepper; collisions append a short disambiguator.
+- Prefix registry: identity/contact, gov IDs, financial, crypto, network/device, health/biometric, vehicle/legal, location, fallback. Registry lives in DB so new prefixes land without migrations.
+- Pipeline: detect PII in structured + OCR, normalize/validate per prefix, generate tokens, drop raw PII from downstream payloads. Tokens go to SQL/Vertex; canonical PII + metadata go to the vault.
+- Storage: tokens in DB (token, full digest, prefix FK, encrypted canonical value, normalized hash, case/artifact refs, detector metadata, timestamps, retention). Artifacts only in GCS under `<type>/aa/bb/<sha256>.ext`; tokens never in GCS.
+- Controls/observability: dual-approval detokenization, KMS-gated decrypt, rate limits, audited attempts, alerts on anomalies; metrics for coverage/confidence/collisions/latency; smokes perform tokenization+detokenization round trips.
+
 ---
 
 ## Deployment Architecture
