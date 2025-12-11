@@ -348,6 +348,41 @@ class LLMSettings(BaseSettings):
     )
 
 
+class CryptoSettings(BaseSettings):
+    """Application-level cryptographic material used by vault/tokenization flows."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    pii_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "CRYPTO_PII_KEY",
+            "CRYPTO__PII_KEY",
+            "TOKENIZATION_PII_KEY",
+            "TOKENIZATION__PII_KEY",
+        ),
+    )
+
+
+class TokenizationSettings(BaseSettings):
+    """Deterministic tokenization controls for PII vault integration."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    pepper: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("TOKENIZATION_PEPPER", "TOKENIZATION__PEPPER"),
+    )
+    pepper_version: str = Field(
+        default="v1",
+        validation_alias=AliasChoices("TOKENIZATION_PEPPER_VERSION", "TOKENIZATION__PEPPER_VERSION"),
+    )
+    require_pepper: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("TOKENIZATION_REQUIRE_PEPPER", "TOKENIZATION__REQUIRE_PEPPER"),
+    )
+
+
 class SecretsSettings(BaseSettings):
     """Secret resolution strategy (local vs Secret Manager)."""
 
@@ -729,6 +764,8 @@ class Settings(BaseSettings):
     storage: StorageSettings = Field(default_factory=StorageSettings)
     vector: VectorSettings = Field(default_factory=VectorSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
+    crypto: CryptoSettings = Field(default_factory=CryptoSettings)
+    tokenization: TokenizationSettings = Field(default_factory=TokenizationSettings)
     secrets: SecretsSettings = Field(default_factory=SecretsSettings)
     ingestion: IngestionSettings = Field(default_factory=IngestionSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
@@ -855,6 +892,12 @@ class Settings(BaseSettings):
             if not self.secrets.local_env_file:
                 secrets_update["local_env_file"] = self.project_root / ".env.local"
             object.__setattr__(self, "secrets", self.secrets.model_copy(update=secrets_update))
+
+            tokenization_update = {
+                "require_pepper": False,
+                "pepper": self.tokenization.pepper or "local-dev-pepper",
+            }
+            object.__setattr__(self, "tokenization", self.tokenization.model_copy(update=tokenization_update))
 
             ingestion_update = {
                 "enable_scheduled_jobs": False,

@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from i4g.pii.tokenization import TokenizationService
 from i4g.reports.bundle_builder import BundleBuilder
 from i4g.reports.bundle_candidates import BundleCandidateProvider
 from i4g.reports.dossier_context import DossierContextLoader
@@ -220,6 +221,12 @@ def build_dossier_queue_store(db_path: str | Path | None = None) -> DossierQueue
     """Return a DossierQueueStore instance backed by the configured SQLite DB."""
 
     return DossierQueueStore(db_path=db_path)
+
+
+def build_tokenization_service() -> TokenizationService:
+    """Instantiate the tokenization service with configured secrets."""
+
+    return TokenizationService()
 
 
 def build_bundle_builder(

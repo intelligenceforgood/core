@@ -12,6 +12,7 @@ from i4g.services.factories import (
     build_firestore_writer,
     build_sql_writer,
     build_structured_store,
+    build_tokenization_service,
     build_vector_store,
     build_vertex_writer,
 )
@@ -27,6 +28,7 @@ from i4g.store.sql_writer import (
 )
 
 if TYPE_CHECKING:
+    from i4g.pii.tokenization import TokenizationService
     from i4g.services.firestore_writer import FirestoreWriter
     from i4g.services.vertex_writer import VertexDocumentWriter
     from i4g.store.structured import StructuredStore
@@ -152,6 +154,7 @@ class IngestPipeline:
         default_dataset: Optional[str] = None,
         vertex_writer: Optional["VertexDocumentWriter"] = None,
         firestore_writer: Optional["FirestoreWriter"] = None,
+        tokenization_service: "TokenizationService | None" = None,
     ) -> None:
         """Initialize pipeline with store instances.
 
@@ -179,6 +182,7 @@ class IngestPipeline:
         self.sql_writer: Optional[SqlWriter]
         self.vertex_writer: Optional["VertexDocumentWriter"] = None
         self.firestore_writer: Optional["FirestoreWriter"] = None
+        self.tokenization_service = tokenization_service or build_tokenization_service()
 
         if vector_store is not None:
             self.vector_store = vector_store
@@ -251,6 +255,20 @@ class IngestPipeline:
             :class:`IngestResult` describing all persistence side-effects.
         """
         case_id = classification_result.get("case_id") or str(uuid.uuid4())
+        payload = dict(classification_result)
+
+        if self.tokenization_service is not None:
+            try:
+                tokenized_entities = self.tokenization_service.tokenize_entities(
+                    payload.get("entities"),
+                    detector="ingest",
+                    case_id=case_id,
+                )
+                if tokenized_entities:
+                    payload["entities"] = tokenized_entities
+            except Exception:
+                LOGGER.exception("Tokenization failed for case_id=%s", case_id)
+        classification_result = payload
 
         record = ScamRecord(
             case_id=case_id,

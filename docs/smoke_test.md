@@ -43,7 +43,7 @@ python scripts/infra/verify_vault_secret_access.py \
   --version latest
 ```
 
-3. Wire secrets into Cloud Run dev (`fastapi-gateway`), pointing at the vault project (replace with `i4g-pii-vault-prod` for prod):
+3. Wire secrets into Cloud Run dev (`fastapi-gateway`), pointing at the vault project (swap `i4g-dev` → `i4g-prod` and vault project for prod):
 
 ```bash
 gcloud run services update fastapi-gateway \
@@ -53,21 +53,44 @@ gcloud run services update fastapi-gateway \
   --set-secrets="I4G_TOKENIZATION__PEPPER=projects/i4g-pii-vault-dev/secrets/tokenization-pepper:latest,I4G_CRYPTO__PII_KEY=projects/i4g-pii-vault-dev/secrets/pii-tokenization-key:latest"
 ```
 
-4. Cloud Run smoke (tokenization/detokenization round trip): invoke the dev service with a test payload and ensure the
-   response contains a token and the detokenized value matches. Replace `<url>` and headers to match the deployed API.
+4. Export runtime env for the smoke (dev values shown; swap host/client ID for other envs):
 
 ```bash
-FASTAPI_BASE=https://fastapi-gateway-544936845045.us-central1.run.app
-PAYLOAD='{ "value": "user@example.com", "prefix": "EID" }'
-curl -s -H "Content-Type: application/json" -H "X-API-KEY: dev-analyst-token" \
-  -d "$PAYLOAD" "$FASTAPI_BASE/tokenize" | tee /tmp/tokenize.json
-TOKEN=$(jq -r '.token' /tmp/tokenize.json)
-curl -s -H "Content-Type: application/json" -H "X-API-KEY: dev-analyst-token" \
-  -d "{\"token\":\"$TOKEN\"}" "$FASTAPI_BASE/detokenize" | jq
+export FASTAPI_BASE=https://api.intelligenceforgood.org
+export IAP_CLIENT_ID=544936845045-a87u04lgc7go7asc4nhed36ka50iqh0h.apps.googleusercontent.com
+export I4G_API_KEY=dev-analyst-token
 ```
 
-Expected: tokenizer returns an `AAA-XXXXXXXX` token; detokenize returns the normalized value. Fail the smoke if secret
-access is denied, token is empty, or detokenize mismatches the input.
+5. Mint an IAP identity token (include email, or IAP will return 401). Use a principal with IAP access, e.g. `sa-report`:
+
+```bash
+export ID_TOKEN=$(gcloud auth print-identity-token \
+  --include-email \
+  --audiences=$IAP_CLIENT_ID \
+  --impersonate-service-account=sa-report@i4g-dev.iam.gserviceaccount.com)
+export AUTH_HEADER="Authorization: Bearer $ID_TOKEN"
+```
+
+6. Tokenization/detokenization + health:
+
+```bash
+PAYLOAD='{ "value": "user@example.com", "prefix": "EID" }'
+curl -s -H "Content-Type: application/json" -H "$AUTH_HEADER" -H "X-API-KEY: $I4G_API_KEY" \
+  -d "$PAYLOAD" "$FASTAPI_BASE/tokenization/tokenize" | tee /tmp/tokenize.json
+TOKEN=$(jq -r '.token' /tmp/tokenize.json)
+curl -s -H "Content-Type: application/json" -H "$AUTH_HEADER" -H "X-API-KEY: $I4G_API_KEY" \
+  -d "{\"token\":\"$TOKEN\"}" "$FASTAPI_BASE/tokenization/detokenize" | jq
+curl -s -H "$AUTH_HEADER" -H "X-API-KEY: $I4G_API_KEY" "$FASTAPI_BASE/tokenization/health" | jq
+```
+
+7. Search redaction check (ensure responses contain no `text` or raw PII; entities should be token strings):
+
+```bash
+curl -s -H "$AUTH_HEADER" -H "X-API-KEY: $I4G_API_KEY" \
+  "$FASTAPI_BASE/reviews/search?text=token&limit=5" | jq
+```
+
+Expected: tokenizer returns an `AAA-XXXXXXXX` token; detokenize returns the normalized value; health reports `pepper_configured: true`; search results omit `text` and only include tokenized entities. Fail the smoke if secret access is denied, token is empty, detokenize mismatches, or search returns raw PII.
 
 ### Analyst console (Next.js) smoke
 
@@ -159,12 +182,20 @@ The suite opens `/search`, confirms the query box, filter sidebar, and primary a
 
 Validate that the ingestion worker can read the sample dataset and produce diagnostics without writing to the vector store.
 
+Set a local pepper (reuse the dev/prod pepper if you want deterministic tokens across envs) or the job will fail with
+"Tokenization pepper is required but missing":
+
+```bash
+export I4G_TOKENIZATION__PEPPER=${I4G_TOKENIZATION__PEPPER:-local-dev-pepper}
+```
+
 ```bash
 env \
   I4G_INGEST__JSONL_PATH=$PWD/data/retrieval_poc/cases.jsonl \
   I4G_INGEST__DRY_RUN=true \
   I4G_INGEST__BATCH_LIMIT=3 \
   I4G_RUNTIME__LOG_LEVEL=INFO \
+  I4G_TOKENIZATION__PEPPER="$I4G_TOKENIZATION__PEPPER" \
   conda run -n i4g python -m i4g.worker.jobs.ingest
 ```
 
@@ -188,6 +219,7 @@ new verification helper.
      I4G_INGEST__BATCH_LIMIT=5 \
      I4G_INGEST__ENABLE_VECTOR=false \
      I4G_RUNTIME__LOG_LEVEL=INFO \
+     I4G_TOKENIZATION__PEPPER="$I4G_TOKENIZATION__PEPPER" \
      conda run -n i4g i4g-ingest-job
    ```
    Expected log highlights:
@@ -208,6 +240,7 @@ new verification helper.
      I4G_INGEST__BATCH_LIMIT=0 \
      I4G_INGEST__ENABLE_VECTOR=true \
      I4G_RUNTIME__LOG_LEVEL=INFO \
+     I4G_TOKENIZATION__PEPPER="$I4G_TOKENIZATION__PEPPER" \
      conda run -n i4g i4g-ingest-job
    ```
    Expect `vector_enabled=true` plus `vertex_writes` counts that match the case count.

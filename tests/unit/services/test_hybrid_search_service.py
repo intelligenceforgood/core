@@ -359,3 +359,64 @@ def test_score_policy_reports_winner_counts():
     assert policy["winners"]["semantic"] == 1
     assert policy["winners"]["structured"] == 1
     assert policy["winners"]["unknown"] == 0
+
+
+def test_search_redacts_text_and_metadata():
+    created_at = datetime.utcnow().isoformat()
+    payload = {
+        "results": [
+            {
+                "case_id": "case-token",
+                "sources": ["vector", "structured"],
+                "vector": {
+                    "case_id": "case-token",
+                    "similarity": 0.9,
+                    "text": "vector raw text",
+                    "metadata": {"dataset": "demo", "classification": "romance", "note": "secret"},
+                },
+                "record": {
+                    "case_id": "case-token",
+                    "text": "raw pii text",
+                    "entities": {"email": ["EID-ABCDEF12"]},
+                    "classification": "romance",
+                    "confidence": 0.7,
+                    "created_at": created_at,
+                    "metadata": {"dataset": "demo", "extra": "pii"},
+                },
+            }
+        ],
+        "vector_hits": 1,
+        "structured_hits": 1,
+        "total": 1,
+    }
+
+    retriever = _StubRetriever(payload)
+    service = HybridSearchService(retriever=retriever, entity_store=_StubEntityStore())
+
+    response = service.search(HybridSearchQuery(limit=1))
+
+    assert response["count"] == 1
+    item = response["results"][0]
+
+    record = item["record"]
+    assert "text" not in record
+    assert "metadata" not in record
+    assert record["entities"] == {"email": ["EID-ABCDEF12"]}
+    assert record["created_at"] == created_at
+    assert set(record.keys()) <= {"case_id", "classification", "confidence", "entities", "created_at"}
+
+    vector = item["vector"]
+    assert "text" not in vector
+    assert "metadata" not in vector
+    assert set(vector.keys()) <= {
+        "case_id",
+        "score",
+        "distance",
+        "similarity",
+        "classification",
+        "confidence",
+        "entities",
+    }
+
+    metadata = item["metadata"]
+    assert metadata == {"dataset": "demo", "classification": "romance"}

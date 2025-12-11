@@ -270,12 +270,14 @@ class HybridSearchService:
 
     def _normalize_result(self, payload: Dict[str, Any]) -> HybridSearchItem:
         sources = self._ensure_sources(payload.get("sources"))
-        vector_score = self._semantic_score(payload.get("vector"))
-        structured_score = self._structured_score(payload.get("record"))
+        record_raw = payload.get("record")
+        vector_raw = payload.get("vector")
+        vector_score = self._semantic_score(vector_raw)
+        structured_score = self._structured_score(record_raw)
         merged_score, scores = self._combine_scores(vector_score, structured_score)
-        metadata = self._extract_metadata(payload)
-        record = payload.get("record")
-        vector = payload.get("vector")
+        metadata = self._extract_metadata(record_raw, vector_raw)
+        record = self._redact_record(record_raw)
+        vector = self._redact_vector(vector_raw)
         return HybridSearchItem(
             case_id=str(payload.get("case_id")),
             sources=sources,
@@ -295,6 +297,30 @@ class HybridSearchService:
         if isinstance(value, list):
             return value
         return [str(value)]
+
+    @staticmethod
+    def _redact_record(record: Dict[str, Any] | None) -> Dict[str, Any] | None:
+        if not isinstance(record, dict):
+            return None
+        allowed_keys = ("case_id", "classification", "confidence", "entities", "created_at")
+        redacted = {key: record.get(key) for key in allowed_keys if record.get(key) is not None}
+        return redacted or None
+
+    @staticmethod
+    def _redact_vector(vector: Dict[str, Any] | None) -> Dict[str, Any] | None:
+        if not isinstance(vector, dict):
+            return None
+        allowed_keys = (
+            "case_id",
+            "score",
+            "distance",
+            "similarity",
+            "classification",
+            "confidence",
+            "entities",
+        )
+        redacted = {key: vector.get(key) for key in allowed_keys if vector.get(key) is not None}
+        return redacted or None
 
     @staticmethod
     def _structured_score(record: Dict[str, Any] | None) -> float | None:
@@ -391,26 +417,29 @@ class HybridSearchService:
         return merged_score, scores
 
     @staticmethod
-    def _extract_metadata(payload: Dict[str, Any]) -> Dict[str, Any] | None:
-        record_meta = payload.get("record", {}).get("metadata") if isinstance(payload.get("record"), dict) else None
-        vector_meta = payload.get("vector", {}).get("metadata") if isinstance(payload.get("vector"), dict) else None
+    def _extract_metadata(record: Dict[str, Any] | None, vector: Dict[str, Any] | None) -> Dict[str, Any] | None:
         metadata: Dict[str, Any] = {}
+
+        record_meta = record.get("metadata") if isinstance(record, dict) else None
         if isinstance(record_meta, dict):
-            metadata.update(record_meta)
-        if isinstance(vector_meta, dict):
-            for key, value in vector_meta.items():
-                metadata.setdefault(key, value)
+            dataset = record_meta.get("dataset") or record_meta.get("source")
+            if dataset:
+                metadata["dataset"] = dataset
+
+        vector_meta = vector.get("metadata") if isinstance(vector, dict) else None
+        if isinstance(vector_meta, dict) and "dataset" not in metadata:
+            dataset = vector_meta.get("dataset") or vector_meta.get("source")
+            if dataset:
+                metadata["dataset"] = dataset
+
         classification = None
-        record = payload.get("record")
         if isinstance(record, dict):
             classification = record.get("classification")
-        if not classification and isinstance(vector_meta, dict):
-            classification = vector_meta.get("classification")
+        if classification is None and isinstance(vector, dict):
+            classification = vector.get("classification")
         if classification:
-            metadata.setdefault("classification", classification)
-        dataset = metadata.get("dataset") or metadata.get("source")
-        if dataset:
-            metadata["dataset"] = dataset
+            metadata["classification"] = classification
+
         return metadata or None
 
     @staticmethod

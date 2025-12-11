@@ -240,6 +240,33 @@ def test_settings_file_override(tmp_path, monkeypatch: object) -> None:
     assert env_override.ingestion.default_dataset == "env_dataset"
 
 
+def test_tokenization_env_overrides(monkeypatch: object) -> None:
+    """Tokenization settings should honor pepper and requirement flags."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_TOKENIZATION__PEPPER",
+        "TOKENIZATION_PEPPER",
+        "I4G_TOKENIZATION__REQUIRE_PEPPER",
+        "TOKENIZATION_REQUIRE_PEPPER",
+        "I4G_TOKENIZATION__PEPPER_VERSION",
+        "TOKENIZATION_PEPPER_VERSION",
+    )
+
+    defaults = reload_settings(env="dev")
+    assert defaults.tokenization.pepper_version == "v1"
+    assert defaults.tokenization.require_pepper is True
+
+    _set_env(monkeypatch, "I4G_TOKENIZATION__PEPPER", "test-pepper")
+    _set_env(monkeypatch, "I4G_TOKENIZATION__PEPPER_VERSION", "v2")
+    _set_env(monkeypatch, "I4G_TOKENIZATION__REQUIRE_PEPPER", "false")
+
+    overridden = reload_settings(env="dev")
+    assert overridden.tokenization.pepper == "test-pepper"
+    assert overridden.tokenization.pepper_version == "v2"
+    assert overridden.tokenization.require_pepper is False
+
+
 def test_ingestion_local_config_dataset_override(tmp_path, monkeypatch: object) -> None:
     """Local config files should override the ingestion default dataset."""
 

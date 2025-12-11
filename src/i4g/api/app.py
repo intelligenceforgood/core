@@ -13,6 +13,7 @@ from i4g.api.discovery import router as discovery_router
 from i4g.api.intake import router as intake_router
 from i4g.api.reports import router as reports_router
 from i4g.api.review import router as review_router
+from i4g.api.tokenization import router as tokenization_router
 from i4g.settings import get_settings
 
 # ----------------------------------------
@@ -62,6 +63,7 @@ def create_app() -> FastAPI:
     app.include_router(discovery_router)
     app.include_router(intake_router)
     app.include_router(reports_router)
+    app.include_router(tokenization_router)
     app.include_router(task_router)
 
     return app

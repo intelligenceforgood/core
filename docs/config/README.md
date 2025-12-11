@@ -31,6 +31,7 @@ This catalog is assembled by `proto/scripts/export_settings_manifest.py` directl
 | account_list | `account_list.require_api_key` | `I4G_ACCOUNT_LIST__REQUIRE_API_KEY`<br />`ACCOUNT_LIST_REQUIRE_API_KEY`<br />`ACCOUNT_LIST__REQUIRE_API_KEY` | `bool` | `True` | Account list extraction configuration. |
 | api | `api.base_url` | `I4G_API__BASE_URL`<br />`API_URL`<br />`API__BASE_URL` | `str` | `http://127.0.0.1:8000` | API endpoint configuration shared by CLI + dashboards. |
 | api | `api.key` | `I4G_API__KEY`<br />`API_KEY`<br />`API__KEY` | `str` | `dev-analyst-token` | API endpoint configuration shared by CLI + dashboards. |
+| crypto | `crypto.pii_key` | `I4G_CRYPTO__PII_KEY`<br />`CRYPTO_PII_KEY`<br />`CRYPTO__PII_KEY`<br />`TOKENIZATION_PII_KEY`<br />`TOKENIZATION__PII_KEY` | `str &#124; NoneType` | `None` | Application-level cryptographic material used by vault/tokenization flows. |
 | data_dir | `data_dir` | `I4G_DATA_DIR` | `Path` | `/Users/jerry/Work/project/i4g/proto/data` | Top-level configuration model with nested sections for each subsystem. |
 | env | `env` | `I4G_ENV`<br />`ENV`<br />`ENVIRONMENT`<br />`RUNTIME__ENV` | `str` | `local` | Top-level configuration model with nested sections for each subsystem. |
 | identity | `identity.audience` | `I4G_IDENTITY__AUDIENCE`<br />`IDENTITY_AUDIENCE`<br />`IDENTITY__AUDIENCE` | `str &#124; NoneType` | `None` | Identity provider wiring for auth-enabled services. |
@@ -75,6 +76,7 @@ This catalog is assembled by `proto/scripts/export_settings_manifest.py` directl
 | report | `report.min_loss_usd` | `I4G_REPORT__MIN_LOSS_USD`<br />`REPORT_MIN_LOSS_USD`<br />`REPORT__MIN_LOSS_USD` | `float` | `50000.0` | Agentic dossier/report configuration. |
 | report | `report.recency_days` | `I4G_REPORT__RECENCY_DAYS`<br />`REPORT_RECENCY_DAYS`<br />`REPORT__RECENCY_DAYS` | `int` | `30` | Agentic dossier/report configuration. |
 | report | `report.require_cross_border` | `I4G_REPORT__REQUIRE_CROSS_BORDER`<br />`REPORT_REQUIRE_CROSS_BORDER`<br />`REPORT__REQUIRE_CROSS_BORDER` | `bool` | `False` | Agentic dossier/report configuration. |
+| report | `report.tool_timeout_seconds` | `I4G_REPORT__TOOL_TIMEOUT_SECONDS`<br />`REPORT_TOOL_TIMEOUT_SECONDS`<br />`REPORT__TOOL_TIMEOUT_SECONDS` | `float &#124; NoneType` | `None` | Per-tool timeout for LangChain dossier tools; None disables timeouts. |
 | runtime | `runtime.log_level` | `I4G_RUNTIME__LOG_LEVEL`<br />`LOG_LEVEL`<br />`RUNTIME__LOG_LEVEL` | `str` | `INFO` | Process-level runtime controls. |
 | search | `search.classification_presets` | `I4G_SEARCH__CLASSIFICATION_PRESETS`<br />`SEARCH_CLASSIFICATION_PRESETS`<br />`SEARCH__CLASSIFICATION_PRESETS` | `list[str]` | `[]` | Hybrid search tuning parameters and schema presets. |
 | search | `search.dataset_presets` | `I4G_SEARCH__DATASET_PRESETS`<br />`SEARCH_DATASET_PRESETS`<br />`SEARCH__DATASET_PRESETS` | `list[str]` | `[]` | Hybrid search tuning parameters and schema presets. |
@@ -100,6 +102,9 @@ This catalog is assembled by `proto/scripts/export_settings_manifest.py` directl
 | storage | `storage.reports_bucket` | `I4G_STORAGE__REPORTS_BUCKET` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
 | storage | `storage.sqlite_path` | `I4G_STORAGE__SQLITE_PATH` | `Path` | `/Users/jerry/Work/project/i4g/proto/data/i4g_store.db` | Structured + blob storage configuration. |
 | storage | `storage.structured_backend` | `I4G_STORAGE__STRUCTURED_BACKEND`<br />`STRUCTURED_BACKEND`<br />`STORAGE__STRUCTURED_BACKEND` | `Literal['sqlite', 'firestore', 'cloudsql']` | `sqlite` | Structured + blob storage configuration. |
+| tokenization | `tokenization.pepper` | `I4G_TOKENIZATION__PEPPER`<br />`TOKENIZATION_PEPPER`<br />`TOKENIZATION__PEPPER` | `str &#124; NoneType` | `None` | Deterministic tokenization controls for PII vault integration. |
+| tokenization | `tokenization.pepper_version` | `I4G_TOKENIZATION__PEPPER_VERSION`<br />`TOKENIZATION_PEPPER_VERSION`<br />`TOKENIZATION__PEPPER_VERSION` | `str` | `v1` | Deterministic tokenization controls for PII vault integration. |
+| tokenization | `tokenization.require_pepper` | `I4G_TOKENIZATION__REQUIRE_PEPPER`<br />`TOKENIZATION_REQUIRE_PEPPER`<br />`TOKENIZATION__REQUIRE_PEPPER` | `bool` | `True` | Deterministic tokenization controls for PII vault integration. |
 | vector | `vector.backend` | `I4G_VECTOR__BACKEND`<br />`VECTOR_BACKEND`<br />`VECTOR__BACKEND` | `Literal['chroma', 'faiss', 'pgvector', 'vertex_ai']` | `chroma` | Vector store configuration supporting multiple backends. |
 | vector | `vector.chroma_dir` | `I4G_VECTOR__CHROMA_DIR` | `Path` | `/Users/jerry/Work/project/i4g/proto/data/chroma_store` | Vector store configuration supporting multiple backends. |
 | vector | `vector.collection` | `I4G_VECTOR__COLLECTION`<br />`VECTOR_COLLECTION`<br />`VECTOR__COLLECTION` | `str` | `i4g_vectors` | Vector store configuration supporting multiple backends. |
@@ -120,6 +125,6 @@ conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g-ac
 
 ## Vault-specific notes
 
-- Vault stacks use separate GCP projects (e.g., `i4g-pii-vault-dev`, `i4g-pii-vault-prod`). Set `I4G_SECRETS__PROJECT` to the vault project so Secret Manager lookups resolve there instead of the app project.
-- Tokenization and detokenization services should source KMS-wrapped peppers and related secrets from the vault project; avoid duplicating those secrets in app projects.
-- When adding new vault-related settings, update `src/i4g/settings/config.py`, extend `tests/unit/settings/`, and rerun `python scripts/export_settings_manifest.py --docs-repo ../docs` to refresh this page and the machine-readable manifests.
+- Non-local deployments must provide `I4G_TOKENIZATION__PEPPER` (and optionally `I4G_CRYPTO__PII_KEY` for encryption);
+  the tokenization service fails fast when pepper is missing, so ensure vault secrets are provisioned before booting
+  Cloud Run services or workers.

@@ -1,4 +1,4 @@
-generated_at: '2025-12-05T15:12:36.422853+00:00'
+generated_at: '2025-12-11T16:41:28.035110+00:00'
 source: src/i4g/settings/config.py
 env_prefix: I4G_
 fields:
@@ -101,6 +101,18 @@ fields:
   - API_KEY
   - API__KEY
   description: API endpoint configuration shared by CLI + dashboards.
+- path: crypto.pii_key
+  section: crypto
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_CRYPTO__PII_KEY
+  - CRYPTO_PII_KEY
+  - CRYPTO__PII_KEY
+  - TOKENIZATION_PII_KEY
+  - TOKENIZATION__PII_KEY
+  description: Application-level cryptographic material used by vault/tokenization
+    flows.
 - path: data_dir
   section: data_dir
   type: Path
@@ -521,6 +533,15 @@ fields:
   - REPORT_REQUIRE_CROSS_BORDER
   - REPORT__REQUIRE_CROSS_BORDER
   description: Agentic dossier/report configuration.
+- path: report.tool_timeout_seconds
+  section: report
+  type: float | NoneType
+  default: null
+  env_vars:
+  - I4G_REPORT__TOOL_TIMEOUT_SECONDS
+  - REPORT_TOOL_TIMEOUT_SECONDS
+  - REPORT__TOOL_TIMEOUT_SECONDS
+  description: Per-tool timeout for LangChain dossier tools; None disables timeouts.
 - path: runtime.log_level
   section: runtime
   type: str
@@ -759,6 +780,33 @@ fields:
   - STRUCTURED_BACKEND
   - STORAGE__STRUCTURED_BACKEND
   description: Structured + blob storage configuration.
+- path: tokenization.pepper
+  section: tokenization
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_TOKENIZATION__PEPPER
+  - TOKENIZATION_PEPPER
+  - TOKENIZATION__PEPPER
+  description: Deterministic tokenization controls for PII vault integration.
+- path: tokenization.pepper_version
+  section: tokenization
+  type: str
+  default: v1
+  env_vars:
+  - I4G_TOKENIZATION__PEPPER_VERSION
+  - TOKENIZATION_PEPPER_VERSION
+  - TOKENIZATION__PEPPER_VERSION
+  description: Deterministic tokenization controls for PII vault integration.
+- path: tokenization.require_pepper
+  section: tokenization
+  type: bool
+  default: true
+  env_vars:
+  - I4G_TOKENIZATION__REQUIRE_PEPPER
+  - TOKENIZATION_REQUIRE_PEPPER
+  - TOKENIZATION__REQUIRE_PEPPER
+  description: Deterministic tokenization controls for PII vault integration.
 - path: vector.backend
   section: vector
   type: Literal['chroma', 'faiss', 'pgvector', 'vertex_ai']
