@@ -8,6 +8,67 @@ The scenarios are split into two groups:
 - **GCP smoke tests** hit the deployed FastAPI gateway and Cloud Run jobs in the dev project (`i4g-dev`).
 - **UI smoke tests** boot the Next.js analyst console and verify core filters render (see below).
 
+## Vault Secrets Smoke (GCP)
+
+Use this to prove the vault secrets are present, readable via Workload Identity, and wired into Cloud Run before
+promotion. Run from the `proto/` repo root with an authenticated gcloud session that can impersonate the vault SAs.
+
+1. Verify or seed secret versions (dev example; reuse the same pepper in prod if deterministic cross-env tokens are
+   required):
+
+```bash
+gcloud secrets describe tokenization-pepper --project i4g-pii-vault-dev
+gcloud secrets describe pii-tokenization-key --project i4g-pii-vault-dev
+
+# If no versions exist, seed them (pepper example)
+PEPPER=$(openssl rand -base64 32)
+printf '%s' "$PEPPER" | gcloud secrets versions add tokenization-pepper \
+  --project i4g-pii-vault-dev \
+  --data-file=-
+
+# Optional app-level symmetric key
+KEY=$(openssl rand -base64 32)
+printf '%s' "$KEY" | gcloud secrets versions add pii-tokenization-key \
+  --project i4g-pii-vault-dev \
+  --data-file=-
+```
+
+2. Validate access via Workload Identity impersonation (replace the service account if needed):
+
+```bash
+python scripts/infra/verify_vault_secret_access.py \
+  --project i4g-pii-vault-dev \
+  --service-account sa-infra@i4g-pii-vault-dev.iam.gserviceaccount.com \
+  --secret-id tokenization-pepper \
+  --version latest
+```
+
+3. Wire secrets into Cloud Run dev (`fastapi-gateway`), pointing at the vault project (replace with `i4g-pii-vault-prod` for prod):
+
+```bash
+gcloud run services update fastapi-gateway \
+  --project i4g-dev \
+  --region us-central1 \
+  --service-account sa-app@i4g-dev.iam.gserviceaccount.com \
+  --set-secrets="I4G_TOKENIZATION__PEPPER=projects/i4g-pii-vault-dev/secrets/tokenization-pepper:latest,I4G_CRYPTO__PII_KEY=projects/i4g-pii-vault-dev/secrets/pii-tokenization-key:latest"
+```
+
+4. Cloud Run smoke (tokenization/detokenization round trip): invoke the dev service with a test payload and ensure the
+   response contains a token and the detokenized value matches. Replace `<url>` and headers to match the deployed API.
+
+```bash
+FASTAPI_BASE=https://fastapi-gateway-544936845045.us-central1.run.app
+PAYLOAD='{ "value": "user@example.com", "prefix": "EID" }'
+curl -s -H "Content-Type: application/json" -H "X-API-KEY: dev-analyst-token" \
+  -d "$PAYLOAD" "$FASTAPI_BASE/tokenize" | tee /tmp/tokenize.json
+TOKEN=$(jq -r '.token' /tmp/tokenize.json)
+curl -s -H "Content-Type: application/json" -H "X-API-KEY: dev-analyst-token" \
+  -d "{\"token\":\"$TOKEN\"}" "$FASTAPI_BASE/detokenize" | jq
+```
+
+Expected: tokenizer returns an `AAA-XXXXXXXX` token; detokenize returns the normalized value. Fail the smoke if secret
+access is denied, token is empty, or detokenize mismatches the input.
+
 ### Analyst console (Next.js) smoke
 
 Run these from the `ui/` repo root to validate the hybrid-search experience before shipping UI changes:

@@ -25,3 +25,22 @@ def test_tokenize_fields_combines_and_dedupes():
     fields = ["Trust Wallet", "Wallet address", "trust@example.com"]
     tokens = tokenize_fields(fields)
     assert tokens == ["trust", "wallet", "address", "trust@example.com"]
+
+
+def test_tokenize_text_records_observability():
+    class StubObservability:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def record_tokenization(self, **kwargs):
+            self.calls.append(kwargs)
+
+    observer = StubObservability()
+    tokens = tokenize_text("Tokenization check", pii_observability=observer, detector="unit")
+
+    assert tokens == ["tokenization", "check"]
+    assert observer.calls
+    recorded = observer.calls[0]
+    assert recorded["token_count"] == 2
+    assert recorded["field_count"] == 1
+    assert recorded["detector"] == "unit"

@@ -117,3 +117,9 @@ This catalog is assembled by `proto/scripts/export_settings_manifest.py` directl
 ```bash
 conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g-account-job
 ```
+
+## Vault-specific notes
+
+- Vault stacks use separate GCP projects (e.g., `i4g-pii-vault-dev`, `i4g-pii-vault-prod`). Set `I4G_SECRETS__PROJECT` to the vault project so Secret Manager lookups resolve there instead of the app project.
+- Tokenization and detokenization services should source KMS-wrapped peppers and related secrets from the vault project; avoid duplicating those secrets in app projects.
+- When adding new vault-related settings, update `src/i4g/settings/config.py`, extend `tests/unit/settings/`, and rerun `python scripts/export_settings_manifest.py --docs-repo ../docs` to refresh this page and the machine-readable manifests.

@@ -13,14 +13,73 @@
 #
 # Uncomment the sections below to promote a setting to the default layer.
 
+# env = "local"
+# project_root = "./"
+# data_dir = "./data"
+
+[runtime]
+# log_level = "INFO"
+
+[secrets]
+# use_secret_manager = true
+# project = "i4g-pii-vault-dev"
+# local_env_file = ".env.local"
+
+[api]
+# base_url = "http://127.0.0.1:8000"
+# key = "dev-analyst-token"
+
+[identity]
+# provider = "mock"
+# issuer = ""
+# client_id = ""
+# audience = ""
+# disable_auth = false
+
+[llm]
+# provider = "mock"
+# chat_model = "llama3"
+# temperature = 0.1
+# ollama_base_url = "http://127.0.0.1:11434"
+# vertex_ai_project = ""
+# vertex_ai_location = "us-central1"
+# vertex_ai_model = ""
+
+[observability]
+# structured_logging = true
+# statsd_host = "localhost"
+# statsd_port = 8125
+# statsd_prefix = "i4g"
+# otlp_endpoint = "http://localhost:4317"
+# service_name = "i4g-backend"
+# trace_sample_rate = 0.0
+
 [storage]
+# sqlite_path = "data/i4g_store.db"
 # firestore_project = "i4g-dev"
 # reports_bucket = "i4g-reports-dev"
+# evidence_bucket = "i4g-evidence-dev"
+# evidence_local_dir = "data/evidence"
+# structured_backend = "sqlite"
 
 [vector]
 # vertex_ai_project = "i4g-dev"
 # vertex_ai_data_store = "retrieval-poc"
 # vertex_ai_branch = "default_branch"
+# vertex_ai_location = "us-central1"
+# backend = "chroma"
+# chroma_dir = "data/chroma_store"
+# faiss_dir = "data/faiss_store"
+# embedding_model = "nomic-embed-text"
+# collection = "i4g_vectors"
+
+[report]
+# drive_parent_id = ""
+# hash_algorithm = "sha256"
+# max_cases_per_dossier = 5
+# recency_days = 30
+# min_loss_usd = 50000.0
+# require_cross_border = false
 
 [ingestion]
 # dataset_path = "data/retrieval_poc/cases.jsonl"
@@ -29,9 +88,16 @@
 # enable_firestore = true
 # enable_vertex = true
 # enable_vector_store = true
+# enable_sql = true
+# default_region = "us-central1"
+# scheduler_project = ""
+# reset_vector = false
+# dry_run = false
 
 [account_list]
 # drive_folder_id = "<drive-folder-id>"
+# default_formats = ["pdf", "xlsx"]
+# require_api_key = true
 
 [search]
 # semantic_weight = 0.65
@@ -40,6 +106,7 @@
 # indicator_types = ["bank_account", "crypto_wallet", "email", "phone", "ip_address"]
 # dataset_presets = ["retrieval_poc_dev", "account_list"]
 # classification_presets = ["romance", "pig_butcher", "tech_support"]
+# time_presets = ["7d", "30d", "90d"]
 
 [search.saved_search]
 # migration_tag = "hybrid-v1"

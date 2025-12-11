@@ -14,4 +14,11 @@
   ],
   "python.testing.pytestEnabled": false,
   "python.testing.unittestEnabled": true
+  ,
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/node_modules/**": true,
+    "**/ui/**": true,
+    "**/proto/data/**": true
+  }
 }
