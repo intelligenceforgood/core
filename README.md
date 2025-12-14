@@ -1,5 +1,10 @@
 # i4g/core
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![Docs](https://img.shields.io/badge/Docs-Docs%20Hub-green.svg)](docs/README.md)
+[![Tests](https://img.shields.io/badge/Tests-pytest-lightgrey.svg)](tests/README.md)
+
 Backend services, jobs, and documentation for the Intelligence for Good platform. This repo holds the FastAPI API, worker jobs, reports, settings, and the canonical docs. The Next.js portal lives in `ui/`, infra code in `infra/`, and planning artifacts in `planning/`.
 
 ## What this repo contains
