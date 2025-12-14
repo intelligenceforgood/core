@@ -123,6 +123,22 @@ def _hash_file(path: Path, algorithm: str) -> str:
     return h.hexdigest()
 
 
+def _resolve_artifact_path(raw_path: str | Path, base_dir: Path) -> Path:
+    """Return an absolute path for ``raw_path`` without double-prefixing ``base_dir``.
+
+    Some manifests already embed paths rooted at ``data/reports/dossiers``; in those
+    cases the path exists relative to the working directory and should not be
+    re-joined to ``base_dir``.
+    """
+
+    path = Path(raw_path)
+    if path.is_absolute():
+        return path
+    if path.exists():
+        return path.resolve()
+    return (base_dir / path).resolve()
+
+
 def verify_against_manifest(signature_manifest: Mapping[str, Any], base_dir: Path) -> None:
     algorithm = signature_manifest.get("algorithm", "sha256")
     artifacts = signature_manifest.get("artifacts") or []
@@ -133,9 +149,7 @@ def verify_against_manifest(signature_manifest: Mapping[str, Any], base_dir: Pat
         expected_hash = artifact.get("hash")
         if not rel_path or not expected_hash:
             continue
-        path = Path(rel_path)
-        if not path.is_absolute():
-            path = base_dir / path
+        path = _resolve_artifact_path(str(rel_path), base_dir)
         if not path.exists():
             raise SmokeError(f"Artifact missing for hash verification: {path}")
         actual_hash = _hash_file(path, algorithm)
