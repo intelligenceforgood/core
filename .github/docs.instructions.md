@@ -3,6 +3,10 @@ applyTo: "docs/**/*.md"
 ---
 # Project documentation writing guidelines
 
+Read order: start with [core/.github/work_routine.md](work_routine.md), then
+[core/.github/copilot-instructions.md](copilot-instructions.md). See
+[core/.github/general-coding.instructions.md](general-coding.instructions.md) for shared conventions.
+
 ## General Guidelines
 - Write clear and concise documentation.
 - Use consistent terminology and style.

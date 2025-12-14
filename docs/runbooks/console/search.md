@@ -34,7 +34,7 @@ console, refresh schema metadata, or migrate saved searches.
    - `loss_buckets`, `time_presets`, and `entity_examples`: power UI defaults and live previews.
 4. Share the JSON with UI engineers (drop the payload into `ui/apps/web/src/config/generated/` when schema-driven
    components need a local fixture). The latest reference is committed under `docs/examples/reviews_search_schema.json`.
-5. If a dataset or entity is missing, rerun the ingestion smoke in `docs/smoke_test.md#7-network-entities-ingestion-smoke-dev`
+5. If a dataset or entity is missing, rerun the ingestion smoke in `docs/cookbooks/smoke_test.md#7-network-entities-ingestion-smoke-dev`
    before opening a backend ticket.
 
 ## 2. Compose advanced hybrid searches via API
@@ -93,7 +93,7 @@ Run the Playwright smoke any time filters or payload contracts shift:
 pnpm --filter web test:smoke
 ```
 The script boots `next dev`, opens `/search`, submits a canned hybrid query, and ensures entity facets render. See
-`docs/smoke_test.md` for the extended checklist.
+`docs/cookbooks/smoke_test.md` for the extended checklist.
 
 ## 4. Saved-search migration playbook
 1. Set `[search.saved_search]` defaults in `config/settings.*.toml`. The CLI, Streamlit UI, and Next.js app all read from

@@ -80,5 +80,5 @@ so investigators can locate the files quickly.
 ## References
 - Console workflow: [`docs/runbooks/console/reports.md`](./console/reports.md)
 - Manifest verification helper: `src/i4g/reports/dossier_signatures.py`
-- Cloud Run smoke + regeneration steps: [`docs/smoke_test.md`](../smoke_test.md#8-dossier-queue-job-dev)
+- Cloud Run smoke + regeneration steps: [`docs/cookbooks/smoke_test.md`](../cookbooks/smoke_test.md#8-dossier-queue-job-dev)
 - Milestone tracker: [`planning/milestone4_agentic_evidence_dossiers.md`](../../planning/milestone4_agentic_evidence_dossiers.md)

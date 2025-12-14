@@ -11,7 +11,7 @@ The scenarios are split into two groups:
 ## Vault Secrets Smoke (GCP)
 
 Use this to prove the vault secrets are present, readable via Workload Identity, and wired into Cloud Run before
-promotion. Run from the `proto/` repo root with an authenticated gcloud session that can impersonate the vault SAs.
+promotion. Run from the `core/` repo root with an authenticated gcloud session that can impersonate the vault SAs.
 
 1. Verify or seed secret versions (dev example; reuse the same pepper in prod if deterministic cross-env tokens are
    required):

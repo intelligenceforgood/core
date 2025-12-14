@@ -1,243 +1,132 @@
-# Technical Design Document: i4g Production System
+# Technical Design Document (TDD)
 
-> **Version**: 1.0
-> **Last Updated**: October 30, 2025
-> **Owner**: Jerry Soung
-> **Status**: Design → Implementation
+**Version:** 2.0 • **Last Updated:** December 14, 2025
 
----
+**Purpose:** Implementation-level details and contracts that complement [architecture.md](architecture.md). Use this to build, test, and operate the current system. For high-level diagrams and deployment context, start with architecture.md. Review this document together with [architecture.md](architecture.md) whenever introducing or evaluating changes.
 
-## Document Purpose
+**Audience:** Software engineers, DevOps/SRE, security reviewers.
 
-This Technical Design Document (TDD) provides implementation-level details for the **i4g production system**. It translates the requirements from the [Production PRD](./prd_production.md) into concrete technical specifications, API contracts, database schemas, and deployment procedures.
-
-**Intended Audience**: Software engineers, DevOps, security auditors
-
----
-
-## System Architecture
-
-### High-Level C4 Context Diagram
-
-```mermaid
-C4Context
-    title System Context (C4 Level 1)
-
-    Person(user, "Scam User", "Submits evidence")
-    Person(analyst, "Volunteer Analyst", "Reviews cases")
-    Person(leo, "Law Enforcement", "Downloads reports")
-
-    System(i4g, "i4g Platform", "AI-powered scam reporting")
-
-    System_Ext(ollama, "Ollama LLM", "llama3.1 inference")
-    System_Ext(gcp, "Google Cloud Platform", "Firestore, Cloud Run, Storage")
-    System_Ext(email, "SendGrid", "Email notifications")
-
-    Rel(user, i4g, "Uploads evidence", "HTTPS")
-    Rel(analyst, i4g, "Reviews cases", "HTTPS + OAuth")
-    Rel(leo, i4g, "Requests reports", "HTTPS")
-
-    Rel(i4g, ollama, "Classifies scams", "HTTP")
-    Rel(i4g, gcp, "Stores data", "Firestore API")
-    Rel(i4g, email, "Sends notifications", "SMTP")
-```
+### Quick navigation
+- [Scope and goals](#1-scope-and-goals)
+- [System overview](#2-system-overview-how-this-complements-architecturemd)
+- [Core components](#3-core-components)
+- [Data stores and contracts](#4-data-stores-and-contracts)
+- [Configuration and environment](#5-configuration-and-environment)
+- [Ingestion flow](#6-ingestion-flow-canonical)
+- [APIs and contracts](#7-apis-and-contracts-current-surface)
+- [Data model and schemas](#8-data-model-and-schemas)
+- [Reports and dossiers](#9-reports-and-dossiers)
+- [Deployment profiles](#10-deployment-profiles)
+- [Security and compliance](#11-security-and-compliance)
+- [Testing and validation](#12-testing-and-validation)
 
 ---
 
-You now maintain two experience surfaces on top of this context. The **Next.js portal** is the production-facing path for victims, volunteer analysts, and law enforcement officers, while the **Streamlit operations console** is restricted to internal developers and sys-admins for analytics, dashboards, and rapid experiments. Both clients call the same FastAPI backend so authorization, audit logging, and privacy controls stay consistent.
+## 1) Scope and Goals
+- Document the active design: hybrid search, dual-write ingestion, tokenization/PII vault, Next.js portal, and FastAPI backend.
+- Capture contracts: settings/env, data stores, APIs, and background jobs.
+- Provide implementation notes that are stable enough for code, tests, and runbooks.
 
-### Container Diagram (C4 Level 2)
+Out of scope: legacy Azure flow and deprecated endpoints; refer to planning archive if needed.
 
-```mermaid
-C4Container
-    title Container Diagram
+## 2) System Overview (how this complements architecture.md)
+- **Architecture.md** supplies diagrams, deployment profiles, and guiding principles.
+- **This TDD** adds concrete implementation details and contracts: APIs, data model schemas, request/response shapes, toggles, and operational defaults.
 
-  Container(portal, "Next.js Portal", "Node.js", "Victim/analyst/LEO UI")
-  Container(streamlit, "Streamlit Ops Console", "Python", "Internal analytics + dashboards")
-    Container(api, "FastAPI Backend", "Python + LangChain", "REST API")
-    Container(ollama_c, "Ollama", "Docker", "LLM inference")
+## 3) Core Components
+- **FastAPI backend** (`src/i4g/api/*`): REST endpoints for ingestion, search, reviews, tasks, and reports.
+- **Next.js portal** (ui/apps/web): primary analyst/victim/LEO UI; consumes the same API contracts documented here.
+- **Streamlit ops console**: retained for internal dashboards; shares backend contracts.
+- **Background jobs** (`src/i4g/worker/jobs/*`, `src/i4g/worker/tasks.py`): ingestion, report generation, dossier queue.
+- **Ingestion pipeline** (`src/i4g/store/ingest.py`): structured store write + SQL dual-write + optional vector/Vertex + optional Firestore fan-out; tokenization on/off via settings.
+- **Retrieval** (Hybrid): merges vector results and SQL entity filters; uses structured entities + embeddings.
+- **Reports/Dossiers** (`src/i4g/reports/*`): manifest generation, signatures, and packaging for LEA handoff.
 
-    ContainerDb(firestore, "Firestore", "NoSQL", "Case data + PII vault")
-    ContainerDb(chroma, "ChromaDB", "Vector DB", "RAG embeddings")
-    ContainerDb(gcs, "Cloud Storage", "Blob", "Evidence files")
+## 4) Data Stores and Contracts
+- **Structured store** (`src/i4g/store/structured.py`): SQLite (default) records for console reads; mirrors ingestion payloads.
+- **SQL dual-write** (`src/i4g/store/sql.py`): tables for cases, entities, documents, indicators, ingestion runs, retry queue. Key tables/fields:
+  - `cases(case_id, dataset, classification, confidence, raw_text_sha256, status, metadata)`
+  - `entities(entity_id, case_id, entity_type, canonical_value, raw_value, confidence)` (unique per case/type/value)
+  - `source_documents(document_id, case_id, title, source_url, mime_type, text, chunk_index)`
+  - `indicators` for structured filters; `ingestion_runs` for metrics; `ingestion_retry_queue` for fan-out retries.
+- **Vector store**: default Chroma (`vector.backend=chroma`, `vector.chroma_dir=data/chroma_store`); Vertex AI or pgvector planned via factories. Stores chunked text embeddings keyed by `case_id`/document.
+- **Tokenization/PII vault** (`src/i4g/pii/tokenization.py`, `src/i4g/store/pii_token_store.py`): deterministic tokens with pepper + optional encryption key; stored in SQLite; prefixes per entity type (IPA, ASN, BFP, etc.).
+- **Artifacts**: reports and evidence in `data/` locally; Cloud Storage buckets in managed profiles.
 
-  Rel(portal, api, "API calls", "HTTPS/JSON")
-  Rel(streamlit, api, "API calls + service helpers", "HTTPS/JSON")
-    Rel(api, firestore, "CRUD", "Firestore SDK")
-    Rel(api, chroma, "Vector search", "HTTP")
-    Rel(api, gcs, "Upload/download", "GCS SDK")
-    Rel(api, ollama_c, "LLM inference", "HTTP")
-```
+## 5) Configuration and Environment
+- Load settings via `i4g.settings.get_settings()`; overrides: `config/settings.*.toml` → `.env.local` → `I4G_*` env vars (double underscores for nesting).
+- Key toggles (ingestion):
+  - `ingestion.enable_sql` (dual-write tables)
+  - `ingestion.enable_vector_store`
+  - `ingestion.enable_vertex`
+  - `ingestion.enable_firestore`
+  - `ingestion.enable_tokenization`
+  - `ingestion.default_dataset`
+- Paths: `storage.sqlite_path`, `vector.chroma_dir`, `ingestion.dataset_path`, `data/` assets seeded via `scripts/bootstrap_local_sandbox.py --reset`.
+- Secrets: prefer Secret Manager in managed envs; local `.env.local` for pepper/key (`I4G_TOKENIZATION__PEPPER`, `I4G_CRYPTO__PII_KEY`).
 
----
+## 6) Ingestion Flow (canonical)
+1. **Input normalization**: `prepare_ingest_payload()` merges text, entities, structured fields, network entities, metadata, dataset.
+2. **Tokenization (optional)**: if `enable_tokenization` true, `TokenizationService.tokenize_entities()` replaces entity values with deterministic tokens and stores canonical values in the PII vault.
+3. **Structured write**: `StructuredStore.upsert_record()` persists the `ScamRecord` for console reads.
+4. **Case bundle build**: `build_case_bundle()` assembles `CasePayload`, `SourceDocumentPayload`, `EntityPayload` from classification result and metadata.
+5. **SQL dual-write**: `SqlWriter.persist_case_bundle()` writes cases/entities/documents; controlled by `enable_sql`.
+6. **Vector write**: `vector_store.add_records()` writes embeddings when vector enabled; Vertex writer optional.
+7. **Optional fan-out**: Firestore/Vertex fan-out gated by settings and env (and builder availability).
+8. **Retry**: ingestion retry queue (SQL table) for downstream fan-out errors.
 
-## API Specifications
+## 7) APIs and Contracts (current surface)
+- **Search/Reviews**
+  - `POST /reviews/search` and `GET /reviews/search/schema`; payload matches `HybridSearchRequest` (text + vector/structured filters).
+  - `GET /reviews/{id}` returns case/review details with entity annotations; aligns with SQL + structured store schema.
+  - Saved searches: stored per owner/shared; schema driven by `search.saved_search` settings; admin CLI `i4g-admin export/import`.
+- **Tasks/Status**
+  - `GET /tasks/{task_id}` for job state (ingestion/report jobs); used by UI for progress.
+- **Tokenization (internal/admin)**
+  - `POST /tokenize` (if exposed) for deterministic tokens using configured pepper/key. Preferred usage is via ingestion.
+- **Reports/Dossiers**
+  - Report generation entrypoints map to worker tasks; dossiers produced by queue jobs and surfaced in console.
+- **Ingestion jobs**
+  - CLI/Cloud Run jobs (`i4g-ingest-job`, `i4g-intake-job`) consume normalized ingestion payloads (`prepare_ingest_payload` contract).
 
-### Base URL
-- **Production**: `https://api.i4g.org`
-- **Staging**: `https://api-staging.i4g.org`
+## 8) Data Model and Schemas
+- **Structured store record** (`ScamRecord`): `case_id`, `text`, `entities{type:[value]}`, `classification`, `confidence`, `metadata`.
+- **SQL dual-write tables** (see `src/i4g/store/sql.py`):
+  - `cases`: dataset, classification, confidence, raw_text_sha256, status, metadata.
+  - `entities`: entity_type, canonical_value, raw_value, confidence (unique per case/type/value).
+  - `source_documents`: text chunks, mime, source_url, chunk_index/count.
+  - `indicators`: structured signals (email/phone/ip/crypto/wallet/etc.).
+  - `ingestion_runs`: run metadata and counts; `ingestion_retry_queue`: fan-out retries.
+- **Vector store payload**: chunked text with case_id/document_id; embeddings stored in Chroma by default.
+- **Tokenization store**: `pii_tokens` table via `PiiTokenStore` with token, prefix, digest, normalized_value, canonical_value, detector, case_id, created_at.
+- **Saved search schema**: JSON schema at `/reviews/search/schema`; snapshot at `docs/examples/reviews_search_schema.json`.
 
-### Authentication
-All authenticated endpoints require:
-```
-Authorization: Bearer <JWT_TOKEN>
-```
+## 9) Reports and Dossiers
+- **Generation**: `generate_report_for_case` and dossier queue workers produce manifests and signed bundles.
+- **Signatures**: manifests hashed and signed; verification helper in `src/i4g/reports/dossier_signatures.py`.
+- **Handoff**: runbooks in `docs/runbooks/console/reports.md` and `docs/runbooks/dossiers_subpoena_handoff.md`.
 
-JWT payload:
-```json
-{
-  "sub": "google_oauth_uid",
-  "email": "analyst@university.edu",
-  "role": "analyst",
-  "exp": 1699024800
-}
-```
+## 10) Deployment Profiles
+- **Managed (Cloud Run/GCP)**: Firestore/Cloud Storage, Secret Manager, Vertex optional; Workload Identity; IAP for portals.
+- **Local**: SQLite + Chroma, mock identity, `.env.local` secrets, scheduled jobs off; run via `uvicorn i4g.api.app:app --reload` and cookbooks in `docs/cookbooks/`.
+- Settings remain identical across profiles; swapping is env + config only.
 
----
+## 11) Security & Privacy
+- PII tokenization with pepper and optional encryption; tokens logged, not raw PII.
+- Access control: Identity Platform/IAP (managed), mock tokens (local). Audit logging via store log actions.
+- Secrets management: Secret Manager in managed envs; avoid embedding secrets in code/docs.
+- Data residency: artifacts under `data/` locally; buckets per env; avoid cross-env leakage when reusing peppers.
 
-### Endpoint: `POST /api/cases`
+## 12) Testing & Quality
+- Unit/contract tests in `tests/unit/`; settings/env overrides covered in `tests/unit/settings/`.
+- Smokes and recipes: `docs/cookbooks/smoke_test.md`, `docs/cookbooks/bootstrap_sandbox.md`.
+- Runbooks: `docs/runbooks/` for operational checks; Playwright smokes in `ui/` for console.
+- Before releases: follow `docs/release/README.md` checklist; regenerate settings manifests when toggles change (`scripts/export_settings_manifest.py`).
 
-**Description**: Submit a new scam case
-
-**Authentication**: Optional (users don't need accounts)
-
-**Request Body**:
-```json
-{
-  "title": "Romance scam - lost $10K",
-  "description": "I met someone on a dating app. They asked for money...",
-  "user_email": "user@example.com",
-  "evidence_files": [
-    {
-      "filename": "chat_screenshot.png",
-      "content": "base64_encoded_data",
-      "mime_type": "image/png"
-    }
-  ]
-}
-```
-
-**Response** (201 Created):
-```json
-{
-  "case_id": "uuid-v4",
-  "status": "pending_review",
-  "created_at": "2025-10-30T12:00:00Z",
-  "message": "Case submitted successfully. You will receive an email when reviewed."
-}
-```
-
-**PII Tokenization Flow**:
-1. Extract PII from `description` using regex + LLM
-2. Encrypt PII with AES-256-GCM → store in `/pii_vault`
-3. Replace PII in description with tokens: `<PII:SSN:7a8f2e>`
-4. Store tokenized case in `/cases`
-
----
-
-### Endpoint: `GET /api/cases`
-
-**Description**: List cases assigned to authenticated analyst
-
-**Authentication**: Required (analyst or admin)
-
-**Query Parameters**:
-- `status` (optional): Filter by `pending_review`, `in_progress`, `resolved`
-- `limit` (default: 20): Max results per page
-- `offset` (default: 0): Pagination offset
-
-**Response** (200 OK):
-```json
-{
-  "cases": [
-    {
-      "case_id": "uuid-v4",
-      "title": "Romance scam - lost $10K",
-      "status": "pending_review",
-      "created_at": "2025-10-30T12:00:00Z",
-      "classification": {
-        "type": "Romance Scam",
-        "confidence": 0.92
-      }
-    }
-  ],
-  "total": 42,
-  "limit": 20,
-  "offset": 0
-}
-```
-
-**Note**: `description` field is NOT included in list view (performance). Use `GET /api/cases/{case_id}` for full details.
-
----
-
-### Endpoint: `GET /api/cases/{case_id}`
-
-**Description**: Get full case details (PII masked for analysts)
-
-**Authentication**: Required
-
-**Response** (200 OK):
-```json
-{
-  "case_id": "uuid-v4",
-  "title": "Romance scam - lost $10K",
-  "description": "I met someone on a dating app. My SSN is ███████ and I sent $10,000 to...",
-  "user_email": "user@example.com",
-  "status": "pending_review",
-  "assigned_to": "analyst_uid_123",
-  "classification": {
-    "type": "Romance Scam",
-    "confidence": 0.92,
-    "llm_model": "llama3.1"
-  },
-  "evidence_files": [
-    {
-      "filename": "chat_screenshot.png",
-      "url": "https://storage.googleapis.com/i4g-evidence/2025/10/30/abc123.png",
-      "mime_type": "image/png",
-      "size_bytes": 102400
-    }
-  ],
-  "notes": [
-    {
-      "author": "analyst_uid_123",
-      "author_name": "Jane Doe",
-      "text": "Verified wire transfer receipt. Scammer used fake profile.",
-      "timestamp": "2025-10-30T14:30:00Z"
-    }
-  ],
-  "created_at": "2025-10-30T12:00:00Z",
-  "updated_at": "2025-10-30T14:30:00Z"
-}
-```
-
-**PII Masking Logic**:
-- Analysts see: `███████` (7 black squares)
-- Admins see: `<PII:SSN:7a8f2e>` (token for debugging)
-- LEO reports see: `123-45-6789` (real PII with user consent)
-
----
-
-### Endpoint: `PATCH /api/cases/{case_id}`
-
-**Description**: Update case status or assignment
-
-**Authentication**: Required (analyst or admin)
-
-**Request Body**:
-```json
-{
-  "status": "in_progress",
-  "assigned_to": "analyst_uid_456"
-}
-```
-
-**Response** (200 OK):
-```json
-{
-  "case_id": "uuid-v4",
-  "status": "in_progress",
+## 13) Open Follow-Ups
+- Add pgvector/Vertex AI vector backends to parity with Chroma in factories.
+- Refresh saved-search schema snapshot and ensure UI fixtures stay aligned.
+- Expand TDD API section with up-to-date request/response samples for search/tasks/intake once stabilized.
   "assigned_to": "analyst_uid_456",
   "updated_at": "2025-10-30T15:00:00Z"
 }

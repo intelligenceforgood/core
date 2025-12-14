@@ -38,9 +38,9 @@ INTRO_TEXT = (
     "the file via `direnv` or the built-in dotenv loader.\n"
     "4. Keep `I4G_ENV=local` for sandbox testing; other values assume GCP services (Firestore, Cloud Storage, Vertex AI) "
     "are reachable.\n"
-    "5. Machine-readable manifests live next to this page (`docs/config/settings_manifest.{json,yaml}` in proto, "
+    "5. Machine-readable manifests live next to this page (`docs/config/settings_manifest.{json,yaml}` in core, "
     "`config/settings.yaml` in the docs site) for automation and CI validation.\n\n"
-    "This catalog is assembled by `proto/scripts/export_settings_manifest.py` directly from "
+    "This catalog is assembled by `core/scripts/export_settings_manifest.py` directly from "
     "`src/i4g/settings/config.py`. The descriptions below are automatically generated—do not hand-edit them; change the "
     "implementation defaults and rerun the exporter instead."
 )

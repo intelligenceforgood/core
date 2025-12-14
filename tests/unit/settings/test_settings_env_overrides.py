@@ -267,6 +267,25 @@ def test_tokenization_env_overrides(monkeypatch: object) -> None:
     assert overridden.tokenization.require_pepper is False
 
 
+def test_ingestion_tokenization_env_override(monkeypatch: object) -> None:
+    """Ingestion tokenization toggle should honor environment variables."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_INGESTION__ENABLE_TOKENIZATION",
+        "INGESTION_ENABLE_TOKENIZATION",
+        "I4G_ENV",
+    )
+
+    defaults = reload_settings(env="dev")
+    assert defaults.ingestion.enable_tokenization is False
+
+    _set_env(monkeypatch, "I4G_INGESTION__ENABLE_TOKENIZATION", "true")
+
+    overridden = reload_settings(env="dev")
+    assert overridden.ingestion.enable_tokenization is True
+
+
 def test_ingestion_local_config_dataset_override(tmp_path, monkeypatch: object) -> None:
     """Local config files should override the ingestion default dataset."""
 
@@ -428,11 +447,11 @@ def test_observability_statsd_env_overrides(monkeypatch: object) -> None:
 
     _set_env(monkeypatch, "I4G_OBSERVABILITY__STATSD_HOST", "127.0.0.1")
     _set_env(monkeypatch, "I4G_OBSERVABILITY__STATSD_PORT", "18125")
-    _set_env(monkeypatch, "I4G_OBSERVABILITY__STATSD_PREFIX", "proto")
+    _set_env(monkeypatch, "I4G_OBSERVABILITY__STATSD_PREFIX", "core")
     _set_env(monkeypatch, "I4G_OBSERVABILITY__SERVICE_NAME", "hybrid-search")
 
     overridden = reload_settings(env="dev")
     assert overridden.observability.statsd_host == "127.0.0.1"
     assert overridden.observability.statsd_port == 18125
-    assert overridden.observability.statsd_prefix == "proto"
+    assert overridden.observability.statsd_prefix == "core"
     assert overridden.observability.service_name == "hybrid-search"

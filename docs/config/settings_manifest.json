@@ -1,5 +1,5 @@
 {
-  "generated_at": "2025-12-11T16:41:28.034175+00:00",
+  "generated_at": "2025-12-14T18:15:17.152032+00:00",
   "source": "src/i4g/settings/config.py",
   "env_prefix": "I4G_",
   "fields": [
@@ -153,7 +153,7 @@
       "path": "data_dir",
       "section": "data_dir",
       "type": "Path",
-      "default": "/Users/jerry/Work/project/i4g/proto/data",
+      "default": "/Users/jerry/Work/project/i4g/core/data",
       "env_vars": [
         "I4G_DATA_DIR"
       ],
@@ -250,7 +250,7 @@
       "path": "ingestion.dataset_path",
       "section": "ingestion",
       "type": "Path",
-      "default": "/Users/jerry/Work/project/i4g/proto/data/retrieval_poc/cases.jsonl",
+      "default": "/Users/jerry/Work/project/i4g/core/data/retrieval_poc/cases.jsonl",
       "env_vars": [
         "I4G_INGESTION__DATASET_PATH",
         "INGEST_JSONL_PATH",
@@ -349,6 +349,20 @@
         "INGEST__ENABLE_SQL",
         "INGESTION_ENABLE_SQL",
         "INGESTION__ENABLE_SQL"
+      ],
+      "description": "Scheduler + job configuration for ingestion workflows."
+    },
+    {
+      "path": "ingestion.enable_tokenization",
+      "section": "ingestion",
+      "type": "bool",
+      "default": false,
+      "env_vars": [
+        "I4G_INGESTION__ENABLE_TOKENIZATION",
+        "INGEST_ENABLE_TOKENIZATION",
+        "INGEST__ENABLE_TOKENIZATION",
+        "INGESTION_ENABLE_TOKENIZATION",
+        "INGESTION__ENABLE_TOKENIZATION"
       ],
       "description": "Scheduler + job configuration for ingestion workflows."
     },
@@ -620,7 +634,7 @@
       "path": "project_root",
       "section": "project_root",
       "type": "Path",
-      "default": "/Users/jerry/Work/project/i4g/proto",
+      "default": "/Users/jerry/Work/project/i4g/core",
       "env_vars": [
         "I4G_PROJECT_ROOT",
         "PROJECT_ROOT",
@@ -965,7 +979,7 @@
       "path": "storage.evidence_local_dir",
       "section": "storage",
       "type": "Path",
-      "default": "/Users/jerry/Work/project/i4g/proto/data/evidence",
+      "default": "/Users/jerry/Work/project/i4g/core/data/evidence",
       "env_vars": [
         "I4G_STORAGE__EVIDENCE_LOCAL_DIR",
         "STORAGE_EVIDENCE_LOCAL_DIR",
@@ -1011,7 +1025,7 @@
       "path": "storage.sqlite_path",
       "section": "storage",
       "type": "Path",
-      "default": "/Users/jerry/Work/project/i4g/proto/data/i4g_store.db",
+      "default": "/Users/jerry/Work/project/i4g/core/data/i4g_store.db",
       "env_vars": [
         "I4G_STORAGE__SQLITE_PATH"
       ],
@@ -1081,7 +1095,7 @@
       "path": "vector.chroma_dir",
       "section": "vector",
       "type": "Path",
-      "default": "/Users/jerry/Work/project/i4g/proto/data/chroma_store",
+      "default": "/Users/jerry/Work/project/i4g/core/data/chroma_store",
       "env_vars": [
         "I4G_VECTOR__CHROMA_DIR"
       ],
@@ -1115,7 +1129,7 @@
       "path": "vector.faiss_dir",
       "section": "vector",
       "type": "Path",
-      "default": "/Users/jerry/Work/project/i4g/proto/data/faiss_store",
+      "default": "/Users/jerry/Work/project/i4g/core/data/faiss_store",
       "env_vars": [
         "I4G_VECTOR__FAISS_DIR",
         "VECTOR_FAISS_DIR",

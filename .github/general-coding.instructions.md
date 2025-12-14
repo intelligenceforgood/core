@@ -1,5 +1,10 @@
 # General Coding Guidelines
 
+Read order: start with [core/.github/work_routine.md](work_routine.md), then
+[core/.github/copilot-instructions.md](copilot-instructions.md). Refer to
+[core/.github/chat-instructions.md](chat-instructions.md) for TS/React specifics and
+[core/.github/docs.instructions.md](docs.instructions.md) for docs rules.
+
 - Rehydrate each session with `.github/work_routine.md` and `planning/change_log.md`, then run `git status -sb` and work inside the `i4g` Conda env (`conda run -n i4g ...`).
 - Prefer configuration-driven code: fetch settings through `i4g.settings.get_settings()` and honor the environment-aware factories in `src/i4g/services/factories.py`.
 - Keep edits ASCII unless a file already depends on Unicode, and never revert user-authored changes without explicit direction.

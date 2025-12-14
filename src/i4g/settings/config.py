@@ -39,7 +39,7 @@ def _detect_project_root() -> Path:
         marker = parent / "pyproject.toml"
         if marker.exists() and (parent / "src").exists():
             return parent
-    # Fallback to the historical layout (proto/src/i4g/settings/.. => repo root at parents[3]).
+    # Fallback to the historical layout (core/src/i4g/settings/.. => repo root at parents[3]).
     return resolved.parents[3]
 
 
@@ -457,6 +457,15 @@ class IngestionSettings(BaseSettings):
             "INGEST__ENABLE_VECTOR",
             "INGESTION_ENABLE_VECTOR",
             "INGESTION__ENABLE_VECTOR",
+        ),
+    )
+    enable_tokenization: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "INGEST_ENABLE_TOKENIZATION",
+            "INGEST__ENABLE_TOKENIZATION",
+            "INGESTION_ENABLE_TOKENIZATION",
+            "INGESTION__ENABLE_TOKENIZATION",
         ),
     )
     dataset_path: Path = Field(

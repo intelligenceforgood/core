@@ -154,6 +154,7 @@ class IngestPipeline:
         default_dataset: Optional[str] = None,
         vertex_writer: Optional["VertexDocumentWriter"] = None,
         firestore_writer: Optional["FirestoreWriter"] = None,
+        enable_tokenization: bool | None = None,
         tokenization_service: "TokenizationService | None" = None,
     ) -> None:
         """Initialize pipeline with store instances.
@@ -179,10 +180,15 @@ class IngestPipeline:
         self._firestore_enabled = (
             enable_firestore if enable_firestore is not None else ingestion_settings.enable_firestore
         )
+        self._tokenization_enabled = (
+            enable_tokenization if enable_tokenization is not None else ingestion_settings.enable_tokenization
+        )
         self.sql_writer: Optional[SqlWriter]
         self.vertex_writer: Optional["VertexDocumentWriter"] = None
         self.firestore_writer: Optional["FirestoreWriter"] = None
-        self.tokenization_service = tokenization_service or build_tokenization_service()
+        self.tokenization_service = (tokenization_service if self._tokenization_enabled else None) or (
+            build_tokenization_service() if self._tokenization_enabled else None
+        )
 
         if vector_store is not None:
             self.vector_store = vector_store
@@ -257,7 +263,7 @@ class IngestPipeline:
         case_id = classification_result.get("case_id") or str(uuid.uuid4())
         payload = dict(classification_result)
 
-        if self.tokenization_service is not None:
+        if self._tokenization_enabled and self.tokenization_service is not None:
             try:
                 tokenized_entities = self.tokenization_service.tokenize_entities(
                     payload.get("entities"),

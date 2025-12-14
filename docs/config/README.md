@@ -14,9 +14,9 @@ Usage guidance for developers and sysadmins:
 2. When adding or changing a setting, update `src/i4g/settings/config.py`, extend `tests/unit/settings/`, and rerun `python scripts/export_settings_manifest.py` (pass `--docs-repo ../docs` when the docs checkout is available) before committing.
 3. Store credentials in `.env.local` or Secret Manager rather than committing secrets here; laptop runs can source the file via `direnv` or the built-in dotenv loader.
 4. Keep `I4G_ENV=local` for sandbox testing; other values assume GCP services (Firestore, Cloud Storage, Vertex AI) are reachable.
-5. Machine-readable manifests live next to this page (`docs/config/settings_manifest.{json,yaml}` in proto, `config/settings.yaml` in the docs site) for automation and CI validation.
+5. Machine-readable manifests live next to this page (`docs/config/settings_manifest.{json,yaml}` in core, `config/settings.yaml` in the docs site) for automation and CI validation.
 
-This catalog is assembled by `proto/scripts/export_settings_manifest.py` directly from `src/i4g/settings/config.py`. The descriptions below are automatically generated—do not hand-edit them; change the implementation defaults and rerun the exporter instead.
+This catalog is assembled by `core/scripts/export_settings_manifest.py` directly from `src/i4g/settings/config.py`. The descriptions below are automatically generated—do not hand-edit them; change the implementation defaults and rerun the exporter instead.
 
 | Section | Setting | Env Vars | Type | Default | Description |
 | --- | --- | --- | --- | --- | --- |
@@ -32,7 +32,7 @@ This catalog is assembled by `proto/scripts/export_settings_manifest.py` directl
 | api | `api.base_url` | `I4G_API__BASE_URL`<br />`API_URL`<br />`API__BASE_URL` | `str` | `http://127.0.0.1:8000` | API endpoint configuration shared by CLI + dashboards. |
 | api | `api.key` | `I4G_API__KEY`<br />`API_KEY`<br />`API__KEY` | `str` | `dev-analyst-token` | API endpoint configuration shared by CLI + dashboards. |
 | crypto | `crypto.pii_key` | `I4G_CRYPTO__PII_KEY`<br />`CRYPTO_PII_KEY`<br />`CRYPTO__PII_KEY`<br />`TOKENIZATION_PII_KEY`<br />`TOKENIZATION__PII_KEY` | `str &#124; NoneType` | `None` | Application-level cryptographic material used by vault/tokenization flows. |
-| data_dir | `data_dir` | `I4G_DATA_DIR` | `Path` | `/Users/jerry/Work/project/i4g/proto/data` | Top-level configuration model with nested sections for each subsystem. |
+| data_dir | `data_dir` | `I4G_DATA_DIR` | `Path` | `/Users/jerry/Work/project/i4g/core/data` | Top-level configuration model with nested sections for each subsystem. |
 | env | `env` | `I4G_ENV`<br />`ENV`<br />`ENVIRONMENT`<br />`RUNTIME__ENV` | `str` | `local` | Top-level configuration model with nested sections for each subsystem. |
 | identity | `identity.audience` | `I4G_IDENTITY__AUDIENCE`<br />`IDENTITY_AUDIENCE`<br />`IDENTITY__AUDIENCE` | `str &#124; NoneType` | `None` | Identity provider wiring for auth-enabled services. |
 | identity | `identity.client_id` | `I4G_IDENTITY__CLIENT_ID`<br />`IDENTITY_CLIENT_ID`<br />`IDENTITY__CLIENT_ID` | `str &#124; NoneType` | `None` | Identity provider wiring for auth-enabled services. |
@@ -40,7 +40,7 @@ This catalog is assembled by `proto/scripts/export_settings_manifest.py` directl
 | identity | `identity.issuer` | `I4G_IDENTITY__ISSUER`<br />`IDENTITY_ISSUER`<br />`IDENTITY__ISSUER` | `str &#124; NoneType` | `None` | Identity provider wiring for auth-enabled services. |
 | identity | `identity.provider` | `I4G_IDENTITY__PROVIDER`<br />`IDENTITY_PROVIDER`<br />`IDENTITY__PROVIDER` | `Literal['mock', 'google_identity', 'authentik', 'firebase']` | `mock` | Identity provider wiring for auth-enabled services. |
 | ingestion | `ingestion.batch_limit` | `I4G_INGESTION__BATCH_LIMIT`<br />`INGEST_BATCH_LIMIT`<br />`INGEST__BATCH_LIMIT`<br />`INGESTION_BATCH_LIMIT`<br />`INGESTION__BATCH_LIMIT` | `int` | `0` | Scheduler + job configuration for ingestion workflows. |
-| ingestion | `ingestion.dataset_path` | `I4G_INGESTION__DATASET_PATH`<br />`INGEST_JSONL_PATH`<br />`INGEST__JSONL_PATH`<br />`INGESTION_JSONL_PATH`<br />`INGESTION__JSONL_PATH` | `Path` | `/Users/jerry/Work/project/i4g/proto/data/retrieval_poc/cases.jsonl` | Scheduler + job configuration for ingestion workflows. |
+| ingestion | `ingestion.dataset_path` | `I4G_INGESTION__DATASET_PATH`<br />`INGEST_JSONL_PATH`<br />`INGEST__JSONL_PATH`<br />`INGESTION_JSONL_PATH`<br />`INGESTION__JSONL_PATH` | `Path` | `/Users/jerry/Work/project/i4g/core/data/retrieval_poc/cases.jsonl` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.default_dataset` | `I4G_INGESTION__DEFAULT_DATASET`<br />`INGEST_DEFAULT_DATASET`<br />`INGEST__DEFAULT_DATASET`<br />`INGESTION_DEFAULT_DATASET`<br />`INGESTION__DEFAULT_DATASET` | `str` | `unknown` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.default_region` | `I4G_INGESTION__DEFAULT_REGION`<br />`INGESTION_DEFAULT_REGION`<br />`INGESTION__DEFAULT_REGION` | `str` | `us-central1` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.default_service_account` | `I4G_INGESTION__DEFAULT_SERVICE_ACCOUNT`<br />`INGESTION_SERVICE_ACCOUNT`<br />`INGESTION__SERVICE_ACCOUNT` | `str &#124; NoneType` | `None` | Scheduler + job configuration for ingestion workflows. |
@@ -48,6 +48,7 @@ This catalog is assembled by `proto/scripts/export_settings_manifest.py` directl
 | ingestion | `ingestion.enable_firestore` | `I4G_INGESTION__ENABLE_FIRESTORE`<br />`INGEST_ENABLE_FIRESTORE`<br />`INGEST__ENABLE_FIRESTORE`<br />`INGESTION_ENABLE_FIRESTORE`<br />`INGESTION__ENABLE_FIRESTORE` | `bool` | `False` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.enable_scheduled_jobs` | `I4G_INGESTION__ENABLE_SCHEDULED_JOBS`<br />`INGESTION_ENABLE_SCHEDULED_JOBS`<br />`INGESTION__ENABLE_SCHEDULED_JOBS` | `bool` | `False` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.enable_sql` | `I4G_INGESTION__ENABLE_SQL`<br />`INGEST_ENABLE_SQL`<br />`INGEST__ENABLE_SQL`<br />`INGESTION_ENABLE_SQL`<br />`INGESTION__ENABLE_SQL` | `bool` | `True` | Scheduler + job configuration for ingestion workflows. |
+| ingestion | `ingestion.enable_tokenization` | `I4G_INGESTION__ENABLE_TOKENIZATION`<br />`INGEST_ENABLE_TOKENIZATION`<br />`INGEST__ENABLE_TOKENIZATION`<br />`INGESTION_ENABLE_TOKENIZATION`<br />`INGESTION__ENABLE_TOKENIZATION` | `bool` | `False` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.enable_vector_store` | `I4G_INGESTION__ENABLE_VECTOR_STORE`<br />`INGEST_ENABLE_VECTOR`<br />`INGEST__ENABLE_VECTOR`<br />`INGESTION_ENABLE_VECTOR`<br />`INGESTION__ENABLE_VECTOR` | `bool` | `True` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.enable_vertex` | `I4G_INGESTION__ENABLE_VERTEX`<br />`INGEST_ENABLE_VERTEX`<br />`INGEST__ENABLE_VERTEX`<br />`INGESTION_ENABLE_VERTEX`<br />`INGESTION__ENABLE_VERTEX` | `bool` | `False` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.fanout_timeout_seconds` | `I4G_INGESTION__FANOUT_TIMEOUT_SECONDS`<br />`INGEST_FANOUT_TIMEOUT_SECONDS`<br />`INGEST__FANOUT_TIMEOUT_SECONDS`<br />`INGESTION_FANOUT_TIMEOUT_SECONDS`<br />`INGESTION__FANOUT_TIMEOUT_SECONDS` | `int` | `60` | Scheduler + job configuration for ingestion workflows. |
@@ -69,7 +70,7 @@ This catalog is assembled by `proto/scripts/export_settings_manifest.py` directl
 | observability | `observability.statsd_prefix` | `I4G_OBSERVABILITY__STATSD_PREFIX`<br />`OBS_STATSD_PREFIX`<br />`OBSERVABILITY__STATSD_PREFIX` | `str` | `i4g` | Logging, tracing, and metrics configuration. |
 | observability | `observability.structured_logging` | `I4G_OBSERVABILITY__STRUCTURED_LOGGING`<br />`OBS_STRUCTURED_LOGGING`<br />`OBSERVABILITY__STRUCTURED_LOGGING` | `bool` | `True` | Logging, tracing, and metrics configuration. |
 | observability | `observability.trace_sample_rate` | `I4G_OBSERVABILITY__TRACE_SAMPLE_RATE`<br />`OBS_TRACE_SAMPLE_RATE`<br />`OBSERVABILITY__TRACE_SAMPLE_RATE` | `float` | `0.0` | Logging, tracing, and metrics configuration. |
-| project_root | `project_root` | `I4G_PROJECT_ROOT`<br />`PROJECT_ROOT`<br />`RUNTIME__PROJECT_ROOT`<br />`I4G_RUNTIME__PROJECT_ROOT` | `Path` | `/Users/jerry/Work/project/i4g/proto` | Top-level configuration model with nested sections for each subsystem. |
+| project_root | `project_root` | `I4G_PROJECT_ROOT`<br />`PROJECT_ROOT`<br />`RUNTIME__PROJECT_ROOT`<br />`I4G_RUNTIME__PROJECT_ROOT` | `Path` | `/Users/jerry/Work/project/i4g/core` | Top-level configuration model with nested sections for each subsystem. |
 | report | `report.drive_parent_id` | `I4G_REPORT__DRIVE_PARENT_ID`<br />`REPORT_DRIVE_PARENT_ID`<br />`REPORT__DRIVE_PARENT_ID` | `str &#124; NoneType` | `None` | Agentic dossier/report configuration. |
 | report | `report.hash_algorithm` | `I4G_REPORT__HASH_ALGORITHM`<br />`REPORT_HASH_ALGORITHM`<br />`REPORT__HASH_ALGORITHM` | `str` | `sha256` | Agentic dossier/report configuration. |
 | report | `report.max_cases_per_dossier` | `I4G_REPORT__MAX_CASES_PER_DOSSIER`<br />`REPORT_MAX_CASES_PER_DOSSIER`<br />`REPORT__MAX_CASES_PER_DOSSIER` | `int` | `5` | Agentic dossier/report configuration. |
@@ -96,20 +97,20 @@ This catalog is assembled by `proto/scripts/export_settings_manifest.py` directl
 | storage | `storage.cloudsql_database` | `I4G_STORAGE__CLOUDSQL_DATABASE`<br />`CLOUDSQL_DATABASE`<br />`STORAGE__CLOUDSQL__DATABASE` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
 | storage | `storage.cloudsql_instance` | `I4G_STORAGE__CLOUDSQL_INSTANCE`<br />`CLOUDSQL_INSTANCE`<br />`STORAGE__CLOUDSQL__INSTANCE` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
 | storage | `storage.evidence_bucket` | `I4G_STORAGE__EVIDENCE_BUCKET`<br />`STORAGE_EVIDENCE_BUCKET`<br />`STORAGE__EVIDENCE_BUCKET` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
-| storage | `storage.evidence_local_dir` | `I4G_STORAGE__EVIDENCE_LOCAL_DIR`<br />`STORAGE_EVIDENCE_LOCAL_DIR`<br />`STORAGE__EVIDENCE__LOCAL_DIR` | `Path` | `/Users/jerry/Work/project/i4g/proto/data/evidence` | Structured + blob storage configuration. |
+| storage | `storage.evidence_local_dir` | `I4G_STORAGE__EVIDENCE_LOCAL_DIR`<br />`STORAGE_EVIDENCE_LOCAL_DIR`<br />`STORAGE__EVIDENCE__LOCAL_DIR` | `Path` | `/Users/jerry/Work/project/i4g/core/data/evidence` | Structured + blob storage configuration. |
 | storage | `storage.firestore_collection` | `I4G_STORAGE__FIRESTORE_COLLECTION`<br />`FIRESTORE_COLLECTION`<br />`STORAGE__FIRESTORE__COLLECTION` | `str` | `cases` | Structured + blob storage configuration. |
 | storage | `storage.firestore_project` | `I4G_STORAGE__FIRESTORE_PROJECT`<br />`FIRESTORE_PROJECT`<br />`STORAGE__FIRESTORE__PROJECT` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
 | storage | `storage.reports_bucket` | `I4G_STORAGE__REPORTS_BUCKET` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
-| storage | `storage.sqlite_path` | `I4G_STORAGE__SQLITE_PATH` | `Path` | `/Users/jerry/Work/project/i4g/proto/data/i4g_store.db` | Structured + blob storage configuration. |
+| storage | `storage.sqlite_path` | `I4G_STORAGE__SQLITE_PATH` | `Path` | `/Users/jerry/Work/project/i4g/core/data/i4g_store.db` | Structured + blob storage configuration. |
 | storage | `storage.structured_backend` | `I4G_STORAGE__STRUCTURED_BACKEND`<br />`STRUCTURED_BACKEND`<br />`STORAGE__STRUCTURED_BACKEND` | `Literal['sqlite', 'firestore', 'cloudsql']` | `sqlite` | Structured + blob storage configuration. |
 | tokenization | `tokenization.pepper` | `I4G_TOKENIZATION__PEPPER`<br />`TOKENIZATION_PEPPER`<br />`TOKENIZATION__PEPPER` | `str &#124; NoneType` | `None` | Deterministic tokenization controls for PII vault integration. |
 | tokenization | `tokenization.pepper_version` | `I4G_TOKENIZATION__PEPPER_VERSION`<br />`TOKENIZATION_PEPPER_VERSION`<br />`TOKENIZATION__PEPPER_VERSION` | `str` | `v1` | Deterministic tokenization controls for PII vault integration. |
 | tokenization | `tokenization.require_pepper` | `I4G_TOKENIZATION__REQUIRE_PEPPER`<br />`TOKENIZATION_REQUIRE_PEPPER`<br />`TOKENIZATION__REQUIRE_PEPPER` | `bool` | `True` | Deterministic tokenization controls for PII vault integration. |
 | vector | `vector.backend` | `I4G_VECTOR__BACKEND`<br />`VECTOR_BACKEND`<br />`VECTOR__BACKEND` | `Literal['chroma', 'faiss', 'pgvector', 'vertex_ai']` | `chroma` | Vector store configuration supporting multiple backends. |
-| vector | `vector.chroma_dir` | `I4G_VECTOR__CHROMA_DIR` | `Path` | `/Users/jerry/Work/project/i4g/proto/data/chroma_store` | Vector store configuration supporting multiple backends. |
+| vector | `vector.chroma_dir` | `I4G_VECTOR__CHROMA_DIR` | `Path` | `/Users/jerry/Work/project/i4g/core/data/chroma_store` | Vector store configuration supporting multiple backends. |
 | vector | `vector.collection` | `I4G_VECTOR__COLLECTION`<br />`VECTOR_COLLECTION`<br />`VECTOR__COLLECTION` | `str` | `i4g_vectors` | Vector store configuration supporting multiple backends. |
 | vector | `vector.embedding_model` | `I4G_VECTOR__EMBEDDING_MODEL`<br />`EMBED_MODEL`<br />`VECTOR__EMBED_MODEL` | `str` | `nomic-embed-text` | Vector store configuration supporting multiple backends. |
-| vector | `vector.faiss_dir` | `I4G_VECTOR__FAISS_DIR`<br />`VECTOR_FAISS_DIR`<br />`VECTOR__FAISS_DIR` | `Path` | `/Users/jerry/Work/project/i4g/proto/data/faiss_store` | Vector store configuration supporting multiple backends. |
+| vector | `vector.faiss_dir` | `I4G_VECTOR__FAISS_DIR`<br />`VECTOR_FAISS_DIR`<br />`VECTOR__FAISS_DIR` | `Path` | `/Users/jerry/Work/project/i4g/core/data/faiss_store` | Vector store configuration supporting multiple backends. |
 | vector | `vector.pgvector_dsn` | `I4G_VECTOR__PGVECTOR_DSN`<br />`VECTOR_PGVECTOR_DSN`<br />`VECTOR__PGVECTOR__DSN` | `str &#124; NoneType` | `None` | Vector store configuration supporting multiple backends. |
 | vector | `vector.vertex_ai_branch` | `I4G_VECTOR__VERTEX_AI_BRANCH`<br />`VECTOR_VERTEX_AI_BRANCH`<br />`VECTOR__VERTEX_AI__BRANCH`<br />`I4G_VERTEX_SEARCH_BRANCH` | `str` | `default_branch` | Vector store configuration supporting multiple backends. |
 | vector | `vector.vertex_ai_data_store` | `I4G_VECTOR__VERTEX_AI_DATA_STORE`<br />`VECTOR_VERTEX_AI_DATA_STORE`<br />`VECTOR__VERTEX_AI__DATA_STORE`<br />`I4G_VERTEX_SEARCH_DATA_STORE` | `str &#124; NoneType` | `None` | Vector store configuration supporting multiple backends. |
@@ -122,9 +123,3 @@ This catalog is assembled by `proto/scripts/export_settings_manifest.py` directl
 ```bash
 conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g-account-job
 ```
-
-## Vault-specific notes
-
-- Non-local deployments must provide `I4G_TOKENIZATION__PEPPER` (and optionally `I4G_CRYPTO__PII_KEY` for encryption);
-  the tokenization service fails fast when pepper is missing, so ensure vault secrets are provisioned before booting
-  Cloud Run services or workers.

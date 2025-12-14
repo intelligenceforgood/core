@@ -1,7 +1,7 @@
 # Identity & Access Management Strategy
 
 **Status:** Draft (v0.1) — November 21, 2025
-**Audience:** Engineering, security reviewers, product stakeholders across `proto`, `planning`, and `ui`
+**Audience:** Engineering, security reviewers, product stakeholders across `core`, `planning`, and `ui`
 
 This document is the single source of truth for how we authenticate users, authorize workloads, and evolve IAM across the i4g platform. It consolidates IAM content from `architecture.md`, planning artifacts, and the UI books so every repository references one canonical strategy. Updates to IAM MUST originate here.
 
@@ -14,7 +14,7 @@ This document is the single source of truth for how we authenticate users, autho
 3. **Enable fast iteration** — today’s prototype runs entirely on Cloud Run with Google Identity; we need a pragmatic stopgap while designing the long-term zero-trust model.
 4. **Document the path forward** — outline future-state controls (VPN, per-role endpoints, self-serve IAM) even if unimplemented.
 
-**Covered repositories:** `proto/`, `planning/`, `ui/`, `infra/`. Any IAM mention in other docs must reference this file.
+**Covered repositories:** `core/`, `planning/`, `ui/`, `infra/`. Any IAM mention in other docs must reference this file.
 
 ---
 

@@ -141,7 +141,7 @@ Additional tips:
 - Keep `I4G_ENV=local` for all sandbox runs; it forces SQLite/Chroma backends and mock identity.
 - If you need to point the console or Streamlit at `i4g-dev`, override `I4G_ENV=dev` **and** supply the matching
     `I4G_API_KEY` (for example from Secret Manager). Missing keys produce `401 Unauthorized` loops in both UIs.
-- Add these exports to `.env.local` (proto) and `.env.local` inside `ui/apps/web/` if you frequently switch between
+- Add these exports to `.env.local` (core repo) and `.env.local` inside `ui/apps/web/` if you frequently switch between
     services; both repos load the files automatically via `python-dotenv` / Next.js env loaders.
 - Whenever you see Playwright/Vitest failures about `fetch` or Streamlit reports "API unavailable", re-check that
     `I4G_API_URL` and `I4G_API_KEY` are present in the environment running that command (VS Code tasks do not inherit
@@ -162,8 +162,8 @@ conda run -n i4g uvicorn i4g.api.app:app --reload
 cd ../ui
 I4G_API_URL=http://127.0.0.1:8000 \
 I4G_API_KEY=dev-analyst-token \
-I4G_API_KIND=proto \
-I4G_DOSSIER_BASE_PATH=$PWD/../proto/data/reports/dossiers \
+I4G_API_KIND=core \
+I4G_DOSSIER_BASE_PATH=$PWD/../core/data/reports/dossiers \
 NEXT_PUBLIC_USE_MOCK_DATA=false \
 pnpm --filter web dev
 
@@ -195,10 +195,10 @@ Set these when running the console or dossier jobs locally so download and verif
 
 | Variable | Purpose | Example |
 | --- | --- | --- |
-| `I4G_DOSSIER_BASE_PATH` | Absolute path to local dossier artifacts for the portal proxy | `/Users/jerry/Work/project/i4g/proto/data/reports/dossiers` |
+| `I4G_DOSSIER_BASE_PATH` | Absolute path to local dossier artifacts for the portal proxy | `/Users/jerry/Work/project/i4g/core/data/reports/dossiers` |
 | `I4G_REPORT__DRIVE_PARENT_ID` | Shared Drive parent folder where uploaded dossiers land (dev/prod) | `0AJd...pVaUk9PVA` |
 | `I4G_REPORT__HASH_ALGORITHM` | Hash algorithm recorded in signature manifests | `sha256` |
-| `I4G_API_URL` / `I4G_API_KEY` / `I4G_API_KIND` | Console → FastAPI connectivity | `http://127.0.0.1:8000`, `dev-analyst-token`, `proto` |
+| `I4G_API_URL` / `I4G_API_KEY` / `I4G_API_KIND` | Console → FastAPI connectivity | `http://127.0.0.1:8000`, `dev-analyst-token`, `core` |
 | `I4G_CONSOLE_IAP_TOKEN` (when behind IAP) | Passes the IAP bearer token for API calls in secured environments | `<iap-jwt>` |
 
 Keep the table in sync with `docs/config/` when Drive IDs or hash algorithms change.
@@ -538,7 +538,7 @@ manual test until the automated LEA portal ships.
 - **Install git hook:** `ln -sf ../../scripts/git-hooks/pre-commit .git/hooks/pre-commit`
 - **First hook run:** `pre-commit run --all-files`
 
-For a consolidated checklist of ingestion and intake smoke tests, see [`docs/smoke_test.md`](./smoke_test.md).
+For a consolidated checklist of ingestion and intake smoke tests, see [`docs/cookbooks/smoke_test.md`](./cookbooks/smoke_test.md).
 
 ## Analyst Console (Next.js UI)
 

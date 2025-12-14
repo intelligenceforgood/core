@@ -104,7 +104,7 @@ I4G_RUNTIME__LOG_LEVEL=INFO
   the normal incident channel.
 
 ## 6. References
-- Smoke coverage (local + dev): [`docs/smoke_test.md`](../smoke_test.md#5-dossier-queue-job-local)
+- Smoke coverage (local + dev): [`docs/cookbooks/smoke_test.md`](../cookbooks/smoke_test.md#5-dossier-queue-job-local)
 - Console workflow and verification: [`docs/runbooks/console/reports.md`](./console/reports.md)
 - Subpoena handoff playbook: [`docs/runbooks/dossiers_subpoena_handoff.md`](./dossiers_subpoena_handoff.md)
 - Terraform settings examples: `infra/environments/dev/terraform.tfvars`

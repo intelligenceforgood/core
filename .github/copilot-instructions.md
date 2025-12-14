@@ -1,4 +1,9 @@
-# Copilot Instructions for i4g/proto
+# Copilot Instructions for i4g/core
+
+Read order: start with [core/.github/work_routine.md](work_routine.md), then return here for repo-specific guidance. Also
+consult [core/.github/general-coding.instructions.md](general-coding.instructions.md),
+[core/.github/chat-instructions.md](chat-instructions.md), and [core/.github/docs.instructions.md](docs.instructions.md)
+as needed.
 
 1. **Rehydrate** – Re-open `.github/work_routine.md` (same as `planning/persistent_prompt.md`) and skim the newest entries in `planning/change_log.md`. Run `git status -sb` before making edits and stay inside the `i4g` Conda env (`conda run -n i4g ...`). Collaboration is just you + Copilot; you own approvals.
 2. **Config Discipline** – Always fetch settings via `i4g.settings.get_settings()`; nested sections (`api`, `storage`, `vector`, `llm`, `identity`, etc.) are mutated by `_apply_environment_overrides`, so override via env vars (`I4G_*`, double underscores) rather than hard-coded paths. Store builders live in `src/i4g/services/factories.py`; use them for structured/review/vector/intake/evidence stores.
@@ -10,7 +15,7 @@
 9. **External Integrations** – The Next.js analyst console calls `/reviews/search`, `/reviews/search/history`, saved-search CRUD endpoints, `/reviews/{id}`, and `/tasks/{task_id}`; keep payloads + audit logging in sync. Report generation uses `i4g/reports` templates plus worker tasks; ensure TASK_STATUS emits progress until Redis replaces the in-memory map. Ingestion enhancements must route through `i4g.ingestion` + `worker/jobs` so CLI and API paths stay aligned.
 10. **Repository Roles & Instruction Placement** – This workspace is multi-root. Keep per-repo instruction files in each repo’s `.github/` directory and scope them appropriately:
 
-- `proto/.github/` — primary Python + docs repo. Contains `copilot-instructions.md` (high-level agent runbook), `general-coding.instructions.md` (cross-language norms), `docs.instructions.md` (docs rules), and Python style guidance (Google docstrings, Black/isort, 120-char limit).
+- `core/.github/` — primary Python + docs repo. Contains `copilot-instructions.md` (high-level agent runbook), `general-coding.instructions.md` (cross-language norms), `docs.instructions.md` (docs rules), and Python style guidance (Google docstrings, Black/isort, 120-char limit).
 - `ui/.github/` — Node.js/Next.js UI repo. Contains `chat-instructions.md` (TypeScript/React rules) and `docs.instructions.md` (UI docs rules and snippet policy).
 - `docs/.github/` — documentation-only repo. Contains `docs.instructions.md` focusing on writing quality and snippet guidance.
 

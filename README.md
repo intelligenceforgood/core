@@ -1,69 +1,57 @@
-# 🧠 i4g — Intelligence for Good
+# i4g/core
 
-> *Empowering digital safety through AI-driven scam intelligence.*
+Backend services, jobs, and documentation for the Intelligence for Good platform. This repo holds the FastAPI API, worker jobs, reports, settings, and the canonical docs. The Next.js portal lives in `ui/`, infra code in `infra/`, and planning artifacts in `planning/`.
 
----
+## What this repo contains
+- FastAPI backend and routers: `src/i4g/api/`
+- Worker jobs and tasks: `src/i4g/worker/`
+- Stores, retrieval, tokenization: `src/i4g/store/`, `src/i4g/services/`, `src/i4g/pii/`
+- Settings and manifests: `config/settings.*.toml`
+- Docs hub and design docs: `docs/`
+- Reports/templates and scripts: `reports/`, `scripts/`
+- Tests: `tests/`
 
-## 🌍 Overview
+## Quickstart (local)
+- Prereqs: Conda env `i4g` (see docs), Python 3.11+, Node if running the UI.
+- Install: `pip install -e .`
+- Seed local data: `python scripts/bootstrap_local_sandbox.py --reset`
+- Run API: `uvicorn i4g.api.app:app --reload`
+- Run tests: `pytest tests/unit`
+- Settings: use `config/settings.default.toml` plus overrides in `config/settings.local.toml` or env vars (`I4G_*`). Always load via `i4g.settings.get_settings()`.
 
-**i4g** (Intelligence for Good) is an experimental AI platform designed to detect, analyze, and classify online scams — especially **crypto** and **romance scams targeting seniors**.
+## Documentation map
+- Docs hub and navigation: [docs/README.md](docs/README.md)
+- Architecture (diagrams, deployment profiles): [docs/architecture.md](docs/architecture.md)
+- Technical design and contracts: [docs/tdd.md](docs/tdd.md)
+- Developer workflow: [docs/dev_guide.md](docs/dev_guide.md)
+- Cookbooks (how-tos): [docs/cookbooks/README.md](docs/cookbooks/README.md)
+- Runbooks (ops): [docs/runbooks/README.md](docs/runbooks/README.md)
+- Testing and TDD: [docs/testing/README.md](docs/testing/README.md)
+- Release and migration: [docs/release/README.md](docs/release/README.md)
+- Config reference: [docs/config/README.md](docs/config/README.md)
+- Security and IAM: [docs/iam.md](docs/iam.md), [docs/compliance.md](docs/compliance.md), [docs/confidentiality_agreement.md](docs/confidentiality_agreement.md)
+- Planning workspace (separate repo folder): [planning/README.md](../planning/README.md)
 
-It integrates **OCR, LLMs, retrieval-augmented generation (RAG), and structured data pipelines** to transform unstructured chat histories into actionable intelligence for fraud prevention and law enforcement support.
+## Common entrypoints
+- API: `src/i4g/api/app.py` (FastAPI). Routers for reviews/search, tasks, ingestion, reports.
+- Jobs/CLI: `i4g-admin`, `i4g-ingest-job`, `i4g-report-job`, `i4g-intake-job` (installed via editable install).
+- Factories: `src/i4g/services/factories.py` for stores/retrievers (honor settings and env overrides).
+- Data stores: structured store + SQL dual-write; default vector backend is Chroma.
 
----
+## Repository layout
+- `src/` — application code (API, workers, services, stores)
+- `config/` — settings defaults and local overrides
+- `docs/` — all guides, architecture, TDD, runbooks, cookbooks
+- `scripts/` — tooling and bootstrap helpers
+- `tests/` — unit and contract tests
+- `reports/` — report templates and assets
+- `data/` — local runtime artifacts (SQLite, Chroma, reports) created by bootstrap
 
-## 🎯 Project Vision
+## Contributing and governance
+- Contribution guide: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md); authors list: [docs/contributors.md](docs/contributors.md)
+- Follow docs navigation via [docs/README.md](docs/README.md) and keep links updated when adding new pages.
+- For infrastructure changes, see [infra/README.md](../infra/README.md).
 
-The i4g platform aspires to build a complete intelligence lifecycle that:
+## License
 
-1. **Analyzes** scam-related communications (chats, screenshots, messages)
-2. **Extracts and classifies** key entities, scam types, and patterns
-3. **Builds knowledge bases** for analysts and automated systems
-4. **Generates structured reports** suitable for law enforcement submission
-
----
-
-
-> This repository (proto) contains the canonical architecture, production PRD, and technical design documents for i4g.
-> Planning artifacts (prototypes, milestones, and experimental PRDs) are stored in the separate `planning/` workspace.
-
----
-
-## 📚 Documentation
-
-### Key Docs (Quick Links)
-- 📋 **Production PRD** — `proto/docs/prd_production.md` (Product & deployment requirements)
-- 🏗️ **Architecture** — `proto/docs/architecture.md` (High-level system design, data flow)
-- 🔧 **Technical Design (TDD)** — `proto/docs/tdd.md` (API contracts, schemas, runtime requirements)
-- 💻 **Developer Guide** — `proto/docs/dev_guide.md` (Local setup, bootstrapping, dev workflow)
-- 🧭 **Runbooks & Playbooks** — `proto/docs/runbooks/analyst_runbook.md` (Analyst index + console runbooks)
-- 🧪 **Smoke & Tests** — `proto/docs/smoke_test.md` (Verification scripts and verification playbooks)
-- ☁️ **Infrastructure Ops** — `infra/` (Terraform modules, deploy notes)
-
-Other helpful docs:
-- 🔐 **Identity & IAM** — `proto/docs/iam.md`
-- 🔍 **Hybrid Search Deployment Checklist** — `proto/docs/hybrid_search_deployment_checklist.md`
-- 📦 **Retrieval / Vertex guide** — `proto/docs/retrieval_gcp_guide.md`
- - 🖼️ **Diagrams** — `proto/docs/diagrams/` (High-level Draw.io exports & copies)
- - 🧪 **Examples** — `proto/docs/examples/` (test data, example cases)
- - ⚙️ **Config Recipes** — `proto/docs/config/` (Settings and TOML examples)
-
- - Planning, milestone tracking, and prototype artifacts are maintained in the separate `planning/` workspace.
-
-### Technical Documentation
-- 🏗️ **[System Architecture](./docs/architecture.md)** - High-level system design, deployment, and data flow
-- 🔧 **[Technical Design Document](./docs/tdd.md)** - Detailed implementation specs, APIs, and security design
-- 💻 **[Developer Guide](./docs/dev_guide.md)** - Setup instructions, development workflow
-- ☁️ **[Infrastructure Operations](../infra/README.md)** - Terraform workflow, environment bootstrap, and GCP prerequisites
-
-### Governance & Compliance
-- 🔒 **[Data Compliance Guide](./docs/compliance.md)** - PII handling, FERPA/GDPR compliance, incident response
- - 📜 **[Confidentiality Agreement](./docs/confidentiality_agreement.md)**
- - 🤝 **Contribution guide** — `./docs/contributing.md` and `./docs/contributors.md`
-
----
-
-## 📄 License
-
-Licensed under the **MIT License**.
-All AI-generated components are for educational and research use only.
+MIT. AI-generated components are for educational and research use only.

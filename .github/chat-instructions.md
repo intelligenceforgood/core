@@ -3,12 +3,16 @@ applyTo: "**/*.ts,**/*.tsx"
 ---
 # Project coding standards for TypeScript and React
 
+Read order: start with [core/.github/work_routine.md](work_routine.md), then see
+[core/.github/copilot-instructions.md](copilot-instructions.md) for repo norms and
+[core/.github/general-coding.instructions.md](general-coding.instructions.md) for shared conventions.
+
 Apply the [general coding guidelines](./general-coding.instructions.md) to all code.
 
 ## TypeScript Guidelines
 - Use TypeScript for all new code (the Next.js console under `apps/web/` is typed end-to-end).
 - Favor functional programming patterns: pure utility helpers, composable hooks, and data transformations without side effects.
-- Model data with interfaces or type aliases that mirror the FastAPI payloads (see `proto` `/reviews` schemas for source of truth).
+- Model data with interfaces or type aliases that mirror the FastAPI payloads (see `core` `/reviews` schemas for source of truth).
 - Prefer immutable data (`const`, `readonly`) and express intent with discriminated unions when branching on statuses.
 - Use optional chaining (`?.`) and nullish coalescing (`??`) for defensive access, especially around API responses.
 

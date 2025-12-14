@@ -1,7 +1,7 @@
 # i4g System Architecture
 
-> **Document Version**: 1.2
-> **Last Updated**: December 6, 2025
+> **Document Version**: 1.3
+> **Last Updated**: December 14, 2025
 > **Audience**: Engineers, technical stakeholders, university partners
 
 ---
@@ -18,9 +18,194 @@ You now run two first-party consoles. The **Next.js portal** on Cloud Run serves
 3. **Scalability**: Handles 20 concurrent users on GCP free tier
 4. **Security**: AES-256-GCM encryption, OAuth 2.0, Firestore rules
 
+## Guiding Objectives
+
+- **Parity then extension**: Maintain feature parity with the retired Azure stack before adding net-new workflows.
+- **Open-first**: Prefer open protocols/OSS-aligned services and keep clean swap points (Vertex ↔ pgvector, Gemini ↔ Ollama).
+- **Operate light**: Favor repeatable runbooks and Workload Identity over long-lived keys so small teams can maintain it.
+- **Privacy by design**: Deterministic tokenization, sharded artifact storage, and auditable access across services.
+- **Cost-aware**: Stay within free-tier/nonprofit credits; degrade gracefully to local mocks when managed services are off.
+
+## Deployment Profiles (Managed vs Local)
+
+| Capability / Service | Managed (Cloud Run / GCP) | Local / Laptop Profile | Swap Mechanism |
+|---|---|---|---|
+| Identity | Google Cloud Identity Platform (OIDC) | Local mock OIDC provider or stub JWT signer for development | `settings.identity.provider` (`google_identity` vs `dev_stub`); toggle via `I4G_ENV` + `.env.local`. |
+| API Gateway / FastAPI | Cloud Run service with Workload Identity | Docker container running FastAPI with `.env` config | `settings.runtime.mode` (`managed` / `local`); `make run-fastapi` uses local profile. |
+| Analyst UI | Streamlit on Cloud Run (authenticated) | Streamlit app run locally with dev auth toggles | `settings.ui.base_url` + `settings.auth.mock_tokens`; `make run-analyst-ui`. |
+| Retrieval & Vector Store | Vertex AI Search (default) | Dockerized Postgres + pgvector or local Chroma | `settings.vector.backend` (`vertex_ai`, `pgvector`, `chroma`); hot-swappable through `VectorClient`. |
+| LLM Inference | Vertex AI Gemini 1.5 Pro | Ollama running locally or mock responses | `settings.llm.provider` (`vertex_ai`, `ollama`, `dummy`); pluggable LangChain `LLMFactory`. |
+| Storage | Firestore + Cloud Storage buckets | Local SQLite/JSON stores + filesystem folders | `settings.storage.mode` (`firestore`, `sqlite_fs`); mounts via `.env.local` paths. |
+| Ingestion Jobs | Cloud Run Jobs + Scheduler | Local scripts invoked via `make ingest-*` with stub schedules | `scripts/ingest/*` honour `settings.jobs.enabled`; local cron disabled by default. |
+| Observability | Cloud Logging/Monitoring with OpenTelemetry exporters | Console logs + optional local OTLP collector (Docker) | `settings.telemetry.otlp_endpoint`; default empty routes to stdout. |
+| Secrets | Secret Manager, Workload Identity | `.env.local` (gitignored) + Pydantic overrides | `settings.secrets.provider` (`secret_manager`, `env`); helper resolves per environment. |
+
+> The managed and local profiles share the same configuration contract, so swapping between environments is a matter of
+> setting `I4G_ENV` and the relevant overrides. A sample Docker Compose bundle will accompany Milestone 3 to spin up
+> pgvector, Chroma, or Ollama when testing offline parity.
+
+## Configuration Strategy
+
+- Central `settings` package built on Pydantic BaseSettings loads defaults, then environment-specific config, then
+  developer overrides. Always fetch via `i4g.settings.get_settings()` so Workload Identity/env overrides take effect.
+- `I4G_ENV` selects `local`, `dev`, or `prod` with this stack order: baked-in defaults → env-specific config files
+  (`config/settings.*.toml`) → `.env.local` (gitignored) → env vars (`I4G_*`, double underscores for nesting).
+- Managed environments resolve secrets from Secret Manager; local profile falls back to `.env.local` to avoid accidental
+  writes to production resources.
+- Services share the same configuration contract so API, UI, jobs, and notebooks stay in sync. Local profile enables
+  mock identity, SQLite structured store, Chroma vectors, Ollama LLM, Secret Manager disabled, and scheduled jobs off.
+
 ---
 
 ## High-Level Architecture
+
+This section merges the previously archived future-state plan into the active architecture view so the diagrams and
+component descriptions stay in one place.
+
+### Future-State Topology
+
+```mermaid
+flowchart TB
+  subgraph Users["User Channels"]
+    Victim[Victim Web/Mobile]
+    Analyst[Analyst Dashboard]
+    LEO[LEO Report Access]
+  end
+
+  subgraph CloudRun["Cloud Run Services (us-central1)"]
+    FastAPI["FastAPI API Gateway<br>(RAG, Intake, Reports)"]
+    Streamlit["Streamlit Analyst Portal<br>(OAuth/OIDC)"]
+  end
+
+  subgraph DataLayer["Data & Intelligence Layer"]
+    Firestore["Firestore<br>(Cases, Config, PII Tokens)"]
+    Storage["Cloud Storage<br>(Evidence, Reports)"]
+    Vector[Vertex AI Search<br>/ AlloyDB + pgvector]
+    TokenVault[PII Vault / Tokenization]
+    IngestionPipelines[Ingestion Pipelines]
+    RAG[LangChain RAG Orchestration]
+  end
+
+  subgraph Ops["Platform Services"]
+    Scheduler[Cloud Scheduler / Run Jobs]
+    Secrets[Secret Manager<br> + Workload Identity]
+    Telemetry[Cloud Logging & Monitoring]
+  end
+
+  Victim -- HTTPS --> FastAPI
+  Analyst -- HTTPS --> Streamlit
+  LEO -- HTTPS --> Streamlit
+
+  FastAPI -- REST/gRPC --> Firestore
+  FastAPI -- REST/gRPC --> Vector
+  FastAPI -- Signed URLs --> Storage
+  FastAPI -- Tokenization Calls --> TokenVault
+  FastAPI -- Invoke Chains --> RAG
+
+  Streamlit -- API Calls --> FastAPI
+  Streamlit -- Signed URLs --> Storage
+
+  IngestionPipelines -- Structured Writes --> Firestore
+  IngestionPipelines -- Artifact Uploads --> Storage
+  IngestionPipelines -- Embed Jobs --> Vector
+
+  Scheduler -- Triggers --> IngestionPipelines
+  Secrets -- Credentials --> FastAPI
+  Secrets -- Credentials --> Streamlit
+  Secrets -- Credentials --> IngestionPipelines
+  Telemetry -- Metrics/Logs --> FastAPI
+  Telemetry -- Metrics/Logs --> Streamlit
+  Telemetry -- Metrics/Logs --> IngestionPipelines
+```
+
+### Cloud Run Deployment Swimlanes
+
+```mermaid
+flowchart LR
+  subgraph Users["User Entrypoints"]
+    VictimUI[Victim Web/Mobile]
+    AnalystUI[Analyst Portal]
+    LEOUI[LEO Portal]
+  end
+
+  subgraph Edge["Identity & Edge"]
+    IAP[Identity Platform / IAP]
+  end
+
+  subgraph RunServices["Cloud Run Services"]
+    FastAPI[FastAPI Gateway]
+    Streamlit[Streamlit UI]
+    JobIngest[Cloud Run Jobs - Ingestion]
+    JobReport[Cloud Run Jobs - Report Generator]
+    VaultService[Tokenization Microservice]
+  end
+
+  subgraph VPC["Serverless VPC Access"]
+    VPCConn[Serverless VPC Connector]
+  end
+
+  subgraph DataPlane["Data Plane & Private Services"]
+    Firestore[Firestore]
+    Storage[Cloud Storage]
+    Vector["Vector Store (Vertex AI Search / AlloyDB)"]
+    KMS[Cloud KMS]
+  end
+
+  subgraph Platform["Platform Operations"]
+    Secrets[Secret Manager]
+    Logging[Cloud Logging / Monitoring]
+  end
+
+  VictimUI --> IAP
+  AnalystUI --> IAP
+  LEOUI --> IAP
+
+  IAP --> FastAPI
+  IAP --> Streamlit
+
+  Streamlit -->|Authenticated API| FastAPI
+  FastAPI -->|REST| Firestore
+  FastAPI -->|Signed URLs| Storage
+  FastAPI -->|Vector Queries| Vector
+  FastAPI --> VaultService
+
+  JobIngest -->|Writes| Firestore
+  JobIngest -->|Artifacts| Storage
+  JobIngest -->|Embeddings| Vector
+
+  JobReport -->|Reads| Firestore
+  JobReport -->|Publishes| Storage
+
+  VaultService -->|Detokenized Reads| Firestore
+
+  Secrets -.-> FastAPI
+  Secrets -.-> Streamlit
+  Secrets -.-> JobIngest
+  Secrets -.-> JobReport
+  Secrets -.-> VaultService
+
+  FastAPI -.->|Workload Identity| VPCConn
+  JobIngest -.->|Private Resources| VPCConn
+  JobReport -.->|Private Resources| VPCConn
+  VaultService -.->|Private Resources| VPCConn
+  VaultService -->|Encrypt/Decrypt| KMS
+
+  VPCConn -->|Private Access| Vector
+  VPCConn -->|Private Access| KMS
+
+  Logging -.-> FastAPI
+  Logging -.-> Streamlit
+  Logging -.-> JobIngest
+  Logging -.-> JobReport
+  Logging -.-> VaultService
+```
+
+The swimlanes emphasize the Cloud Run deployment boundary: Identity-Aware Proxy fronts the stateless FastAPI and
+Streamlit services, while background Cloud Run jobs handle ingestion and reporting. Workload Identity supplies secrets
+from Secret Manager, and the shared VPC connector enables private access to the vector store or KMS when those
+resources require it. Observability remains centralized through Cloud Logging and Monitoring across all containers.
+
+### Current Logical Layout
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -146,7 +331,7 @@ Note: The `POST /api/cases` endpoint above is listed as a planned user-facing in
 - Node.js 20 (Cloud Run)
 - Next.js 15 App Router with React 19 RC and TypeScript
 - Tailwind CSS, `@i4g/ui-kit`, and shared design tokens
-- `@i4g/sdk` plus proto-backed adapter selected via `I4G_API_KIND` env var
+- `@i4g/sdk` with an adapter selected via `I4G_API_KIND` (core vs mock)
 
 **Key Features**:
 - Hybrid rendering (Server Components + edge-ready client interactivity)
@@ -299,63 +484,40 @@ curl http://localhost:11434/api/chat -d '{
 
 ---
 
-## Data Flow: Evidence Upload → Report Generation
+## End-to-End Data Flows
 
-```
-1. VICTIM SUBMITS CASE
-   ↓
-   POST /api/cases
-   {
-     "title": "Romance scam",
-     "description": "My SSN is 123-45-6789...",
-     "evidence_files": [...]
-   }
+### Victim Intake → Structured Storage
+1. Victim submits a report via FastAPI intake (optionally authenticated through Google Identity or other OIDC provider).
+2. FastAPI orchestrates PII tokenization: identifiable fields go to the vault service, are swapped for tokens, and the
+  mapping persists in Firestore’s secure collection.
+3. LLM classification annotates the case with scam type/confidence while redacting PII placeholders in returned payloads.
+4. Normalized case metadata writes to Firestore collections (`cases`, `case_events`, `attachments`).
+5. Evidence artifacts upload to Cloud Storage using pre-signed URLs; completion webhooks update Firestore metadata with
+  checksum, MIME type, and retention tags.
 
-2. PII EXTRACTION & TOKENIZATION
-   ↓
-   Regex detects: "123-45-6789" (SSN pattern)
-   ↓
-   Encrypt with AES-256-GCM
-   ↓
-   Store in /pii_vault: {token: "7a8f2e", encrypted_value: "..."}
-   ↓
-   Replace in description: "My SSN is <PII:SSN:7a8f2e>..."
+### Retrieval-Augmented Chat & Search
+1. Analyst initiates a chat session in Streamlit; the frontend calls FastAPI (`/api/chat`) with question, filters, and
+  auth context.
+2. FastAPI fetches structured context (case ownership, tags, status) from Firestore based on analyst permissions.
+3. LangChain pipeline embeds the question (Vertex AI Embeddings or environment-specified model) and queries the
+  configured vector backend.
+4. Vector backend (Vertex AI Search or AlloyDB + pgvector) returns top-k documents; pipeline de-duplicates, scores, and
+  enriches with structured fields.
+5. Prompt assembly blends structured metadata, vector hits, and policy disclaimers before invoking the configured LLM.
+6. Responses persist to Firestore audit collections; optional feedback flows back into the vector store for continual
+  improvement.
 
-3. SCAM CLASSIFICATION
-   ↓
-   LLM inference (Ollama)
-   ↓
-   Result: {"type": "Romance Scam", "confidence": 0.92}
-
-4. STORE CASE IN FIRESTORE
-   ↓
-   /cases/{case_id}:
-   {
-     "description": "My SSN is <PII:SSN:7a8f2e>...",
-     "classification": {"type": "Romance Scam", "confidence": 0.92},
-     "status": "pending_review"
-   }
-
-5. ANALYST REVIEWS CASE
-   ↓
-   GET /api/cases/{case_id}
-   ↓
-   Returns: "My SSN is ███████..." (PII masked)
-
-6. ANALYST APPROVES
-   ↓
-   POST /api/cases/{case_id}/approve
-   ↓
-   Fetch encrypted PII from /pii_vault
-   ↓
-   Decrypt: "123-45-6789"
-   ↓
-   Generate PDF report with real PII
-   ↓
-   Upload to Cloud Storage: gs://i4g-reports/{case_id}.pdf
-   ↓
-   Email user with secure download link
-```
+### Accepted Review → Report Generation
+1. Review status transition to `accepted` emits an event (Firestore trigger or manual CLI) that queues a report task.
+2. Worker resolves the review via `ReviewStore`, gathering entities, transcripts, evidence references, and analyst notes
+  using the settings-backed store factories.
+3. `ReportGenerator` fetches related cases via the vector store, detokenizes PII through the vault micro-service when
+  necessary, and runs LangChain summarization through the configured LLM provider.
+4. `TemplateEngine` renders Markdown → DOCX/PDF; exporter writes artifacts to Cloud Storage (`i4g-reports-*`) with
+  signature manifest updates.
+5. Notifications (email/SMS) can be dispatched by a Cloud Run job using Secret Manager credentials; signed URLs are
+  returned to Streamlit and logged for audit.
+6. Audit trail in Firestore captures status, actor, detokenization justification, and checksums for compliance review.
 
 ### PII Vault Architecture (developer reference)
 
@@ -366,6 +528,31 @@ See `docs/pii_vault.md` for the full design. Highlights:
 - Pipeline: detect PII in structured + OCR, normalize/validate per prefix, generate tokens, drop raw PII from downstream payloads. Tokens go to SQL/Vertex; canonical PII + metadata go to the vault.
 - Storage: tokens in DB (token, full digest, prefix FK, encrypted canonical value, normalized hash, case/artifact refs, detector metadata, timestamps, retention). Artifacts only in GCS under `<type>/aa/bb/<sha256>.ext`; tokens never in GCS.
 - Controls/observability: dual-approval detokenization, KMS-gated decrypt, rate limits, audited attempts, alerts on anomalies; metrics for coverage/confidence/collisions/latency; smokes perform tokenization+detokenization round trips.
+
+## Capability Replacement Matrix
+
+| DT-IFG Component | Proposed GCP / Open Alternative | Notes & Rationale |
+|---|---|---|
+| Azure Functions (ingestion, scheduled jobs) | Cloud Run Jobs or Cloud Functions orchestrated by Cloud Scheduler | Container-first path keeps parity with the current FastAPI stack; Scheduler covers cron-style triggers. |
+| Azure Blob Storage (evidence, reports) | Cloud Storage buckets (`i4g-evidence-*`, `i4g-reports-*`) | Signed URLs mirror SAS tokens; lifecycle rules manage retention and legal-hold requirements. |
+| Azure Cognitive Search | Vertex AI Search (default) with AlloyDB + pgvector contingency | Managed option meets MVP needs; keep pgvector path documented in case we later require self-hosted control or cost optimisation. |
+| Azure SQL Database | Cloud SQL for Postgres **and/or** Firestore | Firestore absorbs document-style data; Cloud SQL hosts relational datasets still required post-migration. |
+| Azure AD B2C | Google Cloud Identity Platform (OIDC) | Nonprofit pricing, managed flows, and smooth OAuth integration with Streamlit/FastAPI; agnostic enough to swap for authentik later. |
+| Azure Key Vault | Secret Manager + IAM Conditions | Native integration with Cloud Run, Workload Identity; supports rotation and audit logging. |
+| Azure Monitor / App Insights | Cloud Logging, Monitoring, Error Reporting with OpenTelemetry | Keeps observability fully managed while preserving portability to other OTel targets. |
+| Azure Service Bus / Queues | Pub/Sub + Workflows (if orchestration needed) | Durable messaging and stateful workflow orchestration for multi-step ingestions. |
+| Azure ML / OpenAI endpoints | Vertex AI Model Garden + LangChain connectors | Ensures we can mix managed Gemini models with self-hosted Ollama deployments. |
+
+## Open Questions & Upcoming Decisions
+
+Track active evaluations here (full detail lives in `planning/technology_stack_decisions.md`).
+
+| Topic | What’s Pending | Owner | Target Decision |
+|---|---|---|---|
+| Analytics / Warehousing | Decide if/when BigQuery or another warehouse is required beyond Firestore exports. | Jerry | Milestone 4 planning |
+| PII Vault Backend | Validate Firestore performance for token vault; consider Cloud SQL/AlloyDB if lookup latency becomes an issue. | Jerry | Before production cutover |
+| Volunteer Docs Platform | Choose between GitBook vs MkDocs/Docusaurus for public docs. | Jerry | Prior to onboarding push |
+| Report Delivery Workflow | Confirm PDF signing/delivery requirements (LEO portal vs Streamlit-only) and design final flow. | Jerry | Milestone 3 execution |
 
 ---
 
@@ -418,7 +605,7 @@ gcloud run deploy i4g-console \
     --allow-unauthenticated \
     --set-env-vars NEXT_PUBLIC_USE_MOCK_DATA=false \
     --set-env-vars I4G_API_URL=https://fastapi-gateway-y5jge5w2cq-uc.a.run.app/ \
-    --set-env-vars I4G_API_KIND=proto \
+    --set-env-vars I4G_API_KIND=core \
     --set-env-vars I4G_API_KEY=dev-analyst-token
 ```
 
@@ -432,11 +619,65 @@ gcloud run deploy i4g-console \
 
 ## Security Architecture
 
-> **Note:** All IAM, authentication, and role-planning details now live in `docs/iam.md`. This section only summarizes the privacy controls already documented elsewhere.
+This section now embeds the future-state IAM and control-plane details; `docs/iam.md` remains the procedural source of
+truth.
 
-**Identity-Aware Proxy (IAP)** now fronts every Cloud Run service (FastAPI, Analyst Console, Streamlit). Users hit the standard Cloud Run URLs, are prompted by Google sign-in if needed, and traffic is forwarded only when the caller is listed in the IAP policy. This replaces the short-lived helper SPA.
+### Identity & Access Control
+- Primary option: Google Cloud Identity Platform (OIDC) with role claims for `victim`, `analyst`, `admin`, and `leo`.
+- Fallback / future option: authentik or Keycloak on Cloud Run or GKE if self-hosted control becomes necessary.
+- Streamlit and FastAPI share a lightweight auth service for token verification and role enforcement; all user entry
+  points are fronted by Identity-Aware Proxy.
+- Service-to-service authentication relies on service account identities and Workload Identity Federation; no
+  long-lived API keys.
+- Local development uses short-lived signed JWTs from a dev helper to mimic IdP-issued tokens and exercise role paths.
 
-### 1. **PII Isolation**
+### Service Accounts & Permissions
+
+| Component | Service Account | Key Roles |
+|---|---|---|
+| FastAPI Cloud Run service | `sa-app@{project}` | `roles/run.invoker`, `roles/datastore.user`, `roles/storage.objectViewer`, custom `roles/vertex.searchUser` or AlloyDB client role, Secret Manager accessor |
+| Streamlit Cloud Run service | `sa-app@{project}` | `roles/run.invoker`, `roles/datastore.viewer`, `roles/storage.objectViewer`, `roles/logging.logWriter`, custom Discovery search role, Secret Manager accessor |
+| Ingestion jobs / schedulers | `sa-ingest@{project}` | `roles/run.invoker`, `roles/storage.objectAdmin`, `roles/datastore.user`, Pub/Sub publisher when workflows emit events, Secret Manager accessor for source credentials |
+| Report worker (Cloud Run job or scheduler) | `sa-report@{project}` | `roles/storage.objectAdmin`, `roles/datastore.user`, Secret Manager accessor |
+| PII vault micro-service | `sa-vault@{project}` | `roles/datastore.user`, Cloud KMS encrypter/decrypter when KMS is enabled, no Cloud Storage access |
+| Terraform / automation pipeline | `sa-infra@{project}` | `roles/resourcemanager.projectIamAdmin`, `roles/run.admin`, `roles/storage.admin`, `roles/iam.securityReviewer` scoped to the infra project |
+
+> Discovery access is granted via a custom IAM role that wraps `discoveryengine.servingConfigs.search`; Terraform
+> provisions it per project to avoid unsupported project-level grants.
+
+### Secrets & Tokenization
+- Secret Manager holds database passwords, third-party API keys, and encryption salts; access is scoped to the runtime
+  service accounts above.
+- Vaulted PII records store AES-256-GCM encrypted values; keys live in Cloud KMS when credits allow or in Secret Manager
+  with scheduled rotation when running lean.
+- Tokenization micro-service exposes REST/gRPC behind Cloud Run; only FastAPI (and ingestion jobs when needed) can call
+  it via IAM allow policies.
+
+### Network & Data Safeguards
+- VPC Access connectors back Cloud Run services for outbound calls to private resources (Cloud SQL, AlloyDB, KMS).
+- Cloud Storage buckets enforce uniform bucket-level access with IAM conditions; signed URLs have short TTLs and carry
+  user identity in audit logs.
+- Firestore security rules mirror server-side checks for per-document ownership and role-based access.
+- Artifact Registry images are signed (Sigstore) and verified by Cloud Deploy prior to promotion.
+
+### Monitoring & Compliance
+- Cloud Audit Logs retained for ≥400 days; exports land in BigQuery or Cloud Storage coldline when costs allow.
+- Security Command Center (Standard) feeds vulnerability findings on Cloud Run images and IAM misconfigurations.
+- Daily job reconciles IAM policy drift against Terraform state and alerts via Cloud Monitoring.
+- Incident response playbook covers token revocation, Secret Manager rotation, and Firestore PII vault audits; access
+  transparency reports are stored alongside audit exports.
+
+### Role-to-Capability Matrix
+
+| Role | Entry Path | Primary Data Access | Actions Allowed | Notes |
+|---|---|---|---|---|
+| Victim | FastAPI intake endpoints via Google Identity | Own submissions (Firestore docs scoped to UID), upload bucket objects via signed URL | Create/update intake records, upload evidence, read status of submitted cases | Read-only access enforced through Firestore security rules; no direct Storage listing |
+| Analyst | Streamlit portal (Cloud Run) | Case queues, evidence metadata, vector query results, read-only Firestore PII tokens (detokenized via FastAPI on demand) | Claim/release cases, run chat/RAG searches, trigger report generation, annotate cases | Detokenization requires explicit action and logs actor/justification |
+| Admin | Streamlit admin views + FastAPI admin APIs | All case data, configuration collections, audit logs | Manage users/roles, adjust configuration, approve report publishing, initiate rotations | Access gated by admin-only OAuth claim and Cloud Run IAM |
+| Law Enforcement (LEO) | Streamlit read-only report portal | Published reports, supporting evidence with signed URLs | View/download reports, acknowledge receipt | Accounts provisioned manually; multi-factor auth enforced |
+| Automation (ingest/report jobs) | Cloud Run jobs / Scheduler | Firestore ingestion collections, Storage evidence buckets, vector store | Normalize raw feeds, enqueue cases, seed vector index, emit alerts | Operate under dedicated service accounts with least privilege |
+
+### PII Isolation
 
 ```
 ┌─────────────────────────────────────────────────────┐
