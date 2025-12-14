@@ -6,7 +6,7 @@
 - Tokenize all detected PII (structured fields and OCR text) into `AAA-XXXXXXXX` tokens before it touches SQL/Vertex.
 - Keep tokens deterministic across environments by sharing a versioned HMAC pepper (stored in each vault via KMS).
 - Preserve canonical PII and source artifacts in the vault with subpoena-grade detokenization controls and full audit trails.
-- Avoid hot folders by sharding artifact storage paths and keep retention effectively indefinite unless legal requires purge.
+- Avoid hot folders by sharding artifact storage paths and keep retention aligned to compliance policy; see [compliance.md](compliance.md#data-retention-policy).
 
 ## Token Format
 - Token shape: `AAA-XXXXXXXX` (3-char uppercase prefix + 8-char hex from HMAC-SHA256 digest).
@@ -15,6 +15,7 @@
 - Determinism: use a shared, versioned pepper replicated to each environment; rotate by adding a new pepper version and re-tokenizing as needed.
 
 ## HMAC Scheme & Rotation
+- Policy linkage: rotation, retention, and detokenization controls must follow [compliance.md](compliance.md#tokenization-workflow) and the incident response plan in [compliance.md](compliance.md#incident-response-plan).
 - Algorithm: HMAC-SHA256(value || prefix || version) with a KMS-wrapped pepper (stored in Secret Manager, encrypted by vault KMS key). Use a distinct key per env but the same pepper version material to keep tokens stable across envs.
 - Output: store full digest; publish first 8 hex chars as token suffix. On collision, append a short disambiguator while preserving the canonical digest for lookup.
 - Versioning: include `pepper_version` in the HMAC input and in the tokens table. Add new versions (do not destroy old), then re-tokenize as needed. Disable old versions only after rewrap/migration and health checks.
@@ -28,6 +29,7 @@
   symmetric key. Do not store secret values in Terraform/state.
 
 ## App Integration (Cloud Run)
+- Compliance linkage: honor retention, masking, and detokenization constraints in [compliance.md](compliance.md), especially for lawful release.
 - Secrets: read the HMAC pepper from `tokenization-pepper` (Secret Manager, vault project) and, if used, an application
   symmetric key from `pii-tokenization-key`. Both are provisioned as secret containers via Terraform; versions are added
   manually/CI.

@@ -1,15 +1,10 @@
 # Data Compliance & Security Guide
 
-> **Document Owner**: Jerry Soung  
-> **Last Updated**: October 30, 2025  
-> **Review Cycle**: Quarterly  
-> **Version**: 1.0
-
 ---
 
 ## Executive Summary
 
-This document outlines **i4g's** commitment to protecting personally identifiable information (PII) and complying with applicable data protection regulations. As a volunteer-operated non-profit assisting scam users, we handle sensitive data including financial records, personal communications, and identity documents.
+This document outlines **i4g's** commitment to protecting personally identifiable information (PII) and complying with applicable data protection regulations. As a volunteer-operated non-profit assisting scam users, we handle sensitive data including financial records, personal communications, and identity documents. See [pii_vault.md](pii_vault.md) for the technical tokenization and secret-handling design, and [tdd.md](tdd.md) for API/storage contracts.
 
 **Key Principles**:
 1. **Privacy by Design**: PII tokenization from the moment of upload
@@ -76,11 +71,15 @@ This document outlines **i4g's** commitment to protecting personally identifiabl
 
 ### Tokenization Workflow
 
-**Example**:
-- **Raw Input**: "My SSN is 123-45-6789 and I lost $5,000"
-- **Stored in DB**: "My SSN is <PII:SSN:7a8f2e> and I lost $5,000"
-- **Analyst View**: "My SSN is ███████ and I lost $5,000"
-- **LEO Report**: "My SSN is 123-45-6789 and I lost $5,000" (with user consent)
+- Normalize and validate detected PII, then tokenize before writing to SQL/vector/Vertex; canonical values remain only in the vault.
+- Deterministic tokens use the prefix catalog and HMAC pepper rotation described in [pii_vault.md](pii_vault.md#hmac-scheme--rotation).
+- Analyst-facing views display masked values; lawful release flows use detokenization controls in [pii_vault.md](pii_vault.md#detokenization-service).
+- System contracts and request/response shapes are in [tdd.md](tdd.md#data-stores-and-contracts) and [architecture.md](architecture.md).
+
+#### Lawful detokenization
+- Required inputs: actor identity, reason (subpoena/consent/IR), case scope, and approval log.
+- Controls: dual approval or subpoena flag, rate limits, and audit trail; see [pii_vault.md](pii_vault.md#detokenization-service).
+- Output: canonical value and artifact refs only after approvals succeed; mask everywhere else. Align with the incident response plan below when triggered by a security event.
 
 ---
 
@@ -92,9 +91,11 @@ This document outlines **i4g's** commitment to protecting personally identifiabl
 |-----------|------------------|-----------|-----------------|
 | **Active Cases** | Until resolution + 30 days | Ongoing investigation | Soft delete (archive flag) |
 | **Resolved Cases** | 90 days post-resolution | Follow-up questions | Hard delete from Firestore |
-| **PII Vault** | Matches case retention | Compliance | \`delete()\` + crypto shred key |
+| **PII Vault** | Matches case retention (active +30d; resolved +90d) unless legal hold requires longer | Compliance | `delete()` + crypto shred key (see [pii_vault.md](pii_vault.md#retention-purge-and-re-key)) |
 | **Audit Logs** | 1 year | Security investigations | Cloud Logging TTL |
 | **Analytics (anonymized)** | Indefinite | Research | No PII present |
+
+Legal holds and jurisdictional overrides: apply longer retention when a subpoena, investigation, or local statute requires it, and mirror the hold in vault lifecycle rules and object holds per [pii_vault.md](pii_vault.md#retention-purge-and-re-key).
 
 ---
 
@@ -106,7 +107,7 @@ This document outlines **i4g's** commitment to protecting personally identifiabl
 |-----------|--------|----------------|
 | **Data at Rest** | AES-256-GCM | Google Secret Manager |
 | **Data in Transit** | TLS 1.3 | Cloud Run auto-managed |
-| **PII Vault** | Fernet (symmetric) | Rotated monthly |
+| **PII Vault** | KMS-wrapped symmetric key (Secret Manager) | Rotate per [pii_vault.md](pii_vault.md#hmac-scheme--rotation) |
 | **Backups** | CMEK (Customer-Managed) | Separate GCP project |
 
 ### Access Controls
@@ -118,17 +119,17 @@ roles:
     - view_own_case
     - update_own_case
     - delete_own_case
-  
+
   analyst:
     - view_assigned_cases
     - update_case_status
     - add_notes
-  
+
   admin:
     - view_all_cases
     - manage_analysts
     - access_audit_logs
-  
+
   leo: # Law Enforcement Officer
     - download_reports (with subpoena)
 ```
@@ -205,8 +206,8 @@ Subject: Important Security Notice About Your i4g Case
 
 Dear [User Name],
 
-We are writing to inform you that on [Date], we detected unauthorized access to 
-our systems. This incident may have affected your personal information submitted 
+We are writing to inform you that on [Date], we detected unauthorized access to
+our systems. This incident may have affected your personal information submitted
 to i4g on [Case Creation Date].
 
 WHAT HAPPENED:
@@ -217,7 +218,7 @@ INFORMATION POTENTIALLY ACCESSED:
 - Email address
 - [Other fields specific to case]
 
-NOTE: Financial account details (e.g., bank account numbers) were NOT exposed 
+NOTE: Financial account details (e.g., bank account numbers) were NOT exposed
 due to our PII tokenization system.
 
 WHAT WE'RE DOING:
@@ -307,11 +308,11 @@ i4g Project Lead
 
 ## Contact Information
 
-**Data Protection Officer**: Jerry Soung  
-**Email**: dpo@i4g.org  
-**Phone**: [To be added]  
+**Data Protection Officer**: Jerry Soung
+**Email**: dpo@i4g.org
+**Phone**: [To be added]
 
-**Report Security Issues**: security@i4g.org (PGP key available)  
+**Report Security Issues**: security@i4g.org (PGP key available)
 **Legal Inquiries**: legal@i4g.org
 
 ---
@@ -337,6 +338,6 @@ PII_PATTERNS = {
 
 ---
 
-**Legal Disclaimer**: This document provides guidance based on current understanding 
-of applicable laws. It is not legal advice. Consult a licensed attorney for specific 
+**Legal Disclaimer**: This document provides guidance based on current understanding
+of applicable laws. It is not legal advice. Consult a licensed attorney for specific
 compliance questions.
