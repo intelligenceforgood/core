@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 from i4g.reports.dossier_signatures import generate_signature_manifest, verify_manifest_payload
@@ -121,6 +122,34 @@ def test_verify_manifest_payload_resolves_relative_paths(tmp_path) -> None:
     assert report.all_verified is True
     resolved_path = report.artifacts[0].path
     assert resolved_path == artifact.resolve()
+
+
+def test_verify_manifest_payload_prefers_existing_paths_without_double_prefix(tmp_path) -> None:
+    base_dir = tmp_path / "data" / "reports" / "dossiers"
+    base_dir.mkdir(parents=True)
+    artifact = base_dir / "pilot-plan.json"
+    artifact.write_text("payload")
+    expected_hash = hashlib.sha256(artifact.read_bytes()).hexdigest()
+    manifest_payload = {
+        "algorithm": "sha256",
+        "artifacts": [
+            {
+                "label": "manifest",
+                "path": str(Path("data") / "reports" / "dossiers" / "pilot-plan.json"),
+                "hash": expected_hash,
+            }
+        ],
+    }
+
+    prev_cwd = os.getcwd()
+    os.chdir(tmp_path)
+    try:
+        report = verify_manifest_payload(manifest_payload, base_path=base_dir)
+    finally:
+        os.chdir(prev_cwd)
+
+    assert report.all_verified is True
+    assert report.artifacts[0].path == artifact.resolve()
 
 
 def test_verify_manifest_payload_warns_when_hash_missing(tmp_path) -> None:

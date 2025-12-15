@@ -236,9 +236,15 @@ def verify_manifest_payload(
 
         if isinstance(raw_path, str):
             candidate = Path(raw_path)
-            if not candidate.is_absolute() and base_path:
-                candidate = (base_path / candidate).resolve()
-            resolved_path = candidate
+            if candidate.is_absolute():
+                resolved_path = candidate
+            elif candidate.exists():
+                # Avoid double-prefixing base_path when the manifest already stores a rooted path.
+                resolved_path = candidate.resolve()
+            elif base_path:
+                resolved_path = (Path(base_path) / candidate).resolve()
+            else:
+                resolved_path = candidate
         elif isinstance(raw_path, Path):
             resolved_path = raw_path
 
