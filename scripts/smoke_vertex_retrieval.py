@@ -4,15 +4,14 @@
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Sequence
 
 from google.cloud import discoveryengine_v1beta as discoveryengine
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-INGEST_SCRIPT = REPO_ROOT / "scripts" / "ingest_vertex_search.py"
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -57,21 +56,22 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def run_dry_run(args: argparse.Namespace) -> None:
-    cli_args = [
-        sys.executable,
-        str(INGEST_SCRIPT),
-        "--project",
-        args.project,
-        "--location",
-        args.location,
-        "--data-store-id",
-        args.data_store_id,
-        "--jsonl",
-        args.jsonl,
-        "--dry-run",
-    ]
-    result = subprocess.run(cli_args, check=False)
-    if result.returncode != 0:
+    from i4g.cli import ingest
+
+    payload = SimpleNamespace(
+        project=args.project,
+        location=args.location,
+        data_store_id=args.data_store_id,
+        jsonl=Path(args.jsonl),
+        dataset=None,
+        batch_size=50,
+        reconcile_mode="INCREMENTAL",
+        branch_id="default_branch",
+        dry_run=True,
+        verbose=False,
+    )
+    exit_code = ingest.ingest_vertex_search(payload)
+    if exit_code != 0:
         raise SystemExit("Dry-run ingestion failed; see logs above.")
 
 

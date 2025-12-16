@@ -19,7 +19,7 @@ def build_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--input",
         required=True,
-        help="Path to the JSON file produced by i4g-admin export-saved-searches.",
+        help="Path to the JSON file produced by i4g admin export-saved-searches.",
     )
     parser.add_argument(
         "--output",

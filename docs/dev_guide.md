@@ -177,17 +177,17 @@ set if you want those emitted during the smoke.
 
 ### Local pilot verification script
 
-Use `scripts/run_lea_pilot.py` to create a local pilot dossier (manifest + signature + pdf/markdown) and run an in-process
-verification harness via FastAPI TestClient. The script is useful when you cannot run the Next.js console locally and
+Use `i4g extract lea-pilot` to create a local pilot dossier (manifest + signature + pdf/markdown) and run an in-process
+verification harness via FastAPI TestClient. The command is useful when you cannot run the Next.js console locally and
 want a quick, reproducible check that the server-side verification routes work.
 
 Run it with:
 
 ```bash
-conda run -n i4g python scripts/run_lea_pilot.py
+conda run -n i4g i4g extract lea-pilot
 ```
 
-The script returns non-zero on verification failures so it can be used as a CI step in a repo check.
+The command returns non-zero on verification failures so it can be used as a CI step in a repo check.
 
 #### Dossier portal env vars
 
@@ -314,10 +314,10 @@ Prefer a manual walkthrough or need to re-run a single stage? Use the individual
     python tests/adhoc/synthesize_chat_screenshots.py --input data/bundles/ucirvine_sms.jsonl --limit 20
     ```
 
-    Generated PNGs land in `data/chat_screens/`. That folder is the expected input directory for the OCR script, so you can immediately run:
+    Generated PNGs land in `data/chat_screens/`. That folder is the expected input directory for OCR, so you can immediately run:
 
     ```bash
-    python scripts/run_ocr.py --input data/chat_screens
+    i4g extract ocr --input data/chat_screens --output data/ocr_output.json
     ```
 
 3. **Reprime SQLite / Vector Stores (optional)**
@@ -356,7 +356,7 @@ Without the token, the API returns `401 Invalid credentials`.
 ### OCR + Extraction
 
 ```bash
-python scripts/run_ocr.py --input data/chat_screens
+i4g extract ocr --input data/chat_screens --output data/ocr_output.json
 ```
 
 That path is where the synthetic screenshots land; swap in another directory if you are running OCR on real evidence.
@@ -364,16 +364,16 @@ That path is where the synthetic screenshots land; swap in another directory if 
 ### Semantic NER + Classification
 
 ```bash
-python scripts/run_semantic_extraction.py
+i4g extract semantic --input data/ocr_output.json --output data/entities_semantic.json
 python tests/adhoc/classify_text.py "This looks like a scam."
 ```
 
-`run_semantic_extraction.py` reads the OCR output saved to `data/ocr_output.json` by the previous step and writes enriched entities to `data/entities_semantic.json`.
+`i4g extract semantic` reads the OCR output saved to `data/ocr_output.json` by the previous step and writes enriched entities to `data/entities_semantic.json`.
 
 ### Scam Detection RAG Query
 
 ```bash
-i4g-admin query --question "Is this a crypto scam?"
+i4g admin query --question "Is this a crypto scam?"
 ```
 
 ---
@@ -450,7 +450,7 @@ Use the new CLI + worker helpers when testing the agentic dossier pipeline local
 1. **Build bundle plans** (loss/recency filters + shared entities) without mutating queue state:
 
     ```bash
-    i4g-admin build-dossiers --dry-run --limit 100 --preview 5
+    i4g admin build-dossiers --dry-run --limit 100 --preview 5
     ```
 
     Omit `--dry-run` to enqueue `DossierPlan` records inside the SQLite queue. Override thresholds with
@@ -459,8 +459,8 @@ Use the new CLI + worker helpers when testing the agentic dossier pipeline local
 2. **Seed curated pilot runs** whenever you need deterministic demo dossiers:
 
     ```bash
-    i4g-admin pilot-dossiers --case-count 3 --dry-run
-    i4g-admin pilot-dossiers --seed-only  # only write structured + review rows
+    i4g admin pilot-dossiers --case-count 3 --dry-run
+    i4g admin pilot-dossiers --seed-only  # only write structured + review rows
     ```
 
     The command loads `data/manual_demo/dossier_pilot_cases.json` by default, seeds the structured/review stores,
@@ -470,7 +470,7 @@ Use the new CLI + worker helpers when testing the agentic dossier pipeline local
 3. **Process queued plans** either manually or from Cloud Run:
 
     ```bash
-    i4g-admin process-dossiers --batch-size 3 --preview 3
+    i4g admin process-dossiers --batch-size 3 --preview 3
     python -m i4g.worker.jobs.dossier_queue  # Cloud Run job entry point
     ```
 
@@ -504,8 +504,8 @@ Once the queue contains `completed` dossier plans, the Streamlit analyst dashboa
 panel that calls `/reports/dossiers` and surfaces manifest/signature metadata side-by-side. Use it to preview what LEA
 users will see before we mirror the data into the Next.js console. Recommended smoke flow:
 
-1. **Generate artifacts** – run `i4g-admin pilot-dossiers --case-count 3` (for demo data) followed by
-    `i4g-admin process-dossiers --batch-size 3` to populate `data/reports/dossiers/*.json` locally. In cloud
+1. **Generate artifacts** – run `i4g admin pilot-dossiers --case-count 3` (for demo data) followed by
+    `i4g admin process-dossiers --batch-size 3` to populate `data/reports/dossiers/*.json` locally. In cloud
     environments, kick the Cloud Run job and confirm `status=completed` rows exist in `dossier_queue`.
 2. **Boot API + UI** – `conda run -n i4g uvicorn i4g.api.app:app --reload` in one terminal and
     `conda run -n i4g streamlit run src/i4g/ui/analyst_dashboard.py` in another. Point the sidebar connection fields
@@ -519,7 +519,7 @@ users will see before we mirror the data into the Next.js console. Recommended s
     metadata for investigators.
 5. **Optional manual hash check** – for double-blind validation, copy the SHA + path from the signature manifest, then run
     `shasum -a 256 <path>` (or `python -m hashlib`) to confirm the command-line result matches the Streamlit verification
-    output. For bulk checks, use `conda run -n i4g python scripts/verify_dossier_hashes.py --path data/reports/dossiers`
+    output. For bulk checks, use `conda run -n i4g i4g reports verify-hashes --path data/reports/dossiers`
     (add `--fail-on-warn` to treat manifest warnings as failures).
 
 Record the outcomes (especially any warnings/errors) as part of the Milestone 4 regression log so we maintain a reproducible
@@ -531,7 +531,7 @@ manual test until the automated LEA portal ships.
 
 **Core Scripts**
 
-- **Build FAISS index:** `python scripts/build_index.py --backend faiss --reset`
+- **Build FAISS index:** `i4g data build-index --backend faiss --reset`
 - **Run unit tests:** `pytest -v`
 - **Format source:** `black src tests`
 - **Snapshot context:** `bash tests/adhoc/generate_context_snapshot.sh --help`
@@ -554,14 +554,14 @@ Both commands respect the same env vars as Next.js, so you can point the suite a
 > ⚠️ Run commits from an activated `i4g` environment (or set `CONDA_PREFIX`/`VIRTUAL_ENV`) so the hook uses the correct Python when executing unit tests.
 > Formatter line length is set to 120 characters to match team editor settings.
 
-**Saved Search Admin (`i4g-admin`)**
+**Saved Search Admin (`i4g admin`)**
 
-- `i4g-admin export-saved-searches --owner alice --output alice.json`
-- `i4g-admin import-saved-searches --shared --input team.json`
-- `i4g-admin bulk-update-tags --owner alice --tags urgent wallet --remove legacy`
-- `i4g-admin prune-saved-searches --owner alice --tags legacy`
+- `i4g admin export-saved-searches --owner alice --output alice.json`
+- `i4g admin import-saved-searches --shared --input team.json`
+- `i4g admin bulk-update-tags --owner alice --tags urgent wallet --remove legacy`
+- `i4g admin prune-saved-searches --owner alice --tags legacy`
 
-Install locally with `pip install -e .` to expose `i4g-admin` everywhere; run `i4g-admin --help` to browse each subcommand.
+Install locally with `pip install -e .` to expose `i4g`; run `i4g admin --help` to browse each subcommand.
 
 ---
 

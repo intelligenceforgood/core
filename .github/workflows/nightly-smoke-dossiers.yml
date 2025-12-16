@@ -19,6 +19,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -e .
+      - name: CLI help sanity
+        run: |
+          python -m i4g.cli.app --help >/dev/null
       - name: Start FastAPI
         run: |
           nohup uvicorn i4g.api.app:app --host 0.0.0.0 --port 8000 &
@@ -47,11 +50,11 @@ jobs:
           PY
       - name: Enqueue sample dossier plan
         run: |
-          python scripts/enqueue_sample_dossier.py
+          i4g env seed-sample
       - name: Run Smoke Script
         env:
           I4G_ENV: local
           I4G_API_KEY: dev-token
         run: |
           sleep 3
-          python scripts/smoke_dossiers.py --api-url http://localhost:8000 --token $I4G_API_KEY
+          i4g smoke dossiers --api-url http://localhost:8000 --token $I4G_API_KEY

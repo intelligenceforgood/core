@@ -29,6 +29,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = ROOT / "src"
@@ -194,23 +195,19 @@ def synthesize_screens() -> Path:
 
 
 def run_ocr() -> None:
-    run(
-        [
-            sys.executable,
-            "scripts/run_ocr.py",
-            "--input",
-            str(CHAT_SCREENS_DIR),
-        ]
-    )
+    from i4g.cli import extract_tasks
+
+    exit_code = extract_tasks.ocr(SimpleNamespace(input=CHAT_SCREENS_DIR, output=OCR_OUTPUT))
+    if exit_code:
+        raise RuntimeError(f"OCR failed with exit code {exit_code}")
 
 
 def run_semantic_extraction() -> None:
-    run(
-        [
-            sys.executable,
-            "scripts/run_semantic_extraction.py",
-        ]
-    )
+    from i4g.cli import extract_tasks
+
+    exit_code = extract_tasks.semantic(SimpleNamespace(input=OCR_OUTPUT, output=SEMANTIC_OUTPUT, model="llama3.1"))
+    if exit_code:
+        raise RuntimeError(f"Semantic extraction failed with exit code {exit_code}")
 
 
 def rebuild_manual_demo() -> None:

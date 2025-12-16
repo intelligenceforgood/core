@@ -1,19 +1,4 @@
-#!/usr/bin/env python3
-"""Generate synthetic retrieval evaluation datasets for Milestone 2 PoCs.
-
-Running this script will populate `data/retrieval_poc/` with:
-- `cases.jsonl`: synthetic scam scenarios with structured metadata.
-- `ground_truth.yaml`: mapping of evaluation queries to relevant case IDs.
-- `manifest.json`: summary metadata describing the run.
-
-The records are intentionally deterministic given a seed so repeated runs are
-reproducible. The goal is to provide a representative, non-sensitive dataset
-for comparing retrieval backends (Vertex AI Search vs AlloyDB + pgvector).
-
-You can:
-- Limit generation to a subset of templates via `--include-templates wallet_verification romance_bitcoin`.
-- Supply a JSON configuration describing custom templates via `--template-config path/to/templates.json`.
-"""
+"""Generate synthetic retrieval evaluation datasets (moved from scripts/prepare_retrieval_dataset.py)."""
 
 from __future__ import annotations
 
@@ -383,7 +368,6 @@ TEMPLATE_GENERATORS: Dict[str, Callable[[TemplateConfig, int, random.Random], Di
     "gift_card_shakedown": gift_card_shakedown_generator,
 }
 
-
 DEFAULT_TEMPLATE_SPECS = [
     {
         "label": "wallet_verification",
@@ -398,263 +382,240 @@ DEFAULT_TEMPLATE_SPECS = [
     },
     {
         "label": "romance_bitcoin",
-        "category": "romance_scam",
-        "channel": "chat",
+        "category": "romance",
+        "channel": "sms",
         "count": 40,
-        "query": "romance scam asking for bitcoin to pay travel documents",
-        "notes": "Chat-based romance pretext requesting crypto to cover urgent travel or visa fees.",
-        "tags": ["romance", "emotional", "chat"],
-        "keywords": ["visa approved", "send bitcoin", "meet soon"],
+        "query": "romance bitcoin",
+        "notes": "Romance scams demanding BTC/USDT to clear visas or emergencies.",
+        "tags": ["romance", "crypto", "sms"],
+        "keywords": ["immigration fee", "visa", "bitcoin"],
         "generator": "romance_bitcoin",
     },
     {
         "label": "investment_group",
-        "category": "investment_scam",
-        "channel": "telegram",
+        "category": "investment",
+        "channel": "chat",
         "count": 40,
-        "query": "telegram pump group early entry token signal",
-        "notes": "Pump-and-dump alerts from gated trading communities.",
-        "tags": ["investment", "telegram", "signals"],
-        "keywords": ["liquidity injection", "buy before", "target price"],
+        "query": "pump room",
+        "notes": "Coordinated pump-and-dump chat rooms.",
+        "tags": ["investment", "pump"],
+        "keywords": ["liquidity injection", "pump", "token"],
         "generator": "investment_group",
     },
     {
         "label": "tech_support",
         "category": "tech_support_scam",
-        "channel": "email",
+        "channel": "phone",
         "count": 40,
-        "query": "tech support refund scam remote access install anydesk",
-        "notes": "Email/SMS tech-support refund scams requiring remote-control tools.",
-        "tags": ["tech-support", "refund", "remote-access"],
-        "keywords": ["license expired", "install anydesk", "stay on the line"],
+        "query": "license expired",
+        "notes": "Tech support scammers pushing remote tools.",
+        "tags": ["tech_support_scam", "phone"],
+        "keywords": ["license expired", "teamviewer", "refund"],
         "generator": "tech_support",
     },
     {
         "label": "impostor_refund",
         "category": "government_impostor",
         "channel": "phone",
-        "count": 20,
-        "query": "irs refund returned compliance fee bond scam",
-        "notes": "Government impostor calls asking for compliance fees via bonds or vouchers.",
-        "tags": ["impostor", "government", "phone"],
-        "keywords": ["refund returned", "compliance fee", "case reference"],
+        "count": 40,
+        "query": "refund call",
+        "notes": "Government impostor refund scams.",
+        "tags": ["government", "impostor", "phone"],
+        "keywords": ["refund", "compliance fee", "bonds"],
         "generator": "impostor_refund",
     },
     {
         "label": "gift_card_shakedown",
         "category": "business_email_compromise",
-        "channel": "sms",
-        "count": 20,
-        "query": "urgent executive gift card codes reimbursement",
-        "notes": "Executive impersonation demanding bulk gift cards for emergencies.",
-        "tags": ["bec", "gift-card", "urgent"],
-        "keywords": ["investor demo", "scratch the codes", "reimburse"],
+        "channel": "email",
+        "count": 40,
+        "query": "gift card",
+        "notes": "BEC-style gift card shakedowns.",
+        "tags": ["gift-card", "bec", "email"],
+        "keywords": ["gift card", "investor demo", "reimburse"],
         "generator": "gift_card_shakedown",
     },
 ]
 
 
-def _build_template(spec: Dict[str, Any]) -> TemplateConfig:
-    label = spec.get("label")
-    generator_name = spec.get("generator") or label
-    if not label:
-        raise ValueError("Template spec missing 'label'.")
-    if generator_name not in TEMPLATE_GENERATORS:
-        raise ValueError(f"Unknown generator '{generator_name}' for template '{label}'.")
-    generator = TEMPLATE_GENERATORS[generator_name]
-    tags = spec.get("tags") or []
-    keywords = spec.get("keywords") or []
-    if isinstance(tags, str):
-        tags = [tags]
-    if isinstance(keywords, str):
-        keywords = [keywords]
-    return TemplateConfig(
-        label=label,
-        category=spec.get("category", "uncategorised"),
-        channel=spec.get("channel", "unknown"),
-        count=int(spec.get("count", 0)),
-        query=spec.get("query", label),
-        notes=spec.get("notes", ""),
-        tags=list(tags),
-        keywords=list(keywords),
-        generator=generator,
-    )
-
-
-def get_default_templates() -> Dict[str, TemplateConfig]:
-    templates: Dict[str, TemplateConfig] = {}
-    for spec in DEFAULT_TEMPLATE_SPECS:
-        template = _build_template(spec)
-        templates[template.label] = template
-    return templates
-
-
-def load_templates(config_path: Path | None) -> Dict[str, TemplateConfig]:
-    if config_path is None:
-        return get_default_templates()
-
-    if not config_path.exists():
-        raise FileNotFoundError(f"Template config not found: {config_path}")
-
-    with config_path.open("r", encoding="utf-8") as fh:
-        data = json.load(fh)
-
-    if not isinstance(data, dict) or "templates" not in data:
-        raise ValueError("Template config must be a JSON object with a 'templates' list.")
-
-    templates: Dict[str, TemplateConfig] = {}
-    for item in data.get("templates", []):
-        if not isinstance(item, dict):
-            raise ValueError("Each template entry must be an object.")
-        template = _build_template(item)
-        templates[template.label] = template
-
-    if not templates:
-        raise ValueError("No templates defined in configuration file.")
-
-    return templates
-
-
-def select_templates(
-    templates: Dict[str, TemplateConfig], include_labels: Sequence[str] | None
-) -> List[TemplateConfig]:
-    if include_labels:
-        missing = [label for label in include_labels if label not in templates]
-        if missing:
-            raise ValueError(f"Requested templates not found: {', '.join(missing)}")
-        return [templates[label] for label in include_labels]
-
-    return list(templates.values())
-
-
-def escape_yaml(value: str) -> str:
-    return value.replace('"', '\\"')
-
-
-def build_dataset(
-    templates: Sequence[TemplateConfig], output_dir: Path, seed: int, cases_per_template: int | None
-) -> None:
-    rng = random.Random(seed)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    records: List[Dict[str, object]] = []
-    distribution = []
-
-    for cfg in templates:
-        count = cases_per_template if cases_per_template is not None else cfg.count
-        template_records: List[Dict[str, object]] = []
-        for idx in range(count):
-            case_id = f"{cfg.label}-{idx:03d}"
-            payload = cfg.generator(cfg, idx, rng)
-            timestamp = iso_timestamp(rng.randint(2, 180), rng)
-            tags = sorted({*payload.get("tags", []), cfg.category, cfg.channel})
-            metadata = {
-                "template": cfg.label,
-                "keywords": cfg.keywords,
-                "seed_index": idx,
-            }
-            extra_metadata = payload.get("extra_metadata")
-            if isinstance(extra_metadata, dict):
-                metadata.update(extra_metadata)
-
-            record = {
-                "case_id": case_id,
-                "category": cfg.category,
-                "channel": cfg.channel,
-                "summary": payload.get("summary"),
-                "text": payload.get("text"),
-                "entities": payload.get("entities", {}),
-                "tags": tags,
-                "timestamp": timestamp,
-                "risk_level": payload.get("risk_level", "medium"),
-                "ground_truth_label": cfg.label,
-                "language": "en",
-                "structured_fields": payload.get("structured_fields", {}),
-                "metadata": metadata,
-            }
-            template_records.append(record)
-        records.extend(template_records)
-        distribution.append({"label": cfg.label, "count": count, "category": cfg.category, "channel": cfg.channel})
-
-    rng.shuffle(records)
-
-    cases_path = output_dir / "cases.jsonl"
-    with cases_path.open("w", encoding="utf-8") as fh:
-        for rec in records:
-            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
-
-    manifest = {
-        "generated_at": datetime.utcnow().strftime(ISO_FORMAT),
-        "seed": seed,
-        "total_records": len(records),
-        "templates": distribution,
-        "output": str(cases_path.relative_to(output_dir.parent)),
-        "version": "synthetic-v1",
-    }
-    with (output_dir / "manifest.json").open("w", encoding="utf-8") as fh:
-        json.dump(manifest, fh, indent=2)
-
-    queries = []
-    for cfg in templates:
-        relevant_ids = [rec["case_id"] for rec in records if rec["ground_truth_label"] == cfg.label]
-        queries.append(
-            {
-                "id": cfg.label,
-                "text": cfg.query,
-                "notes": cfg.notes,
-                "tags": cfg.tags,
-                "relevant_case_ids": relevant_ids,
-            }
-        )
-
-    yaml_lines = ["version: 1", f"generated_at: '{manifest['generated_at']}'", "queries:"]
-    for item in queries:
-        yaml_lines.append(f"  - id: {item['id']}")
-        yaml_lines.append(f"    text: \"{escape_yaml(item['text'])}\"")
-        yaml_lines.append(f"    notes: \"{escape_yaml(item['notes'])}\"")
-        yaml_lines.append("    tags:")
-        for tag in item["tags"]:
-            yaml_lines.append(f"      - {tag}")
-        yaml_lines.append("    relevant_case_ids:")
-        for cid in item["relevant_case_ids"]:
-            yaml_lines.append(f"      - {cid}")
-    yaml_content = "\n".join(yaml_lines) + "\n"
-    with (output_dir / "ground_truth.yaml").open("w", encoding="utf-8") as fh:
-        fh.write(yaml_content)
-
-    print(f"✅ Generated {len(records)} cases at {cases_path}")
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Prepare synthetic retrieval evaluation dataset")
-    parser.add_argument("--output-dir", default="data/retrieval_poc", help="Directory to store dataset artifacts")
-    parser.add_argument("--seed", type=int, default=20251110, help="Random seed for reproducibility")
+def build_argument_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--cases-per-template",
+        "--seed",
+        type=int,
+        default=1337,
+        help="Random seed (default: 1337)",
+    )
+    parser.add_argument(
+        "--count",
         type=int,
         default=None,
-        help="Override number of cases per template (default uses template-specific counts)",
+        help="Total number of cases to generate (evenly split across templates unless include-templates is set).",
     )
     parser.add_argument(
         "--include-templates",
         nargs="+",
-        help="Subset of template labels to generate (defaults to all available templates).",
+        default=None,
+        help="Limit to specific templates by label.",
     )
     parser.add_argument(
         "--template-config",
-        help="Path to JSON file that defines templates (overrides the built-in archetypes).",
+        type=Path,
+        default=None,
+        help="Path to a JSON file containing template specs.",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=Path("data/retrieval_poc"),
+        help="Destination directory for generated files.",
+    )
+    parser.add_argument(
+        "--case-file",
+        type=str,
+        default="cases.jsonl",
+        help="Filename for the cases JSONL output (relative to output-dir).",
+    )
+    parser.add_argument(
+        "--ground-truth",
+        type=str,
+        default="ground_truth.yaml",
+        help="Filename for the ground truth YAML output (relative to output-dir).",
+    )
+    parser.add_argument(
+        "--manifest",
+        type=str,
+        default="manifest.json",
+        help="Filename for the manifest JSON output (relative to output-dir).",
+    )
+    return parser
 
 
-def main() -> None:
-    args = parse_args()
-    output_dir = Path(args.output_dir)
-    config_path = Path(args.template_config).expanduser() if args.template_config else None
-    templates_map = load_templates(config_path)
-    templates = select_templates(templates_map, args.include_templates)
-    build_dataset(templates, output_dir=output_dir, seed=args.seed, cases_per_template=args.cases_per_template)
+def load_template_specs(template_config: Path | None) -> list[dict[str, Any]]:
+    if template_config is None:
+        return DEFAULT_TEMPLATE_SPECS
+    data = json.loads(template_config.read_text(encoding="utf-8"))
+    if not isinstance(data, list):
+        raise ValueError("Template config must be a list of objects")
+    return data
 
 
-if __name__ == "__main__":
-    main()
+def build_templates(specs: list[dict[str, Any]]) -> list[TemplateConfig]:
+    templates: list[TemplateConfig] = []
+    for spec in specs:
+        generator_name = spec.get("generator")
+        generator = TEMPLATE_GENERATORS.get(generator_name)
+        if generator is None:
+            raise ValueError(f"Unknown generator '{generator_name}' in template spec")
+        templates.append(
+            TemplateConfig(
+                label=spec["label"],
+                category=spec["category"],
+                channel=spec["channel"],
+                count=int(spec["count"]),
+                query=spec["query"],
+                notes=spec.get("notes", ""),
+                tags=list(spec.get("tags", [])),
+                keywords=list(spec.get("keywords", [])),
+                generator=generator,
+            )
+        )
+    return templates
+
+
+def generate_cases(
+    templates: list[TemplateConfig], total_count: int | None, seed: int
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    rng = random.Random(seed)
+
+    if total_count is not None:
+        # even distribution across templates
+        per_template = max(total_count // len(templates), 1)
+        for template in templates:
+            template.count = per_template
+
+    cases: list[dict[str, Any]] = []
+    ground_truth: list[dict[str, Any]] = []
+
+    for template in templates:
+        for idx in range(template.count):
+            case_id = f"case-{template.label}-{idx + 1:03d}"
+            record = template.generator(template, idx, rng)
+            record.update(
+                {
+                    "id": case_id,
+                    "label": template.label,
+                    "category": template.category,
+                    "channel": template.channel,
+                    "keywords": template.keywords,
+                }
+            )
+            cases.append(record)
+            ground_truth.append(
+                {
+                    "query": template.query,
+                    "expected_ids": [case_id],
+                    "expected_labels": [template.label],
+                    "filter_expression": None,
+                }
+            )
+
+    return cases, ground_truth
+
+
+def write_outputs(
+    cases: list[dict[str, Any]],
+    ground_truth: list[dict[str, Any]],
+    output_dir: Path,
+    case_file: str,
+    ground_truth_file: str,
+    manifest_file: str,
+    seed: int,
+) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    case_path = output_dir / case_file
+    with case_path.open("w", encoding="utf-8") as f:
+        for record in cases:
+            f.write(json.dumps(record) + "\n")
+
+    import yaml
+
+    gt_path = output_dir / ground_truth_file
+    gt_path.write_text(
+        yaml.safe_dump(ground_truth, sort_keys=False, allow_unicode=False),
+        encoding="utf-8",
+    )
+
+    manifest = {
+        "generated_at": datetime.utcnow().strftime(ISO_FORMAT),
+        "seed": seed,
+        "case_file": str(case_path),
+        "ground_truth_file": str(gt_path),
+        "case_count": len(cases),
+    }
+    (output_dir / manifest_file).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+
+def generate_dataset(args: argparse.Namespace) -> int:
+    specs = load_template_specs(args.template_config)
+    templates = build_templates(specs)
+
+    if args.include_templates:
+        include = set(args.include_templates)
+        templates = [t for t in templates if t.label in include]
+        if not templates:
+            raise SystemExit("No templates match the provided include list.")
+
+    cases, ground_truth = generate_cases(templates, args.count, args.seed)
+    write_outputs(cases, ground_truth, args.output_dir, args.case_file, args.ground_truth, args.manifest, args.seed)
+    print(f"✅ Generated {len(cases)} cases to {args.output_dir}")
+    return 0
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_argument_parser()
+    args = parser.parse_args(argv)
+    return generate_dataset(args)
+
+
+__all__ = ["main", "generate_dataset"]

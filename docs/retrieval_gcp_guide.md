@@ -13,12 +13,12 @@ This guide documents the Google Cloud workflow for the Retrieval proof of concep
 
 ---
 
-## Ingestion Script
+## Ingestion Command
 
-Use `scripts/ingest_vertex_search.py` to load the JSONL cases into the hosted data store.
+Use `i4g ingest vertex` to load the JSONL cases into the hosted data store.
 
 ```bash
-python scripts/ingest_vertex_search.py \
+i4g ingest vertex \
     --project i4g-dev \
     --location global \
     --data-store-id retrieval-poc \
@@ -62,7 +62,7 @@ fields so Discovery filters can target specific bundles and indicator groups:
     provide explicit IDs; otherwise, metadata dictionaries with `indicator_id`, `id`, or `value`
     entries are promoted into a flat list.
 
-When you run `scripts/ingest_vertex_search.py`, the `structData` payload now includes these keys for
+When you run `i4g ingest vertex`, the `structData` payload now includes these keys for
 every document, enabling precise filters such as `dataset: ANY("retrieval_poc") AND indicator_ids:
 ANY("wallet_verification")`. The ingestion worker (`i4g-ingest-job`) reuses the same builder so
 real-time dual-write runs push the enriched documents to Vertex without invoking the standalone
@@ -70,17 +70,18 @@ script.
 
 ---
 
-## Query Script
+## Query Command
 
-`scripts/query_vertex_search.py` performs ad-hoc searches against the data store. Basic usage:
+`i4g search query-vertex` performs ad-hoc searches against the data store. Basic usage:
 
 ```bash
-python scripts/query_vertex_search.py \
-    "wallet address verification" \
+i4g search query-vertex \
     --project i4g-dev \
     --location global \
     --data-store-id retrieval-poc \
-    --page-size 5
+    --serving-config-id default_search \
+    --page-size 5 \
+    "wallet address verification"
 ```
 
 ### Filters
@@ -88,12 +89,12 @@ python scripts/query_vertex_search.py \
 Discovery filter syntax is strict about spacing. Arrays such as `tags` require the `ANY` operator **with a space on both sides of the colon**:
 
 ```bash
-python scripts/query_vertex_search.py \
-    "verification" \
+i4g search query-vertex \
     --project i4g-dev \
     --location global \
     --data-store-id retrieval-poc \
-    --filter 'tags: ANY("account-security")'
+    --filter 'tags: ANY("account-security")' \
+    "verification"
 ```
 
 If the service returns `Unsupported field "tags" on ":" operator`, double-check the colon spacing.
@@ -103,12 +104,12 @@ If the service returns `Unsupported field "tags" on ":" operator`, double-check 
 Rank adjustments can be tested without changing the hosted configuration by passing `--boost-json`:
 
 ```bash
-python scripts/query_vertex_search.py \
-    "verification" \
+i4g search query-vertex \
     --project i4g-dev \
     --location global \
     --data-store-id retrieval-poc \
-    --boost-json '{"conditionBoostSpecs": [{"condition": "tags: ANY(\"romance\")", "boost": -0.5}]}'
+    --boost-json '{"conditionBoostSpecs": [{"condition": "tags: ANY(\"romance\")", "boost": -0.5}]}' \
+    "verification"
 ```
 
 The script JSON-parses the payload and merges it into `SearchRequest.BoostSpec`, allowing quick experiments with positive or negative boosts.
@@ -163,10 +164,7 @@ Fields such as `tags`, `category`, `structured_fields.asset`, and `entities.cryp
 Run the wrapper below before a major checkpoint to confirm both ingestion parsing and hosted search stay healthy:
 
 ```bash
-python scripts/smoke_vertex_retrieval.py \
-    --project i4g-dev \
-    --location global \
-    --data-store-id retrieval-poc
+i4g smoke vertex-search --project i4g-dev --data-store-id retrieval-poc --location global
 ```
 
 The script performs a dry-run ingest on `data/retrieval_poc/cases.jsonl` and then issues a search against the `default_search` serving config. It exits non-zero if parsing fails or the query returns zero documents, giving you one command to spot regressions.
@@ -178,10 +176,7 @@ The script performs a dry-run ingest on `data/retrieval_poc/cases.jsonl` and the
 Use the evaluation helper to track a lightweight relevance baseline across common scam scenarios:
 
 ```bash
-python scripts/evaluate_vertex_search.py \
-    --project i4g-dev \
-    --location global \
-    --data-store-id retrieval-poc
+i4g search eval-vertex --project i4g-dev --location global --data-store-id retrieval-poc
 ```
 
 By default the script runs four canned queries (wallet verification, romance visa pretext, investment pump room, and tech-support remote access) and reports whether a matching document appears within the top five results. Provide `--config path/to/scenarios.json` to override or extend the scenario list; each entry can specify the query, optional filter, expected document ids/tags/labels, and the acceptable rank cut-off (`pass_k`). The process exits with a non-zero code if any scenario fails, making it suitable for manual checkpoints or future CI automation.
@@ -190,7 +185,7 @@ By default the script runs four canned queries (wallet verification, romance vis
 
 ## Next Steps
 
-- [ ] Add GitHub Actions job that runs `scripts/smoke_vertex_retrieval.py` and `scripts/evaluate_vertex_search.py` against a fixture data store
+- [ ] Add GitHub Actions job that runs `i4g smoke vertex-search` and `i4g search eval-vertex` against a fixture data store
 - [x] Add `i4g-admin` command to query Vertex Search with saved filters
 - [ ] Surface Discovery hits in the React analyst UI once the panel design is finalized
 - When the schema diverges from the default, export the custom schema to `infra/` so Terraform keeps the configuration synced.

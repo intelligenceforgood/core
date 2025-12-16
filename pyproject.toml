@@ -50,6 +50,7 @@ dependencies = [
     "streamlit>=1.51.0,<2",
     "tqdm",
     "trio",
+    "typer[all]>=0.12.3",
     "alembic>=1.13,<2",
 ]
 
@@ -63,7 +64,8 @@ test = [
 ]
 
 [project.scripts]
-i4g-admin = "i4g.cli.admin:main"
+i4g = "i4g.cli.app:app"
+i4g-admin = "i4g.cli.shim:main"
 run-dataflow = "prefect_gcp.beam.pipeline:main"
 i4g-ingest-job = "i4g.worker.jobs.ingest:main"
 i4g-report-job = "i4g.worker.jobs.report:main"
@@ -71,6 +73,7 @@ i4g-intake-job = "i4g.worker.jobs.intake:main"
 i4g-account-job = "i4g.worker.jobs.account_list:main"
 i4g-ingest-retry-job = "i4g.worker.jobs.ingest_retry:main"
 i4g-dossier-job = "i4g.worker.jobs.dossier_queue:main"
+i4g-azure = "i4g.cli.azure:app"
 
 [tool.hatch.version]
 path = "VERSION.txt"
