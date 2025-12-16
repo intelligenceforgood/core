@@ -15,6 +15,9 @@ from typing import Optional
 import typer
 
 from i4g.cli import (
+    azure,
+    bundle_manifest,
+    bundle_storage,
     datasets,
     dossiers,
     extract_tasks,
@@ -25,6 +28,7 @@ from i4g.cli import (
     saved_searches,
     search,
     smoke,
+    synthetic_coverage,
 )
 from i4g.settings import get_settings
 
@@ -33,7 +37,8 @@ VERSION = (Path(__file__).resolve().parents[3] / "VERSION.txt").read_text().stri
 APP_HELP = (
     "i4g command line for developers and operators. "
     "Config precedence: settings.default.toml -> settings.local.toml -> env vars (I4G_* with __) -> CLI flags. "
-    "Use --install-completion to enable shell tab completion."
+    "Use --install-completion to enable shell tab completion. "
+    "Guardrails: bootstrap commands enforce I4G_ENV and require --force to target non-local/dev projects."
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -41,6 +46,9 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 app = typer.Typer(add_completion=True, help=APP_HELP)
+bootstrap_app = typer.Typer(help="Bootstrap or reset environments (local sandbox, dev refresh).")
+bootstrap_local_app = typer.Typer(help="Local sandbox bootstrap helpers.")
+bootstrap_dev_app = typer.Typer(help="Dev bootstrap via Cloud Run jobs.")
 env_app = typer.Typer(help="Bootstrap or reset environments (local sandbox, dev refresh).")
 settings_app = typer.Typer(help="Inspect and export configuration manifests.")
 smoke_app = typer.Typer(help="Run smoketests against local or remote services.")
@@ -53,6 +61,7 @@ extract_app = typer.Typer(help="OCR and extraction pipelines.")
 admin_app = typer.Typer(help="Saved search and dossier administration.")
 
 app.add_typer(env_app, name="env")
+app.add_typer(bootstrap_app, name="bootstrap")
 app.add_typer(settings_app, name="settings")
 app.add_typer(smoke_app, name="smoke")
 app.add_typer(jobs_app, name="jobs")
@@ -62,6 +71,9 @@ app.add_typer(data_app, name="data")
 app.add_typer(reports_app, name="reports")
 app.add_typer(extract_app, name="extract")
 app.add_typer(admin_app, name="admin")
+app.add_typer(azure.app, name="azure")
+bootstrap_app.add_typer(bootstrap_local_app, name="local")
+bootstrap_app.add_typer(bootstrap_dev_app, name="dev")
 
 
 def _exit_from_return(code: int | None) -> None:
@@ -69,6 +81,204 @@ def _exit_from_return(code: int | None) -> None:
 
     if isinstance(code, int) and code != 0:
         raise typer.Exit(code)
+
+
+def _deprecated_env_notice(new_cmd: str) -> None:
+    typer.echo(f"[deprecated] use 'i4g bootstrap {new_cmd}' instead.", err=True)
+
+
+def _run_bootstrap_local(
+    *,
+    reset: bool,
+    skip_ocr: bool,
+    skip_vector: bool,
+    bundle_uri: Optional[str],
+    dry_run: bool,
+    verify_only: bool,
+    report_dir: Path,
+    smoke_search: bool,
+    search_project: Optional[str],
+    search_location: Optional[str],
+    search_data_store_id: Optional[str],
+    search_serving_config_id: str,
+    search_query: str,
+    search_page_size: int,
+    smoke_dossiers: bool,
+    smoke_api_url: Optional[str],
+    smoke_token: Optional[str],
+    smoke_dossier_status: str,
+    smoke_dossier_limit: int,
+    smoke_dossier_plan_id: Optional[str],
+    force: bool,
+) -> None:
+    from scripts import bootstrap_local_sandbox
+
+    argv: list[str] = []
+    if reset:
+        argv.append("--reset")
+    if skip_ocr:
+        argv.append("--skip-ocr")
+    if skip_vector:
+        argv.append("--skip-vector")
+    if bundle_uri:
+        argv.extend(["--bundle-uri", bundle_uri])
+    if dry_run:
+        argv.append("--dry-run")
+    if verify_only:
+        argv.append("--verify-only")
+    if report_dir:
+        argv.extend(["--report-dir", str(report_dir)])
+    if smoke_search:
+        argv.append("--smoke-search")
+    if search_project:
+        argv.extend(["--search-project", search_project])
+    if search_location:
+        argv.extend(["--search-location", search_location])
+    if search_data_store_id:
+        argv.extend(["--search-data-store-id", search_data_store_id])
+    if search_serving_config_id:
+        argv.extend(["--search-serving-config-id", search_serving_config_id])
+    if search_query:
+        argv.extend(["--search-query", search_query])
+    if search_page_size:
+        argv.extend(["--search-page-size", str(search_page_size)])
+    if smoke_dossiers:
+        argv.append("--smoke-dossiers")
+    if smoke_api_url:
+        argv.extend(["--smoke-api-url", smoke_api_url])
+    if smoke_token:
+        argv.extend(["--smoke-token", smoke_token])
+    if smoke_dossier_status:
+        argv.extend(["--smoke-dossier-status", smoke_dossier_status])
+    if smoke_dossier_limit:
+        argv.extend(["--smoke-dossier-limit", str(smoke_dossier_limit)])
+    if smoke_dossier_plan_id:
+        argv.extend(["--smoke-dossier-plan-id", smoke_dossier_plan_id])
+    if force:
+        argv.append("--force")
+    bootstrap_local_sandbox.main(argv)
+
+
+def _run_bootstrap_dev(
+    *,
+    project: str,
+    region: str,
+    bundle_uri: Optional[str],
+    dataset: Optional[str],
+    wif_service_account: str,
+    firestore_job: str,
+    vertex_job: str,
+    sql_job: str,
+    bigquery_job: str,
+    gcs_assets_job: str,
+    reports_job: str,
+    saved_searches_job: str,
+    skip_firestore: bool,
+    skip_vertex: bool,
+    skip_sql: bool,
+    skip_bigquery: bool,
+    skip_gcs_assets: bool,
+    skip_reports: bool,
+    skip_saved_searches: bool,
+    dry_run: bool,
+    verify_only: bool,
+    run_smoke: bool,
+    run_dossier_smoke: bool,
+    run_search_smoke: bool,
+    search_project: Optional[str],
+    search_location: Optional[str],
+    search_data_store_id: Optional[str],
+    search_serving_config_id: Optional[str],
+    search_query: str,
+    search_page_size: int,
+    report_dir: Path,
+    force: bool,
+    log_level: str,
+    smoke_api_url: str,
+    smoke_token: str,
+    smoke_job: str,
+    smoke_container: str,
+) -> None:
+    from scripts import bootstrap_dev_env
+
+    argv: list[str] = [
+        "--project",
+        project,
+        "--region",
+        region,
+        "--wif-service-account",
+        wif_service_account,
+        "--firestore-job",
+        firestore_job,
+        "--vertex-job",
+        vertex_job,
+        "--sql-job",
+        sql_job,
+        "--bigquery-job",
+        bigquery_job,
+        "--gcs-assets-job",
+        gcs_assets_job,
+        "--reports-job",
+        reports_job,
+        "--saved-searches-job",
+        saved_searches_job,
+        "--report-dir",
+        str(report_dir),
+        "--log-level",
+        log_level,
+        "--smoke-api-url",
+        smoke_api_url,
+        "--smoke-token",
+        smoke_token,
+        "--smoke-job",
+        smoke_job,
+        "--smoke-container",
+        smoke_container,
+    ]
+    if bundle_uri:
+        argv.extend(["--bundle-uri", bundle_uri])
+    if dataset:
+        argv.extend(["--dataset", dataset])
+    if skip_firestore:
+        argv.append("--skip-firestore")
+    if skip_vertex:
+        argv.append("--skip-vertex")
+    if skip_sql:
+        argv.append("--skip-sql")
+    if skip_bigquery:
+        argv.append("--skip-bigquery")
+    if skip_gcs_assets:
+        argv.append("--skip-gcs-assets")
+    if skip_reports:
+        argv.append("--skip-reports")
+    if skip_saved_searches:
+        argv.append("--skip-saved-searches")
+    if dry_run:
+        argv.append("--dry-run")
+    if verify_only:
+        argv.append("--verify-only")
+    if run_smoke:
+        argv.append("--run-smoke")
+    if run_dossier_smoke:
+        argv.append("--run-dossier-smoke")
+    if run_search_smoke:
+        argv.append("--run-search-smoke")
+    if search_project:
+        argv.extend(["--search-project", search_project])
+    if search_location:
+        argv.extend(["--search-location", search_location])
+    if search_data_store_id:
+        argv.extend(["--search-data-store-id", search_data_store_id])
+    if search_serving_config_id:
+        argv.extend(["--search-serving-config-id", search_serving_config_id])
+    if search_query:
+        argv.extend(["--search-query", search_query])
+    if search_page_size:
+        argv.extend(["--search-page-size", str(search_page_size)])
+    if force:
+        argv.append("--force")
+
+    _exit_from_return(bootstrap_dev_env.main(argv))
 
 
 @app.callback(invoke_without_command=True)
@@ -83,33 +293,720 @@ def main(ctx: typer.Context, version: bool = typer.Option(False, "--version", he
         raise typer.Exit()
 
 
+@bootstrap_local_app.command("reset", help="Wipe and reload local sandbox artifacts.")
+def bootstrap_local_reset(
+    skip_ocr: bool = typer.Option(False, "--skip-ocr", help="Skip generating chat screenshots and OCR."),
+    skip_vector: bool = typer.Option(False, "--skip-vector", help="Skip rebuilding vector/structured stores."),
+    bundle_uri: Optional[str] = typer.Option(
+        None, "--bundle-uri", help="Optional bundle JSONL path/URI to place into data/bundles."
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print planned actions without mutating disk."),
+    report_dir: Path = typer.Option(Path("data/reports"), "--report-dir", help="Verification report directory."),
+    smoke_search: bool = typer.Option(False, "--smoke-search", help="Run Vertex search smoke after verification."),
+    search_project: Optional[str] = typer.Option(
+        None, "--search-project", help="Vertex project for search smoke (defaults to settings/env)."
+    ),
+    search_location: Optional[str] = typer.Option(
+        None, "--search-location", help="Vertex location for search smoke (default from settings/env)."
+    ),
+    search_data_store_id: Optional[str] = typer.Option(
+        None, "--search-data-store-id", help="Vertex data store id for search smoke."
+    ),
+    search_serving_config_id: str = typer.Option(
+        "default_search", "--search-serving-config-id", help="Vertex serving config id for search smoke."
+    ),
+    search_query: str = typer.Option("wallet address verification", "--search-query", help="Search smoke query."),
+    search_page_size: int = typer.Option(5, "--search-page-size", help="Search smoke page size."),
+    smoke_dossiers: bool = typer.Option(False, "--smoke-dossiers", help="Run dossier verification smoke."),
+    smoke_api_url: Optional[str] = typer.Option(
+        None, "--smoke-api-url", help="API base URL for dossier smoke (defaults to env or localhost)."
+    ),
+    smoke_token: Optional[str] = typer.Option(None, "--smoke-token", help="API token for dossier smoke."),
+    smoke_dossier_status: str = typer.Option(
+        "completed", "--smoke-dossier-status", help="Queue status filter for dossier smoke."
+    ),
+    smoke_dossier_limit: int = typer.Option(5, "--smoke-dossier-limit", help="Maximum dossiers to inspect."),
+    smoke_dossier_plan_id: Optional[str] = typer.Option(
+        None, "--smoke-dossier-plan-id", help="Specific dossier plan_id to verify during smoke."
+    ),
+    force: bool = typer.Option(False, "--force", help="Allow running when I4G_ENV is not local."),
+) -> None:
+    """Reset local sandbox then reload sample data."""
+
+    _run_bootstrap_local(
+        reset=True,
+        skip_ocr=skip_ocr,
+        skip_vector=skip_vector,
+        bundle_uri=bundle_uri,
+        dry_run=dry_run,
+        verify_only=False,
+        report_dir=report_dir,
+        smoke_search=smoke_search,
+        search_project=search_project,
+        search_location=search_location,
+        search_data_store_id=search_data_store_id,
+        search_serving_config_id=search_serving_config_id,
+        search_query=search_query,
+        search_page_size=search_page_size,
+        smoke_dossiers=smoke_dossiers,
+        smoke_api_url=smoke_api_url,
+        smoke_token=smoke_token,
+        smoke_dossier_status=smoke_dossier_status,
+        smoke_dossier_limit=smoke_dossier_limit,
+        smoke_dossier_plan_id=smoke_dossier_plan_id,
+        force=force,
+    )
+
+
+@bootstrap_local_app.command("load", help="Refresh local sandbox without wiping artifacts.")
+def bootstrap_local_load(
+    skip_ocr: bool = typer.Option(False, "--skip-ocr", help="Skip generating chat screenshots and OCR."),
+    skip_vector: bool = typer.Option(False, "--skip-vector", help="Skip rebuilding vector/structured stores."),
+    bundle_uri: Optional[str] = typer.Option(
+        None, "--bundle-uri", help="Optional bundle JSONL path/URI to place into data/bundles."
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print planned actions without mutating disk."),
+    report_dir: Path = typer.Option(Path("data/reports"), "--report-dir", help="Verification report directory."),
+    smoke_search: bool = typer.Option(False, "--smoke-search", help="Run Vertex search smoke after verification."),
+    search_project: Optional[str] = typer.Option(
+        None, "--search-project", help="Vertex project for search smoke (defaults to settings/env)."
+    ),
+    search_location: Optional[str] = typer.Option(
+        None, "--search-location", help="Vertex location for search smoke (default from settings/env)."
+    ),
+    search_data_store_id: Optional[str] = typer.Option(
+        None, "--search-data-store-id", help="Vertex data store id for search smoke."
+    ),
+    search_serving_config_id: str = typer.Option(
+        "default_search", "--search-serving-config-id", help="Vertex serving config id for search smoke."
+    ),
+    search_query: str = typer.Option("wallet address verification", "--search-query", help="Search smoke query."),
+    search_page_size: int = typer.Option(5, "--search-page-size", help="Search smoke page size."),
+    smoke_dossiers: bool = typer.Option(False, "--smoke-dossiers", help="Run dossier verification smoke."),
+    smoke_api_url: Optional[str] = typer.Option(
+        None, "--smoke-api-url", help="API base URL for dossier smoke (defaults to env or localhost)."
+    ),
+    smoke_token: Optional[str] = typer.Option(None, "--smoke-token", help="API token for dossier smoke."),
+    smoke_dossier_status: str = typer.Option(
+        "completed", "--smoke-dossier-status", help="Queue status filter for dossier smoke."
+    ),
+    smoke_dossier_limit: int = typer.Option(5, "--smoke-dossier-limit", help="Maximum dossiers to inspect."),
+    smoke_dossier_plan_id: Optional[str] = typer.Option(
+        None, "--smoke-dossier-plan-id", help="Specific dossier plan_id to verify during smoke."
+    ),
+    force: bool = typer.Option(False, "--force", help="Allow running when I4G_ENV is not local."),
+) -> None:
+    """Refresh local sandbox data without a reset."""
+
+    _run_bootstrap_local(
+        reset=False,
+        skip_ocr=skip_ocr,
+        skip_vector=skip_vector,
+        bundle_uri=bundle_uri,
+        dry_run=dry_run,
+        verify_only=False,
+        report_dir=report_dir,
+        smoke_search=smoke_search,
+        search_project=search_project,
+        search_location=search_location,
+        search_data_store_id=search_data_store_id,
+        search_serving_config_id=search_serving_config_id,
+        search_query=search_query,
+        search_page_size=search_page_size,
+        smoke_dossiers=smoke_dossiers,
+        smoke_api_url=smoke_api_url,
+        smoke_token=smoke_token,
+        smoke_dossier_status=smoke_dossier_status,
+        smoke_dossier_limit=smoke_dossier_limit,
+        smoke_dossier_plan_id=smoke_dossier_plan_id,
+        force=force,
+    )
+
+
+@bootstrap_local_app.command("verify", help="Run verification only for the local sandbox.")
+def bootstrap_local_verify(
+    bundle_uri: Optional[str] = typer.Option(
+        None, "--bundle-uri", help="Optional bundle JSONL path/URI to place into data/bundles."
+    ),
+    report_dir: Path = typer.Option(Path("data/reports"), "--report-dir", help="Verification report directory."),
+    smoke_search: bool = typer.Option(False, "--smoke-search", help="Run Vertex search smoke after verification."),
+    search_project: Optional[str] = typer.Option(
+        None, "--search-project", help="Vertex project for search smoke (defaults to settings/env)."
+    ),
+    search_location: Optional[str] = typer.Option(
+        None, "--search-location", help="Vertex location for search smoke (default from settings/env)."
+    ),
+    search_data_store_id: Optional[str] = typer.Option(
+        None, "--search-data-store-id", help="Vertex data store id for search smoke."
+    ),
+    search_serving_config_id: str = typer.Option(
+        "default_search", "--search-serving-config-id", help="Vertex serving config id for search smoke."
+    ),
+    search_query: str = typer.Option("wallet address verification", "--search-query", help="Search smoke query."),
+    search_page_size: int = typer.Option(5, "--search-page-size", help="Search smoke page size."),
+    smoke_dossiers: bool = typer.Option(False, "--smoke-dossiers", help="Run dossier verification smoke."),
+    smoke_api_url: Optional[str] = typer.Option(
+        None, "--smoke-api-url", help="API base URL for dossier smoke (defaults to env or localhost)."
+    ),
+    smoke_token: Optional[str] = typer.Option(None, "--smoke-token", help="API token for dossier smoke."),
+    smoke_dossier_status: str = typer.Option(
+        "completed", "--smoke-dossier-status", help="Queue status filter for dossier smoke."
+    ),
+    smoke_dossier_limit: int = typer.Option(5, "--smoke-dossier-limit", help="Maximum dossiers to inspect."),
+    smoke_dossier_plan_id: Optional[str] = typer.Option(
+        None, "--smoke-dossier-plan-id", help="Specific dossier plan_id to verify during smoke."
+    ),
+    force: bool = typer.Option(False, "--force", help="Allow running when I4G_ENV is not local."),
+) -> None:
+    """Emit local verification reports without regenerating data."""
+
+    _run_bootstrap_local(
+        reset=False,
+        skip_ocr=False,
+        skip_vector=False,
+        bundle_uri=bundle_uri,
+        dry_run=False,
+        verify_only=True,
+        report_dir=report_dir,
+        smoke_search=smoke_search,
+        search_project=search_project,
+        search_location=search_location,
+        search_data_store_id=search_data_store_id,
+        search_serving_config_id=search_serving_config_id,
+        search_query=search_query,
+        search_page_size=search_page_size,
+        smoke_dossiers=smoke_dossiers,
+        smoke_api_url=smoke_api_url,
+        smoke_token=smoke_token,
+        smoke_dossier_status=smoke_dossier_status,
+        smoke_dossier_limit=smoke_dossier_limit,
+        smoke_dossier_plan_id=smoke_dossier_plan_id,
+        force=force,
+    )
+
+
+@bootstrap_local_app.command("smoke", help="Alias for local verification-only checks.")
+def bootstrap_local_smoke(
+    bundle_uri: Optional[str] = typer.Option(
+        None, "--bundle-uri", help="Optional bundle JSONL path/URI to place into data/bundles."
+    ),
+    report_dir: Path = typer.Option(Path("data/reports"), "--report-dir", help="Verification report directory."),
+    smoke_search: bool = typer.Option(False, "--smoke-search", help="Run Vertex search smoke after verification."),
+    smoke_dossiers: bool = typer.Option(False, "--smoke-dossiers", help="Run dossier verification smoke."),
+    smoke_api_url: Optional[str] = typer.Option(
+        None, "--smoke-api-url", help="API base URL for dossier smoke (defaults to env or localhost)."
+    ),
+    smoke_token: Optional[str] = typer.Option(None, "--smoke-token", help="API token for dossier smoke."),
+    smoke_dossier_status: str = typer.Option(
+        "completed", "--smoke-dossier-status", help="Queue status filter for dossier smoke."
+    ),
+    smoke_dossier_limit: int = typer.Option(5, "--smoke-dossier-limit", help="Maximum dossiers to inspect."),
+    smoke_dossier_plan_id: Optional[str] = typer.Option(
+        None, "--smoke-dossier-plan-id", help="Specific dossier plan_id to verify during smoke."
+    ),
+    force: bool = typer.Option(False, "--force", help="Allow running when I4G_ENV is not local."),
+) -> None:
+    """Run local verification-only checks (smoke alias)."""
+
+    _run_bootstrap_local(
+        reset=False,
+        skip_ocr=False,
+        skip_vector=False,
+        bundle_uri=bundle_uri,
+        dry_run=False,
+        verify_only=True,
+        report_dir=report_dir,
+        smoke_search=smoke_search,
+        search_project=None,
+        search_location=None,
+        search_data_store_id=None,
+        search_serving_config_id="default_search",
+        search_query="wallet address verification",
+        search_page_size=5,
+        smoke_dossiers=smoke_dossiers,
+        smoke_api_url=smoke_api_url,
+        smoke_token=smoke_token,
+        smoke_dossier_status=smoke_dossier_status,
+        smoke_dossier_limit=smoke_dossier_limit,
+        smoke_dossier_plan_id=smoke_dossier_plan_id,
+        force=force,
+    )
+
+
+@bootstrap_app.command("seed-sample", help="Enqueue the sample dossier plan into the local queue store.")
+def bootstrap_seed_sample() -> None:
+    from scripts import enqueue_sample_dossier
+
+    _exit_from_return(enqueue_sample_dossier.main())
+
+
+@bootstrap_dev_app.command("reset", help="Run dev bootstrap jobs (Cloud Run) with optional smoke.")
+def bootstrap_dev_reset(
+    project: str = typer.Option("i4g-dev", "--project", help="Target GCP project (default: i4g-dev)."),
+    region: str = typer.Option("us-central1", "--region", help="Cloud Run region (default: us-central1)."),
+    bundle_uri: Optional[str] = typer.Option(None, "--bundle-uri", help="Bundle URI passed to jobs, if supported."),
+    dataset: Optional[str] = typer.Option(None, "--dataset", help="Dataset identifier injected into job args."),
+    wif_service_account: str = typer.Option(
+        "sa-infra@i4g-dev.iam.gserviceaccount.com",
+        "--wif-service-account",
+        help="Service account to impersonate via WIF.",
+    ),
+    firestore_job: str = typer.Option("bootstrap-firestore", "--firestore-job", help="Firestore refresh job."),
+    vertex_job: str = typer.Option("bootstrap-vertex", "--vertex-job", help="Vertex import job."),
+    sql_job: str = typer.Option("bootstrap-sql", "--sql-job", help="SQL/Firestore sync job."),
+    bigquery_job: str = typer.Option("bootstrap-bigquery", "--bigquery-job", help="BigQuery refresh job."),
+    gcs_assets_job: str = typer.Option("bootstrap-gcs-assets", "--gcs-assets-job", help="GCS asset sync job."),
+    reports_job: str = typer.Option("bootstrap-reports", "--reports-job", help="Reports/dossiers job."),
+    saved_searches_job: str = typer.Option(
+        "bootstrap-saved-searches", "--saved-searches-job", help="Saved searches/tag presets job."
+    ),
+    skip_firestore: bool = typer.Option(False, "--skip-firestore", help="Skip Firestore refresh job."),
+    skip_vertex: bool = typer.Option(False, "--skip-vertex", help="Skip Vertex import job."),
+    skip_sql: bool = typer.Option(False, "--skip-sql", help="Skip SQL/Firestore sync job."),
+    skip_bigquery: bool = typer.Option(False, "--skip-bigquery", help="Skip BigQuery refresh job."),
+    skip_gcs_assets: bool = typer.Option(False, "--skip-gcs-assets", help="Skip GCS asset sync job."),
+    skip_reports: bool = typer.Option(False, "--skip-reports", help="Skip reports/dossiers job."),
+    skip_saved_searches: bool = typer.Option(False, "--skip-saved-searches", help="Skip saved searches job."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print planned commands without executing."),
+    run_smoke: bool = typer.Option(False, "--run-smoke/--no-run-smoke", help="Run Cloud Run intake smoke."),
+    run_dossier_smoke: bool = typer.Option(
+        False, "--run-dossier-smoke/--no-run-dossier-smoke", help="Run dossier verification smoke."
+    ),
+    run_search_smoke: bool = typer.Option(
+        False, "--run-search-smoke/--no-run-search-smoke", help="Run Vertex search smoke."
+    ),
+    search_project: Optional[str] = typer.Option(
+        None, "--search-project", help="Vertex project for search smoke (defaults to --project)."
+    ),
+    search_location: Optional[str] = typer.Option(
+        None, "--search-location", help="Vertex location for search smoke (default from orchestrator)."
+    ),
+    search_data_store_id: Optional[str] = typer.Option(
+        None, "--search-data-store-id", help="Vertex data store id for search smoke."
+    ),
+    search_serving_config_id: str = typer.Option(
+        "default_search", "--search-serving-config-id", help="Vertex serving config id for search smoke."
+    ),
+    search_query: str = typer.Option("wallet address verification", "--search-query", help="Search smoke query."),
+    search_page_size: int = typer.Option(5, "--search-page-size", help="Result page size for search smoke."),
+    report_dir: Path = typer.Option(
+        Path("data/reports/dev_bootstrap"), "--report-dir", help="Directory to write JSON/Markdown reports."
+    ),
+    force: bool = typer.Option(False, "--force", help="Allow targeting non-dev projects (never prod)."),
+    log_level: str = typer.Option("INFO", "--log-level", help="Logging verbosity (DEBUG/INFO/WARNING/ERROR)."),
+    smoke_api_url: str = typer.Option(
+        "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app", "--smoke-api-url", help="API base URL for smoke."
+    ),
+    smoke_token: str = typer.Option("dev-analyst-token", "--smoke-token", help="API token for smoke."),
+    smoke_job: str = typer.Option("process-intakes", "--smoke-job", help="Cloud Run job to execute for smoke."),
+    smoke_container: str = typer.Option("container-0", "--smoke-container", help="Container for smoke job."),
+) -> None:
+    """Execute dev Cloud Run bootstrap jobs; optional smoke after run."""
+
+    _run_bootstrap_dev(
+        project=project,
+        region=region,
+        bundle_uri=bundle_uri,
+        dataset=dataset,
+        wif_service_account=wif_service_account,
+        firestore_job=firestore_job,
+        vertex_job=vertex_job,
+        sql_job=sql_job,
+        bigquery_job=bigquery_job,
+        gcs_assets_job=gcs_assets_job,
+        reports_job=reports_job,
+        saved_searches_job=saved_searches_job,
+        skip_firestore=skip_firestore,
+        skip_vertex=skip_vertex,
+        skip_sql=skip_sql,
+        skip_bigquery=skip_bigquery,
+        skip_gcs_assets=skip_gcs_assets,
+        skip_reports=skip_reports,
+        skip_saved_searches=skip_saved_searches,
+        dry_run=dry_run,
+        verify_only=False,
+        run_smoke=run_smoke,
+        run_dossier_smoke=run_dossier_smoke,
+        run_search_smoke=run_search_smoke,
+        search_project=search_project,
+        search_location=search_location,
+        search_data_store_id=search_data_store_id,
+        search_serving_config_id=search_serving_config_id,
+        search_query=search_query,
+        search_page_size=search_page_size,
+        report_dir=report_dir,
+        force=force,
+        log_level=log_level,
+        smoke_api_url=smoke_api_url,
+        smoke_token=smoke_token,
+        smoke_job=smoke_job,
+        smoke_container=smoke_container,
+    )
+
+
+@bootstrap_dev_app.command("load", help="Alias of reset for dev bootstrap jobs.")
+def bootstrap_dev_load(
+    project: str = typer.Option("i4g-dev", "--project", help="Target GCP project (default: i4g-dev)."),
+    region: str = typer.Option("us-central1", "--region", help="Cloud Run region (default: us-central1)."),
+    bundle_uri: Optional[str] = typer.Option(None, "--bundle-uri", help="Bundle URI passed to jobs, if supported."),
+    dataset: Optional[str] = typer.Option(None, "--dataset", help="Dataset identifier injected into job args."),
+    wif_service_account: str = typer.Option(
+        "sa-infra@i4g-dev.iam.gserviceaccount.com",
+        "--wif-service-account",
+        help="Service account to impersonate via WIF.",
+    ),
+    firestore_job: str = typer.Option("bootstrap-firestore", "--firestore-job", help="Firestore refresh job."),
+    vertex_job: str = typer.Option("bootstrap-vertex", "--vertex-job", help="Vertex import job."),
+    sql_job: str = typer.Option("bootstrap-sql", "--sql-job", help="SQL/Firestore sync job."),
+    bigquery_job: str = typer.Option("bootstrap-bigquery", "--bigquery-job", help="BigQuery refresh job."),
+    gcs_assets_job: str = typer.Option("bootstrap-gcs-assets", "--gcs-assets-job", help="GCS asset sync job."),
+    reports_job: str = typer.Option("bootstrap-reports", "--reports-job", help="Reports/dossiers job."),
+    saved_searches_job: str = typer.Option(
+        "bootstrap-saved-searches", "--saved-searches-job", help="Saved searches/tag presets job."
+    ),
+    skip_firestore: bool = typer.Option(False, "--skip-firestore", help="Skip Firestore refresh job."),
+    skip_vertex: bool = typer.Option(False, "--skip-vertex", help="Skip Vertex import job."),
+    skip_sql: bool = typer.Option(False, "--skip-sql", help="Skip SQL/Firestore sync job."),
+    skip_bigquery: bool = typer.Option(False, "--skip-bigquery", help="Skip BigQuery refresh job."),
+    skip_gcs_assets: bool = typer.Option(False, "--skip-gcs-assets", help="Skip GCS asset sync job."),
+    skip_reports: bool = typer.Option(False, "--skip-reports", help="Skip reports/dossiers job."),
+    skip_saved_searches: bool = typer.Option(False, "--skip-saved-searches", help="Skip saved searches job."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print planned commands without executing."),
+    run_smoke: bool = typer.Option(False, "--run-smoke/--no-run-smoke", help="Run Cloud Run intake smoke."),
+    run_dossier_smoke: bool = typer.Option(
+        False, "--run-dossier-smoke/--no-run-dossier-smoke", help="Run dossier verification smoke."
+    ),
+    run_search_smoke: bool = typer.Option(
+        False, "--run-search-smoke/--no-run-search-smoke", help="Run Vertex search smoke."
+    ),
+    search_project: Optional[str] = typer.Option(
+        None, "--search-project", help="Vertex project for search smoke (defaults to --project)."
+    ),
+    search_location: Optional[str] = typer.Option(
+        None, "--search-location", help="Vertex location for search smoke (default from orchestrator)."
+    ),
+    search_data_store_id: Optional[str] = typer.Option(
+        None, "--search-data-store-id", help="Vertex data store id for search smoke."
+    ),
+    search_serving_config_id: str = typer.Option(
+        "default_search", "--search-serving-config-id", help="Vertex serving config id for search smoke."
+    ),
+    search_query: str = typer.Option("wallet address verification", "--search-query", help="Search smoke query."),
+    search_page_size: int = typer.Option(5, "--search-page-size", help="Result page size for search smoke."),
+    report_dir: Path = typer.Option(
+        Path("data/reports/dev_bootstrap"), "--report-dir", help="Directory to write JSON/Markdown reports."
+    ),
+    force: bool = typer.Option(False, "--force", help="Allow targeting non-dev projects (never prod)."),
+    log_level: str = typer.Option("INFO", "--log-level", help="Logging verbosity (DEBUG/INFO/WARNING/ERROR)."),
+    smoke_api_url: str = typer.Option(
+        "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app", "--smoke-api-url", help="API base URL for smoke."
+    ),
+    smoke_token: str = typer.Option("dev-analyst-token", "--smoke-token", help="API token for smoke."),
+    smoke_job: str = typer.Option("process-intakes", "--smoke-job", help="Cloud Run job to execute for smoke."),
+    smoke_container: str = typer.Option("container-0", "--smoke-container", help="Container for smoke job."),
+) -> None:
+    """Alias of reset for dev bootstrap jobs (kept for symmetry)."""
+
+    _run_bootstrap_dev(
+        project=project,
+        region=region,
+        bundle_uri=bundle_uri,
+        dataset=dataset,
+        wif_service_account=wif_service_account,
+        firestore_job=firestore_job,
+        vertex_job=vertex_job,
+        sql_job=sql_job,
+        bigquery_job=bigquery_job,
+        gcs_assets_job=gcs_assets_job,
+        reports_job=reports_job,
+        saved_searches_job=saved_searches_job,
+        skip_firestore=skip_firestore,
+        skip_vertex=skip_vertex,
+        skip_sql=skip_sql,
+        skip_bigquery=skip_bigquery,
+        skip_gcs_assets=skip_gcs_assets,
+        skip_reports=skip_reports,
+        skip_saved_searches=skip_saved_searches,
+        dry_run=dry_run,
+        verify_only=False,
+        run_smoke=run_smoke,
+        run_dossier_smoke=run_dossier_smoke,
+        run_search_smoke=run_search_smoke,
+        search_project=search_project,
+        search_location=search_location,
+        search_data_store_id=search_data_store_id,
+        search_serving_config_id=search_serving_config_id,
+        search_query=search_query,
+        search_page_size=search_page_size,
+        report_dir=report_dir,
+        force=force,
+        log_level=log_level,
+        smoke_api_url=smoke_api_url,
+        smoke_token=smoke_token,
+        smoke_job=smoke_job,
+        smoke_container=smoke_container,
+    )
+
+
+@bootstrap_dev_app.command("verify", help="Run verification-only flow for dev (smoke optional).")
+def bootstrap_dev_verify(
+    project: str = typer.Option("i4g-dev", "--project", help="Target GCP project (default: i4g-dev)."),
+    region: str = typer.Option("us-central1", "--region", help="Cloud Run region (default: us-central1)."),
+    bundle_uri: Optional[str] = typer.Option(None, "--bundle-uri", help="Bundle URI passed to jobs, if supported."),
+    dataset: Optional[str] = typer.Option(None, "--dataset", help="Dataset identifier injected into job args."),
+    wif_service_account: str = typer.Option(
+        "sa-infra@i4g-dev.iam.gserviceaccount.com",
+        "--wif-service-account",
+        help="Service account to impersonate via WIF.",
+    ),
+    firestore_job: str = typer.Option("bootstrap-firestore", "--firestore-job", help="Firestore refresh job."),
+    vertex_job: str = typer.Option("bootstrap-vertex", "--vertex-job", help="Vertex import job."),
+    sql_job: str = typer.Option("bootstrap-sql", "--sql-job", help="SQL/Firestore sync job."),
+    bigquery_job: str = typer.Option("bootstrap-bigquery", "--bigquery-job", help="BigQuery refresh job."),
+    gcs_assets_job: str = typer.Option("bootstrap-gcs-assets", "--gcs-assets-job", help="GCS asset sync job."),
+    reports_job: str = typer.Option("bootstrap-reports", "--reports-job", help="Reports/dossiers job."),
+    saved_searches_job: str = typer.Option(
+        "bootstrap-saved-searches", "--saved-searches-job", help="Saved searches/tag presets job."
+    ),
+    run_smoke: bool = typer.Option(True, "--run-smoke/--no-run-smoke", help="Run Cloud Run intake smoke."),
+    run_dossier_smoke: bool = typer.Option(
+        True, "--run-dossier-smoke/--no-run-dossier-smoke", help="Run dossier verification smoke."
+    ),
+    run_search_smoke: bool = typer.Option(
+        True, "--run-search-smoke/--no-run-search-smoke", help="Run Vertex search smoke."
+    ),
+    search_project: Optional[str] = typer.Option(
+        None, "--search-project", help="Vertex project for search smoke (defaults to --project)."
+    ),
+    search_location: Optional[str] = typer.Option(
+        None, "--search-location", help="Vertex location for search smoke (default from orchestrator)."
+    ),
+    search_data_store_id: Optional[str] = typer.Option(
+        None, "--search-data-store-id", help="Vertex data store id for search smoke."
+    ),
+    search_serving_config_id: str = typer.Option(
+        "default_search", "--search-serving-config-id", help="Vertex serving config id for search smoke."
+    ),
+    search_query: str = typer.Option("wallet address verification", "--search-query", help="Search smoke query."),
+    search_page_size: int = typer.Option(5, "--search-page-size", help="Result page size for search smoke."),
+    report_dir: Path = typer.Option(
+        Path("data/reports/dev_bootstrap"), "--report-dir", help="Directory to write JSON/Markdown reports."
+    ),
+    force: bool = typer.Option(False, "--force", help="Allow targeting non-dev projects (never prod)."),
+    log_level: str = typer.Option("INFO", "--log-level", help="Logging verbosity (DEBUG/INFO/WARNING/ERROR)."),
+    smoke_api_url: str = typer.Option(
+        "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app", "--smoke-api-url", help="API base URL for smoke."
+    ),
+    smoke_token: str = typer.Option("dev-analyst-token", "--smoke-token", help="API token for smoke."),
+    smoke_job: str = typer.Option("process-intakes", "--smoke-job", help="Cloud Run job to execute for smoke."),
+    smoke_container: str = typer.Option("container-0", "--smoke-container", help="Container for smoke job."),
+) -> None:
+    """Skip job execution and only run verification/smoke for dev."""
+
+    _run_bootstrap_dev(
+        project=project,
+        region=region,
+        bundle_uri=bundle_uri,
+        dataset=dataset,
+        wif_service_account=wif_service_account,
+        firestore_job=firestore_job,
+        vertex_job=vertex_job,
+        sql_job=sql_job,
+        bigquery_job=bigquery_job,
+        gcs_assets_job=gcs_assets_job,
+        reports_job=reports_job,
+        saved_searches_job=saved_searches_job,
+        skip_firestore=False,
+        skip_vertex=False,
+        skip_sql=False,
+        skip_bigquery=False,
+        skip_gcs_assets=False,
+        skip_reports=False,
+        skip_saved_searches=False,
+        dry_run=False,
+        verify_only=True,
+        run_smoke=run_smoke,
+        run_dossier_smoke=run_dossier_smoke,
+        run_search_smoke=run_search_smoke,
+        search_project=search_project,
+        search_location=search_location,
+        search_data_store_id=search_data_store_id,
+        search_serving_config_id=search_serving_config_id,
+        search_query=search_query,
+        search_page_size=search_page_size,
+        report_dir=report_dir,
+        force=force,
+        log_level=log_level,
+        smoke_api_url=smoke_api_url,
+        smoke_token=smoke_token,
+        smoke_job=smoke_job,
+        smoke_container=smoke_container,
+    )
+
+
+@bootstrap_dev_app.command("smoke", help="Run dev smoke only (no bootstrap jobs).")
+def bootstrap_dev_smoke(
+    project: str = typer.Option("i4g-dev", "--project", help="Target GCP project (default: i4g-dev)."),
+    region: str = typer.Option("us-central1", "--region", help="Cloud Run region (default: us-central1)."),
+    smoke_api_url: str = typer.Option(
+        "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app", "--smoke-api-url", help="API base URL for smoke."
+    ),
+    smoke_token: str = typer.Option("dev-analyst-token", "--smoke-token", help="API token for smoke."),
+    smoke_job: str = typer.Option("process-intakes", "--smoke-job", help="Cloud Run job to execute for smoke."),
+    smoke_container: str = typer.Option("container-0", "--smoke-container", help="Container for smoke job."),
+    log_level: str = typer.Option("INFO", "--log-level", help="Logging verbosity (DEBUG/INFO/WARNING/ERROR)."),
+    report_dir: Path = typer.Option(
+        Path("data/reports/dev_bootstrap"), "--report-dir", help="Directory to write JSON/Markdown reports."
+    ),
+    force: bool = typer.Option(False, "--force", help="Allow targeting non-dev projects (never prod)."),
+) -> None:
+    """Run dev Cloud Run smoke without executing bootstrap jobs."""
+
+    _run_bootstrap_dev(
+        project=project,
+        region=region,
+        bundle_uri=None,
+        dataset=None,
+        wif_service_account="sa-infra@i4g-dev.iam.gserviceaccount.com",
+        firestore_job="",
+        vertex_job="",
+        sql_job="",
+        bigquery_job="",
+        gcs_assets_job="",
+        reports_job="",
+        saved_searches_job="",
+        skip_firestore=True,
+        skip_vertex=True,
+        skip_sql=True,
+        skip_bigquery=True,
+        skip_gcs_assets=True,
+        skip_reports=True,
+        skip_saved_searches=True,
+        dry_run=False,
+        verify_only=True,
+        run_smoke=True,
+        report_dir=report_dir,
+        force=force,
+        log_level=log_level,
+        smoke_api_url=smoke_api_url,
+        smoke_token=smoke_token,
+        smoke_job=smoke_job,
+        smoke_container=smoke_container,
+    )
+
+
 @env_app.command("bootstrap-local", help="Refresh local sandbox data and artifacts.")
 def env_bootstrap_local(
     skip_ocr: bool = typer.Option(False, "--skip-ocr", help="Skip generating chat screenshots and OCR."),
     skip_vector: bool = typer.Option(False, "--skip-vector", help="Skip rebuilding vector/structured stores."),
     reset: bool = typer.Option(False, "--reset", help="Delete derived artifacts before regenerating."),
+    bundle_uri: Optional[str] = typer.Option(
+        None, "--bundle-uri", help="Optional bundle JSONL path/URI to place into data/bundles."
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print planned actions without mutating disk."),
+    verify_only: bool = typer.Option(False, "--verify-only", help="Only run verification without regenerating."),
+    report_dir: Path = typer.Option(Path("data/reports"), "--report-dir", help="Verification report directory."),
+    force: bool = typer.Option(False, "--force", help="Allow running when I4G_ENV is not local."),
 ) -> None:
     """Run the local sandbox bootstrap pipeline."""
 
-    from scripts import bootstrap_local_sandbox
+    _deprecated_env_notice("local <reset|load|verify|smoke>")
+    _run_bootstrap_local(
+        reset=reset,
+        skip_ocr=skip_ocr,
+        skip_vector=skip_vector,
+        bundle_uri=bundle_uri,
+        dry_run=dry_run,
+        verify_only=verify_only,
+        report_dir=report_dir,
+        force=force,
+    )
 
-    argv: list[str] = []
-    if skip_ocr:
-        argv.append("--skip-ocr")
-    if skip_vector:
-        argv.append("--skip-vector")
-    if reset:
-        argv.append("--reset")
-    bootstrap_local_sandbox.main(argv)
+
+@env_app.command("bootstrap-dev", help="Refresh dev environment via Cloud Run jobs.")
+def env_bootstrap_dev(
+    project: str = typer.Option("i4g-dev", "--project", help="Target GCP project (default: i4g-dev)."),
+    region: str = typer.Option("us-central1", "--region", help="Cloud Run region (default: us-central1)."),
+    bundle_uri: Optional[str] = typer.Option(None, "--bundle-uri", help="Bundle URI passed to jobs, if supported."),
+    dataset: Optional[str] = typer.Option(None, "--dataset", help="Dataset identifier injected into job args."),
+    wif_service_account: str = typer.Option(
+        "sa-infra@i4g-dev.iam.gserviceaccount.com",
+        "--wif-service-account",
+        help="Service account to impersonate via WIF.",
+    ),
+    firestore_job: str = typer.Option("bootstrap-firestore", "--firestore-job", help="Firestore refresh job."),
+    vertex_job: str = typer.Option("bootstrap-vertex", "--vertex-job", help="Vertex import job."),
+    sql_job: str = typer.Option("bootstrap-sql", "--sql-job", help="SQL/Firestore sync job."),
+    bigquery_job: str = typer.Option("bootstrap-bigquery", "--bigquery-job", help="BigQuery refresh job."),
+    gcs_assets_job: str = typer.Option("bootstrap-gcs-assets", "--gcs-assets-job", help="GCS asset sync job."),
+    reports_job: str = typer.Option("bootstrap-reports", "--reports-job", help="Reports/dossiers job."),
+    saved_searches_job: str = typer.Option(
+        "bootstrap-saved-searches", "--saved-searches-job", help="Saved searches/tag presets job."
+    ),
+    skip_firestore: bool = typer.Option(False, "--skip-firestore", help="Skip Firestore refresh job."),
+    skip_vertex: bool = typer.Option(False, "--skip-vertex", help="Skip Vertex import job."),
+    skip_sql: bool = typer.Option(False, "--skip-sql", help="Skip SQL/Firestore sync job."),
+    skip_bigquery: bool = typer.Option(False, "--skip-bigquery", help="Skip BigQuery refresh job."),
+    skip_gcs_assets: bool = typer.Option(False, "--skip-gcs-assets", help="Skip GCS asset sync job."),
+    skip_reports: bool = typer.Option(False, "--skip-reports", help="Skip reports/dossiers job."),
+    skip_saved_searches: bool = typer.Option(False, "--skip-saved-searches", help="Skip saved searches job."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print planned commands without executing."),
+    verify_only: bool = typer.Option(False, "--verify-only", help="Only run verification smokes."),
+    run_smoke: bool = typer.Option(False, "--run-smoke", help="Run Cloud Run intake smoke after bootstrap."),
+    report_dir: Path = typer.Option(
+        Path("data/reports/dev_bootstrap"), "--report-dir", help="Directory to write JSON/Markdown reports."
+    ),
+    force: bool = typer.Option(False, "--force", help="Allow targeting non-dev projects (never prod)."),
+    log_level: str = typer.Option("INFO", "--log-level", help="Logging verbosity (DEBUG/INFO/WARNING/ERROR)."),
+    smoke_api_url: str = typer.Option(
+        "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app", "--smoke-api-url", help="API base URL for smoke."
+    ),
+    smoke_token: str = typer.Option("dev-analyst-token", "--smoke-token", help="API token for smoke."),
+    smoke_job: str = typer.Option("process-intakes", "--smoke-job", help="Cloud Run job to execute for smoke."),
+    smoke_container: str = typer.Option("container-0", "--smoke-container", help="Container for smoke job."),
+) -> None:
+    """Run the dev bootstrap orchestrator."""
+
+    _deprecated_env_notice("dev <reset|load|verify|smoke>")
+    _run_bootstrap_dev(
+        project=project,
+        region=region,
+        bundle_uri=bundle_uri,
+        dataset=dataset,
+        wif_service_account=wif_service_account,
+        firestore_job=firestore_job,
+        vertex_job=vertex_job,
+        sql_job=sql_job,
+        bigquery_job=bigquery_job,
+        gcs_assets_job=gcs_assets_job,
+        reports_job=reports_job,
+        saved_searches_job=saved_searches_job,
+        skip_firestore=skip_firestore,
+        skip_vertex=skip_vertex,
+        skip_sql=skip_sql,
+        skip_bigquery=skip_bigquery,
+        skip_gcs_assets=skip_gcs_assets,
+        skip_reports=skip_reports,
+        skip_saved_searches=skip_saved_searches,
+        dry_run=dry_run,
+        verify_only=verify_only,
+        run_smoke=run_smoke,
+        report_dir=report_dir,
+        force=force,
+        log_level=log_level,
+        smoke_api_url=smoke_api_url,
+        smoke_token=smoke_token,
+        smoke_job=smoke_job,
+        smoke_container=smoke_container,
+    )
 
 
 @env_app.command("seed-sample", help="Enqueue the sample dossier plan into the local queue store.")
 def env_seed_sample() -> None:
     """Insert a sample dossier plan for quick smoke testing."""
 
-    from scripts import enqueue_sample_dossier
-
-    _exit_from_return(enqueue_sample_dossier.main())
+    _deprecated_env_notice("seed-sample")
+    bootstrap_seed_sample()
 
 
 @settings_app.command("export-manifest", help="Export settings manifest (JSON/YAML/Markdown).")
@@ -493,6 +1390,95 @@ def data_prepare_retrieval_dataset(
     code = datasets.generate_dataset(args)
     if code:
         raise typer.Exit(code)
+
+
+@data_app.command("generate-coverage", help="Generate synthetic coverage bundle artifacts.")
+def data_generate_coverage(
+    output_dir: Path = typer.Option(
+        Path("data/bundles/synthetic_coverage"),
+        "--output-dir",
+        help="Destination directory for artifacts.",
+    ),
+    seed: int = typer.Option(1337, "--seed", help="Random seed."),
+    include_scenarios: Optional[list[str]] = typer.Option(
+        None, "--include", help="Restrict generation to specific scenario names."
+    ),
+    smoke: bool = typer.Option(False, "--smoke", help="Generate the small smoke slice."),
+    total_count: Optional[int] = typer.Option(
+        None,
+        "--total-count",
+        help="Override total case count (evenly distributed across included scenarios).",
+    ),
+) -> None:
+    result = synthetic_coverage.generate_bundle(
+        output_dir=output_dir, seed=seed, include=include_scenarios, smoke=smoke, total_count=total_count
+    )
+    typer.echo(
+        "Generated synthetic coverage bundle -> %s (cases=%d)" % (result.manifest_path.parent, result.case_count)
+    )
+
+
+@data_app.command("bundle-manifest", help="Build manifest with hashes and counts for a bundle directory.")
+def data_bundle_manifest(
+    bundle_dir: Path = typer.Option(
+        ..., "--bundle-dir", exists=True, file_okay=False, dir_okay=True, readable=True, resolve_path=True
+    ),
+    bundle_id: Optional[str] = typer.Option(None, "--bundle-id", help="Identifier; defaults to directory name."),
+    provenance: Optional[str] = typer.Option(None, "--provenance", help="Source or provenance note."),
+    license_name: Optional[str] = typer.Option(None, "--license", help="License identifier or name."),
+    tags: Optional[list[str]] = typer.Option(None, "--tag", help="Tag to record (repeatable)."),
+    pii: bool = typer.Option(False, "--pii/--no-pii", help="Mark whether the bundle contains PII."),
+    output: Optional[Path] = typer.Option(None, "--output", help="Manifest output path."),
+) -> None:
+    target_path = output or (bundle_dir / "manifest.generated.json")
+    result = bundle_manifest.build_manifest(
+        bundle_dir=bundle_dir,
+        bundle_id=bundle_id or bundle_dir.name,
+        provenance=provenance,
+        license_name=license_name,
+        tags=tags or [],
+        pii=pii,
+        output_path=target_path,
+    )
+    typer.echo(f"Wrote bundle manifest -> {result.output_path}")
+
+
+@data_app.command("provision-bundle-bucket", help="Create or update the bundle GCS bucket with versioning and IAM.")
+def data_provision_bundle_bucket(
+    bucket: str = typer.Option(..., "--bucket", help="Bucket name to create or update."),
+    project: str = typer.Option("i4g-dev", "--project", help="GCP project ID."),
+    location: str = typer.Option("us-central1", "--location", help="GCS location."),
+    storage_class: str = typer.Option("STANDARD", "--storage-class", help="GCS storage class."),
+    retention_days: Optional[int] = typer.Option(None, "--retention-days", help="Retention policy in days (optional)."),
+    delete_noncurrent_days: Optional[int] = typer.Option(
+        365, "--delete-noncurrent-days", help="Delete noncurrent versions after this many days."
+    ),
+    iam_member: Optional[list[str]] = typer.Option(
+        None,
+        "--iam-member",
+        help="IAM member to grant storage.objectAdmin on the bucket (repeatable).",
+    ),
+) -> None:
+    result = bundle_storage.provision_bucket(
+        bucket_name=bucket,
+        project=project,
+        location=location,
+        storage_class=storage_class,
+        retention_days=retention_days,
+        delete_noncurrent_days=delete_noncurrent_days,
+        iam_members=iam_member or [],
+    )
+    typer.echo(
+        "Provisioned bundle bucket %s (project=%s, location=%s, versioning=%s, retention=%s, delete_noncurrent_days=%s)"
+        % (
+            result.bucket,
+            result.project,
+            result.location,
+            result.versioning_enabled,
+            result.retention_seconds,
+            result.delete_noncurrent_after_days,
+        )
+    )
 
 
 @data_app.command("build-index", help="Build vector/structured index.")

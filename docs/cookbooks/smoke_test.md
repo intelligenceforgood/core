@@ -121,6 +121,11 @@ The suite opens `/search`, confirms the query box, filter sidebar, and primary a
    conda run -n i4g uvicorn i4g.api.app:app --host 127.0.0.1 --port 8000
    ```
 4. Ensure the analyst token `dev-analyst-token` exists (it ships with the repo). Adjust commands if you use a different key.
+5. (Optional) Check `data/reports/local_bootstrap/` after running the sandbox bootstrap; the verification report now
+  includes a deterministic bundle manifest hash plus an ingestion-run summary (row count and last start time) so you
+  can spot stale datasets quickly.
+6. (Optional) If the FastAPI API is running, include `--smoke-dossiers` when calling the bootstrap script to validate
+  dossier manifests and signatures via the `/reports/dossiers/.../verify` endpoints.
 
 ### 1. FastAPI Intake Submission + Intake Job (API mode)
 

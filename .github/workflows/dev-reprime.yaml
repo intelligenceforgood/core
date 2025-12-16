@@ -1,0 +1,178 @@
+name: dev-reprime
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: "Target GCP project (default: i4g-dev)"
+        required: true
+        default: "i4g-dev"
+      region:
+        description: "Cloud Run region"
+        required: true
+        default: "us-central1"
+      bundle_uri:
+        description: "Bundle URI (gs://... or path) passed to bootstrap jobs"
+        required: false
+        default: ""
+      dataset:
+        description: "Dataset identifier passed to bootstrap jobs"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry-run only (no gcloud execution)"
+        required: true
+        default: true
+        type: boolean
+      run_smoke:
+        description: "Run Cloud Run smoke after bootstrap"
+        required: true
+        default: "false"
+        type: boolean
+      run_dossier_smoke:
+        description: "Run dossier verification smoke"
+        required: false
+        default: true
+        type: boolean
+      run_search_smoke:
+        description: "Run Vertex search smoke"
+        required: false
+        default: "true"
+        type: boolean
+      search_data_store_id:
+        description: "Vertex data store id for search smoke"
+        required: false
+        default: ""
+      search_serving_config_id:
+        description: "Vertex serving config id for search smoke"
+        required: false
+        default: "default_search"
+      search_query:
+        description: "Query string for search smoke"
+        required: false
+        default: "wallet address verification"
+      search_page_size:
+        description: "Page size for search smoke"
+        required: false
+        default: "5"
+      report_dir:
+        description: "Report output directory"
+        required: true
+        default: "data/reports/dev_bootstrap_ci"
+      wif_service_account:
+        description: "Service account to impersonate via WIF"
+        required: true
+        default: "sa-infra@i4g-dev.iam.gserviceaccount.com"
+      confirm:
+        description: "Set to RUN to allow non-dry-run execution"
+        required: false
+        default: ""
+
+jobs:
+  dev-reprime:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate confirmation for non-dry-run
+        if: ${{ inputs.dry_run == 'false' }}
+        run: |
+          if [ "${{ inputs.confirm }}" != "RUN" ]; then
+            echo "Set confirm=RUN to allow non-dry-run execution." >&2
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Set up Cloud SDK (non-dry-run only)
+        if: ${{ inputs.dry_run == 'false' }}
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          version: latest
+
+      - name: Auth to GCP (non-dry-run only)
+        if: ${{ inputs.dry_run == 'false' }}
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Run dev bootstrap (dry-run by default)
+        env:
+          I4G_ENV: dev
+          I4G_PROJECT_ROOT: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ inputs.report_dir }}"
+          CMD=(i4g bootstrap dev reset \
+            --project "${{ inputs.project }}" \
+            --region "${{ inputs.region }}" \
+            --report-dir "${{ inputs.report_dir }}" \
+            --wif-service-account "${{ inputs.wif_service_account }}")
+
+          if [ -n "${{ inputs.bundle_uri }}" ]; then
+            CMD+=(--bundle-uri "${{ inputs.bundle_uri }}")
+          fi
+          if [ -n "${{ inputs.dataset }}" ]; then
+            CMD+=(--dataset "${{ inputs.dataset }}")
+          fi
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            CMD+=(--dry-run)
+          fi
+          if [ "${{ inputs.run_smoke }}" = "true" ]; then
+            CMD+=(--run-smoke)
+          fi
+          if [ "${{ inputs.run_dossier_smoke }}" = "true" ]; then
+            CMD+=(--run-dossier-smoke)
+          fi
+          if [ "${{ inputs.run_search_smoke }}" = "true" ]; then
+            CMD+=(--run-search-smoke)
+          fi
+          if [ -n "${{ inputs.search_data_store_id }}" ]; then
+            CMD+=(--search-data-store-id "${{ inputs.search_data_store_id }}")
+          fi
+          if [ -n "${{ inputs.search_serving_config_id }}" ]; then
+            CMD+=(--search-serving-config-id "${{ inputs.search_serving_config_id }}")
+          fi
+          if [ -n "${{ inputs.search_query }}" ]; then
+            CMD+=(--search-query "${{ inputs.search_query }}")
+          fi
+          if [ -n "${{ inputs.search_page_size }}" ]; then
+            CMD+=(--search-page-size "${{ inputs.search_page_size }}")
+          fi
+
+          echo "Running: ${CMD[*]}"
+          "${CMD[@]}"
+
+      - name: Upload bootstrap report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-bootstrap-report
+          path: |
+            ${{ inputs.report_dir }}/dev_bootstrap_report.json
+            ${{ inputs.report_dir }}/dev_bootstrap_report.md
+          if-no-files-found: warn
+
+      - name: Summary
+        run: |
+          echo "Reports (if generated):"
+          ls -l "${{ inputs.report_dir }}" || true
+          echo "\nDry run: ${{ inputs.dry_run }}"
+          echo "Run smoke: ${{ inputs.run_smoke }}"
+          echo "Run dossier smoke: ${{ inputs.run_dossier_smoke }}"
+          echo "Run search smoke: ${{ inputs.run_search_smoke }}"
+          echo "Bundle URI: ${{ inputs.bundle_uri || '<none>' }}"
+          echo "Dataset: ${{ inputs.dataset || '<none>' }}"

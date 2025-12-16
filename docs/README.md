@@ -22,7 +22,7 @@ This page routes contributors, operators, and reviewers to the right guides.
 - Glossary and FAQs: [glossary.md](glossary.md)
 
 ## How to use this folder
-- Run a local stack: [cookbooks/README.md](cookbooks/README.md) → [cookbooks/bootstrap_sandbox.md](cookbooks/bootstrap_sandbox.md) → [cookbooks/smoke_test.md](cookbooks/smoke_test.md)
+- Run a local stack: [cookbooks/README.md](cookbooks/README.md) → [cookbooks/bootstrap_environments.md](cookbooks/bootstrap_environments.md) → [cookbooks/smoke_test.md](cookbooks/smoke_test.md)
 - Debug ingestion/search: [runbooks/README.md](runbooks/README.md) → console runbooks; data/model details in [tdd.md](tdd.md) and [architecture.md](architecture.md)
 - Prepare a release: [release/README.md](release/README.md) → [cookbooks/smoke_test.md](cookbooks/smoke_test.md) → [tdd.md](tdd.md) for contract changes
 

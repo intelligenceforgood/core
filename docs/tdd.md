@@ -119,7 +119,7 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 
 ## 12) Testing & Quality
 - Unit/contract tests in `tests/unit/`; settings/env overrides covered in `tests/unit/settings/`.
-- Smokes and recipes: `docs/cookbooks/smoke_test.md`, `docs/cookbooks/bootstrap_sandbox.md`.
+- Smokes and recipes: `docs/cookbooks/smoke_test.md`, `docs/cookbooks/bootstrap_environments.md`.
 - Runbooks: `docs/runbooks/` for operational checks; Playwright smokes in `ui/` for console.
 - Before releases: follow `docs/release/README.md` checklist; regenerate settings manifests when toggles change (`scripts/export_settings_manifest.py`).
 
