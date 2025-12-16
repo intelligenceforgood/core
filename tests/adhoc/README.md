@@ -5,7 +5,7 @@ This directory contains a collection of ad-hoc scripts for quick testing, demons
 ## Quick Start
 
 ```bash
-python scripts/bootstrap_local_sandbox.py --reset
+i4g bootstrap local reset --report-dir data/reports/local_bootstrap
 ```
 
 Run this from the project root to rebuild bundles, screenshots, OCR artifacts, semantic entities, the manual ingestion demo, and review queue seeds in one shot. Helpful flags:

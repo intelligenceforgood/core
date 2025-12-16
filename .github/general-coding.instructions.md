@@ -8,7 +8,7 @@ Read order: start with [core/.github/work_routine.md](work_routine.md), then
 - Rehydrate each session with `.github/work_routine.md` and `planning/change_log.md`, then run `git status -sb` and work inside the `i4g` Conda env (`conda run -n i4g ...`).
 - Prefer configuration-driven code: fetch settings through `i4g.settings.get_settings()` and honor the environment-aware factories in `src/i4g/services/factories.py`.
 - Keep edits ASCII unless a file already depends on Unicode, and never revert user-authored changes without explicit direction.
-- Run relevant tests or smoke flows (`pytest tests/unit`, targeted `tests/adhoc/` scripts, `python scripts/bootstrap_local_sandbox.py --reset`) before shipping changes; note any skipped suites in summaries.
+- Run relevant tests or smoke flows (`pytest tests/unit`, targeted `tests/adhoc/` scripts, `i4g bootstrap local reset --report-dir data/reports/local_bootstrap`) before shipping changes; note any skipped suites in summaries.
 - Keep documentation and planning artifacts in sync with code—material changes should update `planning/change_log.md`, `docs/architecture.md`, or `docs/dev_guide.md` as appropriate.
 
 ## Python Style

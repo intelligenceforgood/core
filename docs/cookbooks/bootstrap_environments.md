@@ -6,11 +6,11 @@ Use these recipes to rebuild or verify the local sandbox and the shared dev envi
 - Prereqs: Conda env `i4g`; run from repo root `core/`.
 - Full reset (wipes and rebuilds SQLite, Chroma, OCR artifacts, pilot cases):
   ```bash
-  conda run -n i4g python scripts/bootstrap_local_sandbox.py --reset
+  conda run -n i4g i4g bootstrap local reset --report-dir data/reports/local_bootstrap
   ```
 - Partial rebuilds: skip heavy pieces when you only need structured/vector data or OCR artifacts:
   ```bash
-  conda run -n i4g python scripts/bootstrap_local_sandbox.py --reset --skip-ocr --skip-vector
+  conda run -n i4g i4g bootstrap local reset --skip-ocr --skip-vector --report-dir data/reports/local_bootstrap
   ```
 - Flags to know:
   - `--bundle-uri PATH` to stage a specific bundle into `data/bundles/`.
@@ -26,15 +26,15 @@ Use these recipes to rebuild or verify the local sandbox and the shared dev envi
 - Prereqs: Auth to the dev project; WIF SA typically `sa-infra@i4g-dev.iam.gserviceaccount.com`.
 - Dry-run first to confirm job args:
   ```bash
-  conda run -n i4g python scripts/bootstrap_dev_env.py \
-    --project i4g-dev --region us-central1 --dry-run
+  conda run -n i4g i4g bootstrap dev --project i4g-dev --region us-central1 --verify-only --dry-run --report-dir data/reports/dev_bootstrap
   ```
 - Execute Cloud Run jobs (Firestore, Vertex, SQL, BigQuery, GCS assets, reports, saved searches):
   ```bash
-  conda run -n i4g python scripts/bootstrap_dev_env.py \
+  conda run -n i4g i4g bootstrap dev \
     --project i4g-dev --region us-central1 \
     --bundle-uri gs://i4g-dev-data-bundles/demo/bundle.jsonl \
-    --run-smoke --run-dossier-smoke --run-search-smoke
+    --run-smoke --run-dossier-smoke --run-search-smoke \
+    --report-dir data/reports/dev_bootstrap
   ```
 - Guardrails:
   - Blocks prod-like projects unless `--force` is set; warns when forcing.

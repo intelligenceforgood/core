@@ -24,7 +24,7 @@ instructions and planning prompts listed below.
 - Code style: full type hints, Google-style docstrings, Black/isort, ≤120-char lines, ASCII-only unless the file already
   needs Unicode. Do not revert user edits without direction.
 - Data/secrets: prefer `.env.local` for local secrets; managed secrets via Secret Manager. Refresh sandbox data with
-  `python scripts/bootstrap_local_sandbox.py --reset` when needed.
+  `i4g bootstrap local reset --report-dir data/reports/local_bootstrap` when needed.
 
 ## Model + Tool Picker (from workflow guide)
 - Copilot: IDE automation, incremental coding, Next.js/FastAPI small changes.

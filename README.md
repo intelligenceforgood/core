@@ -19,7 +19,7 @@ Backend services, jobs, and documentation for the Intelligence for Good platform
 ## Quickstart (local)
 - Prereqs: Conda env `i4g` (see docs), Python 3.11+, Node if running the UI.
 - Install: `pip install -e .`
-- Seed local data: `python scripts/bootstrap_local_sandbox.py --reset`
+- Seed local data: `conda run -n i4g i4g bootstrap local reset --report-dir data/reports/local_bootstrap`
 - Run API: `uvicorn i4g.api.app:app --reload`
 - Run tests: `pytest tests/unit`
 - Settings: use `config/settings.default.toml` plus overrides in `config/settings.local.toml` or env vars (`I4G_*`). Always load via `i4g.settings.get_settings()`.

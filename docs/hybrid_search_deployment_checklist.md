@@ -28,11 +28,11 @@ Use this checklist before promoting hybrid search changes from dev → prod. It 
 2. **Config sync**: run `python scripts/export_settings_manifest.py --docs-repo ../docs` so docs and manifests capture any new knobs.
 3. **Apply to dev**:
    - Deploy FastAPI + worker services with the refreshed container image and config overrides.
-   - Execute `scripts/bootstrap_local_sandbox.py --reset` if dev data needs the latest entity fields, then run the ingestion job (`i4g-ingest-job`) with the `network_smoke` dataset.
+  - Execute `i4g bootstrap local reset --report-dir data/reports/local_bootstrap` if dev data needs the latest entity fields, then run the ingestion job (`i4g-ingest-job`) with the `network_smoke` dataset.
 4. **Smoke tests**:
    - API: `curl -sS -H "X-API-KEY: $I4G_API_KEY" "$FASTAPI_BASE/reviews/search/schema"` and confirm indicator/dataset lists include the new fields.
    - Next.js console: `pnpm --filter web test:smoke` (ensures schema-driven chips render).
-   - Saved-search tooling: export + tag + import using `i4g-admin export-saved-searches --schema-version hybrid-v1` and `python scripts/tag_saved_searches.py --dedupe`.
+  - Saved-search tooling: export + tag + import using `i4g-admin export-saved-searches --schema-version hybrid-v1` and `i4g search tag-saved-searches --dedupe`.
 5. **Task queue verification**: ensure the in-memory `TASK_STATUS` map (fastapi app logs) reports progress for `/tasks/{id}` responses during hybrid search requests. If not, restart the API after clearing stale state.
 
 ## 3. Monitoring & Observability

@@ -107,14 +107,14 @@ The script boots `next dev`, opens `/search`, submits a canned hybrid query, and
      --output /tmp/saved_searches_$USER.json
    ```
    Use `--all` to include shared entries. Timestamps are stripped so you can edit safely.
-3. Annotate/tag exports with the helper tied to the same defaults:
-   ```bash
-   conda run -n i4g python scripts/tag_saved_searches.py \
-     --input /tmp/saved_searches_$USER.json \
-     --output /tmp/saved_searches_${USER}_tagged.json \
-     --dedupe
-   ```
-   `--tag` and `--schema-version` fall back to `[search.saved_search]` unless overridden; `--dedupe` cleans duplicate tags.
+3. Annotate/tag exports with the CLI helper tied to the same defaults:
+    ```bash
+    conda run -n i4g i4g search tag-saved-searches \
+       --input /tmp/saved_searches_$USER.json \
+       --output /tmp/saved_searches_${USER}_tagged.json \
+       --dedupe
+    ```
+    `--tag` and `--schema-version` fall back to `[search.saved_search]` unless overridden; `--dedupe` cleans duplicate tags.
 4. Import back into SQLite/Firestore:
    ```bash
    conda run -n i4g i4g-admin import-saved-searches \
