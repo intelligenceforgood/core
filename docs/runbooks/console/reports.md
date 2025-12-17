@@ -73,11 +73,11 @@ your local dossier directory; download chips and client-side verification use th
   hashes still mismatch, check `data/reports/dossiers/{plan_id}` for partial files.
 - **Slow manifest streaming** — leave the toggle off unless reviewing JSON payloads. Use the warning chips and signature
   verification for most triage flows.
-- **Need a high-level overview?** The legacy Streamlit checklist lives in `docs/dev_guide.md` under "Streamlit dossier
-  viewer", but the console workflow documented here replaces it for day-to-day use.
+- **Need a high-level overview?** The legacy Streamlit checklist lives in [development/dev_guide.md](../../development/dev_guide.md) under "Streamlit dossier
+   viewer", but the console workflow documented here replaces it for day-to-day use.
 
 ## 5. Related resources
-- Dossier architecture and queue settings: `docs/dev_guide.md#streamlit-dossier-viewer--regression-checklist`.
+- Dossier architecture and queue settings: [development/dev_guide.md#streamlit-dossier-viewer--regression-checklist](../../development/dev_guide.md#streamlit-dossier-viewer--regression-checklist).
 - Bundle criteria and milestone scope: `planning/milestone4_agentic_evidence_dossiers.md`.
 - Golden regression harness that backs the console data: `tests/unit/reports/test_dossier_golden_regression.py`.
 - Subpoena handoff workflow: [`docs/runbooks/dossiers_subpoena_handoff.md`](../dossiers_subpoena_handoff.md).

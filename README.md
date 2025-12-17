@@ -26,15 +26,15 @@ Backend services, jobs, and documentation for the Intelligence for Good platform
 
 ## Documentation map
 - Docs hub and navigation: [docs/README.md](docs/README.md)
-- Architecture (diagrams, deployment profiles): [docs/architecture.md](docs/architecture.md)
-- Technical design and contracts: [docs/tdd.md](docs/tdd.md)
-- Developer workflow: [docs/dev_guide.md](docs/dev_guide.md)
+- Architecture (diagrams, deployment profiles): [docs/design/architecture.md](docs/design/architecture.md)
+- Technical design and contracts: [docs/development/tdd.md](docs/development/tdd.md)
+- Developer workflow: [docs/development/dev_guide.md](docs/development/dev_guide.md)
 - Cookbooks (how-tos): [docs/cookbooks/README.md](docs/cookbooks/README.md)
 - Runbooks (ops): [docs/runbooks/README.md](docs/runbooks/README.md)
 - Testing and TDD: [docs/testing/README.md](docs/testing/README.md)
 - Release and migration: [docs/release/README.md](docs/release/README.md)
 - Config reference: [docs/config/README.md](docs/config/README.md)
-- Security and IAM: [docs/iam.md](docs/iam.md), [docs/compliance.md](docs/compliance.md), [docs/confidentiality_agreement.md](docs/confidentiality_agreement.md)
+- Security and IAM: [docs/design/iam.md](docs/design/iam.md), [docs/compliance.md](docs/compliance.md), [docs/confidentiality_agreement.md](docs/confidentiality_agreement.md)
 - Planning workspace (separate repo folder): [planning/README.md](../planning/README.md)
 
 ## Common entrypoints

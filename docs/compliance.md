@@ -4,7 +4,7 @@
 
 ## Executive Summary
 
-This document outlines **i4g's** commitment to protecting personally identifiable information (PII) and complying with applicable data protection regulations. As a volunteer-operated non-profit assisting scam users, we handle sensitive data including financial records, personal communications, and identity documents. See [pii_vault.md](pii_vault.md) for the technical tokenization and secret-handling design, and [tdd.md](tdd.md) for API/storage contracts.
+This document outlines **i4g's** commitment to protecting personally identifiable information (PII) and complying with applicable data protection regulations. As a volunteer-operated non-profit assisting scam users, we handle sensitive data including financial records, personal communications, and identity documents. See [pii_vault.md](pii_vault.md) for the technical tokenization and secret-handling design, and [development/tdd.md](development/tdd.md) for API/storage contracts.
 
 **Key Principles**:
 1. **Privacy by Design**: PII tokenization from the moment of upload
@@ -74,7 +74,7 @@ This document outlines **i4g's** commitment to protecting personally identifiabl
 - Normalize and validate detected PII, then tokenize before writing to SQL/vector/Vertex; canonical values remain only in the vault.
 - Deterministic tokens use the prefix catalog and HMAC pepper rotation described in [pii_vault.md](pii_vault.md#hmac-scheme--rotation).
 - Analyst-facing views display masked values; lawful release flows use detokenization controls in [pii_vault.md](pii_vault.md#detokenization-service).
-- System contracts and request/response shapes are in [tdd.md](tdd.md#data-stores-and-contracts) and [architecture.md](architecture.md).
+- System contracts and request/response shapes are in [development/tdd.md](development/tdd.md#data-stores-and-contracts) and [design/architecture.md](design/architecture.md).
 
 #### Lawful detokenization
 - Required inputs: actor identity, reason (subpoena/consent/IR), case scope, and approval log.

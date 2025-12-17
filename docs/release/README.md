@@ -3,12 +3,12 @@
 Launch pad for shipping changes and handling upgrades.
 
 ## Current guides
-- Hybrid search deployment checklist: [../hybrid_search_deployment_checklist.md](../hybrid_search_deployment_checklist.md)
-- IAM and access alignment: [../iam.md](../iam.md)
+- Hybrid search deployment checklist: [../runbooks/hybrid_search_deployment_checklist.md](../runbooks/hybrid_search_deployment_checklist.md)
+- IAM and access alignment: [../design/iam.md](../design/iam.md)
 
 ## Standard release checklist
 - Verify tests: `pytest tests/unit` (add targeted suites for affected areas), and run smoke(s) from [../cookbooks/smoke_test.md](../cookbooks/smoke_test.md).
-- Update docs: architecture, [../tdd.md](../tdd.md) when contracts change, config manifests, and any impacted runbooks/cookbooks.
+- Update docs: [../design/architecture.md](../design/architecture.md), [../development/tdd.md](../development/tdd.md) when contracts change, config manifests, and any impacted runbooks/cookbooks.
 - Versioning/tagging: tag mainline builds and note breaking changes in `planning/change_log.md`.
 - Rollback plan: identify revert PR or deploy artifact, and ensure data migrations have down/restore steps.
 

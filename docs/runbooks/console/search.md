@@ -4,7 +4,7 @@ Use this walkthrough whenever you need to operate the hybrid (semantic + structu
 console, refresh schema metadata, or migrate saved searches.
 
 ## Prerequisites
-- FastAPI gateway reachable through IAP (`docs/iam.md` lists the enrollment steps).
+- FastAPI gateway reachable through IAP (`docs/design/iam.md` lists the enrollment steps).
 - `X-API-KEY` with analyst scope exported as `I4G_API_KEY`.
 - Convenience shell variables:
   ```bash

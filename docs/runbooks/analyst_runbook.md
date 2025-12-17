@@ -14,8 +14,8 @@ or API endpoint you plan to operate.
   work in planning artifacts.
 
 ## Supporting references
-- Access control and API prerequisites: `docs/iam.md`.
-- Developer deep dive (queue processor, Streamlit fallback, env vars): `docs/dev_guide.md`.
+- Access control and API prerequisites: [design/iam.md](../design/iam.md).
+- Developer deep dive (queue processor, Streamlit fallback, env vars): [development/dev_guide.md](../development/dev_guide.md).
 - Milestone context and regression checklist: `planning/change_log.md`.
 - Subpoena handoffs and evidence packaging: [`dossiers_subpoena_handoff.md`](./dossiers_subpoena_handoff.md).
 

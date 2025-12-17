@@ -162,7 +162,7 @@ Open questions to track:
 
 ## 9. References
 
-- `docs/architecture.md` — system overview (now defers IAM details to this document).
+- [design/architecture.md](architecture.md) — system overview (now defers IAM details to this document).
 - `planning/future_architecture.md` — long-term blueprint; IAM sections summarized here.
 - `docs/book/api/authentication.md` — references this file for authoritative instructions.
 - `infra/` Terraform modules (`iam/`, `run/service`) — enforce the described policies.

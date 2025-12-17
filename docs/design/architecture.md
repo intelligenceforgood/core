@@ -594,7 +594,7 @@ gcloud run deploy i4g-console \
 
 ## Security Architecture
 
-This section now embeds the future-state IAM and control-plane details; `docs/iam.md` remains the procedural source of
+This section now embeds the future-state IAM and control-plane details; `docs/design/iam.md` remains the procedural source of
 truth.
 
 ### Identity & Access Control

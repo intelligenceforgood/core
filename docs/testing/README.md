@@ -3,7 +3,7 @@
 How we design, write, and run tests across the stack.
 
 ## Core guidance
-- TDD approach and patterns: [../tdd.md](../tdd.md)
+- TDD approach and patterns: [../development/tdd.md](../development/tdd.md)
 - Unit and contract tests: follow module-level guidance; prefer deterministic fixtures and seeded data.
 - Settings/env coverage: mirror new env vars in `tests/unit/settings/` and refresh config manifests.
 - Smokes: see [../cookbooks/smoke_test.md](../cookbooks/smoke_test.md) for quick validation.

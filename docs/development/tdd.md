@@ -2,7 +2,7 @@
 
 **Version:** 2.0 • **Last Updated:** December 14, 2025
 
-**Purpose:** Implementation-level details and contracts that complement [architecture.md](architecture.md). Use this to build, test, and operate the current system. For high-level diagrams and deployment context, start with architecture.md. Review this document together with [architecture.md](architecture.md) whenever introducing or evaluating changes.
+**Purpose:** Implementation-level details and contracts that complement [architecture.md](../design/architecture.md). Use this to build, test, and operate the current system. For high-level diagrams and deployment context, start with architecture.md. Review this document together with [architecture.md](../design/architecture.md) whenever introducing or evaluating changes.
 
 **Audience:** Software engineers, DevOps/SRE, security reviewers.
 
@@ -30,7 +30,7 @@
 Out of scope: legacy Azure flow and deprecated endpoints; refer to planning archive if needed.
 
 ## 2) System Overview (how this complements architecture.md)
-- **Architecture.md** supplies diagrams, deployment profiles, and guiding principles.
+- [Architecture.md](../design/architecture.md) supplies diagrams, deployment profiles, and guiding principles.
 - **This TDD** adds concrete implementation details and contracts: APIs, data model schemas, request/response shapes, toggles, and operational defaults.
 
 ## 3) Core Components

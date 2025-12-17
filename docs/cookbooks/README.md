@@ -5,9 +5,9 @@ Use these step-by-step guides to create artifacts, run smokes, or set up infrast
 ## Available recipes
 - Local smoke / health checks: [smoke_test.md](smoke_test.md)
 - Bootstrap or refresh sandbox/dev data: [bootstrap_environments.md](bootstrap_environments.md)
-- Run retrieval pipeline on GCP: [../retrieval_gcp_guide.md](../retrieval_gcp_guide.md)
+- Run retrieval pipeline on GCP: [../development/retrieval_gcp_guide.md](../development/retrieval_gcp_guide.md)
 - Generate settings manifests and config tables: [../config/README.md](../config/README.md)
-- Deploy hybrid search checklist: [../hybrid_search_deployment_checklist.md](../hybrid_search_deployment_checklist.md)
+- Deploy hybrid search checklist: [../runbooks/hybrid_search_deployment_checklist.md](../runbooks/hybrid_search_deployment_checklist.md)
 
 ## Add a new recipe
 - Keep it task-focused with inputs/outputs and estimated time.

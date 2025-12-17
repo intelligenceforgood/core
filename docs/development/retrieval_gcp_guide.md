@@ -180,12 +180,3 @@ i4g search eval-vertex --project i4g-dev --location global --data-store-id retri
 ```
 
 By default the script runs four canned queries (wallet verification, romance visa pretext, investment pump room, and tech-support remote access) and reports whether a matching document appears within the top five results. Provide `--config path/to/scenarios.json` to override or extend the scenario list; each entry can specify the query, optional filter, expected document ids/tags/labels, and the acceptable rank cut-off (`pass_k`). The process exits with a non-zero code if any scenario fails, making it suitable for manual checkpoints or future CI automation.
-
----
-
-## Next Steps
-
-- [ ] Add GitHub Actions job that runs `i4g smoke vertex-search` and `i4g search eval-vertex` against a fixture data store
-- [x] Add `i4g-admin` command to query Vertex Search with saved filters
-- [ ] Surface Discovery hits in the React analyst UI once the panel design is finalized
-- When the schema diverges from the default, export the custom schema to `infra/` so Terraform keeps the configuration synced.
