@@ -62,7 +62,7 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
   - `ingestion.enable_firestore`
   - `ingestion.enable_tokenization`
   - `ingestion.default_dataset`
-- Paths: `storage.sqlite_path`, `vector.chroma_dir`, `ingestion.dataset_path`, `data/` assets seeded via `scripts/bootstrap_local_sandbox.py --reset`.
+- Paths: `storage.sqlite_path`, `vector.chroma_dir`, `ingestion.dataset_path`, `data/` assets seeded via `i4g bootstrap local reset --report-dir data/reports/local_bootstrap`.
 - Secrets: prefer Secret Manager in managed envs; local `.env.local` for pepper/key (`I4G_TOKENIZATION__PEPPER`, `I4G_CRYPTO__PII_KEY`).
 
 ## 6) Ingestion Flow (canonical)

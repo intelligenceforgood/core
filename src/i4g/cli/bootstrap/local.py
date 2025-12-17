@@ -1,4 +1,4 @@
-"""Bootstrap helpers for the local sandbox (Typer + script shim)."""
+"""Bootstrap helpers for the local sandbox."""
 
 from __future__ import annotations
 
@@ -590,103 +590,6 @@ def run_local(
     print("✅ Local sandbox refreshed. Data directory:", DATA_DIR)
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """CLI argument parser compatible with the legacy script."""
-
-    parser = argparse.ArgumentParser(description="Bootstrap local sandbox data")
-    parser.add_argument("--skip-ocr", action="store_true", help="Skip generating chat screenshots and OCR")
-    parser.add_argument("--skip-vector", action="store_true", help="Skip rebuilding vector/structured demo stores")
-    parser.add_argument("--reset", action="store_true", help="Remove derived artifacts before regenerating")
-    parser.add_argument(
-        "--bundle-uri",
-        type=str,
-        default=None,
-        help="Path or URI to a bundle JSONL to place in data/bundles (local paths preferred).",
-    )
-    parser.add_argument("--dry-run", action="store_true", help="Print planned actions and exit")
-    parser.add_argument("--verify-only", action="store_true", help="Only run verification/report")
-    parser.add_argument(
-        "--report-dir",
-        type=Path,
-        default=REPORTS_DIR,
-        help="Destination directory for verification reports (default: data/reports)",
-    )
-    parser.add_argument(
-        "--force", action="store_true", help="Allow running when I4G_ENV is not local (use with caution)."
-    )
-    parser.add_argument("--smoke-search", action="store_true", help="Run search smoke (requires vertex settings).")
-    parser.add_argument(
-        "--smoke-dossiers", action="store_true", help="Run dossier signature verification smoke (requires API + token)."
-    )
-    parser.add_argument("--search-project", help="Vertex project for search smoke (defaults to settings).")
-    parser.add_argument(
-        "--search-location", default="global", help="Vertex location for search smoke (default: global)."
-    )
-    parser.add_argument(
-        "--search-data-store-id", help="Vertex data store id for search smoke (required when --smoke-search)."
-    )
-    parser.add_argument(
-        "--search-serving-config-id",
-        default="default_search",
-        help="Vertex serving config id for search smoke (default: default_search).",
-    )
-    parser.add_argument(
-        "--search-query",
-        default="wallet address verification",
-        help="Query string for search smoke (default: wallet address verification).",
-    )
-    parser.add_argument(
-        "--search-page-size", type=int, default=5, help="Page size for search smoke results (default: 5)."
-    )
-    parser.add_argument(
-        "--smoke-api-url",
-        default=os.getenv("I4G_SMOKE_API_URL", "http://127.0.0.1:8000"),
-        help="API base URL for dossier smoke (default: http://127.0.0.1:8000).",
-    )
-    parser.add_argument(
-        "--smoke-token",
-        default=os.getenv("I4G_SMOKE_TOKEN", "dev-analyst-token"),
-        help="API token for dossier smoke (default: env or dev-analyst-token).",
-    )
-    parser.add_argument(
-        "--smoke-dossier-status",
-        default="completed",
-        help="Dossier queue status filter for smoke (default: completed).",
-    )
-    parser.add_argument(
-        "--smoke-dossier-limit", type=int, default=5, help="Maximum dossiers to inspect during smoke (default: 5)."
-    )
-    parser.add_argument("--smoke-dossier-plan-id", help="Optional specific dossier plan_id to verify during smoke.")
-    return parser.parse_args(argv)
-
-
-def main(argv: list[str] | None = None) -> None:
-    args = parse_args(argv)
-    run_local(
-        reset=args.reset,
-        skip_ocr=args.skip_ocr,
-        skip_vector=args.skip_vector,
-        bundle_uri=args.bundle_uri,
-        dry_run=args.dry_run,
-        verify_only=args.verify_only,
-        report_dir=args.report_dir,
-        smoke_search=args.smoke_search,
-        search_project=args.search_project,
-        search_location=args.search_location,
-        search_data_store_id=args.search_data_store_id,
-        search_serving_config_id=args.search_serving_config_id,
-        search_query=args.search_query,
-        search_page_size=args.search_page_size,
-        smoke_dossiers=args.smoke_dossiers,
-        smoke_api_url=args.smoke_api_url,
-        smoke_token=args.smoke_token,
-        smoke_dossier_status=args.smoke_dossier_status,
-        smoke_dossier_limit=args.smoke_dossier_limit,
-        smoke_dossier_plan_id=args.smoke_dossier_plan_id,
-        force=args.force,
-    )
-
-
 local_app = typer.Typer(help="Bootstrap local sandbox data and verification smokes.")
 
 
@@ -945,4 +848,4 @@ def bootstrap_local_smoke(
     )
 
 
-__all__ = ["run_local", "main", "parse_args", "local_app"]
+__all__ = ["run_local", "local_app"]

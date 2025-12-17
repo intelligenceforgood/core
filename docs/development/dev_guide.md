@@ -278,23 +278,17 @@ The command automatically targets the SQLite path from `settings.storage.sqlite_
 migrations against Cloud SQL/AlloyDB, export `I4G_DATABASE_URL` (or `ALEMBIC_DATABASE_URL`) with a
 Postgres connection string and rerun the upgrade command.
 
-`scripts/bootstrap_local_sandbox.py` runs migrations for you, but keep the command above handy for
-CI/CD and ops workflows.
+`i4g bootstrap local reset` runs migrations for you, but keep the command above handy for CI/CD and ops workflows.
 
 ## Restoring Sample Data & Artifacts
 
 If you cleaned out the `data/` directory (or are onboarding to a fresh clone), start with the consolidated helper below to rebuild everything in one step:
 
 ```bash
-python scripts/bootstrap_local_sandbox.py --reset
+conda run -n i4g I4G_ENV=local i4g bootstrap local reset --report-dir data/reports/local_bootstrap
 ```
 
-This command orchestrates the bundle builder, screenshot synthesis, OCR, semantic extraction, manual ingest demo, and review-case seeding. It automatically adds the project `src/` folder to `PYTHONPATH`, so running from an editable install (`pip install -e .`) is optional. If Tesseract is missing it falls back to the downstream steps and prints a reminder—you can rerun with `--skip-ocr` if you plan to install OCR tooling later.
-
-Key switches:
-- `--skip-ocr`: bypass screenshot synthesis, OCR, and semantic extraction (useful when you only need fresh vector/structured stores or do not have Tesseract installed yet).
-- `--skip-vector`: skip the manual ingest demo; existing Chroma/SQLite artifacts will remain untouched.
-- `--reset`: remove generated artifacts before rebuilding; omit for an incremental refresh.
+This Typer command orchestrates the bundle builder, screenshot synthesis, OCR, semantic extraction, manual ingest demo, review-case seeding, and verification reports. Use `--skip-ocr` or `--skip-vector` to trim the flow, and add `--bundle-uri` when you want to stage a specific bundle JSONL. Smoke helpers remain available (`--smoke-search`, `--smoke-dossiers`) when you want to validate Vertex or dossier signatures during the refresh.
 
 The first run primes embeddings and Chroma metadata, so it can take a couple of minutes. Subsequent runs reuse cached models and complete faster.
 

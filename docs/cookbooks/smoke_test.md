@@ -113,9 +113,9 @@ The suite opens `/search`, confirms the query box, filter sidebar, and primary a
   ```
   (Set `I4G_DATABASE_URL` before running the command if you need to target a non-default database.)
 2. Populate local demo artifacts if you have a fresh checkout:
-   ```bash
-   conda run -n i4g python scripts/bootstrap_local_sandbox.py --reset
-   ```
+  ```bash
+  conda run -n i4g I4G_ENV=local i4g bootstrap local reset --report-dir data/reports/local_bootstrap
+  ```
 3. Launch the FastAPI service in a dedicated terminal. Keep it running while you execute the tests:
    ```bash
    conda run -n i4g uvicorn i4g.api.app:app --host 127.0.0.1 --port 8000

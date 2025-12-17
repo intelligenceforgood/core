@@ -427,7 +427,7 @@ def search_annotate_saved_searches(
 ) -> None:
     """Wrap saved_searches.annotate_file into the CLI."""
 
-    from i4g.scripts import saved_searches
+    from i4g.cli import saved_search_helpers as saved_searches
 
     settings = saved_searches.SETTINGS
     effective_tag = tag if tag is not None else settings.search.saved_search.migration_tag

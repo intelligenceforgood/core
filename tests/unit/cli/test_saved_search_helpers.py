@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any
 
-from i4g.scripts import saved_searches
+from i4g.cli import saved_search_helpers as saved_searches
 
 
-def test_annotate_records_appends_tag_and_schema_version():
+def test_annotate_records_appends_tag_and_schema_version() -> None:
     records = [
         {
             "name": "Test",
@@ -20,7 +21,7 @@ def test_annotate_records_appends_tag_and_schema_version():
     assert annotated[0]["params"]["schema_version"] == "v2"
 
 
-def test_annotate_records_handles_missing_fields():
+def test_annotate_records_handles_missing_fields() -> None:
     annotated = saved_searches.annotate_records(
         [{}],
         tag=" hybrid-v1 ",
@@ -32,7 +33,7 @@ def test_annotate_records_handles_missing_fields():
     assert "params" not in annotated[0]
 
 
-def test_argument_parser_defaults_follow_settings(monkeypatch):
+def test_argument_parser_defaults_follow_settings(monkeypatch: Any) -> None:
     stub_settings = SimpleNamespace(
         search=SimpleNamespace(saved_search=SimpleNamespace(migration_tag="taggy-v2", schema_version="schema-v3"))
     )

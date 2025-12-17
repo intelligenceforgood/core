@@ -11,9 +11,9 @@ import google.api_core.exceptions
 from google.cloud import discoveryengine_v1beta as discoveryengine
 from google.protobuf import json_format
 
+from i4g.cli import saved_search_helpers as saved_searches
 from i4g.cli.utils import console
 from i4g.ingestion.preprocess import prepare_documents
-from i4g.scripts import saved_searches
 from i4g.services.ingest_payloads import prepare_ingest_payload
 from i4g.services.vertex_documents import build_vertex_document
 from i4g.settings import get_settings

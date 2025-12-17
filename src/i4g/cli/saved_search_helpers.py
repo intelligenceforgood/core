@@ -1,7 +1,7 @@
 """Helpers for saved-search export tagging and annotation.
 
 This module centralizes the JSON-only tagging utilities so they can be surfaced
-through the Typer CLI while keeping a shim for legacy script imports.
+through the Typer CLI.
 """
 
 from __future__ import annotations
