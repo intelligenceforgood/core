@@ -11,5 +11,5 @@ Most operational utilities now live behind the unified `i4g` CLI (see `i4g --hel
 - Run Python scripts in the project environment: `conda run -n i4g python scripts/<name>.py ...` if you must bypass the CLI.
 - For ingestion/report jobs, prefer the packaged entry points: `i4g jobs ingest|report|intake|account|ingest-retry|dossier`.
 - Smoke checks: `i4g smoke dossiers|vertex-search|cloud-run`.
-- Environment bootstrap: `i4g env bootstrap-local` and `i4g env seed-sample`.
+- Environment bootstrap: `I4G_ENV=local i4g bootstrap local reset|load|verify|smoke` and `I4G_ENV=local i4g bootstrap seed-sample`.
 -- One-time Azure migration scripts live under `scripts/migration/` and are not part of the public CLI; they remain only for archival data pulls.

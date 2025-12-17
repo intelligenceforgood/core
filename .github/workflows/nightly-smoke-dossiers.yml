@@ -50,7 +50,7 @@ jobs:
           PY
       - name: Enqueue sample dossier plan
         run: |
-          i4g env seed-sample
+          I4G_ENV=local i4g bootstrap seed-sample
       - name: Run Smoke Script
         env:
           I4G_ENV: local
