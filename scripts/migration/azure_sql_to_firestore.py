@@ -130,14 +130,35 @@ def parse_args() -> argparse.Namespace:
 
 
 def get_sql_connection(connection_string: str, use_aad: bool, aad_user: Optional[str]) -> pyodbc.Connection:
+    def _strip_sql_auth_fields(raw: str) -> str:
+        parts = [part for part in raw.split(";") if part.strip()]
+        filtered = []
+        for part in parts:
+            key = part.split("=", 1)[0].strip().lower()
+            if key in {"uid", "user", "username", "pwd", "password", "authentication"}:
+                continue
+            filtered.append(part)
+        return ";".join(filtered)
+
     if use_aad:
         credential = DefaultAzureCredential()
         token = credential.get_token("https://database.windows.net/.default")
         token_bytes = token.token.encode("utf-16-le")
         attrs_before = {SQL_COPT_SS_ACCESS_TOKEN: token_bytes}
-        if aad_user and "uid=" not in connection_string.lower():
-            connection_string = f"{connection_string};Uid={aad_user}"
-        return pyodbc.connect(connection_string, attrs_before=attrs_before)
+        sanitized_connection_string = _strip_sql_auth_fields(connection_string)
+        lower_conn = sanitized_connection_string.lower()
+        if "encrypt=" not in lower_conn:
+            sanitized_connection_string = f"{sanitized_connection_string};Encrypt=yes"
+        sanitized_parts = [
+            part
+            for part in sanitized_connection_string.split(";")
+            if part.strip() and not part.strip().lower().startswith("trustservercertificate=")
+        ]
+        sanitized_connection_string = ";".join(sanitized_parts + ["TrustServerCertificate=yes"])
+        logging.debug("AAD connection string after stripping auth fields: %s", sanitized_connection_string)
+        if aad_user:
+            logging.warning("Ignoring --aad-user; Access Token auth does not allow User/UID in the connection string.")
+        return pyodbc.connect(sanitized_connection_string, attrs_before=attrs_before)
     return pyodbc.connect(connection_string)
 
 
@@ -215,9 +236,6 @@ def migrate_table(
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=getattr(logging, args.log_level))
-
-    if args.use_aad and "uid=" not in args.connection_string.lower() and not args.aad_user:
-        raise SystemExit("When --use-aad is set, provide --aad-user or include UID=... in the connection string.")
 
     logging.info("Connecting to Azure SQL...")
     conn = get_sql_connection(args.connection_string, args.use_aad, args.aad_user)

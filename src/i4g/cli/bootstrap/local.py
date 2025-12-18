@@ -8,6 +8,7 @@ import json
 import os
 import shutil
 import sqlite3
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -254,11 +255,23 @@ def _stage_bundle(bundle_uri: str | None) -> Path | None:
     if not bundle_uri:
         return None
 
-    candidate = Path(bundle_uri)
-    if not candidate.exists():
+    bundle_path: Path
+    if bundle_uri.startswith("gs://"):
+        bundle_name = bundle_uri.rstrip("/ ").split("/")[-1]
+        bundle_path = BUNDLES_DIR / bundle_name
+        BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            subprocess.run(["gsutil", "cp", bundle_uri, str(bundle_path)], check=True)
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError(f"Failed to download bundle from {bundle_uri}") from exc
+    else:
+        bundle_path = Path(bundle_uri)
+
+    if not bundle_path.exists():
         raise RuntimeError(f"bundle-uri path not found: {bundle_uri}")
-    if candidate.is_dir():
-        jsonls = list(candidate.glob("*.jsonl"))
+
+    if bundle_path.is_dir():
+        jsonls = list(bundle_path.glob("*.jsonl"))
         if not jsonls:
             raise RuntimeError(f"No JSONL files found in bundle-uri directory: {bundle_uri}")
         target = BUNDLES_DIR / jsonls[0].name
@@ -267,12 +280,23 @@ def _stage_bundle(bundle_uri: str | None) -> Path | None:
         print(f"📦 Copied bundle {jsonls[0]} -> {target} (sha256={digest})")
         return target
 
-    if candidate.suffix.lower() != ".jsonl":
-        raise RuntimeError("bundle-uri must point to a .jsonl file")
-    target = BUNDLES_DIR / candidate.name
-    target.write_bytes(candidate.read_bytes())
+    if bundle_path.suffix.lower() not in {".jsonl", ".json"}:
+        # Accept generated manifest names by checking for a JSONL variant in the same folder
+        candidates = [
+            bundle_path.with_suffix(".jsonl"),
+            bundle_path.with_name(bundle_path.name.split(".")[0] + ".jsonl"),
+        ]
+        for alt in candidates:
+            if alt.exists():
+                bundle_path = alt
+                break
+        else:
+            raise RuntimeError("bundle-uri must point to a .jsonl or .json file")
+
+    target = BUNDLES_DIR / bundle_path.name
+    target.write_bytes(bundle_path.read_bytes())
     digest = _hash_file(target)
-    print(f"📦 Copied bundle {candidate} -> {target} (sha256={digest})")
+    print(f"📦 Copied bundle {bundle_path} -> {target} (sha256={digest})")
     return target
 
 

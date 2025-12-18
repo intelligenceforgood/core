@@ -1,4 +1,4 @@
-# Bundle Sources and Synthetic Coverage (Reference)
+# Bundle Sources and Synthetic Coverage
 
 This page captures the durable reference for what goes into our bootstrap bundles and why. Use it when preparing or
 reviewing local/dev refreshes.

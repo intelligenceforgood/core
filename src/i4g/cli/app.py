@@ -17,8 +17,6 @@ import typer
 from i4g.cli import azure
 from i4g.cli import bootstrap as bootstrap_mod
 from i4g.cli import (
-    bundle_manifest,
-    bundle_storage,
     datasets,
     dossiers,
     extract_tasks,
@@ -29,8 +27,8 @@ from i4g.cli import (
     saved_searches,
     search,
     smoke,
-    synthetic_coverage,
 )
+from i4g.cli.bootstrap import bundle_manifest, bundle_storage, synthetic_coverage
 from i4g.settings import get_settings
 
 VERSION = (Path(__file__).resolve().parents[3] / "VERSION.txt").read_text().strip()
@@ -75,6 +73,99 @@ def _exit_from_return(code: int | None) -> None:
 
     if isinstance(code, int) and code != 0:
         raise typer.Exit(code)
+
+
+@bootstrap_mod.bootstrap_app.command("generate-coverage", help="Generate synthetic coverage bundle artifacts.")
+def bootstrap_generate_coverage(
+    output_dir: Path = typer.Option(
+        Path("data/bundles/synthetic_coverage"),
+        "--output-dir",
+        help="Destination directory for artifacts.",
+    ),
+    seed: int = typer.Option(1337, "--seed", help="Random seed."),
+    include_scenarios: Optional[list[str]] = typer.Option(
+        None, "--include", help="Restrict generation to specific scenario names."
+    ),
+    smoke: bool = typer.Option(False, "--smoke", help="Generate the small smoke slice."),
+    total_count: Optional[int] = typer.Option(
+        None,
+        "--total-count",
+        help="Override total case count (evenly distributed across included scenarios).",
+    ),
+) -> None:
+    result = synthetic_coverage.generate_bundle(
+        output_dir=output_dir, seed=seed, include=include_scenarios, smoke=smoke, total_count=total_count
+    )
+    typer.echo(
+        "Generated synthetic coverage bundle -> %s (cases=%d)" % (result.manifest_path.parent, result.case_count)
+    )
+
+
+@bootstrap_mod.bootstrap_app.command(
+    "bundle-manifest", help="Build manifest with hashes and counts for a bundle directory."
+)
+def bootstrap_bundle_manifest(
+    bundle_dir: Path = typer.Option(
+        ..., "--bundle-dir", exists=True, file_okay=False, dir_okay=True, readable=True, resolve_path=True
+    ),
+    bundle_id: Optional[str] = typer.Option(None, "--bundle-id", help="Identifier; defaults to directory name."),
+    provenance: Optional[str] = typer.Option(None, "--provenance", help="Source or provenance note."),
+    license_name: Optional[str] = typer.Option(None, "--license", help="License identifier or name."),
+    tags: Optional[list[str]] = typer.Option(None, "--tag", help="Tag to record (repeatable)."),
+    pii: bool = typer.Option(False, "--pii/--no-pii", help="Mark whether the bundle contains PII."),
+    output: Optional[Path] = typer.Option(None, "--output", help="Manifest output path."),
+) -> None:
+    target_path = output or (bundle_dir / "manifest.generated.json")
+    result = bundle_manifest.build_manifest(
+        bundle_dir=bundle_dir,
+        bundle_id=bundle_id or bundle_dir.name,
+        provenance=provenance,
+        license_name=license_name,
+        tags=tags or [],
+        pii=pii,
+        output_path=target_path,
+    )
+    typer.echo(f"Wrote bundle manifest -> {result.output_path}")
+
+
+@bootstrap_mod.bootstrap_app.command(
+    "provision-bundle-bucket", help="Create or update the bundle GCS bucket with versioning and IAM."
+)
+def bootstrap_provision_bundle_bucket(
+    bucket: str = typer.Option(..., "--bucket", help="Bucket name to create or update."),
+    project: str = typer.Option("i4g-dev", "--project", help="GCP project ID."),
+    location: str = typer.Option("us-central1", "--location", help="GCS location."),
+    storage_class: str = typer.Option("STANDARD", "--storage-class", help="GCS storage class."),
+    retention_days: Optional[int] = typer.Option(None, "--retention-days", help="Retention policy in days (optional)."),
+    delete_noncurrent_days: Optional[int] = typer.Option(
+        365, "--delete-noncurrent-days", help="Delete noncurrent versions after this many days."
+    ),
+    iam_member: Optional[list[str]] = typer.Option(
+        None,
+        "--iam-member",
+        help="IAM member to grant storage.objectAdmin on the bucket (repeatable).",
+    ),
+) -> None:
+    result = bundle_storage.provision_bucket(
+        bucket_name=bucket,
+        project=project,
+        location=location,
+        storage_class=storage_class,
+        retention_days=retention_days,
+        delete_noncurrent_days=delete_noncurrent_days,
+        iam_members=iam_member or [],
+    )
+    typer.echo(
+        "Provisioned bundle bucket %s (project=%s, location=%s, versioning=%s, retention=%s, delete_noncurrent_days=%s)"
+        % (
+            result.bucket,
+            result.project,
+            result.location,
+            result.versioning_enabled,
+            result.retention_seconds,
+            result.delete_noncurrent_after_days,
+        )
+    )
 
 
 @app.callback(invoke_without_command=True)
@@ -470,95 +561,6 @@ def data_prepare_retrieval_dataset(
     code = datasets.generate_dataset(args)
     if code:
         raise typer.Exit(code)
-
-
-@data_app.command("generate-coverage", help="Generate synthetic coverage bundle artifacts.")
-def data_generate_coverage(
-    output_dir: Path = typer.Option(
-        Path("data/bundles/synthetic_coverage"),
-        "--output-dir",
-        help="Destination directory for artifacts.",
-    ),
-    seed: int = typer.Option(1337, "--seed", help="Random seed."),
-    include_scenarios: Optional[list[str]] = typer.Option(
-        None, "--include", help="Restrict generation to specific scenario names."
-    ),
-    smoke: bool = typer.Option(False, "--smoke", help="Generate the small smoke slice."),
-    total_count: Optional[int] = typer.Option(
-        None,
-        "--total-count",
-        help="Override total case count (evenly distributed across included scenarios).",
-    ),
-) -> None:
-    result = synthetic_coverage.generate_bundle(
-        output_dir=output_dir, seed=seed, include=include_scenarios, smoke=smoke, total_count=total_count
-    )
-    typer.echo(
-        "Generated synthetic coverage bundle -> %s (cases=%d)" % (result.manifest_path.parent, result.case_count)
-    )
-
-
-@data_app.command("bundle-manifest", help="Build manifest with hashes and counts for a bundle directory.")
-def data_bundle_manifest(
-    bundle_dir: Path = typer.Option(
-        ..., "--bundle-dir", exists=True, file_okay=False, dir_okay=True, readable=True, resolve_path=True
-    ),
-    bundle_id: Optional[str] = typer.Option(None, "--bundle-id", help="Identifier; defaults to directory name."),
-    provenance: Optional[str] = typer.Option(None, "--provenance", help="Source or provenance note."),
-    license_name: Optional[str] = typer.Option(None, "--license", help="License identifier or name."),
-    tags: Optional[list[str]] = typer.Option(None, "--tag", help="Tag to record (repeatable)."),
-    pii: bool = typer.Option(False, "--pii/--no-pii", help="Mark whether the bundle contains PII."),
-    output: Optional[Path] = typer.Option(None, "--output", help="Manifest output path."),
-) -> None:
-    target_path = output or (bundle_dir / "manifest.generated.json")
-    result = bundle_manifest.build_manifest(
-        bundle_dir=bundle_dir,
-        bundle_id=bundle_id or bundle_dir.name,
-        provenance=provenance,
-        license_name=license_name,
-        tags=tags or [],
-        pii=pii,
-        output_path=target_path,
-    )
-    typer.echo(f"Wrote bundle manifest -> {result.output_path}")
-
-
-@data_app.command("provision-bundle-bucket", help="Create or update the bundle GCS bucket with versioning and IAM.")
-def data_provision_bundle_bucket(
-    bucket: str = typer.Option(..., "--bucket", help="Bucket name to create or update."),
-    project: str = typer.Option("i4g-dev", "--project", help="GCP project ID."),
-    location: str = typer.Option("us-central1", "--location", help="GCS location."),
-    storage_class: str = typer.Option("STANDARD", "--storage-class", help="GCS storage class."),
-    retention_days: Optional[int] = typer.Option(None, "--retention-days", help="Retention policy in days (optional)."),
-    delete_noncurrent_days: Optional[int] = typer.Option(
-        365, "--delete-noncurrent-days", help="Delete noncurrent versions after this many days."
-    ),
-    iam_member: Optional[list[str]] = typer.Option(
-        None,
-        "--iam-member",
-        help="IAM member to grant storage.objectAdmin on the bucket (repeatable).",
-    ),
-) -> None:
-    result = bundle_storage.provision_bucket(
-        bucket_name=bucket,
-        project=project,
-        location=location,
-        storage_class=storage_class,
-        retention_days=retention_days,
-        delete_noncurrent_days=delete_noncurrent_days,
-        iam_members=iam_member or [],
-    )
-    typer.echo(
-        "Provisioned bundle bucket %s (project=%s, location=%s, versioning=%s, retention=%s, delete_noncurrent_days=%s)"
-        % (
-            result.bucket,
-            result.project,
-            result.location,
-            result.versioning_enabled,
-            result.retention_seconds,
-            result.delete_noncurrent_after_days,
-        )
-    )
 
 
 @data_app.command("build-index", help="Build vector/structured index.")
