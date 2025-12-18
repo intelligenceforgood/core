@@ -2,11 +2,44 @@
 
 from __future__ import annotations
 
+from typing import Any, Dict, List
+
 from fastapi import APIRouter, HTTPException, Query
 
 from i4g.services.discovery import DiscoverySearchParams, get_default_discovery_params, run_discovery_search
+from i4g.settings import get_settings
 
 router = APIRouter(prefix="/discovery", tags=["discovery"])
+SETTINGS = get_settings()
+
+
+def _mock_discovery_response(query: str) -> Dict[str, Any]:
+    """Return a lightweight mock payload to keep the UI working locally."""
+
+    base_summary = f'Mock hit for "{query}"' if query else "Mock Discovery result"
+    template = {
+        "summary": base_summary,
+        "label": "demo",
+        "tags": ["demo", "vertex"],
+        "source": "mock",
+        "index_type": "demo-index",
+        "struct": {"summary": base_summary},
+        "rank_signals": {"semanticSimilarityScore": 0.91},
+        "raw": {"message": "Mock result"},
+    }
+    results: List[Dict[str, Any]] = []
+    for offset in range(3):
+        results.append(
+            {
+                **template,
+                "document_id": f"mock-{offset + 1}",
+                "document_name": f"mock-document-{offset + 1}",
+                "tags": ["demo", "vertex", f"sample-{offset + 1}"],
+                "rank": offset + 1,
+            }
+        )
+
+    return {"results": results, "total_size": len(results), "next_page_token": None}
 
 
 @router.get("/search")
@@ -25,6 +58,8 @@ def discovery_search(
     try:
         params = get_default_discovery_params(query=query, page_size=page_size)
     except RuntimeError as exc:  # pragma: no cover - configuration errors surface to clients
+        if SETTINGS.is_local:
+            return _mock_discovery_response(query)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     if project:
@@ -43,6 +78,8 @@ def discovery_search(
     try:
         return run_discovery_search(params)
     except RuntimeError as exc:  # pragma: no cover - surfaces backend errors
+        if SETTINGS.is_local:
+            return _mock_discovery_response(query)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
 

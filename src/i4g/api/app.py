@@ -9,10 +9,14 @@ from typing import Dict
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 
 from i4g.api.account_list import router as account_list_router
+from i4g.api.analytics import router as analytics_router
+from i4g.api.cases import router as cases_router
+from i4g.api.dashboard import router as dashboard_router
 from i4g.api.discovery import router as discovery_router
 from i4g.api.intake import router as intake_router
 from i4g.api.reports import router as reports_router
 from i4g.api.review import router as review_router
+from i4g.api.taxonomy import router as taxonomy_router
 from i4g.api.tokenization import router as tokenization_router
 from i4g.settings import get_settings
 
@@ -60,9 +64,13 @@ def create_app() -> FastAPI:
     app = FastAPI(title="i4g Analyst Review API", version="0.1")
     app.include_router(review_router, prefix="/reviews", tags=["reviews"])
     app.include_router(account_list_router)
+    app.include_router(analytics_router)
+    app.include_router(cases_router)
+    app.include_router(dashboard_router)
     app.include_router(discovery_router)
     app.include_router(intake_router)
     app.include_router(reports_router)
+    app.include_router(taxonomy_router)
     app.include_router(tokenization_router)
     app.include_router(task_router)
 
