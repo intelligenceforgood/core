@@ -10,7 +10,7 @@ from typing import Any, Dict, Tuple
 
 from google.cloud import discoveryengine_v1beta as discoveryengine
 
-from i4g.cli.ingest import ingest_vertex_search
+from i4g.cli.ingest.logic import ingest_vertex_search
 from i4g.cli.utils import console
 
 
