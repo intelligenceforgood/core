@@ -62,17 +62,21 @@ def _http_request(
         raise SmokeError(f"Network error for {url}: {exc.reason}") from exc
 
 
-def _headers(token: str | None) -> dict[str, str]:
+def _headers(token: str | None, iap_token: str | None = None) -> dict[str, str]:
     headers = {"Content-Type": "application/json"}
     if token:
         headers["X-API-KEY"] = token
+    if iap_token:
+        headers["Authorization"] = f"Bearer {iap_token}"
     return headers
 
 
-def fetch_dossiers(api_url: str, token: str | None, status: str, limit: int) -> list[dict[str, Any]]:
+def fetch_dossiers(
+    api_url: str, token: str | None, status: str, limit: int, iap_token: str | None = None
+) -> list[dict[str, Any]]:
     params = parse.urlencode({"status": status, "limit": str(limit), "include_manifest": "false"})
     url = f"{api_url.rstrip('/')}/reports/dossiers?{params}"
-    body = _http_request("GET", url, headers=_headers(token))
+    body = _http_request("GET", url, headers=_headers(token, iap_token))
     payload = json.loads(body)
     items = payload.get("items")
     if not isinstance(items, list):
@@ -91,18 +95,20 @@ def select_plan(items: Sequence[Mapping[str, Any]], plan_id: str | None) -> Mapp
     return items[0]
 
 
-def verify_plan(api_url: str, token: str | None, plan_id: str) -> dict[str, Any]:
+def verify_plan(api_url: str, token: str | None, plan_id: str, iap_token: str | None = None) -> dict[str, Any]:
     url = f"{api_url.rstrip('/')}/reports/dossiers/{plan_id}/verify"
-    body = _http_request("POST", url, headers=_headers(token))
+    body = _http_request("POST", url, headers=_headers(token, iap_token))
     payload = json.loads(body)
     if payload.get("plan_id") != plan_id:
         raise SmokeError(f"Verification response plan_id mismatch: {payload}")
     return payload
 
 
-def fetch_signature_manifest(api_url: str, token: str | None, plan_id: str) -> Mapping[str, Any]:
+def fetch_signature_manifest(
+    api_url: str, token: str | None, plan_id: str, iap_token: str | None = None
+) -> Mapping[str, Any]:
     url = f"{api_url.rstrip('/')}/reports/dossiers/{plan_id}/signature_manifest"
-    body = _http_request("GET", url, headers=_headers(token))
+    body = _http_request("GET", url, headers=_headers(token, iap_token))
     payload = json.loads(body)
     if payload.get("algorithm") is None:
         raise SmokeError(f"Missing algorithm in signature manifest for {plan_id}")
@@ -180,22 +186,27 @@ def validate_downloads(item: Mapping[str, Any], verification: Mapping[str, Any])
     )
 
 
-def download_via_api(api_url: str, token: str | None, downloads: Mapping[str, Any]) -> None:
+def download_via_api(
+    api_url: str, token: str | None, downloads: Mapping[str, Any], iap_token: str | None = None
+) -> None:
     api_urls = downloads.get("api") or {}
     for key in ("manifest", "signature"):
         url_path = api_urls.get(key)
         if not url_path:
             continue
         full_url = f"{api_url.rstrip('/')}{url_path}"
-        _http_request("GET", full_url, headers=_headers(token))
+        _http_request("GET", full_url, headers=_headers(token, iap_token))
 
 
 def run_smoke(args: argparse.Namespace) -> VerificationResult:
-    dossiers = fetch_dossiers(args.api_url, args.token, args.status, args.limit)
+    iap_token = getattr(args, "iap_token", None)
+    dossiers = fetch_dossiers(args.api_url, args.token, args.status, args.limit, iap_token)
     selected = select_plan(dossiers, args.plan_id)
-    verification = verify_plan(args.api_url, args.token, str(selected.get("plan_id")))
-    download_via_api(args.api_url, args.token, selected.get("downloads") or {})
-    signature_manifest = fetch_signature_manifest(args.api_url, args.token, str(selected.get("plan_id")))
+    verification = verify_plan(args.api_url, args.token, str(selected.get("plan_id")), iap_token)
+    download_via_api(args.api_url, args.token, selected.get("downloads") or {}, iap_token)
+    signature_manifest = fetch_signature_manifest(
+        args.api_url, args.token, str(selected.get("plan_id")), iap_token
+    )
     manifest_path = selected.get("manifest_path") or (selected.get("downloads", {}).get("local", {}) or {}).get(
         "manifest"
     )

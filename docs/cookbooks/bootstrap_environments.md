@@ -26,198 +26,82 @@ Use these recipes to rebuild or verify the local sandbox and the shared dev envi
   - Run a quick smoke: [docs/cookbooks/smoke_test.md](docs/cookbooks/smoke_test.md).
 
 ## Dev environment (I4G_ENV=dev)
-- Prereqs: Auth to the dev project; WIF SA typically `sa-infra@i4g-dev.iam.gserviceaccount.com`.
-- Dry-run first to confirm job args:
+- Prereqs: export `I4G_ENV=dev`; impersonate `sa-infra@i4g-dev.iam.gserviceaccount.com` (WIF) via `gcloud auth application-default login` plus `--impersonate-service-account`; set the gcloud project to `i4g-dev`.
+- Dry-run the Cloud Run plan before touching data:
   ```bash
-  i4g bootstrap dev --project i4g-dev --region us-central1 --verify-only --dry-run --report-dir data/reports/dev_bootstrap
-  ```
-- Execute Cloud Run jobs (Firestore, Vertex, SQL, BigQuery, GCS assets, reports, saved searches):
-  ```bash
-  i4g bootstrap dev \
+  I4G_ENV=dev i4g bootstrap dev reset \
     --project i4g-dev --region us-central1 \
-    --bundle-uri gs://i4g-dev-data-bundles/demo/bundle.jsonl \
-    --run-smoke --run-dossier-smoke --run-search-smoke \
+    --bundle-uri gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/manifest.generated.json \
+    --dataset legacy_azure_$RUN_DATE \
+    --dry-run \
     --report-dir data/reports/dev_bootstrap
   ```
-- Guardrails:
-  - Blocks prod-like projects unless `--force` is set; warns when forcing.
-  - Logs bundle URI and sha256 (for local file URIs) before running jobs.
-  - Use `--verify-only` to run smokes without executing jobs.
-- Outputs: reports land in `data/reports/dev_bootstrap/` (JSON + Markdown with job statuses and smokes).
+  - Run the bootstrap jobs with smokes (intake, dossier, search):
+  ```bash
+  I4G_ENV=dev i4g bootstrap dev reset \
+    --project i4g-dev --region us-central1 \
+    --bundle-uri gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/manifest.generated.json \
+    --dataset legacy_azure_$RUN_DATE \
+    --run-smoke \
+    --run-dossier-smoke \
+    --run-search-smoke \
+    --search-data-store-id retrieval-poc \
+    --search-serving-config-id default_search \
+    --report-dir data/reports/dev_bootstrap
+  ```
+    - Default Cloud Run jobs (if deployed): `bootstrap-firestore`, `bootstrap-vertex`, `bootstrap-sql`, `bootstrap-bigquery`, `bootstrap-gcs-assets`, `bootstrap-reports`, `bootstrap-saved-searches`. If you see a 404 for a job, list what exists and override with the deployed names:
+      ```bash
+      gcloud run jobs list --project i4g-dev --region us-central1 --format='table(name)'
+      # Example current dev jobs: account-list, dossier-queue, generate-reports, ingest-azure-snapshot,
+      # ingest-network-smoke, process-intakes (legacy Azure system is shut down; use the existing bundle only)
+      ```
+      Then set `JOB` to one of the listed names when using the curl fallback below.
+  - Find the Vertex data store id in dev. If your gcloud build lacks the `discovery-engine` group, call the API directly with ADC and a quota project header:
+    ```bash
+    ACCESS_TOKEN=$(gcloud auth print-access-token)
+    curl -s \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -H "X-Goog-User-Project: i4g-dev" \
+      "https://discoveryengine.googleapis.com/v1/projects/i4g-dev/locations/global/collections/default_collection/dataStores" \
+      | jq -r '.dataStores[]? | "\(.name|split("/")[-1])\t\(.displayName)"'
+    ```
+    The first column is the `data_store_id`; pass it to `--search-data-store-id`. Dev default: `retrieval-poc` with serving config `default_search` in location `global`.
+    - If you see a quota-project warning with ADC, run `gcloud auth application-default set-quota-project i4g-dev` and retry. Discovery Engine is already enabled for the project via `infra/environments/app/dev` Terraform.
+    - If `gcloud run jobs execute` fails with `Unknown name "delayExecution" at 'overrides'` (seen in gcloud 550.0.0), either downgrade gcloud (e.g., 549.0.0) or call the Cloud Run Jobs API directly. Ensure `JOB` matches an existing job from the list above (a 404 means the job is not deployed):
+      ```bash
+      ACCESS_TOKEN=$(gcloud auth print-access-token --impersonate-service-account sa-infra@i4g-dev.iam.gserviceaccount.com)
+      JOB=ingest-azure-snapshot
+      curl -s -X POST \
+        -H "Authorization: Bearer $ACCESS_TOKEN" \
+        -H "X-Goog-User-Project: i4g-dev" \
+        -H "Content-Type: application/json" \
+        "https://run.googleapis.com/v2/projects/i4g-dev/locations/us-central1/jobs/$JOB:run" \
+        -d '{"overrides":{"containerOverrides":[{"args":["--bundle-uri=gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/manifest.generated.json","--dataset=legacy_azure_$RUN_DATE"]}]}}'
+      ```
+      Replace `JOB` per target; use `generate-reports` for dossier/report rebuilds and `process-intakes` for intake smoke. Azure weekly refresh is retired; bootstrap consumes the existing bundle in `gs://i4g-dev-data-bundles/legacy_azure` (no upstream Azure pulls).
+  - Verification-only (no job execution, smokes only):
+  ```bash
+  I4G_ENV=dev i4g bootstrap dev verify \
+    --project i4g-dev --region us-central1 \
+    --run-smoke --run-dossier-smoke --run-search-smoke \
+    --search-data-store-id retrieval-poc \
+    --search-serving-config-id default_search \
+    --report-dir data/reports/dev_bootstrap
+  ```
+    - **Note**: The dev FastAPI service is behind IAP. The bootstrap tool automatically fetches your local `gcloud` identity token to authenticate. Ensure you have run `gcloud auth login` and have access to the IAP-protected application.
+    - **Note on Dossier Smoke**: You may see `Dossier smoke failed: No dossiers returned` if the environment is fresh. This is expected because the verification command only submits an intake (creating a case) but does not trigger the full report generation workflow that populates the dossier queue. To populate dossiers, run the full reset command or manually trigger report generation.
+
+- Guardrails and outputs:
+  - Blocks prod-like projects unless `--force` and warns if `I4G_ENV` is not `dev`/`local`.
+  - Logs bundle URI and sha256 when `--bundle-uri` points to a local file; pass `--dataset` and `--bundle-uri` so every job sees the same inputs.
+  - Reports (JSON + Markdown) land in `data/reports/dev_bootstrap/` with job status and smoke results. Search smoke is skipped unless both `--search-data-store-id` and `--search-serving-config-id` are provided.
+  - **Inspect Outcomes**:
+    - Check `data/reports/dev_bootstrap/dev_bootstrap_report.md` for a summary of all job executions and smoke test results.
+    - Review `data/reports/dev_bootstrap/dev_bootstrap_report.json` for detailed machine-readable logs, including specific error messages if any step failed.
+    - If the intake smoke passed, you can verify the created case in the analyst console or by querying the API directly using the `intake_id` from the logs.
 
 ## Prepare the required bundles (GCS)
-Before generating artifacts, set a run date and reuse `$RUN_DATE` everywhere the instructions reference timestamped folders so the exports stay in sync:
-```bash
-export RUN_DATE=$(date +%Y%m%d)
-```
-The bootstrap flow expects three bundles staged in the versioned bucket `gs://i4g-dev-data-bundles/` (or the project-specific bucket you pass via `--bundle-uri`). Use timestamped subfolders keyed by `$RUN_DATE` to keep versions (for example `synthetic_coverage/$RUN_DATE/`).
-
-### Synthetic coverage bundle (generate locally, then upload)
-1) Generate artifacts (full set by default; add `--smoke` for the small slice):
-  ```bash
-  i4g bootstrap generate-coverage \
-    --output-dir data/bundles/synthetic_coverage/full \
-    --seed 1337
-  ```
-  - Optional: `--include wallet_verification romance_pretext ...` to restrict scenarios; `--total-count` to fix total rows.
-2) Build a manifest with hashes/counts:
-  ```bash
-  i4g bootstrap bundle-manifest \
-    --bundle-dir data/bundles/synthetic_coverage/full \
-    --bundle-id synthetic_coverage \
-    --provenance "synthetic coverage seed=1337" \
-    --license CC0 \
-    --tag synthetic --tag coverage --no-pii
-  ```
-3) Publish to GCS (example versioned path):
-  ```bash
-  gsutil -m rsync -r data/bundles/synthetic_coverage/full gs://i4g-dev-data-bundles/synthetic_coverage/$RUN_DATE/full
-  ```
-  - For the smoke slice, rerun step 1 with `--smoke` and upload to `.../synthetic_coverage_smoke/$RUN_DATE/`.
-4) Use the uploaded manifest path as `--bundle-uri` when running `i4g bootstrap ...`.
-
-### Legacy Azure export bundle (rebuild from Azure, then upload)
-Prereqs: access to Azure SQL, Blob Storage, and Cognitive Search plus GCP auth to write to the target bucket. Run from repo root in the `i4g` Conda env.
-
-Review the [Azure legacy data primer](azure_legacy_data.md) for the environment variables, credentials, and CLI recipes you use in this flow.
-
-1) Prepare the bucket prefixes so the Azure container copy command has a destination.
-  ```bash
-  gsutil -m cp -n /dev/null gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/forms/.keep || true
-  gsutil -m cp -n /dev/null gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/groupsio/.keep || true
-  ```
-2) Copy Azure Blob containers into GCS (use `--dry-run` first, then rerun without it; add `--overwrite` when replacing existing objects). The Azure Functions in `dtp/IFG-AzureFunctions` still target `intake-form-attachments` and `groupsio-attachments`—the same names enumerated by `scripts/migration/run_weekly_refresh.py`—so point the container flags at those buckets.
-  ```bash
-  i4g azure azure-blob-to-gcs -- \
-    --connection-string "$AZURE_STORAGE_CONNECTION_STRING" \
-    --container intake-form-attachments=gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/forms \
-    --container groupsio-attachments=gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/groupsio \
-    --dry-run
-  ```
-  ```bash
-  i4g azure azure-blob-to-gcs -- \
-    --connection-string "$AZURE_STORAGE_CONNECTION_STRING" \
-    --container intake-form-attachments=gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/forms \
-    --container groupsio-attachments=gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/groupsio
-  ```
-  If you are unsure which containers are populated, use the `az storage container list` loop from [docs/cookbooks/azure_legacy_data.md](docs/cookbooks/azure_legacy_data.md#L54-L80) to inspect each attachment account before re-running the script.
-  The legacy code under [dtp/IFG-AzureFunctions/utilities/groupsio_transfer/att_transfer.py](dtp/IFG-AzureFunctions/utilities/groupsio_transfer/att_transfer.py#L9-L40) still reads from `groupsio-attachments`, and [dtp/IFG-AzureFunctions/process_intake_forms/config.py](dtp/IFG-AzureFunctions/process_intake_forms/config.py#L1-L25) defines `CONTAINER_NAME = 'intake-form-attachments'`, so these are the canonical names the migration helpers expect.
-
-3) Mirror the container exports into your local bundle staging area so you can package everything together later:
-  ```bash
-  mkdir -p data/bundles/legacy_azure/$RUN_DATE
-  gsutil -m rsync -r gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/forms data/bundles/legacy_azure/$RUN_DATE/forms
-  gsutil -m rsync -r gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/groupsio data/bundles/legacy_azure/$RUN_DATE/groupsio
-  ```
-
-4) Export Azure SQL intake tables to Firestore staging (or run in dry-run to validate access):
-  ```bash
-  i4g azure azure-sql-to-firestore -- \
-    --connection-string "$AZURE_SQL_CONNECTION_STRING" \
-    --use-aad --aad-user your-upn@example.com \
-    --firestore-project i4g-dev \
-    --report data/reports/legacy_sql_export.json
-  ```
-  - Tables covered: `intake_form_data`, `intake_form_data_last_processed`, `groupsio_message_data`; adjust with `--tables` if needed.
-5) Export Azure Cognitive Search indexes, then transform for Vertex:
-  ```bash
-  i4g azure azure-search-export -- \
-    --endpoint "$AZURE_SEARCH_ENDPOINT" \
-    --admin-key "$AZURE_SEARCH_ADMIN_KEY" \
-    --indexes intake-form-search groupsio-search \
-    --output-dir data/search_exports/$RUN_DATE
-
-  i4g azure azure-search-to-vertex -- \
-    --input-dir data/search_exports/$RUN_DATE \
-    --output-dir data/search_exports/$RUN_DATE/vertex \
-    --index intake-form-search groupsio-search
-  ```
-  - Copy the Vertex-ready exports into the bundle folder so they travel with the blob data:
-    ```bash
-    rsync -a data/search_exports/$RUN_DATE/vertex data/bundles/legacy_azure/$RUN_DATE/search_exports
-    ```
-6) Build the legacy bundle and manifest (include the staged blobs, search exports, and SQL/report artifacts you generated):
-  ```bash
-  i4g bootstrap bundle-manifest \
-    --bundle-dir data/bundles/legacy_azure/$RUN_DATE \
-    --bundle-id legacy_azure \
-    --provenance "azure export $RUN_DATE" \
-    --license "restricted" \
-    --tag legacy --tag azure --pii
-  ```
-  - The manifest command writes `manifest.generated.json` into the bundle directory and hashes every asset you staged.
-7) Publish the completed bundle to GCS so downstream bootstrap runs can reference it:
-  ```bash
-  gsutil -m rsync -r data/bundles/legacy_azure/$RUN_DATE gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/
-  ```
-  The upload includes `manifest.generated.json` (along with the blobs, search exports, and reports). Point `--bundle-uri` at that file (`gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/manifest.generated.json`) to match the manifest the pipeline produces; the helper stages exactly what you uploaded before rebuilding the sandbox.
-
-### Public/third-party scam bundle (recreate from upstream sources)
-Sources and licenses are listed in [docs/development/bundle_sources_and_coverage.md](docs/development/bundle_sources_and_coverage.md). Keep PII-free and honor licensing.
-
-1) Fetch upstream corpora into a working dir (example uses UCI SMS Spam Collection and SpamAssassin):
-  ```bash
-  mkdir -p data/bundles/public_scams/$RUN_DATE/raw
-  curl -L https://archive.ics.uci.edu/ml/machine-learning-databases/00228/smsspamcollection.zip \
-    -o data/bundles/public_scams/$RUN_DATE/raw/smsspamcollection.zip
-  curl -L https://spamassassin.apache.org/old/publiccorpus/20030228_spam.tar.bz2 \
-    -o data/bundles/public_scams/$RUN_DATE/raw/spamassassin_spam.tar.bz2
-  ```
-2) Convert to JSONL for ingestion (keeps text + label; extend as needed):
-  ```bash
-  python - <<'PY'
-  import json, pathlib, zipfile, tarfile
-
-  root = pathlib.Path("data/bundles/public_scams/$RUN_DATE")
-  out = root / "cases.jsonl"
-  out.parent.mkdir(parents=True, exist_ok=True)
-  out.write_text("", encoding="utf-8")
-
-  with out.open("a", encoding="utf-8") as sink:
-    # UCI SMS
-    with zipfile.ZipFile(root / "raw/smsspamcollection.zip") as zf:
-      with zf.open("SMSSpamCollection") as fh:
-        for idx, line in enumerate(fh):
-          label, text = line.decode("utf-8", errors="ignore").split("\t", 1)
-          rec = {
-            "id": f"uci_sms_{idx}",
-            "dataset": "public_scams",
-            "source": "uci_sms",
-            "label": label,
-            "text": text.strip(),
-            "pii": False,
-          }
-          sink.write(json.dumps(rec) + "\n")
-
-    # SpamAssassin spam set
-    with tarfile.open(root / "raw/spamassassin_spam.tar.bz2") as tf:
-      for member in tf.getmembers():
-        if member.isdir():
-          continue
-        content = tf.extractfile(member).read().decode("latin-1", errors="ignore")
-        rec = {
-          "id": f"sa_{member.name}",
-          "dataset": "public_scams",
-          "source": "spamassassin",
-          "label": "spam",
-          "text": content.strip(),
-          "pii": False,
-        }
-        sink.write(json.dumps(rec) + "\n")
-  PY
-  ```
-3) Build the manifest and upload:
-  ```bash
-  i4g bootstrap bundle-manifest \
-    --bundle-dir data/bundles/public_scams/$RUN_DATE \
-    --bundle-id public_scams \
-    --provenance "public corpora refresh $RUN_DATE" \
-    --license "see sources" \
-    --tag public --tag scams --no-pii
-
-  gsutil -m rsync -r data/bundles/public_scams/$RUN_DATE gs://i4g-dev-data-bundles/public_scams/$RUN_DATE
-  ```
-4) Reference the uploaded manifest as `--bundle-uri` when bootstrapping.
+See [Prepare Bootstrap Data Bundles](prepare_bootstrap_bundles.md) for instructions on generating, exporting, and uploading the data bundles required for bootstrapping.
 
 ## Notes and further reading
 - Avoid hand-editing `data/`; rerun the bootstrap scripts for reproducibility. Keep `config/settings.local.toml` aligned when overriding paths and regenerate manifests with `scripts/export_settings_manifest.py` if needed.

@@ -5,8 +5,11 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import urllib.parse
 
 import httpx
+from google.auth.transport.requests import Request
+from google.oauth2 import id_token
 
 from i4g.services.intake import IntakeService
 from i4g.services.intake_job_runner import LocalPipelineIntakeJobRunner
@@ -39,9 +42,32 @@ def _safe_post(
         raise
 
 
+def _get_oidc_token(audience: str) -> str | None:
+    """Fetch an OIDC token for the given audience if running in GCP."""
+    try:
+        auth_req = Request()
+        return id_token.fetch_id_token(auth_req, audience)
+    except Exception as exc:
+        # This is expected locally or if not running on GCP with proper identity
+        LOGGER.debug("Could not fetch OIDC token for audience %s: %s", audience, exc)
+        return None
+
+
 def _process_via_api(intake_id: str, job_id: str, api_base: str, api_key: str | None) -> int:
     runner = LocalPipelineIntakeJobRunner()
     headers = {"X-API-KEY": api_key} if api_key else {}
+
+    # Attempt to inject OIDC token for Cloud Run service-to-service auth
+    try:
+        parsed = urllib.parse.urlparse(api_base)
+        # Audience is typically the root URL (scheme + netloc)
+        audience = f"{parsed.scheme}://{parsed.netloc}"
+        token = _get_oidc_token(audience)
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+    except Exception as exc:
+        LOGGER.warning("Failed to configure OIDC auth: %s", exc)
+
     base = api_base.rstrip("/")
     with httpx.Client(base_url=base, headers=headers, timeout=30.0) as client:
         try:

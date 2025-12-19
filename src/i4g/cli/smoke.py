@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, Tuple
 
@@ -88,7 +89,7 @@ def _run_command(cmd: list[str], *, capture_output: bool = True, check: bool = T
         raise SmokeError(message) from exc
 
 
-def _submit_intake(api_url: str, token: str) -> Tuple[str, str]:
+def _submit_intake(api_url: str, token: str, iap_token: str | None = None) -> Tuple[str, str]:
     payload = {
         "reporter_name": "Dev Smoke",
         "summary": "Automated dev smoke submission",
@@ -108,9 +109,16 @@ def _submit_intake(api_url: str, token: str) -> Tuple[str, str]:
         f"{api_url}/intakes/",
         "-H",
         f"X-API-KEY: {token}",
-        "-F",
-        f"payload={json.dumps(payload)}",
     ]
+    if iap_token:
+        curl_cmd.extend(["-H", f"Authorization: Bearer {iap_token}"])
+
+    curl_cmd.extend(
+        [
+            "-F",
+            f"payload={json.dumps(payload)}",
+        ]
+    )
 
     proc = _run_command(curl_cmd)
     raw_output = proc.stdout
@@ -131,62 +139,133 @@ def _submit_intake(api_url: str, token: str) -> Tuple[str, str]:
     return intake_id, job_id
 
 
-def _execute_job(project: str, region: str, job: str, container: str, intake_id: str, job_id: str) -> str:
-    env_overrides = f"I4G_INTAKE__ID={intake_id},I4G_INTAKE__JOB_ID={job_id}"
+def _print_logs(execution_name: str, project: str, region: str) -> None:
     cmd = [
         "gcloud",
+        "beta",
         "run",
         "jobs",
-        "execute",
-        job,
+        "executions",
+        "logs",
+        "read",
+        execution_name,
         "--project",
         project,
         "--region",
         region,
-        "--wait",
-        "--container",
-        container,
-        f"--update-env-vars={env_overrides}",
+        "--limit",
+        "50",
+    ]
+    proc = _run_command(cmd, check=False)
+    if proc.returncode == 0:
+        console.print(proc.stdout)
+    else:
+        console.print(f"Failed to fetch logs: {proc.stderr}")
+
+
+def _execute_job(project: str, region: str, job: str, container: str, intake_id: str, job_id: str) -> str:
+    # Workaround for gcloud 550.0.0 bug (delayExecution): use curl to trigger job
+    token_proc = _run_command(["gcloud", "auth", "print-access-token"])
+    access_token = token_proc.stdout.strip()
+
+    url = f"https://run.googleapis.com/v2/projects/{project}/locations/{region}/jobs/{job}:run"
+    payload = {
+        "overrides": {
+            "containerOverrides": [
+                {
+                    "name": container,
+                    "env": [
+                        {"name": "I4G_INTAKE__ID", "value": intake_id},
+                        {"name": "I4G_INTAKE__JOB_ID", "value": job_id},
+                    ],
+                }
+            ]
+        }
+    }
+
+    curl_cmd = [
+        "curl",
+        "-sS",
+        "-X",
+        "POST",
+        url,
+        "-H",
+        f"Authorization: Bearer {access_token}",
+        "-H",
+        "Content-Type: application/json",
+        "-d",
+        json.dumps(payload),
     ]
 
-    proc = _run_command(cmd)
-    stdout = proc.stdout
-    marker = "Execution ["
-    start = stdout.find(marker)
-    if start != -1:
-        start += len(marker)
-        end = stdout.find("]", start)
-        if end != -1:
-            return stdout[start:end]
+    proc = _run_command(curl_cmd)
+    try:
+        resp = json.loads(proc.stdout)
+        full_name = resp["metadata"]["name"]
+        execution_name = full_name.split("/")[-1]
+    except (KeyError, IndexError, json.JSONDecodeError) as exc:
+        raise SmokeError(f"Failed to parse job execution response: {proc.stdout}") from exc
 
-    describe_cmd = [
-        "gcloud",
-        "run",
-        "jobs",
-        "describe",
-        job,
-        "--project",
-        project,
-        "--region",
-        region,
-        "--format",
-        "value(status.latestCreatedExecution.name)",
-    ]
-    describe_proc = _run_command(describe_cmd)
-    execution_name = describe_proc.stdout.strip()
-    if not execution_name:
-        raise SmokeError(f"Could not determine execution name. gcloud output: {stdout}")
-    return execution_name
+    console.print(f"Job triggered: {execution_name}. Waiting for completion...")
+
+    start_time = time.time()
+    while time.time() - start_time < 600:  # 10 min timeout
+        cmd = [
+            "gcloud",
+            "run",
+            "jobs",
+            "executions",
+            "describe",
+            execution_name,
+            "--project",
+            project,
+            "--region",
+            region,
+            "--format=json",
+        ]
+        proc = _run_command(cmd, check=False)
+        if proc.returncode != 0:
+            console.print(f"Polling failed (code {proc.returncode}). Retrying...")
+            time.sleep(5)
+            continue
+
+        status = json.loads(proc.stdout)
+        conditions = status.get("status", {}).get("conditions", [])
+        completed = next((c for c in conditions if c["type"] == "Completed"), None)
+        
+        if completed:
+            status_str = completed.get("status")
+            message = completed.get("message")
+            if status_str == "True":
+                console.print(f"Job completed successfully: {message}")
+                return execution_name
+            elif status_str == "False":
+                console.print(f"Job execution failed: {message}")
+                console.print("Fetching logs...")
+                _print_logs(execution_name, project, region)
+                raise SmokeError(f"Job execution failed: {message}")
+            else:
+                # Unknown/Running
+                console.print(f"Job running... ({message})")
+        else:
+             console.print("Job status unknown...")
+
+        time.sleep(10)
+
+    raise SmokeError(f"Job execution timed out: {execution_name}")
 
 
-def _fetch_intake(api_url: str, intake_id: str, token: str) -> Dict[str, Any]:
+def _fetch_intake(api_url: str, intake_id: str, token: str, iap_token: str | None = None) -> Dict[str, Any]:
     cmd = [
         "curl",
         "-sS",
         "-H",
         f"X-API-KEY: {token}",
-        f"{api_url}/intakes/{intake_id}",
     ]
+    if iap_token:
+        cmd.extend(["-H", f"Authorization: Bearer {iap_token}"])
+
+    cmd.append(f"{api_url}/intakes/{intake_id}")
+
     proc = _run_command(cmd)
     try:
         return json.loads(proc.stdout)
@@ -196,11 +275,12 @@ def _fetch_intake(api_url: str, intake_id: str, token: str) -> Dict[str, Any]:
 
 def cloud_run_smoke(args: Any) -> None:
     """Run the dev Cloud Run intake smoke end-to-end."""
+    iap_token = getattr(args, "iap_token", None)
 
     try:
-        intake_id, job_id = _submit_intake(args.api_url.rstrip("/"), args.token)
+        intake_id, job_id = _submit_intake(args.api_url.rstrip("/"), args.token, iap_token)
         execution_name = _execute_job(args.project, args.region, args.job, args.container, intake_id, job_id)
-        intake = _fetch_intake(args.api_url.rstrip("/"), intake_id, args.token)
+        intake = _fetch_intake(args.api_url.rstrip("/"), intake_id, args.token, iap_token)
     except SmokeError as exc:
         raise SystemExit(f"Smoke test failed: {exc}") from exc
 

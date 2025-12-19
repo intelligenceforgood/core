@@ -21,6 +21,8 @@ from i4g.settings import get_settings
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
 DEFAULT_WIF_SA = "sa-infra@i4g-dev.iam.gserviceaccount.com"
+DEFAULT_RUNTIME_SA = "sa-app@i4g-dev.iam.gserviceaccount.com"
+IAP_CLIENT_ID_FALLBACK = "544936845045-a87u04lgc7go7asc4nhed36ka50iqh0h.apps.googleusercontent.com"
 DEFAULT_PROJECT = "i4g-dev"
 DEFAULT_REGION = "us-central1"
 DEFAULT_REPORT_DIR = REPO_ROOT / "data" / "reports" / "dev_bootstrap"
@@ -127,7 +129,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--smoke-api-url",
-        default=os.getenv("I4G_SMOKE_API_URL", "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app"),
+        default=os.getenv("I4G_SMOKE_API_URL", "https://api.intelligenceforgood.org"),
         help="API base URL for smoke (default: dev gateway).",
     )
     parser.add_argument(
@@ -293,8 +295,66 @@ def execute_job(spec: JobSpec, args: argparse.Namespace) -> JobResult:
     )
 
 
+def _get_iap_token(project: str, service_account: str | None) -> str | None:
+    """Fetch an IAP-compatible ID token by looking up the backend service audience."""
+    # Always use the runtime SA for IAP access as it has the correct permissions
+    impersonate_sa = DEFAULT_RUNTIME_SA
+    
+    try:
+        # 1. Fetch the IAP Client ID (audience) from the backend service
+        # We assume the backend service name is 'i4g-lb-backend-api' as per Terraform
+        cmd = [
+            "gcloud",
+            "compute",
+            "backend-services",
+            "describe",
+            "i4g-lb-backend-api",
+            "--project",
+            project,
+            "--global",
+            "--format=value(iap.oauth2ClientId)",
+            f"--impersonate-service-account={impersonate_sa}",
+        ]
+
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            audience = proc.stdout.strip()
+        except subprocess.CalledProcessError:
+            # Fallback to known Client ID if lookup fails (e.g. permissions)
+            audience = IAP_CLIENT_ID_FALLBACK
+
+        if not audience:
+            return None
+
+        # 2. Generate ID token with the audience and email claim
+        cmd = [
+            "gcloud",
+            "auth",
+            "print-identity-token",
+            f"--audiences={audience}",
+            "--include-email",
+            f"--impersonate-service-account={impersonate_sa}",
+        ]
+
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return proc.stdout.strip()
+
+    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+        logging.debug("_get_iap_token failed: %s", exc)
+        if isinstance(exc, subprocess.CalledProcessError):
+            logging.debug("stderr: %s", exc.stderr)
+        return None
+
+
 def run_smoke(args: argparse.Namespace) -> SmokeResult:
     from i4g.cli import smoke
+
+    iap_token = _get_iap_token(args.project, args.wif_service_account)
 
     smoke_args = SimpleNamespace(
         api_url=args.smoke_api_url,
@@ -303,6 +363,7 @@ def run_smoke(args: argparse.Namespace) -> SmokeResult:
         region=args.region,
         job=args.smoke_job,
         container=args.smoke_container,
+        iap_token=iap_token,
     )
     try:
         smoke.cloud_run_smoke(smoke_args)
@@ -314,12 +375,27 @@ def run_smoke(args: argparse.Namespace) -> SmokeResult:
 def run_dossier_smoke(args: argparse.Namespace) -> DossierSmokeResult:
     from scripts import smoke_dossiers
 
+    iap_token = _get_iap_token(args.project, args.wif_service_account)
+    if not iap_token:
+        try:
+            proc = subprocess.run(
+                ["gcloud", "auth", "print-identity-token"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if proc.returncode == 0:
+                iap_token = proc.stdout.strip()
+        except Exception:
+            pass
+
     smoke_args = SimpleNamespace(
         api_url=args.smoke_api_url,
         token=args.smoke_token,
         status="completed",
         limit=5,
         plan_id=None,
+        iap_token=iap_token,
     )
     try:
         result = smoke_dossiers.run_smoke(smoke_args)
@@ -744,7 +820,7 @@ def bootstrap_dev_reset(
     force: bool = typer.Option(False, "--force", help="Allow targeting non-dev projects (never prod)."),
     log_level: str = typer.Option("INFO", "--log-level", help="Logging verbosity (DEBUG/INFO/WARNING/ERROR)."),
     smoke_api_url: str = typer.Option(
-        os.getenv("I4G_SMOKE_API_URL", "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app"),
+        os.getenv("I4G_SMOKE_API_URL", "https://api.intelligenceforgood.org"),
         "--smoke-api-url",
         help="API base URL for smoke.",
     ),
@@ -858,7 +934,7 @@ def bootstrap_dev_load(
     force: bool = typer.Option(False, "--force", help="Allow targeting non-dev projects (never prod)."),
     log_level: str = typer.Option("INFO", "--log-level", help="Logging verbosity (DEBUG/INFO/WARNING/ERROR)."),
     smoke_api_url: str = typer.Option(
-        os.getenv("I4G_SMOKE_API_URL", "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app"),
+        os.getenv("I4G_SMOKE_API_URL", "https://api.intelligenceforgood.org"),
         "--smoke-api-url",
         help="API base URL for smoke.",
     ),
@@ -964,7 +1040,7 @@ def bootstrap_dev_verify(
     force: bool = typer.Option(False, "--force", help="Allow targeting non-dev projects (never prod)."),
     log_level: str = typer.Option("INFO", "--log-level", help="Logging verbosity (DEBUG/INFO/WARNING/ERROR)."),
     smoke_api_url: str = typer.Option(
-        os.getenv("I4G_SMOKE_API_URL", "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app"),
+        os.getenv("I4G_SMOKE_API_URL", "https://api.intelligenceforgood.org"),
         "--smoke-api-url",
         help="API base URL for smoke.",
     ),
