@@ -18,4 +18,4 @@ Read order: start with [core/.github/work_routine.md](work_routine.md), then
 
 ## Collaboration & Review
 - Treat collaboration as a two-person team (you + Copilot); you own prioritization and approvals.
-- When preparing to merge, request (or expect) a “picky reviewer” pass: verify style conformance, remove dead code, ensure tests/docs reflect behavior across all repositories, and confirm deployment instructions (e.g., Cloud Run) are accurate.
+- When preparing to merge, request (or expect) a “picky reviewer” pass: verify style conformance (including `pnpm format` for UI), remove dead code, ensure tests/docs reflect behavior across all repositories, and confirm deployment instructions (e.g., Cloud Run) are accurate.
