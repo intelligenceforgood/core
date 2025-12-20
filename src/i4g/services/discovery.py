@@ -34,6 +34,8 @@ class DiscoverySearchParams:
     data_store_id: str
     serving_config_id: str = "default_search"
     page_size: int = 10
+    page_token: Optional[str] = None
+    offset: int = 0
     filter_expression: Optional[str] = None
     boost_json: Optional[str] = None
 
@@ -61,7 +63,9 @@ def _load_defaults() -> DiscoveryDefaults:
     )
 
 
-def get_default_discovery_params(query: str, page_size: int = 10) -> DiscoverySearchParams:
+def get_default_discovery_params(
+    query: str, page_size: int = 10, page_token: Optional[str] = None, offset: int = 0
+) -> DiscoverySearchParams:
     """Return a populated :class:`DiscoverySearchParams` using environment defaults."""
 
     defaults = _load_defaults()
@@ -72,6 +76,8 @@ def get_default_discovery_params(query: str, page_size: int = 10) -> DiscoverySe
         data_store_id=defaults.data_store_id,
         serving_config_id=defaults.serving_config_id,
         page_size=page_size,
+        page_token=page_token,
+        offset=offset,
     )
 
 
@@ -132,7 +138,11 @@ def run_discovery_search(params: DiscoverySearchParams) -> Dict[str, Any]:
         serving_config=serving_config,
         query=params.query,
         page_size=max(1, min(params.page_size or 10, 50)),
+        offset=params.offset,
     )
+
+    if params.page_token:
+        request.page_token = params.page_token
 
     if params.filter_expression:
         request.filter = params.filter_expression

@@ -111,7 +111,9 @@ def discovery_search(
             pass  # Ignore invalid tokens
 
     try:
-        params = get_default_discovery_params(query=query, page_size=page_size)
+        params = get_default_discovery_params(
+            query=query, page_size=page_size, page_token=page_token, offset=effective_offset
+        )
     except RuntimeError as exc:  # pragma: no cover - configuration errors surface to clients
         if SETTINGS.is_local:
             return _local_discovery_search(query, page_size, effective_offset)
