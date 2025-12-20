@@ -98,7 +98,7 @@ class HybridSearchService:
     SCORE_STRATEGY = "max_weighted"
     TIE_BREAKER = "structured_preference"
     _TIE_EPSILON = 1e-9
-    MIN_SCORE_THRESHOLD = 0.40
+    MIN_SCORE_THRESHOLD = 0.30
 
     def __init__(
         self,
