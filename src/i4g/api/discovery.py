@@ -55,9 +55,21 @@ def _local_discovery_search(query: str, limit: int, offset: int = 0) -> Dict[str
         for i, item in enumerate(result["results"]):
             doc_id = item.get("case_id") or f"doc-{i}"
             metadata = item.get("metadata") or {}
+            vector = item.get("vector") or {}
+            record = item.get("record") or {}
+
             # Try to find a title/summary
             title = metadata.get("title") or metadata.get("case_id") or f"Result {doc_id}"
-            snippet = metadata.get("summary") or metadata.get("text") or "No snippet available"
+            
+            # Resolve snippet from various possible locations
+            snippet = (
+                metadata.get("summary")
+                or metadata.get("text")
+                or record.get("text")
+                or vector.get("text")
+                or vector.get("document")
+                or "No snippet available"
+            )
 
             mapped_results.append(
                 {
