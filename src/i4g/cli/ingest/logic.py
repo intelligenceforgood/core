@@ -12,25 +12,13 @@ from google.cloud import discoveryengine_v1beta as discoveryengine
 from google.protobuf import json_format
 
 from i4g.cli.admin import helpers as saved_searches
-from i4g.cli.utils import console
+from i4g.cli.utils import console, iter_jsonl
 from i4g.ingestion.preprocess import prepare_documents
 from i4g.services.ingest_payloads import prepare_ingest_payload
 from i4g.services.vertex_documents import build_vertex_document
 from i4g.settings import get_settings
 from i4g.store.ingest import IngestPipeline
 from i4g.store.vector import VectorStore
-
-
-def _iter_jsonl(path: Path) -> Iterable[dict[str, Any]]:
-    with path.open("r", encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                yield json.loads(line)
-            except Exception:
-                continue
 
 
 def ingest_bundles(args: Any) -> None:
@@ -43,7 +31,7 @@ def ingest_bundles(args: Any) -> None:
 
     pipeline = IngestPipeline()
     count = 0
-    for record in _iter_jsonl(bundle_path):
+    for record in iter_jsonl(bundle_path):
         if args.limit and count >= args.limit:
             break
         mapped = {
@@ -102,7 +90,7 @@ def ingest_vertex_search(args: Any) -> int:
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(levelname)s %(message)s")
     settings = get_settings()
 
-    records = list(_iter_jsonl(Path(args.jsonl)))
+    records = list(iter_jsonl(Path(args.jsonl)))
     if not records:
         logging.warning("No records found; nothing to ingest.")
         return 0
@@ -199,45 +187,8 @@ def tag_saved_searches(args: Any) -> None:
     console.print(f"[green]✅ Annotated {count} saved search(es); wrote {destination}[/green]")
 
 
-def build_vector_index(args: Any) -> None:
-    """Build a vector index from OCR output."""
-
-    input_path = Path(args.input)
-    if not input_path.exists():
-        raise FileNotFoundError(f"OCR output not found at {input_path}. Run i4g extract ocr first.")
-
-    with input_path.open() as handle:
-        ocr_results = json.load(handle)
-
-    docs = prepare_documents(ocr_results)
-    if not docs:
-        console.print("[yellow]No OCR documents available. Nothing to index.[/yellow]")
-        return
-
-    texts = [doc["content"] for doc in docs]
-    sources = [doc["source"] for doc in docs]
-    metadatas = [{"source": src} for src in sources]
-    ids: list[str] = []
-    counts: dict[str, int] = {}
-    for src in sources:
-        counts[src] = counts.get(src, 0) + 1
-        ids.append(f"{src}::chunk{counts[src]}")
-
-    store = VectorStore(
-        backend=args.backend,
-        persist_dir=args.persist_dir,
-        embedding_model=args.model,
-        reset=args.reset,
-    )
-    store.add_texts(texts, metadatas=metadatas, ids=ids)
-    store.persist()
-
-    console.print(f"[green]✅ {args.backend.upper()} index built and saved to {store.persist_dir}.[/green]")
-
-
 __all__ = [
     "ingest_bundles",
     "ingest_vertex_search",
     "tag_saved_searches",
-    "build_vector_index",
 ]

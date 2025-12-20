@@ -21,8 +21,8 @@ SRC_DIR = ROOT / "src"
 DATA_DIR = ROOT / "data"
 BUNDLES_DIR = DATA_DIR / "bundles"
 CHAT_SCREENS_DIR = DATA_DIR / "chat_screens"
-OCR_OUTPUT = DATA_DIR / "ocr_output.json"
-SEMANTIC_OUTPUT = DATA_DIR / "entities_semantic.json"
+OCR_OUTPUT = DATA_DIR / "ocr_output.jsonl"
+SEMANTIC_OUTPUT = DATA_DIR / "entities_semantic.jsonl"
 MANUAL_DEMO_DIR = DATA_DIR / "manual_demo"
 CHROMA_DIR = DATA_DIR / "chroma_store"
 SQLITE_DB = DATA_DIR / "i4g_store.db"
@@ -181,7 +181,7 @@ def synthesize_screens() -> Path:
 
 
 def run_ocr() -> None:
-    from i4g.cli import extract_tasks
+    from i4g.cli.extract import tasks as extract_tasks
 
     exit_code = extract_tasks.ocr(SimpleNamespace(input=CHAT_SCREENS_DIR, output=OCR_OUTPUT))
     if exit_code:
@@ -189,7 +189,7 @@ def run_ocr() -> None:
 
 
 def run_semantic_extraction() -> None:
-    from i4g.cli import extract_tasks
+    from i4g.cli.extract import tasks as extract_tasks
 
     exit_code = extract_tasks.semantic(SimpleNamespace(input=OCR_OUTPUT, output=SEMANTIC_OUTPUT, model="llama3.1"))
     if exit_code:
@@ -334,10 +334,9 @@ def verify_sandbox(
     ocr_count: int | None = None
     if ocr_exists:
         try:
-            payload = json.loads(OCR_OUTPUT.read_text())
-            if isinstance(payload, list):
-                ocr_count = len(payload)
-        except json.JSONDecodeError:
+            with OCR_OUTPUT.open("r", encoding="utf-8") as handle:
+                ocr_count = sum(1 for _ in handle)
+        except OSError:
             ocr_count = -1
 
     db_counts: dict[str, int] | None = None

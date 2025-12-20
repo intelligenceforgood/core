@@ -10,6 +10,7 @@ from tqdm import tqdm
 
 from i4g.api import reports as reports_api
 from i4g.api.app import create_app
+from i4g.cli.utils import iter_jsonl, write_jsonl
 from i4g.extraction.ner_rules import extract_entities
 from i4g.extraction.semantic_ner import build_llm, extract_semantic_entities
 from i4g.ocr.tesseract import batch_extract_text
@@ -23,7 +24,7 @@ def ocr(args: object) -> int:
     output_path.parent.mkdir(exist_ok=True)
 
     results = batch_extract_text(str(input_path))
-    output_path.write_text(json.dumps(results, indent=2), encoding="utf-8")
+    write_jsonl(output_path, results)
     print(f"✅ OCR complete. Results saved to {output_path}")
     return 0
 
@@ -36,7 +37,7 @@ def extraction(args: object) -> int:
         print("❌ OCR output not found. Run i4g extract ocr first.")
         return 1
 
-    ocr_results = json.loads(input_path.read_text(encoding="utf-8"))
+    ocr_results = list(iter_jsonl(input_path))
 
     structured: list[dict[str, object]] = []
     for item in tqdm(ocr_results, desc="Extracting entities"):
@@ -45,7 +46,7 @@ def extraction(args: object) -> int:
         structured.append({"file": item.get("file"), "entities": entities})
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(structured, indent=2), encoding="utf-8")
+    write_jsonl(output_path, structured)
     print(f"✅ Entity extraction complete. Saved to {output_path}")
     return 0
 
@@ -59,7 +60,7 @@ def semantic(args: object) -> int:
         return 1
 
     llm = build_llm(model=args.model)
-    ocr_results = json.loads(input_path.read_text(encoding="utf-8"))
+    ocr_results = list(iter_jsonl(input_path))
 
     output: list[dict[str, object]] = []
     for item in tqdm(ocr_results, desc="Semantic extraction"):
@@ -72,7 +73,7 @@ def semantic(args: object) -> int:
         output.append({"file": item.get("file"), "semantic_entities": entities})
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(output, indent=2), encoding="utf-8")
+    write_jsonl(output_path, output)
     print(f"✅ Semantic extraction saved to {output_path}")
     return 0
 

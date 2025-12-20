@@ -10,6 +10,8 @@ from typing import Any, Callable, Iterable, Optional, Sequence
 
 import yaml
 
+from i4g.cli.utils import write_jsonl
+
 ISO_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 DATASET_ID = "synthetic_coverage"
 
@@ -514,13 +516,6 @@ def build_saved_searches(cases: list[dict[str, Any]], scenarios: list[Scenario])
     return saved_searches
 
 
-def write_jsonl(records: Iterable[dict[str, Any]], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", encoding="utf-8") as handle:
-        for record in records:
-            handle.write(json.dumps(record) + "\n")
-
-
 def write_yaml(records: list[dict[str, Any]], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(records, sort_keys=False, allow_unicode=False), encoding="utf-8")
@@ -620,9 +615,9 @@ def generate_bundle(
     vertex_docs_path = output_dir / "vertex_docs.jsonl"
     saved_searches_path = output_dir / "saved_searches.json"
 
-    write_jsonl(cases, cases_path)
+    write_jsonl(cases_path, cases)
     write_yaml(ground_truth, ground_truth_path)
-    write_jsonl(vertex_docs, vertex_docs_path)
+    write_jsonl(vertex_docs_path, vertex_docs)
     write_json(saved_searches, saved_searches_path)
     ocr_dir = write_ocr_samples(cases, output_dir)
 

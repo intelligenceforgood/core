@@ -311,7 +311,7 @@ Prefer a manual walkthrough or need to re-run a single stage? Use the individual
     Generated PNGs land in `data/chat_screens/`. That folder is the expected input directory for OCR, so you can immediately run:
 
     ```bash
-    i4g extract ocr --input data/chat_screens --output data/ocr_output.json
+    i4g extract ocr --input data/chat_screens --output data/ocr_output.jsonl
     ```
 
 3. **Reprime SQLite / Vector Stores (optional)**
@@ -350,7 +350,7 @@ Without the token, the API returns `401 Invalid credentials`.
 ### OCR + Extraction
 
 ```bash
-i4g extract ocr --input data/chat_screens --output data/ocr_output.json
+i4g extract ocr --input data/chat_screens --output data/ocr_output.jsonl
 ```
 
 That path is where the synthetic screenshots land; swap in another directory if you are running OCR on real evidence.
@@ -358,11 +358,11 @@ That path is where the synthetic screenshots land; swap in another directory if 
 ### Semantic NER + Classification
 
 ```bash
-i4g extract semantic --input data/ocr_output.json --output data/entities_semantic.json
+i4g extract semantic --input data/ocr_output.jsonl --output data/entities_semantic.jsonl
 python tests/adhoc/classify_text.py "This looks like a scam."
 ```
 
-`i4g extract semantic` reads the OCR output saved to `data/ocr_output.json` by the previous step and writes enriched entities to `data/entities_semantic.json`.
+`i4g extract semantic` reads the OCR output saved to `data/ocr_output.jsonl` by the previous step and writes enriched entities to `data/entities_semantic.jsonl`.
 
 ### Scam Detection RAG Query
 
