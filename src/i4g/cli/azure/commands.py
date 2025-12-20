@@ -28,11 +28,6 @@ def _run_script(relative_path: str, args: list[str] | None = None) -> None:
         raise typer.Exit(result.returncode)
 
 
-@app.command("weekly-refresh", help="Run the weekly Azure → GCP refresh pipeline.")
-def weekly_refresh(extra_args: Optional[list[str]] = typer.Argument(None)) -> None:
-    _run_script("scripts/migration/run_weekly_refresh.py", extra_args or [])
-
-
 @app.command("azure-sql-to-firestore", help="Copy legacy Azure SQL intake tables into Firestore staging.")
 def azure_sql_to_firestore(extra_args: Optional[list[str]] = typer.Argument(None)) -> None:
     _run_script("scripts/migration/azure_sql_to_firestore.py", extra_args or [])

@@ -42,7 +42,7 @@ Review the [Azure legacy data primer](azure_legacy_data.md) for the environment 
   gsutil -m cp -n /dev/null gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/forms/.keep || true
   gsutil -m cp -n /dev/null gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/groupsio/.keep || true
   ```
-2) Copy Azure Blob containers into GCS (use `--dry-run` first, then rerun without it; add `--overwrite` when replacing existing objects). The Azure Functions in `dtp/IFG-AzureFunctions` still target `intake-form-attachments` and `groupsio-attachments`—the same names enumerated by `scripts/migration/run_weekly_refresh.py`—so point the container flags at those buckets.
+2) Copy Azure Blob containers into GCS (use `--dry-run` first, then rerun without it; add `--overwrite` when replacing existing objects). The Azure Functions in `dtp/IFG-AzureFunctions` still target `intake-form-attachments` and `groupsio-attachments`—so point the container flags at those buckets.
   ```bash
   i4g azure azure-blob-to-gcs -- \
     --connection-string "$AZURE_STORAGE_CONNECTION_STRING" \
