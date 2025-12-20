@@ -134,24 +134,24 @@ def run_discovery_search(params: DiscoverySearchParams) -> Dict[str, Any]:
         serving_config=params.serving_config_id or "default_search",
     )
 
-    request = discoveryengine.SearchRequest(
-        serving_config=serving_config,
-        query=params.query,
-        page_size=max(1, min(params.page_size or 10, 50)),
-        offset=params.offset,
-    )
-
-    if params.page_token:
-        request.page_token = params.page_token
-
-    if params.filter_expression:
-        request.filter = params.filter_expression
-
-    boost_spec = _parse_boost_spec(params.boost_json)
-    if boost_spec:
-        request.boost_spec = boost_spec
-
     try:
+        request = discoveryengine.SearchRequest(
+            serving_config=serving_config,
+            query=params.query,
+            page_size=max(1, min(params.page_size or 10, 50)),
+            offset=params.offset,
+        )
+
+        if params.page_token:
+            request.page_token = params.page_token
+
+        if params.filter_expression:
+            request.filter = params.filter_expression
+
+        boost_spec = _parse_boost_spec(params.boost_json)
+        if boost_spec:
+            request.boost_spec = boost_spec
+
         search_response = client.search(request=request)
     except Exception as exc:  # pragma: no cover - network/backend failure
         raise RuntimeError(f"Discovery search failed: {exc}") from exc
