@@ -136,6 +136,8 @@ def main() -> int:
         LOGGER.warning("Invalid batch limit override: %s", batch_limit_override)
         batch_limit = settings.ingestion.batch_limit
 
+    is_local = settings.env == "local"
+
     dry_run_override = _env_flag("I4G_INGEST__DRY_RUN")
     dry_run = dry_run_override if dry_run_override is not None else settings.ingestion.dry_run
 
@@ -143,10 +145,18 @@ def main() -> int:
     reset_vector = reset_override if reset_override is not None else settings.ingestion.reset_vector
     vector_override = _env_flag("I4G_INGEST__ENABLE_VECTOR")
     enable_vector = vector_override if vector_override is not None else settings.ingestion.enable_vector_store
+
     vertex_override = _env_flag("I4G_INGEST__ENABLE_VERTEX")
-    enable_vertex = vertex_override if vertex_override is not None else settings.ingestion.enable_vertex
+    if vertex_override is not None:
+        enable_vertex = vertex_override
+    else:
+        enable_vertex = False if is_local else settings.ingestion.enable_vertex
+
     firestore_override = _env_flag("I4G_INGEST__ENABLE_FIRESTORE")
-    enable_firestore = firestore_override if firestore_override is not None else settings.ingestion.enable_firestore
+    if firestore_override is not None:
+        enable_firestore = firestore_override
+    else:
+        enable_firestore = False if is_local else settings.ingestion.enable_firestore
     dataset_name = os.getenv("I4G_INGEST__DATASET_NAME") or dataset_path.stem or settings.ingestion.default_dataset
 
     LOGGER.info(

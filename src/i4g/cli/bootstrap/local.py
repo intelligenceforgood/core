@@ -111,11 +111,13 @@ DEFAULT_PILOT_CASES = [
 ]
 
 
-def run(cmd: list[str], *, cwd: Path | None = None) -> None:
+def run(cmd: list[str], *, cwd: Path | None = None, env_overrides: dict[str, str] | None = None) -> None:
     """Execute a command, streaming stdout/stderr with PYTHONPATH set."""
 
     print("→", " ".join(cmd))
     env = os.environ.copy()
+    if env_overrides:
+        env.update(env_overrides)
     existing_pythonpath = env.get("PYTHONPATH")
     pythonpath_parts = [str(SRC_DIR)]
     if existing_pythonpath:
@@ -160,6 +162,25 @@ def build_bundles() -> None:
             "800",
         ]
     )
+
+
+def ingest_bundles(skip_vector: bool) -> None:
+    bundles = sorted(BUNDLES_DIR.glob("*.jsonl"))
+    if not bundles:
+        print("⚠️  No bundles found to ingest.")
+        return
+
+    print(f"🚀 Ingesting {len(bundles)} bundles...")
+    for bundle in bundles:
+        print(f"   → Processing {bundle.name}...")
+        env = {
+            "I4G_INGEST__JSONL_PATH": str(bundle),
+            "I4G_INGEST__ENABLE_VECTOR": "false" if skip_vector else "true",
+            "I4G_STORAGE__STRUCTURED_BACKEND": "sqlite",
+            "I4G_STORAGE__SQLITE_PATH": str(SQLITE_DB),
+            "I4G_INGEST__MAX_RETRIES": "0",
+        }
+        run([sys.executable, "-m", "i4g.worker.jobs.ingest"], env_overrides=env)
 
 
 def synthesize_screens() -> Path:
@@ -579,6 +600,8 @@ def run_local(
 
     if not BUNDLES_DIR.exists() or not any(BUNDLES_DIR.glob("*.jsonl")):
         build_bundles()
+
+    ingest_bundles(skip_vector=skip_vector)
 
     tesseract_available = shutil.which("tesseract") is not None
     if not skip_ocr:

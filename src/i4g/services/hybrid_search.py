@@ -98,6 +98,7 @@ class HybridSearchService:
     SCORE_STRATEGY = "max_weighted"
     TIE_BREAKER = "structured_preference"
     _TIE_EPSILON = 1e-9
+    MIN_SCORE_THRESHOLD = 0.40
 
     def __init__(
         self,
@@ -125,8 +126,12 @@ class HybridSearchService:
         """Execute a hybrid search request and return merged results."""
 
         limit = query.limit or self.settings.search.default_limit
-        vector_top_k = query.vector_limit or limit
-        structured_top_k = query.structured_limit or limit
+        # Fetch enough results to cover the offset + limit + 1 (to detect next page)
+        needed_k = query.offset + limit + 1
+        
+        vector_top_k = query.vector_limit or needed_k
+        structured_top_k = query.structured_limit or needed_k
+        
         filters = self._build_filter_items(query)
         metric_tags = self._metric_tags(query)
         self.observability.increment("hybrid_search.query.total", tags=metric_tags)
@@ -158,6 +163,9 @@ class HybridSearchService:
 
         # Re-sort by merged score (desc) to ensure deterministic ordering after time filtering
         items.sort(key=lambda item: (item.merged_score is not None, item.merged_score or 0.0), reverse=True)
+
+        # Filter out low-relevance results
+        items = [item for item in items if (item.merged_score or 0.0) >= self.MIN_SCORE_THRESHOLD]
 
         diagnostics = self._build_diagnostics(
             raw_payload=raw,
@@ -201,10 +209,11 @@ class HybridSearchService:
             "count": len(items),
             "offset": query.offset,
             "limit": limit,
-            "total": total_before_filters,
+            "total": len(items),
             "vector_hits": raw.get("vector_hits", 0),
             "structured_hits": raw.get("structured_hits", 0),
             "diagnostics": diagnostics,
+            "duration_ms": duration_ms,
         }
 
     def schema(self) -> Dict[str, Any]:
@@ -318,6 +327,8 @@ class HybridSearchService:
             "classification",
             "confidence",
             "entities",
+            "text",
+            "metadata",
         )
         redacted = {key: vector.get(key) for key in allowed_keys if vector.get(key) is not None}
         return redacted or None

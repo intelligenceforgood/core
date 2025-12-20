@@ -233,6 +233,7 @@ def search_cases(
         "source_breakdown": diag_counts.get("source_breakdown"),
         "diagnostics": diagnostics,
         "search_id": search_id,
+        "duration_ms": query_result.get("duration_ms"),
     }
 
 

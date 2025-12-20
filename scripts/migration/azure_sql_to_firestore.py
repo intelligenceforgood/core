@@ -12,6 +12,7 @@ import hashlib
 import json
 import logging
 import os
+import struct
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
@@ -81,8 +82,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--connection-string",
-        required=True,
-        help="ODBC connection string for the Azure SQL database.",
+        default=os.environ.get("AZURE_SQL_CONNECTION_STRING"),
+        required=False,
+        help="ODBC connection string for the Azure SQL database (defaults to AZURE_SQL_CONNECTION_STRING env var).",
     )
     parser.add_argument(
         "--use-aad",
@@ -144,7 +146,8 @@ def get_sql_connection(connection_string: str, use_aad: bool, aad_user: Optional
         credential = DefaultAzureCredential()
         token = credential.get_token("https://database.windows.net/.default")
         token_bytes = token.token.encode("utf-16-le")
-        attrs_before = {SQL_COPT_SS_ACCESS_TOKEN: token_bytes}
+        token_struct = struct.pack("=I", len(token_bytes)) + token_bytes
+        attrs_before = {SQL_COPT_SS_ACCESS_TOKEN: token_struct}
         sanitized_connection_string = _strip_sql_auth_fields(connection_string)
         lower_conn = sanitized_connection_string.lower()
         if "encrypt=" not in lower_conn:
@@ -159,6 +162,11 @@ def get_sql_connection(connection_string: str, use_aad: bool, aad_user: Optional
         if aad_user:
             logging.warning("Ignoring --aad-user; Access Token auth does not allow User/UID in the connection string.")
         return pyodbc.connect(sanitized_connection_string, attrs_before=attrs_before)
+    
+    # Ensure connection timeout is set to avoid hanging indefinitely
+    if "LoginTimeout=" not in connection_string:
+        connection_string = f"{connection_string};LoginTimeout=30"
+        
     return pyodbc.connect(connection_string)
 
 
@@ -236,6 +244,10 @@ def migrate_table(
 def main() -> None:
     args = parse_args()
     logging.basicConfig(level=getattr(logging, args.log_level))
+
+    if not args.connection_string:
+        logging.error("No connection string provided. Set AZURE_SQL_CONNECTION_STRING or pass --connection-string.")
+        sys.exit(1)
 
     logging.info("Connecting to Azure SQL...")
     conn = get_sql_connection(args.connection_string, args.use_aad, args.aad_user)

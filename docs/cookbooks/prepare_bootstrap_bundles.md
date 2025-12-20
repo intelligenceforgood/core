@@ -66,14 +66,35 @@ Review the [Azure legacy data primer](azure_legacy_data.md) for the environment 
   gsutil -m rsync -r gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/groupsio data/bundles/legacy_azure/$RUN_DATE/groupsio
   ```
 
-4) Export Azure SQL intake tables to Firestore staging (or run in dry-run to validate access):
+4) Export Azure SQL intake tables to Firestore staging.
+
+  **Recommended: Use the helper script (Azure AD Auth)**
+  This method uses your active `az login` session and avoids password complexity issues.
   ```bash
-  i4g azure azure-sql-to-firestore -- \
-    --connection-string "$AZURE_SQL_CONNECTION_STRING" \
-    --use-aad --aad-user your-upn@example.com \
-    --firestore-project i4g-dev \
-    --report data/reports/legacy_sql_export.json
+  # 1. Set up environment variables (edit the template first if needed)
+  source scripts/migration/env_template.sh
+
+  # 2. Run the migration using the helper script
+  ./scripts/migration/run_migration.sh
   ```
+
+  **Alternative: Manual Execution**
+  ```bash
+  # Ensure AZURE_SQL_CONNECTION_STRING is set (via env_template.sh)
+  i4g azure azure-sql-to-firestore -- --firestore-project i4g-dev --use-aad
+  ```
+
+  **Troubleshooting: Password Authentication**
+  If you must use SQL authentication and encounter "Login failed" or password policy errors, use the reset tool to force a clean state for the `migration_user`:
+  ```bash
+  # Reset the user to a fresh state with a known password
+  python scripts/migration/reset_sql_user.py "YourStrongPassword123!"
+  
+  # Then export the password and run the fix script
+  export SQL_MIGRATION_PASSWORD="YourStrongPassword123!"
+  ./scripts/migration/fix_and_run.sh
+  ```
+
   - Tables covered: `intake_form_data`, `intake_form_data_last_processed`, `groupsio_message_data`; adjust with `--tables` if needed.
 5) Export Azure Cognitive Search indexes, then transform for Vertex:
   ```bash

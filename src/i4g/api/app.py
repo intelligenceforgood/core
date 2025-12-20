@@ -7,6 +7,7 @@ from threading import Lock
 from typing import Dict
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 from i4g.api.account_list import router as account_list_router
 from i4g.api.analytics import router as analytics_router
@@ -62,6 +63,16 @@ def create_app() -> FastAPI:
         Configured FastAPI instance.
     """
     app = FastAPI(title="i4g Analyst Review API", version="0.1")
+
+    # Enable CORS for local development (Next.js on localhost:3000)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # In production, restrict this to specific domains
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     app.include_router(review_router, prefix="/reviews", tags=["reviews"])
     app.include_router(account_list_router)
     app.include_router(analytics_router)

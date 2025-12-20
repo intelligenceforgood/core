@@ -110,20 +110,40 @@ def test_search_cases_returns_combined_results():
     mock_retriever = MagicMock()
     mock_retriever.query.return_value = {
         "results": [
-            {"case_id": "CASE-A", "score": 0.8, "sources": ["vector"]},
-            {"case_id": "CASE-B", "score": None, "sources": ["structured"]},
+            {
+                "case_id": "CASE-A",
+                "sources": ["vector"],
+                "vector": {"similarity": 1.0},
+                "record": None,
+            },
+            {
+                "case_id": "CASE-B",
+                "sources": ["structured"],
+                "record": {"confidence": 1.0},
+                "vector": None,
+            },
         ],
         "total": 10,
         "vector_hits": 6,
         "structured_hits": 7,
     }
     mock_store = make_mock_store()
+    
+    from i4g.settings import get_settings
+
+    def get_tuned_service():
+        settings = get_settings()
+        tuned_search = settings.search.model_copy(update={"semantic_weight": 0.5, "structured_weight": 0.5})
+        tuned_settings = settings.model_copy(update={"search": tuned_search})
+        return HybridSearchService(
+            retriever=mock_retriever,
+            entity_store=MagicMock(),
+            settings=tuned_settings,
+        )
+
     app.dependency_overrides[get_retriever] = lambda: mock_retriever
     app.dependency_overrides[get_store] = lambda: mock_store
-    app.dependency_overrides[get_hybrid_search_service] = lambda: HybridSearchService(
-        retriever=mock_retriever,
-        entity_store=MagicMock(),
-    )
+    app.dependency_overrides[get_hybrid_search_service] = get_tuned_service
 
     headers = {"X-API-KEY": "dev-analyst-token"}
     r = client.get(
@@ -144,7 +164,8 @@ def test_search_cases_returns_combined_results():
     assert payload["count"] == 2
     assert payload["offset"] == 2
     assert payload["limit"] == 4
-    assert payload["total"] == mock_retriever.query.return_value["total"]
+    # Total is now the count of filtered items, not the raw total from retriever
+    assert payload["total"] == 2
     assert payload["vector_hits"] == mock_retriever.query.return_value["vector_hits"]
     assert payload["structured_hits"] == mock_retriever.query.return_value["structured_hits"]
     assert "merged_results" in payload

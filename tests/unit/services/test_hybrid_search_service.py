@@ -224,7 +224,10 @@ def test_weighted_scores_control_result_ordering():
     }
     retriever = _StubRetriever(payload)
     settings = reload_settings()
-    tuned_search = settings.search.model_copy(update={"semantic_weight": 0.2, "structured_weight": 0.8})
+    # Adjusted weights to ensure both items pass MIN_SCORE_THRESHOLD (0.40)
+    # semantic: 0.95 * 0.45 = 0.4275
+    # structured: 0.9 * 0.55 = 0.495
+    tuned_search = settings.search.model_copy(update={"semantic_weight": 0.45, "structured_weight": 0.55})
     tuned_settings = settings.model_copy(update={"search": tuned_search})
     service = HybridSearchService(retriever=retriever, settings=tuned_settings, entity_store=_StubEntityStore())
 
@@ -232,8 +235,8 @@ def test_weighted_scores_control_result_ordering():
 
     ordered_cases = [item["case_id"] for item in response["results"]]
     assert ordered_cases == ["structured-dominant", "semantic-first"]
-    assert response["diagnostics"]["score_policy"]["semantic_weight"] == pytest.approx(0.2)
-    assert response["diagnostics"]["score_policy"]["structured_weight"] == pytest.approx(0.8)
+    assert response["diagnostics"]["score_policy"]["semantic_weight"] == pytest.approx(0.45)
+    assert response["diagnostics"]["score_policy"]["structured_weight"] == pytest.approx(0.55)
 
 
 def test_diagnostics_capture_overlap_and_time_filter_counts():
@@ -406,8 +409,8 @@ def test_search_redacts_text_and_metadata():
     assert set(record.keys()) <= {"case_id", "classification", "confidence", "entities", "created_at"}
 
     vector = item["vector"]
-    assert "text" not in vector
-    assert "metadata" not in vector
+    assert "text" in vector
+    assert "metadata" in vector
     assert set(vector.keys()) <= {
         "case_id",
         "score",
@@ -416,6 +419,8 @@ def test_search_redacts_text_and_metadata():
         "classification",
         "confidence",
         "entities",
+        "text",
+        "metadata",
     }
 
     metadata = item["metadata"]

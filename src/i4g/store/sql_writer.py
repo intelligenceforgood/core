@@ -230,12 +230,14 @@ class SqlWriter:
         now = _utcnow()
 
         with self._session_scope() as session:
-            self._upsert_case(session, case_id, case_payload, raw_text_hash, ingestion_run_id, now)
-            doc_ids, doc_alias_map = self._persist_documents(session, case_id, bundle.documents, now)
-            entity_ids, entity_alias_map = self._persist_entities(session, case_id, bundle.entities, doc_alias_map, now)
+            effective_case_id = self._upsert_case(session, case_id, case_payload, raw_text_hash, ingestion_run_id, now)
+            doc_ids, doc_alias_map = self._persist_documents(session, effective_case_id, bundle.documents, now)
+            entity_ids, entity_alias_map = self._persist_entities(
+                session, effective_case_id, bundle.entities, doc_alias_map, now
+            )
             indicator_ids = self._persist_indicators(
                 session,
-                case_id,
+                effective_case_id,
                 bundle.indicators,
                 doc_alias_map,
                 entity_alias_map,
@@ -244,7 +246,7 @@ class SqlWriter:
             )
 
         return SqlWriterResult(
-            case_id=case_id, document_ids=doc_ids, entity_ids=entity_ids, indicator_ids=indicator_ids
+            case_id=effective_case_id, document_ids=doc_ids, entity_ids=entity_ids, indicator_ids=indicator_ids
         )
 
     def _upsert_case(
@@ -255,7 +257,7 @@ class SqlWriter:
         raw_hash: str,
         ingestion_run_id: str | None,
         timestamp: datetime,
-    ) -> None:
+    ) -> str:
         values = {
             "ingestion_run_id": ingestion_run_id,
             "dataset": payload.dataset,
@@ -274,9 +276,28 @@ class SqlWriter:
         result = session.execute(
             sa.update(sql_schema.cases).where(sql_schema.cases.c.case_id == case_id).values(**values)
         )
-        if result.rowcount == 0:
-            insert_values = {"case_id": case_id, **values, "created_at": timestamp}
-            session.execute(sa.insert(sql_schema.cases).values(**insert_values))
+        if result.rowcount > 0:
+            return case_id
+
+        # Check for content collision (same dataset + hash) to handle deduplication
+        existing_id = session.execute(
+            sa.select(sql_schema.cases.c.case_id)
+            .where(sql_schema.cases.c.dataset == payload.dataset)
+            .where(sql_schema.cases.c.raw_text_sha256 == raw_hash)
+        ).scalar()
+
+        if existing_id:
+            LOGGER.info(
+                "Deduplicating case %s -> existing %s (dataset=%s)", case_id, existing_id, payload.dataset
+            )
+            session.execute(
+                sa.update(sql_schema.cases).where(sql_schema.cases.c.case_id == existing_id).values(**values)
+            )
+            return existing_id
+
+        insert_values = {"case_id": case_id, **values, "created_at": timestamp}
+        session.execute(sa.insert(sql_schema.cases).values(**insert_values))
+        return case_id
 
     def _persist_documents(
         self,

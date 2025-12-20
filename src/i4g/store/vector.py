@@ -293,6 +293,9 @@ class VectorStore:
                     "metadata": metadata,
                 }
             )
+            # DEBUG
+            # print(f"DEBUG: Added record with keys: {formatted[-1].keys()}", flush=True)
+
         return formatted
 
     def delete_record(self, case_id: str) -> bool:
