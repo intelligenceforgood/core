@@ -132,9 +132,6 @@ def discovery_search(
     if boost_json:
         params.boost_json = boost_json
     
-    # Note: The real run_discovery_search might need to be updated to support page_token/offset
-    # if it doesn't already. But for local dev, we are good.
-
     try:
         return run_discovery_search(params)
     except RuntimeError as exc:  # pragma: no cover - surfaces backend errors
