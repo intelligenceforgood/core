@@ -118,6 +118,10 @@ flowchart TB
   Telemetry -- Metrics/Logs --> IngestionPipelines
 ```
 
+### Storage Architecture
+
+For a detailed breakdown of the storage backends (Relational, Document, Vector, Blob) and how they differ between Local Sandbox and Cloud Dev environments, see the [Storage Architecture Guide](storage_architecture.md).
+
 ### Cloud Run Deployment Swimlanes
 
 ```mermaid
@@ -368,7 +372,7 @@ Note: The `POST /api/cases` endpoint above is listed as a planned user-facing in
 - Python 3.11 shared package (`src/i4g/services/account_list/*`).
 - LangChain + Ollama locally (Vertex AI/Gemini ready once service accounts are wired).
 - ReportLab + OpenPyXL for artifact rendering.
-- Cloud Run job container (`i4g-account-job` entrypoint) plus optional Google Drive uploads via ADC scopes.
+- Cloud Run job container (`i4g jobs account` entrypoint) plus optional Google Drive uploads via ADC scopes.
 
 **Key Features**:
 - Category catalog (bank, crypto, payments today; IP/ASN/browser planned) driven by configuration so new indicators only need prompt/query definitions.

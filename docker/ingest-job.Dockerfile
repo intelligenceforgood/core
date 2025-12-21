@@ -35,4 +35,4 @@ USER 65532:65532
 ENV I4G_ENV=dev \
     I4G_INGEST__JSONL_PATH=/app/data/retrieval_poc/cases.jsonl
 
-CMD ["i4g-ingest-job"]
+CMD ["i4g", "jobs", "ingest"]

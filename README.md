@@ -39,7 +39,7 @@ Backend services, jobs, and documentation for the Intelligence for Good platform
 
 ## Common entrypoints
 - API: `src/i4g/api/app.py` (FastAPI). Routers for reviews/search, tasks, ingestion, reports.
-- Jobs/CLI: `i4g-admin`, `i4g-ingest-job`, `i4g-report-job`, `i4g-intake-job` (installed via editable install).
+- Jobs/CLI: `i4g-admin`, `i4g jobs ingest`, `i4g jobs report`, `i4g jobs intake` (installed via editable install).
 - Factories: `src/i4g/services/factories.py` for stores/retrievers (honor settings and env overrides).
 - Data stores: structured store + SQL dual-write; default vector backend is Chroma.
 

@@ -11,7 +11,7 @@ sync across dev and prod.
 - **Local job dry run:**
   ```bash
   conda run -n i4g i4g-admin pilot-dossiers --case-count 3
-  env I4G_DOSSIER__BATCH_SIZE=3 I4G_DOSSIER__DRY_RUN=true conda run -n i4g i4g-dossier-job
+  env I4G_DOSSIER__BATCH_SIZE=3 I4G_DOSSIER__DRY_RUN=true conda run -n i4g i4g jobs dossier
   ```
 - **Local job execution:** Clear `I4G_DOSSIER__DRY_RUN` and rerun to emit real manifests + markdown. Inspect
   `data/reports/dossiers/*.json` for warnings and ensure signature manifests reference the markdown + chart artifacts.

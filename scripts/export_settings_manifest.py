@@ -17,7 +17,7 @@ from pydantic_settings import BaseSettings
 from i4g.settings.config import PROJECT_ROOT, Settings
 
 SMOKE_COMMAND = (
-    "```bash\n" "conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g-account-job\n" "```"
+    "```bash\n" "conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g jobs account\n" "```"
 )
 
 INTRO_TEXT = (

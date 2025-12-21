@@ -23,7 +23,11 @@ from i4g.cli.search import search_app
 from i4g.cli.settings import settings_app
 from i4g.cli.smoke import smoke_app
 
-VERSION = (Path(__file__).resolve().parents[3] / "VERSION.txt").read_text().strip()
+try:
+    from importlib.metadata import version
+    VERSION = version("i4g")
+except Exception:
+    VERSION = "unknown"
 
 APP_HELP = (
     "i4g command line for developers and operators. "

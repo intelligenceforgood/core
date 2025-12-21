@@ -19,5 +19,5 @@ else
     echo "Skipping data sync. /app/data exists: $([ -d "/app/data" ] && echo yes || echo no). I4G_DATA_DIR: $I4G_DATA_DIR"
 fi
 
-echo "Executing i4g-account-job..."
-exec i4g-account-job
+echo "Executing i4g jobs account..."
+exec i4g jobs account

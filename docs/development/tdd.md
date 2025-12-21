@@ -43,6 +43,8 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 - **Reports/Dossiers** (`src/i4g/reports/*`): manifest generation, signatures, and packaging for LEA handoff.
 
 ## 4) Data Stores and Contracts
+> **Note**: For a detailed comparison of storage backends across environments, see [Storage Architecture](../design/storage_architecture.md).
+
 - **Structured store** (`src/i4g/store/structured.py`): SQLite (default) records for console reads; mirrors ingestion payloads.
 - **SQL dual-write** (`src/i4g/store/sql.py`): tables for cases, entities, documents, indicators, ingestion runs, retry queue. Key tables/fields:
   - `cases(case_id, dataset, classification, confidence, raw_text_sha256, status, metadata)`
@@ -50,6 +52,7 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
   - `source_documents(document_id, case_id, title, source_url, mime_type, text, chunk_index)`
   - `indicators` for structured filters; `ingestion_runs` for metrics; `ingestion_retry_queue` for fan-out retries.
 - **Vector store**: default Chroma (`vector.backend=chroma`, `vector.chroma_dir=data/chroma_store`); Vertex AI or pgvector planned via factories. Stores chunked text embeddings keyed by `case_id`/document.
+- **Document Store**: Firestore (Cloud) or SQLite (Local) for case metadata and flexible schema documents.
 - **Tokenization/PII vault** (`src/i4g/pii/tokenization.py`, `src/i4g/store/pii_token_store.py`): deterministic tokens with pepper + optional encryption key; stored in SQLite; prefixes per entity type (IPA, ASN, BFP, etc.).
 - **Artifacts**: reports and evidence in `data/` locally; Cloud Storage buckets in managed profiles.
 
@@ -87,7 +90,7 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 - **Reports/Dossiers**
   - Report generation entrypoints map to worker tasks; dossiers produced by queue jobs and surfaced in console.
 - **Ingestion jobs**
-  - CLI/Cloud Run jobs (`i4g-ingest-job`, `i4g-intake-job`) consume normalized ingestion payloads (`prepare_ingest_payload` contract).
+  - CLI/Cloud Run jobs (`i4g jobs ingest`, `i4g jobs intake`) consume normalized ingestion payloads (`prepare_ingest_payload` contract).
 
 ## 8) Data Model and Schemas
 - **Structured store record** (`ScamRecord`): `case_id`, `text`, `entities{type:[value]}`, `classification`, `confidence`, `metadata`.

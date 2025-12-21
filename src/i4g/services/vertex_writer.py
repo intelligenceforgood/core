@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -69,6 +70,8 @@ class VertexDocumentWriter:
         )
 
         try:
+            # Rate limit to avoid 429 Quota exceeded (100 requests/minute)
+            time.sleep(1.0)
             operation = self._client.import_documents(request=request)
             response = operation.result(timeout=self._timeout)
         except Exception as exc:  # pragma: no cover - network/backend failure

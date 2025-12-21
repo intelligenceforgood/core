@@ -3,6 +3,7 @@ import os
 from types import SimpleNamespace
 from typing import Optional, Any
 from . import runner as smoke
+from .runner import cloud_run_smoke
 
 smoke_app = typer.Typer(help="Run smoketests against local or remote services.")
 

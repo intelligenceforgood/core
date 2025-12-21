@@ -201,7 +201,7 @@ env \
   I4G_INGEST__BATCH_LIMIT=3 \
   I4G_RUNTIME__LOG_LEVEL=INFO \
   I4G_TOKENIZATION__PEPPER="$I4G_TOKENIZATION__PEPPER" \
-  conda run -n i4g python -m i4g.worker.jobs.ingest
+  conda run -n i4g i4g jobs ingest
 ```
 
 Expected log excerpts:
@@ -225,7 +225,7 @@ new verification helper.
      I4G_INGEST__ENABLE_VECTOR=false \
      I4G_RUNTIME__LOG_LEVEL=INFO \
      I4G_TOKENIZATION__PEPPER="$I4G_TOKENIZATION__PEPPER" \
-     conda run -n i4g i4g-ingest-job
+     conda run -n i4g i4g jobs ingest
    ```
    Expected log highlights:
    ```
@@ -246,7 +246,7 @@ new verification helper.
      I4G_INGEST__ENABLE_VECTOR=true \
      I4G_RUNTIME__LOG_LEVEL=INFO \
      I4G_TOKENIZATION__PEPPER="$I4G_TOKENIZATION__PEPPER" \
-     conda run -n i4g i4g-ingest-job
+     conda run -n i4g i4g jobs ingest
    ```
    Expect `vector_enabled=true` plus `vertex_writes` counts that match the case count.
 3. **Automated verification.** Instead of a manual SQLAlchemy snippet, run the helper script to assert the run
@@ -292,7 +292,7 @@ Use this flow to prove the retry queue fills when a backend fails and that the r
      I4G_STORAGE__FIRESTORE_PROJECT=i4g-dev \
      FIRESTORE_EMULATOR_HOST=127.0.0.1:8787 \
      I4G_RUNTIME__LOG_LEVEL=INFO \
-     conda run -n i4g python -m i4g.worker.jobs.ingest
+     conda run -n i4g i4g jobs ingest
    ```
   Leave the emulator **stopped** for this step—the bogus host triggers connection-refused errors that enqueue
   retries (watch the worker logs for the stack traces). Copy the emitted `run_id`; you will need it for verification.
@@ -304,7 +304,7 @@ Use this flow to prove the retry queue fills when a backend fails and that the r
      FIRESTORE_EMULATOR_HOST=127.0.0.1:8787 \
      I4G_INGEST_RETRY__DRY_RUN=true \
      I4G_RUNTIME__LOG_LEVEL=INFO \
-     conda run -n i4g python -m i4g.worker.jobs.ingest_retry
+     conda run -n i4g i4g jobs ingest-retry
    ```
    The dry run prints each pending entry so you can confirm the payloads match the failed Firestore writes.
 3. **Execute the retry worker for real.** Start a Firestore emulator (requires Java 21+) or point the job at a real
@@ -322,7 +322,7 @@ Use this flow to prove the retry queue fills when a backend fails and that the r
      I4G_STORAGE__FIRESTORE_PROJECT=i4g-dev \
      FIRESTORE_EMULATOR_HOST=127.0.0.1:8787 \
      I4G_RUNTIME__LOG_LEVEL=INFO \
-     conda run -n i4g python -m i4g.worker.jobs.ingest_retry
+     conda run -n i4g i4g jobs ingest-retry
    ```
    - When the queue is empty you should see `No ingestion retry entries ready; exiting`.
    - With queued work the job logs each backend replay, deletes successful entries, and either re-schedules or drops
@@ -373,7 +373,7 @@ Use this flow to prove the retry queue fills when a backend fails and that the r
      I4G_ACCOUNT_JOB__OUTPUT_FORMATS=pdf,xlsx \
      I4G_ACCOUNT_JOB__DRY_RUN=true \
      I4G_RUNTIME__LOG_LEVEL=INFO \
-     conda run -n i4g i4g-account-job
+     conda run -n i4g i4g jobs account
    ```
    Logs should show the computed window plus `Dry run enabled; skipping execution.`
 3. Re-run without the dry-run flag so artifacts are generated locally. The command is identical
@@ -422,13 +422,13 @@ Use this flow to exercise the dossier queue + generator end-to-end on your lapto
 2. **Optional dry run.** Inspect the queue without rendering artifacts by setting the job’s dry-run flag:
   ```bash
   env I4G_DOSSIER__BATCH_SIZE=2 I4G_DOSSIER__DRY_RUN=true I4G_RUNTIME__LOG_LEVEL=INFO \
-    conda run -n i4g i4g-dossier-job
+    conda run -n i4g i4g jobs dossier
   ```
   Logs should report `Dossier queue job complete ... dry_run=True` and leave the queue entries untouched.
 3. **Generate dossiers.** Clear the dry-run flag to render markdown + manifest artifacts under
   `data/reports/dossiers/`:
   ```bash
-  env I4G_DOSSIER__BATCH_SIZE=2 I4G_RUNTIME__LOG_LEVEL=INFO conda run -n i4g i4g-dossier-job
+  env I4G_DOSSIER__BATCH_SIZE=2 I4G_RUNTIME__LOG_LEVEL=INFO conda run -n i4g i4g jobs dossier
   ```
   Each processed plan emits `{plan_id}.json`, `{plan_id}.md`, and `{plan_id}.signatures.json` plus chart assets in
   `data/reports/dossiers/assets/`.

@@ -57,10 +57,11 @@ i4g/
 The `data/i4g_store.db` file is a local SQLite database used for storing application data, including:
 
 -   **Structured Data:** Extracted entities, classification results, and other structured information.
--   **Vector Embeddings:** Embeddings of text for semantic search.
 -   **Review Data:** Data for the analyst review system.
 
 This file is created automatically when you run the application and is not meant to be shared or committed to version control. If you want to start with a fresh database, you can delete this file.
+
+For a complete overview of storage backends (including Vector and Blob storage) across environments, see the [Storage Architecture](../design/storage_architecture.md) guide.
 
 ---
 

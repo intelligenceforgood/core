@@ -27,7 +27,7 @@ absolutely necessary.
 3. Click **Verify signatures**. Wait for the inline verification drawer to report **Verified**. Copy the timestamp and the
    first eight characters of each hash into your notes.
 4. If verification fails:
-   - Re-run the job locally: `conda run -n i4g i4g-dossier-job --plan-id <id>` (or via the admin helper) to regenerate the
+   - Re-run the job locally: `conda run -n i4g i4g jobs dossier --plan-id <id>` (or via the admin helper) to regenerate the
      manifest.
    - Use the CLI helper to re-check the signature file:
      ```bash

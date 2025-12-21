@@ -16,6 +16,8 @@ from typing import Optional
 
 import typer
 
+from i4g.cli.utils import hash_file, stage_bundle
+
 ROOT = Path(__file__).resolve().parents[4]
 SRC_DIR = ROOT / "src"
 DATA_DIR = ROOT / "data"
@@ -262,65 +264,6 @@ def apply_migrations() -> None:
     run([sys.executable, "-m", "alembic", "upgrade", "head"])
 
 
-def _hash_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def _stage_bundle(bundle_uri: str | None) -> Path | None:
-    """Place a provided bundle JSONL into data/bundles; local path only for now."""
-
-    if not bundle_uri:
-        return None
-
-    bundle_path: Path
-    if bundle_uri.startswith("gs://"):
-        bundle_name = bundle_uri.rstrip("/ ").split("/")[-1]
-        bundle_path = BUNDLES_DIR / bundle_name
-        BUNDLES_DIR.mkdir(parents=True, exist_ok=True)
-        try:
-            subprocess.run(["gsutil", "cp", bundle_uri, str(bundle_path)], check=True)
-        except subprocess.CalledProcessError as exc:
-            raise RuntimeError(f"Failed to download bundle from {bundle_uri}") from exc
-    else:
-        bundle_path = Path(bundle_uri)
-
-    if not bundle_path.exists():
-        raise RuntimeError(f"bundle-uri path not found: {bundle_uri}")
-
-    if bundle_path.is_dir():
-        jsonls = list(bundle_path.glob("*.jsonl"))
-        if not jsonls:
-            raise RuntimeError(f"No JSONL files found in bundle-uri directory: {bundle_uri}")
-        target = BUNDLES_DIR / jsonls[0].name
-        target.write_bytes(jsonls[0].read_bytes())
-        digest = _hash_file(target)
-        print(f"📦 Copied bundle {jsonls[0]} -> {target} (sha256={digest})")
-        return target
-
-    if bundle_path.suffix.lower() not in {".jsonl", ".json"}:
-        # Accept generated manifest names by checking for a JSONL variant in the same folder
-        candidates = [
-            bundle_path.with_suffix(".jsonl"),
-            bundle_path.with_name(bundle_path.name.split(".")[0] + ".jsonl"),
-        ]
-        for alt in candidates:
-            if alt.exists():
-                bundle_path = alt
-                break
-        else:
-            raise RuntimeError("bundle-uri must point to a .jsonl or .json file")
-
-    target = BUNDLES_DIR / bundle_path.name
-    target.write_bytes(bundle_path.read_bytes())
-    digest = _hash_file(target)
-    print(f"📦 Copied bundle {bundle_path} -> {target} (sha256={digest})")
-    return target
-
-
 def verify_sandbox(
     report_dir: Path,
     search_smoke: dict[str, str] | None = None,
@@ -336,7 +279,7 @@ def verify_sandbox(
     db_exists = SQLITE_DB.exists()
     pilot_exists = PILOT_CASES_PATH.exists()
 
-    bundle_hashes = {str(path): _hash_file(path) for path in bundles}
+    bundle_hashes = {str(path): hash_file(path) for path in bundles}
     bundle_manifest_hash = None
     if bundle_hashes:
         manifest_digest = hashlib.sha256()
@@ -568,7 +511,7 @@ def run_local(
         reset_artifacts(skip_ocr=skip_ocr, skip_vector=skip_vector)
 
     if bundle_uri:
-        _stage_bundle(bundle_uri)
+        stage_bundle(bundle_uri, BUNDLES_DIR)
 
     args_ns = argparse.Namespace(
         smoke_search=smoke_search,

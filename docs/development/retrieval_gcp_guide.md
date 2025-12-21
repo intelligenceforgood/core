@@ -64,7 +64,7 @@ fields so Discovery filters can target specific bundles and indicator groups:
 
 When you run `i4g ingest vertex`, the `structData` payload now includes these keys for
 every document, enabling precise filters such as `dataset: ANY("retrieval_poc") AND indicator_ids:
-ANY("wallet_verification")`. The ingestion worker (`i4g-ingest-job`) reuses the same builder so
+ANY("wallet_verification")`. The ingestion worker (`i4g jobs ingest`) reuses the same builder so
 real-time dual-write runs push the enriched documents to Vertex without invoking the standalone
 script.
 

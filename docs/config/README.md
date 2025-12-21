@@ -121,5 +121,5 @@ This catalog is assembled by `core/scripts/export_settings_manifest.py` directly
 ## Local Account-List Smoke
 
 ```bash
-conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g-account-job
+conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g jobs account
 ```

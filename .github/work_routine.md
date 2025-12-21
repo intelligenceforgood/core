@@ -52,4 +52,4 @@ instructions and planning prompts listed below.
 - Adjust defaults via config + env vars, not hard-coded paths; add/extend tests under `tests/unit/settings/` for new
   overrides.
 - Reflect env var changes in docs under `docs/config/` and rerun the local smoke if jobs are touched:
-  `conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g-account-job ...`.
+  `conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g jobs account ...`.

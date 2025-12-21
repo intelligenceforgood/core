@@ -163,21 +163,37 @@ def _print_logs(execution_name: str, project: str, region: str) -> None:
         console.print(f"Failed to fetch logs: {proc.stderr}")
 
 
-def _execute_job(project: str, region: str, job: str, container: str, intake_id: str, job_id: str) -> str:
+def _execute_job(
+    project: str,
+    region: str,
+    job: str,
+    container: str,
+    intake_id: str,
+    job_id: str,
+    api_url: str | None = None,
+    api_key: str | None = None,
+) -> str:
     # Workaround for gcloud 550.0.0 bug (delayExecution): use curl to trigger job
     token_proc = _run_command(["gcloud", "auth", "print-access-token"])
     access_token = token_proc.stdout.strip()
 
     url = f"https://run.googleapis.com/v2/projects/{project}/locations/{region}/jobs/{job}:run"
+    
+    env_vars = [
+        {"name": "I4G_INTAKE__ID", "value": intake_id},
+        {"name": "I4G_INTAKE__JOB_ID", "value": job_id},
+    ]
+    if api_url:
+        env_vars.append({"name": "I4G_API__URL", "value": api_url})
+    if api_key:
+        env_vars.append({"name": "I4G_API__KEY", "value": api_key})
+
     payload = {
         "overrides": {
             "containerOverrides": [
                 {
                     "name": container,
-                    "env": [
-                        {"name": "I4G_INTAKE__ID", "value": intake_id},
-                        {"name": "I4G_INTAKE__JOB_ID", "value": job_id},
-                    ],
+                    "env": env_vars,
                 }
             ]
         }
@@ -279,7 +295,16 @@ def cloud_run_smoke(args: Any) -> None:
 
     try:
         intake_id, job_id = _submit_intake(args.api_url.rstrip("/"), args.token, iap_token)
-        execution_name = _execute_job(args.project, args.region, args.job, args.container, intake_id, job_id)
+        execution_name = _execute_job(
+            args.project,
+            args.region,
+            args.job,
+            args.container,
+            intake_id,
+            job_id,
+            api_url=args.api_url,
+            api_key=args.token,
+        )
         intake = _fetch_intake(args.api_url.rstrip("/"), intake_id, args.token, iap_token)
     except SmokeError as exc:
         raise SystemExit(f"Smoke test failed: {exc}") from exc

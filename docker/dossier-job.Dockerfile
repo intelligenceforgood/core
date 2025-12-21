@@ -27,4 +27,4 @@ USER 65532:65532
 
 ENV I4G_ENV=dev
 
-CMD ["i4g-dossier-job"]
+CMD ["i4g", "jobs", "dossier"]

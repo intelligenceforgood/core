@@ -32,4 +32,4 @@ USER 65532:65532
 
 ENV I4G_ENV=dev
 
-CMD ["i4g-intake-job"]
+CMD ["i4g", "jobs", "intake"]

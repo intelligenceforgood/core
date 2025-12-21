@@ -44,7 +44,7 @@ RUN --mount=type=bind,from=smoke_data,target=/tmp/sample_data,ro \
                 I4G_DATA_DIR=/app/data \
                 I4G_STORAGE__SQLITE_PATH=/app/data/i4g_store.db \
                 I4G_VECTOR__CHROMA_DIR=/app/data/chroma_store \
-                python scripts/ingest_bundles.py --input "$jsonl" >/tmp/ingest.log 2>&1 || (cat /tmp/ingest.log && exit 1); \
+                i4g ingest bundles --input "$jsonl" >/tmp/ingest.log 2>&1 || (cat /tmp/ingest.log && exit 1); \
             done; \
         fi; \
     else \

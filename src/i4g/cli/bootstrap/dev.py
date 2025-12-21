@@ -8,17 +8,27 @@ import json
 import logging
 import os
 import subprocess
+import sys
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Iterable, List, Optional, Sequence
 
+import google.auth
+import google.auth.impersonated_credentials
+import google.auth.transport.requests
+from googleapiclient.discovery import build
 import typer
 
 from i4g.settings import get_settings
 
+from i4g.cli.utils import hash_file, stage_bundle
+
 REPO_ROOT = Path(__file__).resolve().parents[4]
+DATA_DIR = REPO_ROOT / "data"
+BUNDLES_DIR = DATA_DIR / "bundles"
 
 DEFAULT_WIF_SA = "sa-infra@i4g-dev.iam.gserviceaccount.com"
 DEFAULT_RUNTIME_SA = "sa-app@i4g-dev.iam.gserviceaccount.com"
@@ -147,6 +157,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=os.getenv("I4G_SMOKE_CONTAINER", "container-0"),
         help="Container name for the smoke job.",
     )
+    parser.add_argument(
+        "--local-execution",
+        action="store_true",
+        help="Run ingestion logic locally instead of triggering Cloud Run jobs.",
+    )
     parser.add_argument("--run-dossier-smoke", action="store_true", help="Run dossier verification smoke via API.")
     parser.add_argument("--run-search-smoke", action="store_true", help="Run Vertex search smoke after bootstrap.")
     parser.add_argument("--search-project", help="Vertex project for search smoke (defaults to --project).")
@@ -198,10 +213,19 @@ def summarize_bundle(bundle_uri: str | None) -> tuple[str | None, str | None]:
 
     if not bundle_uri:
         return None, None
+    
+    # If it's a GCS URI, we don't download it just for summary unless we are in local execution mode
+    # But for now, let's keep existing behavior for remote URIs (just return URI)
+    # unless it's a local file.
     candidate = Path(bundle_uri)
     if candidate.is_file():
-        return str(candidate), _file_sha256(candidate)
+        return str(candidate), hash_file(candidate)
     return bundle_uri, None
+
+
+def _file_sha256(path: Path) -> str:
+    """Compute SHA256 hash of a file."""
+    return hash_file(path)
 
 
 def format_command(cmd: Sequence[str], redacted_flags: Iterable[str] | None = None) -> str:
@@ -264,7 +288,10 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
 
 
 def execute_job(spec: JobSpec, args: argparse.Namespace) -> JobResult:
-    cmd: list[str] = [
+    """Execute a Cloud Run job using the Google API Client (bypassing gcloud)."""
+    
+    # Construct the equivalent gcloud command for logging/dry-run purposes
+    cmd_display: list[str] = [
         "gcloud",
         "run",
         "jobs",
@@ -279,20 +306,96 @@ def execute_job(spec: JobSpec, args: argparse.Namespace) -> JobResult:
         "--wait",
     ]
     if spec.args:
-        cmd.append(f"--args={','.join(spec.args)}")
+        cmd_display.append(f"--args={','.join(spec.args)}")
+    
+    command_str = format_command(cmd_display, redacted_flags={"--impersonate-service-account"})
+    logging.info("Executing (API): %s", command_str)
 
-    proc = run_command(cmd, dry_run=args.dry_run)
-    stdout = proc.stdout.strip() if proc else "<dry-run>"
-    stderr = proc.stderr.strip() if proc else ""
-    return JobResult(
-        label=spec.label,
-        job_name=spec.job_name,
-        command=format_command(cmd, redacted_flags={"--impersonate-service-account"}),
-        status="success" if proc or args.dry_run else "skipped",
-        stdout=stdout,
-        stderr=stderr,
-        error=None,
-    )
+    if args.dry_run:
+        logging.info("Dry-run enabled; command not executed.")
+        return JobResult(
+            label=spec.label,
+            job_name=spec.job_name,
+            command=command_str,
+            status="skipped",
+            stdout="<dry-run>",
+            stderr="",
+            error=None,
+        )
+
+    try:
+        # 1. Authenticate
+        creds, _ = google.auth.default()
+        if args.wif_service_account:
+            # Create a request object for refreshing credentials
+            request = google.auth.transport.requests.Request()
+            creds = google.auth.impersonated_credentials.Credentials(
+                source_credentials=creds,
+                target_principal=args.wif_service_account,
+                target_scopes=["https://www.googleapis.com/auth/cloud-platform"],
+                lifetime=3600
+            )
+            creds.refresh(request)
+
+        # 2. Build Client
+        service = build("run", "v2", credentials=creds, cache_discovery=False)
+        parent = f"projects/{args.project}/locations/{args.region}/jobs/{spec.job_name}"
+
+        # 3. Run Job
+        overrides = {}
+        if spec.args:
+            overrides["containerOverrides"] = [{"args": spec.args}]
+
+        logging.info("Triggering job %s...", spec.job_name)
+        request = service.projects().locations().jobs().run(
+            name=parent,
+            body={"overrides": overrides}
+        )
+        operation = request.execute()
+        op_name = operation["name"]
+        logging.info("Job started. Operation: %s", op_name)
+
+        # 4. Poll for completion
+        while not operation.get("done"):
+            time.sleep(5)
+            operation = service.projects().locations().operations().get(name=op_name).execute()
+
+        # 5. Check status
+        if "error" in operation:
+            error_msg = json.dumps(operation["error"])
+            logging.error("Job failed: %s", error_msg)
+            return JobResult(
+                label=spec.label,
+                job_name=spec.job_name,
+                command=command_str,
+                status="failure",
+                stdout=json.dumps(operation, indent=2),
+                stderr=error_msg,
+                error=error_msg,
+            )
+
+        logging.info("Job %s completed successfully.", spec.job_name)
+        return JobResult(
+            label=spec.label,
+            job_name=spec.job_name,
+            command=command_str,
+            status="success",
+            stdout=json.dumps(operation, indent=2),
+            stderr="",
+            error=None,
+        )
+
+    except Exception as exc:
+        logging.error("Job execution failed: %s", exc)
+        return JobResult(
+            label=spec.label,
+            job_name=spec.job_name,
+            command=command_str,
+            status="failure",
+            stdout="",
+            stderr=str(exc),
+            error=str(exc),
+        )
 
 
 def _get_iap_token(project: str, service_account: str | None) -> str | None:
@@ -301,53 +404,49 @@ def _get_iap_token(project: str, service_account: str | None) -> str | None:
     impersonate_sa = DEFAULT_RUNTIME_SA
     
     try:
-        # 1. Fetch the IAP Client ID (audience) from the backend service
-        # We assume the backend service name is 'i4g-lb-backend-api' as per Terraform
-        cmd = [
-            "gcloud",
-            "compute",
-            "backend-services",
-            "describe",
-            "i4g-lb-backend-api",
-            "--project",
-            project,
-            "--global",
-            "--format=value(iap.oauth2ClientId)",
-            f"--impersonate-service-account={impersonate_sa}",
-        ]
+        # 1. Authenticate (User credentials)
+        source_creds, _ = google.auth.default()
+        request = google.auth.transport.requests.Request()
 
+        # Create impersonated credentials once
+        compute_creds = google.auth.impersonated_credentials.Credentials(
+            source_credentials=source_creds,
+            target_principal=impersonate_sa,
+            target_scopes=["https://www.googleapis.com/auth/cloud-platform"],
+            lifetime=3600
+        )
+        compute_creds.refresh(request)
+
+        # 2. Fetch the IAP Client ID (audience) from the backend service
+        audience = None
         try:
-            proc = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            audience = proc.stdout.strip()
-        except subprocess.CalledProcessError:
+            service = build("compute", "v1", credentials=compute_creds, cache_discovery=False)
+            response = service.backendServices().get(
+                project=project, 
+                backendService='i4g-lb-backend-api'
+            ).execute()
+            audience = response.get('iap', {}).get('oauth2ClientId')
+        except Exception:
+            pass
+
+        if not audience:
             # Fallback to known Client ID if lookup fails (e.g. permissions)
             audience = IAP_CLIENT_ID_FALLBACK
 
         if not audience:
             return None
 
-        # 2. Generate ID token with the audience and email claim
-        cmd = [
-            "gcloud",
-            "auth",
-            "print-identity-token",
-            f"--audiences={audience}",
-            "--include-email",
-            f"--impersonate-service-account={impersonate_sa}",
-        ]
+        # 3. Generate ID token with the audience and email claim
+        id_token_creds = google.auth.impersonated_credentials.IDTokenCredentials(
+            target_credentials=compute_creds,
+            target_audience=audience,
+            include_email=True
+        )
+        id_token_creds.refresh(request)
+        return id_token_creds.token
 
-        proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        return proc.stdout.strip()
-
-    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+    except Exception as exc:
         logging.debug("_get_iap_token failed: %s", exc)
-        if isinstance(exc, subprocess.CalledProcessError):
-            logging.debug("stderr: %s", exc.stderr)
         return None
 
 
@@ -542,6 +641,111 @@ def write_reports(
     (args.report_dir / "dev_bootstrap_report.md").write_text("\n".join(lines))
 
 
+def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
+    """Run ingestion logic locally instead of via Cloud Run jobs."""
+    results: list[JobResult] = []
+    
+    # 1. Stage bundle locally if needed
+    local_bundle_path = None
+    if args.bundle_uri:
+        try:
+            local_bundle_path = stage_bundle(args.bundle_uri, BUNDLES_DIR)
+            logging.info("Staged bundle to %s", local_bundle_path)
+        except Exception as exc:
+            logging.error("Failed to stage bundle: %s", exc)
+            return [JobResult(
+                label="bundle_stage",
+                job_name="local-bundle-stage",
+                command=f"stage_bundle({args.bundle_uri})",
+                status="failure",
+                stdout="",
+                stderr=str(exc),
+                error=str(exc)
+            )]
+
+    # 2. Run Ingest (covers firestore, vertex, sql, bigquery via structured store)
+    # We map the requested jobs to flags for the ingest script
+    
+    # Check if any ingest-related job is requested
+    ingest_jobs = {"firestore", "vertex", "sql", "bigquery"}
+    requested_jobs = set()
+    if not args.skip_firestore: requested_jobs.add("firestore")
+    if not args.skip_vertex: requested_jobs.add("vertex")
+    if not args.skip_sql: requested_jobs.add("sql")
+    if not args.skip_bigquery: requested_jobs.add("bigquery")
+    
+    if requested_jobs:
+        logging.info("Running local ingestion for: %s", requested_jobs)
+        env = os.environ.copy()
+        env["I4G_ENV"] = "dev"  # Force dev env even if running locally
+        if local_bundle_path:
+            env["I4G_INGEST__JSONL_PATH"] = str(local_bundle_path)
+        
+        if args.dataset:
+            env["I4G_INGEST__DATASET_NAME"] = args.dataset
+        
+        # Enable backends based on requested jobs
+        env["I4G_INGEST__ENABLE_FIRESTORE"] = "1" if "firestore" in requested_jobs else "0"
+        env["I4G_INGEST__ENABLE_VERTEX"] = "1" if "vertex" in requested_jobs else "0"
+        
+        # Pass Vertex configuration if enabled
+        if "vertex" in requested_jobs:
+            if args.search_project:
+                env["I4G_VERTEX_SEARCH_PROJECT"] = args.search_project
+            if args.search_location:
+                env["I4G_VERTEX_SEARCH_LOCATION"] = args.search_location
+            if args.search_data_store_id:
+                env["I4G_VERTEX_SEARCH_DATA_STORE"] = args.search_data_store_id
+            elif not os.getenv("I4G_VERTEX_SEARCH_DATA_STORE"):
+                 # Fallback to a reasonable default if not provided and not in env
+                 env["I4G_VERTEX_SEARCH_DATA_STORE"] = "retrieval-poc"
+
+        # SQL/BigQuery are handled by structured store which is enabled by default in ingest pipeline
+        # unless we explicitly disable it, but ingest.py doesn't seem to have a flag to disable structured store easily
+        # other than not building it. But build_structured_store uses settings.
+        
+        if args.dry_run:
+            env["I4G_INGEST__DRY_RUN"] = "1"
+
+        cmd = [sys.executable, "-m", "i4g.worker.jobs.ingest"]
+        command_str = " ".join(cmd)
+        
+        try:
+            if args.dry_run:
+                logging.info("[dry-run] Would run: %s with env overrides", command_str)
+                results.append(JobResult("ingest", "local-ingest", command_str, "skipped", "<dry-run>", "", None))
+            else:
+                proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=True)
+                results.append(JobResult("ingest", "local-ingest", command_str, "success", proc.stdout, proc.stderr, None))
+        except subprocess.CalledProcessError as exc:
+            logging.error("Local ingestion failed: %s", exc.stderr)
+            results.append(JobResult("ingest", "local-ingest", command_str, "failure", exc.stdout, exc.stderr, str(exc)))
+
+    # 3. Run Reports
+    if not args.skip_reports:
+        logging.info("Running local reports generation...")
+        env = os.environ.copy()
+        env["I4G_ENV"] = "dev"
+        # Report job might need dataset path or other args?
+        # core/src/i4g/worker/jobs/report.py usually reads from DB.
+        
+        cmd = [sys.executable, "-m", "i4g.worker.jobs.report"]
+        command_str = " ".join(cmd)
+        
+        try:
+            if args.dry_run:
+                logging.info("[dry-run] Would run: %s", command_str)
+                results.append(JobResult("reports", "local-reports", command_str, "skipped", "<dry-run>", "", None))
+            else:
+                proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=True)
+                results.append(JobResult("reports", "local-reports", command_str, "success", proc.stdout, proc.stderr, None))
+        except subprocess.CalledProcessError as exc:
+            logging.error("Local reports failed: %s", exc.stderr)
+            results.append(JobResult("reports", "local-reports", command_str, "failure", exc.stdout, exc.stderr, str(exc)))
+
+    return results
+
+
 def bootstrap_dev(args: argparse.Namespace) -> int:
     configure_logging(args.log_level)
     guard_environment(args.project, args.force)
@@ -558,7 +762,7 @@ def bootstrap_dev(args: argparse.Namespace) -> int:
         logging.info("Bundle sha256: %s", bundle_sha)
 
     logging.info(
-        "Bootstrap dev: project=%s region=%s bundle=%s " "dataset=%s dry_run=%s verify_only=%s run_smoke=%s",
+        "Bootstrap dev: project=%s region=%s bundle=%s " "dataset=%s dry_run=%s verify_only=%s run_smoke=%s local_execution=%s",
         args.project,
         args.region,
         args.bundle_uri or "<none>",
@@ -566,37 +770,41 @@ def bootstrap_dev(args: argparse.Namespace) -> int:
         args.dry_run,
         args.verify_only,
         args.run_smoke,
+        args.local_execution,
     )
 
-    specs = build_job_specs(args)
-    if not specs and not args.verify_only:
-        logging.warning("No jobs selected; nothing to do.")
-        return 0
-
-    results: list[JobResult] = []
-    if not args.verify_only:
-        for spec in specs:
-            try:
-                results.append(execute_job(spec, args))
-            except subprocess.CalledProcessError as exc:
-                results.append(
-                    JobResult(
-                        label=spec.label,
-                        job_name=spec.job_name,
-                        command=format_command(
-                            ["gcloud", "run", "jobs", "execute", spec.job_name],
-                            redacted_flags={"--impersonate-service-account"},
-                        ),
-                        status="failed",
-                        stdout=exc.stdout or "",
-                        stderr=exc.stderr or "",
-                        error=str(exc),
-                    )
-                )
-                write_reports(results, None, None, None, args)
-                return 1
+    if args.local_execution and not args.verify_only:
+        results = run_local_ingest(args)
     else:
-        logging.info("verify-only set; skipping job execution.")
+        specs = build_job_specs(args)
+        if not specs and not args.verify_only:
+            logging.warning("No jobs selected; nothing to do.")
+            return 0
+
+        results = []
+        if not args.verify_only:
+            for spec in specs:
+                try:
+                    results.append(execute_job(spec, args))
+                except subprocess.CalledProcessError as exc:
+                    results.append(
+                        JobResult(
+                            label=spec.label,
+                            job_name=spec.job_name,
+                            command=format_command(
+                                ["gcloud", "run", "jobs", "execute", spec.job_name],
+                                redacted_flags={"--impersonate-service-account"},
+                            ),
+                            status="failed",
+                            stdout=exc.stdout or "",
+                            stderr=exc.stderr or "",
+                            error=str(exc),
+                        )
+                    )
+                    write_reports(results, None, None, None, args)
+                    return 1
+        else:
+            logging.info("verify-only set; skipping job execution.")
 
     smoke_result: SmokeResult | None = None
     if args.run_smoke or args.verify_only:
@@ -669,6 +877,7 @@ def run_dev(
     smoke_token: str,
     smoke_job: str,
     smoke_container: str,
+    local_execution: bool = False,
 ) -> int:
     args = argparse.Namespace(
         project=project,
@@ -708,6 +917,7 @@ def run_dev(
         smoke_token=smoke_token,
         smoke_job=smoke_job,
         smoke_container=smoke_container,
+        local_execution=local_execution,
     )
     return bootstrap_dev(args)
 
@@ -752,6 +962,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         smoke_token=args.smoke_token,
         smoke_job=args.smoke_job,
         smoke_container=args.smoke_container,
+        local_execution=args.local_execution,
     )
 
 
@@ -776,17 +987,26 @@ def bootstrap_dev_reset(
         "--wif-service-account",
         help="Service account to impersonate via WIF.",
     ),
-    firestore_job: str = typer.Option(DEFAULT_JOBS["firestore"], "--firestore-job", help="Firestore refresh job."),
-    vertex_job: str = typer.Option(DEFAULT_JOBS["vertex"], "--vertex-job", help="Vertex import job."),
-    sql_job: str = typer.Option(DEFAULT_JOBS["sql"], "--sql-job", help="SQL/Firestore sync job."),
-    bigquery_job: str = typer.Option(DEFAULT_JOBS["bigquery"], "--bigquery-job", help="BigQuery refresh job."),
-    gcs_assets_job: str = typer.Option(DEFAULT_JOBS["gcs_assets"], "--gcs-assets-job", help="GCS asset sync job."),
-    reports_job: str = typer.Option(DEFAULT_JOBS["reports"], "--reports-job", help="Reports/dossiers job."),
+    firestore_job: str = typer.Option(
+        DEFAULT_JOBS["firestore"], "--firestore-job", help="Firestore refresh job.", hidden=True
+    ),
+    vertex_job: str = typer.Option(DEFAULT_JOBS["vertex"], "--vertex-job", help="Vertex import job.", hidden=True),
+    sql_job: str = typer.Option(DEFAULT_JOBS["sql"], "--sql-job", help="SQL/Firestore sync job.", hidden=True),
+    bigquery_job: str = typer.Option(
+        DEFAULT_JOBS["bigquery"], "--bigquery-job", help="BigQuery refresh job.", hidden=True
+    ),
+    gcs_assets_job: str = typer.Option(
+        DEFAULT_JOBS["gcs_assets"], "--gcs-assets-job", help="GCS asset sync job.", hidden=True
+    ),
+    reports_job: str = typer.Option(
+        DEFAULT_JOBS["reports"], "--reports-job", help="Reports/dossiers job.", hidden=True
+    ),
     saved_searches_job: str = typer.Option(
-        DEFAULT_JOBS["saved_searches"], "--saved-searches-job", help="Saved searches/tag presets job."
+        DEFAULT_JOBS["saved_searches"], "--saved-searches-job", help="Saved searches/tag presets job.", hidden=True
     ),
     skip_firestore: bool = typer.Option(False, "--skip-firestore", help="Skip Firestore refresh job."),
     skip_vertex: bool = typer.Option(False, "--skip-vertex", help="Skip Vertex import job."),
+    skip_vector: bool = typer.Option(False, "--skip-vector", help="Alias for --skip-vertex (for local parity)."),
     skip_sql: bool = typer.Option(False, "--skip-sql", help="Skip SQL/Firestore sync job."),
     skip_bigquery: bool = typer.Option(False, "--skip-bigquery", help="Skip BigQuery refresh job."),
     skip_gcs_assets: bool = typer.Option(False, "--skip-gcs-assets", help="Skip GCS asset sync job."),
@@ -828,13 +1048,25 @@ def bootstrap_dev_reset(
         os.getenv("I4G_SMOKE_TOKEN", "dev-analyst-token"), "--smoke-token", help="API token for smoke."
     ),
     smoke_job: str = typer.Option(
-        os.getenv("I4G_SMOKE_JOB", "process-intakes"), "--smoke-job", help="Cloud Run job to execute for smoke."
+        os.getenv("I4G_SMOKE_JOB", "process-intakes"),
+        "--smoke-job",
+        help="Cloud Run job to execute for smoke.",
+        hidden=True,
     ),
     smoke_container: str = typer.Option(
-        os.getenv("I4G_SMOKE_CONTAINER", "container-0"), "--smoke-container", help="Container for smoke job."
+        os.getenv("I4G_SMOKE_CONTAINER", "container-0"),
+        "--smoke-container",
+        help="Container for smoke job.",
+        hidden=True,
+    ),
+    local_execution: bool = typer.Option(
+        False, "--local-execution", help="Run ingestion logic locally instead of triggering Cloud Run jobs."
     ),
 ) -> None:
     """Execute dev Cloud Run bootstrap jobs; optional smoke after run."""
+
+    if skip_vector:
+        skip_vertex = True
 
     _exit_from_return(
         run_dev(
@@ -875,6 +1107,7 @@ def bootstrap_dev_reset(
             smoke_token=smoke_token,
             smoke_job=smoke_job,
             smoke_container=smoke_container,
+            local_execution=local_execution,
         )
     )
 
@@ -890,17 +1123,26 @@ def bootstrap_dev_load(
         "--wif-service-account",
         help="Service account to impersonate via WIF.",
     ),
-    firestore_job: str = typer.Option(DEFAULT_JOBS["firestore"], "--firestore-job", help="Firestore refresh job."),
-    vertex_job: str = typer.Option(DEFAULT_JOBS["vertex"], "--vertex-job", help="Vertex import job."),
-    sql_job: str = typer.Option(DEFAULT_JOBS["sql"], "--sql-job", help="SQL/Firestore sync job."),
-    bigquery_job: str = typer.Option(DEFAULT_JOBS["bigquery"], "--bigquery-job", help="BigQuery refresh job."),
-    gcs_assets_job: str = typer.Option(DEFAULT_JOBS["gcs_assets"], "--gcs-assets-job", help="GCS asset sync job."),
-    reports_job: str = typer.Option(DEFAULT_JOBS["reports"], "--reports-job", help="Reports/dossiers job."),
+    firestore_job: str = typer.Option(
+        DEFAULT_JOBS["firestore"], "--firestore-job", help="Firestore refresh job.", hidden=True
+    ),
+    vertex_job: str = typer.Option(DEFAULT_JOBS["vertex"], "--vertex-job", help="Vertex import job.", hidden=True),
+    sql_job: str = typer.Option(DEFAULT_JOBS["sql"], "--sql-job", help="SQL/Firestore sync job.", hidden=True),
+    bigquery_job: str = typer.Option(
+        DEFAULT_JOBS["bigquery"], "--bigquery-job", help="BigQuery refresh job.", hidden=True
+    ),
+    gcs_assets_job: str = typer.Option(
+        DEFAULT_JOBS["gcs_assets"], "--gcs-assets-job", help="GCS asset sync job.", hidden=True
+    ),
+    reports_job: str = typer.Option(
+        DEFAULT_JOBS["reports"], "--reports-job", help="Reports/dossiers job.", hidden=True
+    ),
     saved_searches_job: str = typer.Option(
-        DEFAULT_JOBS["saved_searches"], "--saved-searches-job", help="Saved searches/tag presets job."
+        DEFAULT_JOBS["saved_searches"], "--saved-searches-job", help="Saved searches/tag presets job.", hidden=True
     ),
     skip_firestore: bool = typer.Option(False, "--skip-firestore", help="Skip Firestore refresh job."),
     skip_vertex: bool = typer.Option(False, "--skip-vertex", help="Skip Vertex import job."),
+    skip_vector: bool = typer.Option(False, "--skip-vector", help="Alias for --skip-vertex (for local parity)."),
     skip_sql: bool = typer.Option(False, "--skip-sql", help="Skip SQL/Firestore sync job."),
     skip_bigquery: bool = typer.Option(False, "--skip-bigquery", help="Skip BigQuery refresh job."),
     skip_gcs_assets: bool = typer.Option(False, "--skip-gcs-assets", help="Skip GCS asset sync job."),
@@ -942,13 +1184,25 @@ def bootstrap_dev_load(
         os.getenv("I4G_SMOKE_TOKEN", "dev-analyst-token"), "--smoke-token", help="API token for smoke."
     ),
     smoke_job: str = typer.Option(
-        os.getenv("I4G_SMOKE_JOB", "process-intakes"), "--smoke-job", help="Cloud Run job to execute for smoke."
+        os.getenv("I4G_SMOKE_JOB", "process-intakes"),
+        "--smoke-job",
+        help="Cloud Run job to execute for smoke.",
+        hidden=True,
     ),
     smoke_container: str = typer.Option(
-        os.getenv("I4G_SMOKE_CONTAINER", "container-0"), "--smoke-container", help="Container for smoke job."
+        os.getenv("I4G_SMOKE_CONTAINER", "container-0"),
+        "--smoke-container",
+        help="Container for smoke job.",
+        hidden=True,
+    ),
+    local_execution: bool = typer.Option(
+        False, "--local-execution", help="Run ingestion logic locally instead of triggering Cloud Run jobs."
     ),
 ) -> None:
     """Alias of reset for dev bootstrap jobs (kept for symmetry)."""
+
+    if skip_vector:
+        skip_vertex = True
 
     _exit_from_return(
         run_dev(
@@ -989,6 +1243,7 @@ def bootstrap_dev_load(
             smoke_token=smoke_token,
             smoke_job=smoke_job,
             smoke_container=smoke_container,
+            local_execution=local_execution,
         )
     )
 
