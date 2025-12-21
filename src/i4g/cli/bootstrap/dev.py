@@ -37,13 +37,13 @@ DEFAULT_PROJECT = "i4g-dev"
 DEFAULT_REGION = "us-central1"
 DEFAULT_REPORT_DIR = REPO_ROOT / "data" / "reports" / "dev_bootstrap"
 DEFAULT_JOBS = {
-    "firestore": "bootstrap-firestore",
-    "vertex": "bootstrap-vertex",
-    "sql": "bootstrap-sql",
-    "bigquery": "bootstrap-bigquery",
-    "gcs_assets": "bootstrap-gcs-assets",
-    "reports": "bootstrap-reports",
-    "saved_searches": "bootstrap-saved-searches",
+    "firestore": "ingest-azure-snapshot",  # Main ingestion job (covers Firestore + Vector)
+    "vertex": "",                          # Skipped (included in ingest-azure-snapshot)
+    "sql": "",                             # Skipped (not deployed)
+    "bigquery": "",                        # Skipped (not deployed)
+    "gcs_assets": "",                      # Skipped (not deployed)
+    "reports": "generate-reports",         # Correct job name
+    "saved_searches": "",                  # Skipped (not deployed)
 }
 
 

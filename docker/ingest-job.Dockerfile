@@ -25,14 +25,12 @@ COPY src ./src
 RUN python -m pip install --upgrade pip \
     && python -m pip install --no-cache-dir .
 
-COPY data/retrieval_poc ./data/retrieval_poc
-
 RUN mkdir -p /app/data/chroma_store /app/data/reports \
     && chown -R 65532:65532 /app
 
 USER 65532:65532
 
 ENV I4G_ENV=dev \
-    I4G_INGEST__JSONL_PATH=/app/data/retrieval_poc/cases.jsonl
+    I4G_INGEST__JSONL_PATH=gs://i4g-dev-data-bundles/retrieval_poc/20251217/cases.jsonl
 
 CMD ["i4g", "jobs", "ingest"]

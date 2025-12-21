@@ -100,6 +100,24 @@ To run the ingestion logic **locally** on your machine but target the Dev enviro
 I4G_ENV=dev i4g bootstrap dev reset \
   --local-execution \
   --bundle-uri gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/manifest.generated.json \
+  --dataset legacy_azure_$RUN_DATE
+```
+
+### Troubleshooting: IAP Authentication
+If you encounter authentication issues with Cloud Run services (e.g., 401/403 errors during smoke tests), you can use the `debug_iap.py` script to verify token generation and audience configuration.
+
+```bash
+# Run the debug script
+python scripts/debug_iap.py
+```
+
+This script checks:
+1.  Your current gcloud identity.
+2.  Ability to generate ID tokens for the IAP audience.
+3.  Connectivity to the `fastapi-gateway` service.
+
+  --local-execution \
+  --bundle-uri gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/manifest.generated.json \
   --dataset legacy_azure_$RUN_DATE \
   --run-smoke
 ```

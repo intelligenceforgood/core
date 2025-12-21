@@ -41,16 +41,45 @@ def _env_flag(name: str) -> bool | None:
     return None
 
 
-def _load_jsonl(path: Path) -> Iterator[dict]:
-    with path.open("r", encoding="utf-8") as handle:
-        for line_no, raw in enumerate(handle, start=1):
-            raw = raw.strip()
-            if not raw:
-                continue
-            try:
-                yield json.loads(raw)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"failed to parse JSON on line {line_no}: {exc}") from exc
+def _load_jsonl(path: Path | str) -> Iterator[dict]:
+    path_str = str(path)
+    if path_str.startswith("gs://"):
+        from google.cloud import storage
+        import tempfile
+
+        client = storage.Client()
+        parts = path_str[5:].split("/", 1)
+        if len(parts) != 2:
+            raise ValueError(f"Invalid GCS URI: {path_str}")
+        bucket_name, blob_name = parts
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(blob_name)
+
+        fd, tmp_path = tempfile.mkstemp(suffix=".jsonl")
+        os.close(fd)
+        try:
+            LOGGER.info("Downloading dataset from %s to %s", path_str, tmp_path)
+            blob.download_to_filename(tmp_path)
+            with open(tmp_path, "r", encoding="utf-8") as handle:
+                yield from _yield_from_handle(handle)
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+    else:
+        path = Path(path)
+        with path.open("r", encoding="utf-8") as handle:
+            yield from _yield_from_handle(handle)
+
+
+def _yield_from_handle(handle) -> Iterator[dict]:
+    for line_no, raw in enumerate(handle, start=1):
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            yield json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"failed to parse JSON on line {line_no}: {exc}") from exc
 
 
 def _clone_payload(payload: dict) -> dict:
@@ -127,7 +156,10 @@ def main() -> int:
     settings = get_settings()
 
     dataset_override = os.getenv("I4G_INGEST__JSONL_PATH")
-    dataset_path = Path(dataset_override) if dataset_override else Path(settings.ingestion.dataset_path)
+    if dataset_override and dataset_override.startswith("gs://"):
+        dataset_path = dataset_override
+    else:
+        dataset_path = Path(dataset_override) if dataset_override else Path(settings.ingestion.dataset_path)
 
     batch_limit_override = os.getenv("I4G_INGEST__BATCH_LIMIT")
     try:
@@ -157,7 +189,9 @@ def main() -> int:
         enable_firestore = firestore_override
     else:
         enable_firestore = False if is_local else settings.ingestion.enable_firestore
-    dataset_name = os.getenv("I4G_INGEST__DATASET_NAME") or dataset_path.stem or settings.ingestion.default_dataset
+    dataset_name = os.getenv("I4G_INGEST__DATASET_NAME") or (
+        dataset_path.stem if isinstance(dataset_path, Path) else "gcs_dataset"
+    ) or settings.ingestion.default_dataset
 
     LOGGER.info(
         (
@@ -173,7 +207,7 @@ def main() -> int:
         reset_vector,
     )
 
-    if not dataset_path.exists():
+    if isinstance(dataset_path, Path) and not dataset_path.exists():
         LOGGER.warning("JSONL dataset not found; nothing to ingest: %s", dataset_path)
         return 0
 

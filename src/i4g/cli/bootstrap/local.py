@@ -28,7 +28,7 @@ SEMANTIC_OUTPUT = DATA_DIR / "entities_semantic.jsonl"
 MANUAL_DEMO_DIR = DATA_DIR / "manual_demo"
 CHROMA_DIR = DATA_DIR / "chroma_store"
 SQLITE_DB = DATA_DIR / "i4g_store.db"
-REPORTS_DIR = DATA_DIR / "reports"
+REPORTS_DIR = DATA_DIR / "reports" / "local_bootstrap"
 PILOT_CASES_PATH = MANUAL_DEMO_DIR / "dossier_pilot_cases.json"
 
 DEFAULT_PILOT_CASES = [
@@ -465,6 +465,21 @@ def _run_dossier_smoke(args: argparse.Namespace) -> dict[str, str | None]:
     }
 
 
+def download_retrieval_poc() -> None:
+    """Download the retrieval POC dataset from GCS if missing."""
+    target = DATA_DIR / "retrieval_poc" / "cases.jsonl"
+    if target.exists():
+        return
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    uri = "gs://i4g-dev-data-bundles/retrieval_poc/20251217/cases.jsonl"
+    print(f"⬇️  Downloading retrieval POC data from {uri}...")
+    try:
+        run(["gcloud", "storage", "cp", uri, str(target)])
+    except Exception:
+        print("⚠️  Failed to download retrieval POC data. Ensure you have gcloud auth and permissions.")
+
+
 def run_local(
     *,
     reset: bool,
@@ -506,6 +521,7 @@ def run_local(
         return
 
     ensure_dirs()
+    download_retrieval_poc()
 
     if reset:
         reset_artifacts(skip_ocr=skip_ocr, skip_vector=skip_vector)
