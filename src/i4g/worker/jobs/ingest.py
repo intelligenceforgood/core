@@ -41,11 +41,26 @@ def _env_flag(name: str) -> bool | None:
     return None
 
 
+def _download_and_yield(blob) -> Iterator[dict]:
+    import tempfile
+    import os
+
+    fd, tmp_path = tempfile.mkstemp(suffix=".jsonl")
+    os.close(fd)
+    try:
+        LOGGER.info("Downloading dataset from gs://%s/%s to %s", blob.bucket.name, blob.name, tmp_path)
+        blob.download_to_filename(tmp_path)
+        with open(tmp_path, "r", encoding="utf-8") as handle:
+            yield from _yield_from_handle(handle)
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
 def _load_jsonl(path: Path | str) -> Iterator[dict]:
     path_str = str(path)
     if path_str.startswith("gs://"):
         from google.cloud import storage
-        import tempfile
 
         client = storage.Client()
         parts = path_str[5:].split("/", 1)
@@ -53,22 +68,27 @@ def _load_jsonl(path: Path | str) -> Iterator[dict]:
             raise ValueError(f"Invalid GCS URI: {path_str}")
         bucket_name, blob_name = parts
         bucket = client.bucket(bucket_name)
-        blob = bucket.blob(blob_name)
 
-        fd, tmp_path = tempfile.mkstemp(suffix=".jsonl")
-        os.close(fd)
-        try:
-            LOGGER.info("Downloading dataset from %s to %s", path_str, tmp_path)
-            blob.download_to_filename(tmp_path)
-            with open(tmp_path, "r", encoding="utf-8") as handle:
-                yield from _yield_from_handle(handle)
-        finally:
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
+        if path_str.endswith("/"):
+            blobs = list(client.list_blobs(bucket, prefix=blob_name))
+            jsonl_blobs = [b for b in blobs if b.name.endswith(".jsonl")]
+            if not jsonl_blobs:
+                LOGGER.warning("No .jsonl files found in %s", path_str)
+                return
+            for blob in jsonl_blobs:
+                yield from _download_and_yield(blob)
+        else:
+            blob = bucket.blob(blob_name)
+            yield from _download_and_yield(blob)
     else:
         path = Path(path)
-        with path.open("r", encoding="utf-8") as handle:
-            yield from _yield_from_handle(handle)
+        if path.is_dir():
+            for file_path in path.glob("*.jsonl"):
+                with file_path.open("r", encoding="utf-8") as handle:
+                    yield from _yield_from_handle(handle)
+        else:
+            with path.open("r", encoding="utf-8") as handle:
+                yield from _yield_from_handle(handle)
 
 
 def _yield_from_handle(handle) -> Iterator[dict]:
@@ -189,9 +209,11 @@ def main() -> int:
         enable_firestore = firestore_override
     else:
         enable_firestore = False if is_local else settings.ingestion.enable_firestore
-    dataset_name = os.getenv("I4G_INGEST__DATASET_NAME") or (
-        dataset_path.stem if isinstance(dataset_path, Path) else "gcs_dataset"
-    ) or settings.ingestion.default_dataset
+    dataset_name = (
+        os.getenv("I4G_INGEST__DATASET_NAME")
+        or (dataset_path.stem if isinstance(dataset_path, Path) else "gcs_dataset")
+        or settings.ingestion.default_dataset
+    )
 
     LOGGER.info(
         (

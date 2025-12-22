@@ -17,31 +17,31 @@ To fully reset the local sandbox (wipes and rebuilds SQLite, Chroma, OCR artifac
 
 ```bash
 I4G_ENV=local i4g bootstrap local reset \
-  --bundle-uri gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/manifest.generated.json \
-  --report-dir data/reports/local_bootstrap
+  --bundle-uri gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/ \
+  --report-dir data/reports/bootstrap_local
 ```
 
 ### Partial Rebuilds
 Skip heavy steps if you only need structured/vector data:
 
 ```bash
-i4g bootstrap local reset --skip-ocr --skip-vector --report-dir data/reports/local_bootstrap
+i4g bootstrap local reset --skip-ocr --skip-vector --report-dir data/reports/bootstrap_local
 ```
 
 ### Verification
 To verify without regenerating data:
 
 ```bash
-i4g bootstrap local reset --verify-only --smoke-search --smoke-dossiers
+i4g bootstrap local verify --smoke-search --smoke-dossiers
 ```
 
 - Flags to know:
   - `--bundle-uri PATH` to stage a specific bundle into `data/bundles/`.
-  - `--verify-only` to emit reports without regenerating data.
+  - `--verify-only` (implied by `verify` command) to emit reports without regenerating data.
   - `--smoke-search` to run the Vertex search smoke; `--smoke-dossiers` (FastAPI running) to verify dossier manifests/signatures.
   - `--force` required if `I4G_ENV` is not `local` (use sparingly).
 - After running:
-  - Inspect `data/reports/local_bootstrap/` for JSON/Markdown reports (bundle hashes, manifest sha256, ingestion-run summary, smokes).
+  - Inspect `data/reports/bootstrap_local/` for JSON/Markdown reports (bundle hashes, manifest sha256, ingestion-run summary, smokes).
   - Point ingestion/search to the refreshed dataset (`ingestion.default_dataset`).
   - Run a quick smoke: [docs/cookbooks/smoke_test.md](docs/cookbooks/smoke_test.md).
 
@@ -70,7 +70,7 @@ To reset the dev environment by triggering Cloud Run jobs (standard procedure):
 2.  **Run Bootstrap**:
     ```bash
     I4G_ENV=dev i4g bootstrap dev reset \
-      --bundle-uri gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/manifest.generated.json \
+      --bundle-uri gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/ \
       --dataset legacy_azure_$RUN_DATE \
       --run-smoke \
       --run-dossier-smoke \
@@ -79,7 +79,7 @@ To reset the dev environment by triggering Cloud Run jobs (standard procedure):
 
     *   This command triggers Cloud Run jobs to rehydrate Firestore, Vertex AI, and BigQuery.
     *   It runs smoke tests immediately after to verify health.
-    *   Reports are saved to `data/reports/dev_bootstrap/`.
+    *   Reports are saved to `data/reports/bootstrap_dev/`.
 
 ### Verification Only
 If you only want to run the smoke tests without rebuilding data:
@@ -99,7 +99,7 @@ To run the ingestion logic **locally** on your machine but target the Dev enviro
 ```bash
 I4G_ENV=dev i4g bootstrap dev reset \
   --local-execution \
-  --bundle-uri gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/manifest.generated.json \
+  --bundle-uri gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/ \
   --dataset legacy_azure_$RUN_DATE
 ```
 
@@ -116,24 +116,15 @@ This script checks:
 2.  Ability to generate ID tokens for the IAP audience.
 3.  Connectivity to the `fastapi-gateway` service.
 
-  --local-execution \
-  --bundle-uri gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/manifest.generated.json \
-  --dataset legacy_azure_$RUN_DATE \
-  --run-smoke
-```
-
 ### Job Reference
 The bootstrap process orchestrates several Cloud Run Jobs. These jobs are defined in `infra/` (Terraform) and built from `core/docker/`.
 
 | Job Name | Docker Image | Purpose |
 | :--- | :--- | :--- |
-| `bootstrap-firestore` | `ingest-job.Dockerfile` | Loads case metadata into Firestore. |
-| `bootstrap-vertex` | `ingest-job.Dockerfile` | Generates embeddings and upserts to Vertex AI Search. |
-| `bootstrap-sql` | `ingest-job.Dockerfile` | Writes structured data to Cloud SQL (Postgres). |
-| `bootstrap-bigquery` | `ingest-job.Dockerfile` | Loads analytics data into BigQuery. |
-| `bootstrap-reports` | `report-job.Dockerfile` | Generates dossiers and investigation reports. |
-| `bootstrap-saved-searches` | `account-job.Dockerfile` | Seeds default saved searches and tag presets. |
-| `process-intakes` | `intake-job.Dockerfile` | Processes new intake submissions (used in smoke tests). |
+| `ingest-azure-snapshot` | `ingest-job.Dockerfile` | **Primary Ingestion**: Loads metadata to Firestore, generates embeddings for Vertex AI, syncs SQL/BigQuery. |
+| `generate-reports` | `report-job.Dockerfile` | **Reporting**: Generates dossiers and investigation reports. |
+| `account-setup` | `account-job.Dockerfile` | **Configuration**: Seeds default saved searches and tag presets. |
+| `process-intakes` | `intake-job.Dockerfile` | **Smoke Test**: Processes new intake submissions. |
 
 > **Note**: The `ingest-job` image is versatile and handles multiple backends (Firestore, Vertex, SQL) based on environment variables passed by the job definition.
 
@@ -161,7 +152,7 @@ If `gcloud run jobs execute` fails with `Unknown name "delayExecution" at 'overr
       -H "X-Goog-User-Project: i4g-dev" \
       -H "Content-Type: application/json" \
       "https://run.googleapis.com/v2/projects/i4g-dev/locations/us-central1/jobs/$JOB:run" \
-      -d '{"overrides":{"containerOverrides":[{"args":["--bundle-uri=gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/manifest.generated.json","--dataset=legacy_azure_$RUN_DATE"]}]}}'
+      -d '{"overrides":{"containerOverrides":[{"args":["--bundle-uri=gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/","--dataset=legacy_azure_$RUN_DATE"]}]}}'
     ```
 
 ### Finding Vertex Data Store ID
@@ -180,10 +171,10 @@ Dev default: `retrieval-poc` with serving config `default_search`.
 - Guardrails and outputs:
   - Blocks prod-like projects unless `--force` and warns if `I4G_ENV` is not `dev`/`local`.
   - Logs bundle URI and sha256 when `--bundle-uri` points to a local file; pass `--dataset` and `--bundle-uri` so every job sees the same inputs.
-  - Reports (JSON + Markdown) land in `data/reports/dev_bootstrap/` with job status and smoke results. Search smoke is skipped unless both `--search-data-store-id` and `--search-serving-config-id` are provided.
+  - Reports (JSON + Markdown) land in `data/reports/bootstrap_dev/` with job status and smoke results. Search smoke is skipped unless both `--search-data-store-id` and `--search-serving-config-id` are provided.
   - **Inspect Outcomes**:
-    - Check `data/reports/dev_bootstrap/dev_bootstrap_report.md` for a summary of all job executions and smoke test results.
-    - Review `data/reports/dev_bootstrap/dev_bootstrap_report.json` for detailed machine-readable logs, including specific error messages if any step failed.
+    - Check `data/reports/bootstrap_dev/report.md` for a summary of all job executions and smoke test results.
+    - Review `data/reports/bootstrap_dev/report.json` for detailed machine-readable logs, including specific error messages if any step failed.
     - If the intake smoke passed, you can verify the created case in the analyst console or by querying the API directly using the `intake_id` from the logs.
 
 ## Notes and further reading

@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
-from i4g.cli import saved_search_helpers as saved_searches
+from i4g.cli.admin import helpers as saved_searches
 
 
 def test_annotate_records_appends_tag_and_schema_version() -> None:

@@ -35,15 +35,15 @@ DEFAULT_RUNTIME_SA = "sa-app@i4g-dev.iam.gserviceaccount.com"
 IAP_CLIENT_ID_FALLBACK = "544936845045-a87u04lgc7go7asc4nhed36ka50iqh0h.apps.googleusercontent.com"
 DEFAULT_PROJECT = "i4g-dev"
 DEFAULT_REGION = "us-central1"
-DEFAULT_REPORT_DIR = REPO_ROOT / "data" / "reports" / "dev_bootstrap"
+DEFAULT_REPORT_DIR = REPO_ROOT / "data" / "reports" / "bootstrap_dev"
 DEFAULT_JOBS = {
     "firestore": "ingest-azure-snapshot",  # Main ingestion job (covers Firestore + Vector)
-    "vertex": "",                          # Skipped (included in ingest-azure-snapshot)
-    "sql": "",                             # Skipped (not deployed)
-    "bigquery": "",                        # Skipped (not deployed)
-    "gcs_assets": "",                      # Skipped (not deployed)
-    "reports": "generate-reports",         # Correct job name
-    "saved_searches": "",                  # Skipped (not deployed)
+    "vertex": "",  # Skipped (included in ingest-azure-snapshot)
+    "sql": "",  # Skipped (not deployed)
+    "bigquery": "",  # Skipped (not deployed)
+    "gcs_assets": "",  # Skipped (not deployed)
+    "reports": "generate-reports",  # Correct job name
+    "saved_searches": "",  # Skipped (not deployed)
 }
 
 
@@ -128,7 +128,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--report-dir",
         type=Path,
         default=DEFAULT_REPORT_DIR,
-        help="Directory to write JSON/Markdown reports (default: data/reports/dev_bootstrap).",
+        help="Directory to write JSON/Markdown reports (default: data/reports/bootstrap_dev).",
     )
     parser.add_argument("--force", action="store_true", help="Allow targeting non-dev projects (never use for prod).")
     parser.add_argument(
@@ -213,7 +213,7 @@ def summarize_bundle(bundle_uri: str | None) -> tuple[str | None, str | None]:
 
     if not bundle_uri:
         return None, None
-    
+
     # If it's a GCS URI, we don't download it just for summary unless we are in local execution mode
     # But for now, let's keep existing behavior for remote URIs (just return URI)
     # unless it's a local file.
@@ -289,7 +289,7 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
 
 def execute_job(spec: JobSpec, args: argparse.Namespace) -> JobResult:
     """Execute a Cloud Run job using the Google API Client (bypassing gcloud)."""
-    
+
     # Construct the equivalent gcloud command for logging/dry-run purposes
     cmd_display: list[str] = [
         "gcloud",
@@ -307,7 +307,7 @@ def execute_job(spec: JobSpec, args: argparse.Namespace) -> JobResult:
     ]
     if spec.args:
         cmd_display.append(f"--args={','.join(spec.args)}")
-    
+
     command_str = format_command(cmd_display, redacted_flags={"--impersonate-service-account"})
     logging.info("Executing (API): %s", command_str)
 
@@ -333,7 +333,7 @@ def execute_job(spec: JobSpec, args: argparse.Namespace) -> JobResult:
                 source_credentials=creds,
                 target_principal=args.wif_service_account,
                 target_scopes=["https://www.googleapis.com/auth/cloud-platform"],
-                lifetime=3600
+                lifetime=3600,
             )
             creds.refresh(request)
 
@@ -347,10 +347,7 @@ def execute_job(spec: JobSpec, args: argparse.Namespace) -> JobResult:
             overrides["containerOverrides"] = [{"args": spec.args}]
 
         logging.info("Triggering job %s...", spec.job_name)
-        request = service.projects().locations().jobs().run(
-            name=parent,
-            body={"overrides": overrides}
-        )
+        request = service.projects().locations().jobs().run(name=parent, body={"overrides": overrides})
         operation = request.execute()
         op_name = operation["name"]
         logging.info("Job started. Operation: %s", op_name)
@@ -402,7 +399,7 @@ def _get_iap_token(project: str, service_account: str | None) -> str | None:
     """Fetch an IAP-compatible ID token by looking up the backend service audience."""
     # Always use the runtime SA for IAP access as it has the correct permissions
     impersonate_sa = DEFAULT_RUNTIME_SA
-    
+
     try:
         # 1. Authenticate (User credentials)
         source_creds, _ = google.auth.default()
@@ -413,7 +410,7 @@ def _get_iap_token(project: str, service_account: str | None) -> str | None:
             source_credentials=source_creds,
             target_principal=impersonate_sa,
             target_scopes=["https://www.googleapis.com/auth/cloud-platform"],
-            lifetime=3600
+            lifetime=3600,
         )
         compute_creds.refresh(request)
 
@@ -421,11 +418,8 @@ def _get_iap_token(project: str, service_account: str | None) -> str | None:
         audience = None
         try:
             service = build("compute", "v1", credentials=compute_creds, cache_discovery=False)
-            response = service.backendServices().get(
-                project=project, 
-                backendService='i4g-lb-backend-api'
-            ).execute()
-            audience = response.get('iap', {}).get('oauth2ClientId')
+            response = service.backendServices().get(project=project, backendService="i4g-lb-backend-api").execute()
+            audience = response.get("iap", {}).get("oauth2ClientId")
         except Exception:
             pass
 
@@ -438,9 +432,7 @@ def _get_iap_token(project: str, service_account: str | None) -> str | None:
 
         # 3. Generate ID token with the audience and email claim
         id_token_creds = google.auth.impersonated_credentials.IDTokenCredentials(
-            target_credentials=compute_creds,
-            target_audience=audience,
-            include_email=True
+            target_credentials=compute_creds, target_audience=audience, include_email=True
         )
         id_token_creds.refresh(request)
         return id_token_creds.token
@@ -601,7 +593,7 @@ def write_reports(
     if search_smoke:
         report["search_smoke"] = {"status": search_smoke.status, "message": search_smoke.message}
 
-    json_path = args.report_dir / "dev_bootstrap_report.json"
+    json_path = args.report_dir / "report.json"
     json_path.write_text(json.dumps(report, indent=2, sort_keys=True))
 
     lines = [
@@ -638,13 +630,13 @@ def write_reports(
         lines.append("## Search smoke")
         lines.append(f"- {search_smoke.status}: {search_smoke.message}")
 
-    (args.report_dir / "dev_bootstrap_report.md").write_text("\n".join(lines))
+    (args.report_dir / "report.md").write_text("\n".join(lines))
 
 
 def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
     """Run ingestion logic locally instead of via Cloud Run jobs."""
     results: list[JobResult] = []
-    
+
     # 1. Stage bundle locally if needed
     local_bundle_path = None
     if args.bundle_uri:
@@ -653,41 +645,47 @@ def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
             logging.info("Staged bundle to %s", local_bundle_path)
         except Exception as exc:
             logging.error("Failed to stage bundle: %s", exc)
-            return [JobResult(
-                label="bundle_stage",
-                job_name="local-bundle-stage",
-                command=f"stage_bundle({args.bundle_uri})",
-                status="failure",
-                stdout="",
-                stderr=str(exc),
-                error=str(exc)
-            )]
+            return [
+                JobResult(
+                    label="bundle_stage",
+                    job_name="local-bundle-stage",
+                    command=f"stage_bundle({args.bundle_uri})",
+                    status="failure",
+                    stdout="",
+                    stderr=str(exc),
+                    error=str(exc),
+                )
+            ]
 
     # 2. Run Ingest (covers firestore, vertex, sql, bigquery via structured store)
     # We map the requested jobs to flags for the ingest script
-    
+
     # Check if any ingest-related job is requested
     ingest_jobs = {"firestore", "vertex", "sql", "bigquery"}
     requested_jobs = set()
-    if not args.skip_firestore: requested_jobs.add("firestore")
-    if not args.skip_vertex: requested_jobs.add("vertex")
-    if not args.skip_sql: requested_jobs.add("sql")
-    if not args.skip_bigquery: requested_jobs.add("bigquery")
-    
+    if not args.skip_firestore:
+        requested_jobs.add("firestore")
+    if not args.skip_vertex:
+        requested_jobs.add("vertex")
+    if not args.skip_sql:
+        requested_jobs.add("sql")
+    if not args.skip_bigquery:
+        requested_jobs.add("bigquery")
+
     if requested_jobs:
         logging.info("Running local ingestion for: %s", requested_jobs)
         env = os.environ.copy()
         env["I4G_ENV"] = "dev"  # Force dev env even if running locally
         if local_bundle_path:
             env["I4G_INGEST__JSONL_PATH"] = str(local_bundle_path)
-        
+
         if args.dataset:
             env["I4G_INGEST__DATASET_NAME"] = args.dataset
-        
+
         # Enable backends based on requested jobs
         env["I4G_INGEST__ENABLE_FIRESTORE"] = "1" if "firestore" in requested_jobs else "0"
         env["I4G_INGEST__ENABLE_VERTEX"] = "1" if "vertex" in requested_jobs else "0"
-        
+
         # Pass Vertex configuration if enabled
         if "vertex" in requested_jobs:
             if args.search_project:
@@ -697,29 +695,33 @@ def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
             if args.search_data_store_id:
                 env["I4G_VERTEX_SEARCH_DATA_STORE"] = args.search_data_store_id
             elif not os.getenv("I4G_VERTEX_SEARCH_DATA_STORE"):
-                 # Fallback to a reasonable default if not provided and not in env
-                 env["I4G_VERTEX_SEARCH_DATA_STORE"] = "retrieval-poc"
+                # Fallback to a reasonable default if not provided and not in env
+                env["I4G_VERTEX_SEARCH_DATA_STORE"] = "retrieval-poc"
 
         # SQL/BigQuery are handled by structured store which is enabled by default in ingest pipeline
         # unless we explicitly disable it, but ingest.py doesn't seem to have a flag to disable structured store easily
         # other than not building it. But build_structured_store uses settings.
-        
+
         if args.dry_run:
             env["I4G_INGEST__DRY_RUN"] = "1"
 
         cmd = [sys.executable, "-m", "i4g.worker.jobs.ingest"]
         command_str = " ".join(cmd)
-        
+
         try:
             if args.dry_run:
                 logging.info("[dry-run] Would run: %s with env overrides", command_str)
                 results.append(JobResult("ingest", "local-ingest", command_str, "skipped", "<dry-run>", "", None))
             else:
                 proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=True)
-                results.append(JobResult("ingest", "local-ingest", command_str, "success", proc.stdout, proc.stderr, None))
+                results.append(
+                    JobResult("ingest", "local-ingest", command_str, "success", proc.stdout, proc.stderr, None)
+                )
         except subprocess.CalledProcessError as exc:
             logging.error("Local ingestion failed: %s", exc.stderr)
-            results.append(JobResult("ingest", "local-ingest", command_str, "failure", exc.stdout, exc.stderr, str(exc)))
+            results.append(
+                JobResult("ingest", "local-ingest", command_str, "failure", exc.stdout, exc.stderr, str(exc))
+            )
 
     # 3. Run Reports
     if not args.skip_reports:
@@ -728,20 +730,24 @@ def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
         env["I4G_ENV"] = "dev"
         # Report job might need dataset path or other args?
         # core/src/i4g/worker/jobs/report.py usually reads from DB.
-        
+
         cmd = [sys.executable, "-m", "i4g.worker.jobs.report"]
         command_str = " ".join(cmd)
-        
+
         try:
             if args.dry_run:
                 logging.info("[dry-run] Would run: %s", command_str)
                 results.append(JobResult("reports", "local-reports", command_str, "skipped", "<dry-run>", "", None))
             else:
                 proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=True)
-                results.append(JobResult("reports", "local-reports", command_str, "success", proc.stdout, proc.stderr, None))
+                results.append(
+                    JobResult("reports", "local-reports", command_str, "success", proc.stdout, proc.stderr, None)
+                )
         except subprocess.CalledProcessError as exc:
             logging.error("Local reports failed: %s", exc.stderr)
-            results.append(JobResult("reports", "local-reports", command_str, "failure", exc.stdout, exc.stderr, str(exc)))
+            results.append(
+                JobResult("reports", "local-reports", command_str, "failure", exc.stdout, exc.stderr, str(exc))
+            )
 
     return results
 
@@ -762,7 +768,8 @@ def bootstrap_dev(args: argparse.Namespace) -> int:
         logging.info("Bundle sha256: %s", bundle_sha)
 
     logging.info(
-        "Bootstrap dev: project=%s region=%s bundle=%s " "dataset=%s dry_run=%s verify_only=%s run_smoke=%s local_execution=%s",
+        "Bootstrap dev: project=%s region=%s bundle=%s "
+        "dataset=%s dry_run=%s verify_only=%s run_smoke=%s local_execution=%s",
         args.project,
         args.region,
         args.bundle_uri or "<none>",

@@ -5,7 +5,7 @@ This directory contains a collection of ad-hoc scripts for quick testing, demons
 ## Quick Start
 
 ```bash
-i4g bootstrap local reset --report-dir data/reports/local_bootstrap
+i4g bootstrap local reset --report-dir data/reports/bootstrap_local
 ```
 
 Run this from the project root to rebuild bundles, screenshots, OCR artifacts, semantic entities, the manual ingestion demo, and review queue seeds in one shot. Helpful flags:

@@ -58,7 +58,7 @@ on:
       report_dir:
         description: "Report output directory"
         required: true
-        default: "data/reports/dev_bootstrap_ci"
+        default: "data/reports/bootstrap_dev_ci"
       wif_service_account:
         description: "Service account to impersonate via WIF"
         required: true
@@ -162,8 +162,8 @@ jobs:
         with:
           name: dev-bootstrap-report
           path: |
-            ${{ inputs.report_dir }}/dev_bootstrap_report.json
-            ${{ inputs.report_dir }}/dev_bootstrap_report.md
+            ${{ inputs.report_dir }}/report.json
+            ${{ inputs.report_dir }}/report.md
           if-no-files-found: warn
 
       - name: Summary

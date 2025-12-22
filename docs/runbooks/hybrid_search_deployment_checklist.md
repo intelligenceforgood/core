@@ -28,7 +28,7 @@ Use this checklist before promoting hybrid search changes from dev → prod. It 
 2. **Config sync**: run `python scripts/export_settings_manifest.py --docs-repo ../docs` so docs and manifests capture any new knobs.
 3. **Apply to dev**:
    - Deploy FastAPI + worker services with the refreshed container image and config overrides.
-  - Execute `i4g bootstrap local reset --report-dir data/reports/local_bootstrap` if dev data needs the latest entity fields, then run the ingestion job (`i4g jobs ingest`) with the `network_smoke` dataset.
+  - Execute `i4g bootstrap local reset --report-dir data/reports/bootstrap_local` if dev data needs the latest entity fields, then run the ingestion job (`i4g jobs ingest`) with the `network_smoke` dataset.
 4. **Smoke tests**:
    - API: `curl -sS -H "X-API-KEY: $I4G_API_KEY" "$FASTAPI_BASE/reviews/search/schema"` and confirm indicator/dataset lists include the new fields.
    - Next.js console: `pnpm --filter web test:smoke` (ensures schema-driven chips render).

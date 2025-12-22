@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from types import SimpleNamespace
 
-from i4g.cli import saved_searches
+from i4g.cli.admin import saved_searches
 
 
 class _StubReviewStore:

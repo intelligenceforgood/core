@@ -300,7 +300,7 @@ Postgres connection string and rerun the upgrade command.
 If you cleaned out the `data/` directory (or are onboarding to a fresh clone), start with the consolidated helper below to rebuild everything in one step:
 
 ```bash
-conda run -n i4g I4G_ENV=local i4g bootstrap local reset --report-dir data/reports/local_bootstrap
+conda run -n i4g I4G_ENV=local i4g bootstrap local reset --report-dir data/reports/bootstrap_local
 ```
 
 This Typer command orchestrates the bundle builder, screenshot synthesis, OCR, semantic extraction, manual ingest demo, review-case seeding, and verification reports. Use `--skip-ocr` or `--skip-vector` to trim the flow, and add `--bundle-uri` when you want to stage a specific bundle JSONL. Smoke helpers remain available (`--smoke-search`, `--smoke-dossiers`) when you want to validate Vertex or dossier signatures during the refresh.

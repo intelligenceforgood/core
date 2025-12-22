@@ -28,7 +28,7 @@ SEMANTIC_OUTPUT = DATA_DIR / "entities_semantic.jsonl"
 MANUAL_DEMO_DIR = DATA_DIR / "manual_demo"
 CHROMA_DIR = DATA_DIR / "chroma_store"
 SQLITE_DB = DATA_DIR / "i4g_store.db"
-REPORTS_DIR = DATA_DIR / "reports" / "local_bootstrap"
+REPORTS_DIR = DATA_DIR / "reports" / "bootstrap_local"
 PILOT_CASES_PATH = MANUAL_DEMO_DIR / "dossier_pilot_cases.json"
 
 DEFAULT_PILOT_CASES = [
@@ -352,8 +352,8 @@ def verify_sandbox(
     if dossier_smoke:
         report["dossier_smoke"] = dossier_smoke
 
-    json_path = report_dir / "bootstrap_verify.json"
-    md_path = report_dir / "bootstrap_verify.md"
+    json_path = report_dir / "verify.json"
+    md_path = report_dir / "verify.md"
 
     json_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     md_lines = ["# Local Bootstrap Verification", ""]
