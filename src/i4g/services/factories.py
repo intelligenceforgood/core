@@ -25,10 +25,10 @@ from i4g.store.entity_store import EntityStore
 from i4g.store.ingestion_retry_store import IngestionRetryStore
 from i4g.store.ingestion_run_tracker import IngestionRunTracker
 from i4g.store.intake_store import IntakeStore
-from i4g.store.review_store import ReviewStore
+from i4g.store.review_store import ReviewStore, SqlAlchemyReviewStore
 from i4g.store.sql import session_factory as build_sql_session_factory
 from i4g.store.sql_writer import SqlWriter
-from i4g.store.structured import StructuredStore
+from i4g.store.structured import StructuredStore, SqlAlchemyStructuredStore
 from i4g.store.vector import VectorStore
 
 
@@ -55,7 +55,8 @@ def build_structured_store(db_path: str | Path | None = None) -> StructuredStore
         raise NotImplementedError("Firestore structured backend not implemented yet")
 
     if backend == "cloudsql":
-        raise NotImplementedError("Cloud SQL structured backend not implemented yet")
+        session_factory = build_sql_session_factory()
+        return SqlAlchemyStructuredStore(session_factory=session_factory)
 
     raise NotImplementedError(f"Unsupported structured storage backend '{backend}'")
 
@@ -79,7 +80,8 @@ def build_review_store(db_path: str | Path | None = None) -> ReviewStore:
         raise NotImplementedError("Firestore review backend not implemented yet")
 
     if backend == "cloudsql":
-        raise NotImplementedError("Cloud SQL review backend not implemented yet")
+        session_factory = build_sql_session_factory()
+        return SqlAlchemyReviewStore(session_factory=session_factory)
 
     raise NotImplementedError(f"Unsupported review backend '{backend}'")
 
@@ -128,7 +130,10 @@ def build_vector_store(
         raise NotImplementedError("pgvector backend not implemented yet")
 
     if resolved_backend == "vertex_ai":
-        raise NotImplementedError("Vertex AI vector backend not implemented yet")
+        return VectorStore(
+            backend="vertex_ai",
+            reset=reset,
+        )
 
     raise NotImplementedError(f"Unsupported vector backend '{resolved_backend}'")
 

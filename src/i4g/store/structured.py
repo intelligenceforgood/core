@@ -18,7 +18,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import sqlalchemy as sa
+from sqlalchemy.orm import Session, sessionmaker
+
 from i4g.settings import get_settings
+from i4g.store import sql as sql_schema
+from i4g.store.sql import session_factory as default_session_factory
 from i4g.store.schema import ScamRecord
 
 SETTINGS = get_settings()
@@ -331,3 +336,140 @@ class StructuredStore:
                 if len(results) >= top_k:
                     break
         return results
+
+
+class SqlAlchemyStructuredStore:
+    """SQLAlchemy-backed structured storage for ScamRecord objects."""
+
+    def __init__(self, session_factory: sessionmaker | None = None) -> None:
+        self._session_factory = session_factory or default_session_factory()
+        # Create tables if they don't exist
+        with self._session_factory() as session:
+            sql_schema.METADATA.create_all(session.get_bind())
+
+    def close(self) -> None:
+        pass
+
+    def upsert_record(self, record: ScamRecord) -> None:
+        """Insert or update a ScamRecord."""
+        with self._session_factory() as session:
+            stmt = sa.dialects.postgresql.insert(sql_schema.scam_records).values(
+                case_id=record.case_id,
+                text=record.text,
+                entities=record.entities,
+                classification=record.classification,
+                confidence=record.confidence,
+                created_at=record.created_at,
+                embedding=record.embedding,
+                metadata=record.metadata,
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["case_id"],
+                set_={
+                    "text": stmt.excluded.text,
+                    "entities": stmt.excluded.entities,
+                    "classification": stmt.excluded.classification,
+                    "confidence": stmt.excluded.confidence,
+                    "created_at": stmt.excluded.created_at,
+                    "embedding": stmt.excluded.embedding,
+                    "metadata": stmt.excluded.metadata,
+                },
+            )
+            session.execute(stmt)
+            session.commit()
+
+    def get_by_id(self, case_id: str) -> Optional[ScamRecord]:
+        """Retrieve a record by case_id."""
+        with self._session_factory() as session:
+            row = session.execute(
+                sa.select(sql_schema.scam_records).where(sql_schema.scam_records.c.case_id == case_id)
+            ).first()
+            if not row:
+                return None
+            return self._row_to_record(row)
+
+    def _row_to_record(self, row: Any) -> ScamRecord:
+        """Convert a SQLAlchemy Row to ScamRecord."""
+        return ScamRecord(
+            case_id=row.case_id,
+            text=row.text,
+            entities=row.entities or {},
+            classification=row.classification,
+            confidence=float(row.confidence) if row.confidence is not None else 0.0,
+            created_at=row.created_at,
+            embedding=row.embedding,
+            metadata=row.metadata,
+        )
+
+    def list_recent(self, limit: int = 50) -> List[ScamRecord]:
+        """List the most recent records ordered by created_at descending."""
+        with self._session_factory() as session:
+            rows = session.execute(
+                sa.select(sql_schema.scam_records)
+                .order_by(sql_schema.scam_records.c.created_at.desc())
+                .limit(limit)
+            ).all()
+            return [self._row_to_record(r) for r in rows]
+
+    def search_by_field(self, field: str, value: Any, top_k: int = 50) -> List[ScamRecord]:
+        """Search records by a top-level field or inside the JSON entities."""
+        with self._session_factory() as session:
+            query = sa.select(sql_schema.scam_records)
+
+            if field == "confidence" and isinstance(value, str) and value.startswith((">", "<", ">=", "<=")):
+                op = value[0]
+                num = float(value[1:])
+                if value.startswith(">="):
+                    op = ">="
+                    num = float(value[2:])
+                elif value.startswith("<="):
+                    op = "<="
+                    num = float(value[2:])
+                
+                col = sql_schema.scam_records.c.confidence
+                if op == ">": query = query.where(col > num)
+                elif op == "<": query = query.where(col < num)
+                elif op == ">=": query = query.where(col >= num)
+                elif op == "<=": query = query.where(col <= num)
+                
+                query = query.order_by(col.desc())
+
+            elif field in ("case_id", "classification"):
+                query = query.where(getattr(sql_schema.scam_records.c, field) == value)
+            
+            elif field == "dataset":
+                # JSON search for dataset in metadata
+                query = query.where(sql_schema.scam_records.c.metadata["dataset"].astext == str(value))
+
+            else:
+                # JSON search in entities
+                if isinstance(value, str):
+                    query = query.where(sql_schema.scam_records.c.entities[field].contains([value]))
+
+            query = query.limit(top_k)
+            rows = session.execute(query).all()
+            return [self._row_to_record(r) for r in rows]
+
+    def search_text(self, query: str, top_k: int = 50, offset: int = 0) -> List[ScamRecord]:
+        """Run a simple case-insensitive substring search against the text column."""
+        if not query:
+            return []
+        
+        with self._session_factory() as session:
+            pattern = f"%{query.strip()}%"
+            stmt = sa.select(sql_schema.scam_records).where(
+                sql_schema.scam_records.c.text.ilike(pattern)
+            ).order_by(sql_schema.scam_records.c.created_at.desc()).limit(top_k).offset(offset)
+            
+            rows = session.execute(stmt).all()
+            return [self._row_to_record(r) for r in rows]
+
+    def delete_by_id(self, case_id: str) -> bool:
+        """Delete a record by case_id."""
+        with self._session_factory() as session:
+            result = session.execute(
+                sa.delete(sql_schema.scam_records).where(sql_schema.scam_records.c.case_id == case_id)
+            )
+            session.commit()
+            return result.rowcount > 0
+

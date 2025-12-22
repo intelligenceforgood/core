@@ -244,6 +244,14 @@ class StorageSettings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("CLOUDSQL_DATABASE", "STORAGE__CLOUDSQL__DATABASE"),
     )
+    cloudsql_user: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("CLOUDSQL_USER", "STORAGE__CLOUDSQL__USER"),
+    )
+    cloudsql_password: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("CLOUDSQL_PASSWORD", "STORAGE__CLOUDSQL__PASSWORD"),
+    )
 
 
 class VectorSettings(BaseSettings):

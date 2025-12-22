@@ -53,3 +53,16 @@ instructions and planning prompts listed below.
   overrides.
 - Reflect env var changes in docs under `docs/config/` and rerun the local smoke if jobs are touched:
   `conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g jobs account ...`.
+
+## Docker Build Reference
+Use `scripts/build_image.sh` to build and push images to Artifact Registry (requires `gcloud` auth).
+
+```bash
+scripts/build_image.sh streamlit dev
+scripts/build_image.sh fastapi dev
+scripts/build_image.sh dossier-job dev
+scripts/build_image.sh ingest-job dev
+scripts/build_image.sh intake-job dev
+scripts/build_image.sh report-job dev
+scripts/build_image.sh account-job dev --smoker true
+```

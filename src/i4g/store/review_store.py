@@ -20,7 +20,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set
 
+import sqlalchemy as sa
+from sqlalchemy.orm import Session, sessionmaker
+
 from i4g.settings import get_settings
+from i4g.store import sql as sql_schema
+from i4g.store.sql import session_factory as default_session_factory
 
 SETTINGS = get_settings()
 
@@ -716,3 +721,243 @@ def _iso_timestamp(value: Optional[datetime]) -> str:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.isoformat()
+
+
+class SqlAlchemyReviewStore:
+    """SQLAlchemy-backed review queue and audit logger."""
+
+    def __init__(self, session_factory: sessionmaker | None = None) -> None:
+        self._session_factory = session_factory or default_session_factory()
+
+    def enqueue_case(self, case_id: str, priority: str = "medium") -> str:
+        review_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+        with self._session_factory() as session:
+            stmt = sa.insert(sql_schema.review_queue).values(
+                review_id=review_id,
+                case_id=case_id,
+                queued_at=now,
+                priority=priority,
+                status="queued",
+                last_updated=now,
+            )
+            session.execute(stmt)
+            session.commit()
+        return review_id
+
+    def get_queue(self, status: str = "queued", limit: int = 25) -> List[Dict[str, Any]]:
+        with self._session_factory() as session:
+            rows = session.execute(
+                sa.select(sql_schema.review_queue)
+                .where(sql_schema.review_queue.c.status == status)
+                .order_by(sql_schema.review_queue.c.queued_at.asc())
+                .limit(limit)
+            ).all()
+            return [dict(r._mapping) for r in rows]
+
+    def get_review(self, review_id: str) -> Optional[Dict[str, Any]]:
+        with self._session_factory() as session:
+            row = session.execute(
+                sa.select(sql_schema.review_queue).where(sql_schema.review_queue.c.review_id == review_id)
+            ).first()
+            return dict(row._mapping) if row else None
+
+    def get_cases(self, case_ids: Iterable[str]) -> Dict[str, Dict[str, Any]]:
+        normalized = list({str(cid).strip() for cid in case_ids if cid and str(cid).strip()})
+        if not normalized:
+            return {}
+        
+        with self._session_factory() as session:
+            rows = session.execute(
+                sa.select(sql_schema.review_queue).where(sql_schema.review_queue.c.case_id.in_(normalized))
+            ).all()
+            return {str(row.case_id): dict(row._mapping) for row in rows}
+
+    def update_status(self, review_id: str, status: str, notes: Optional[str] = None) -> None:
+        now = datetime.now(timezone.utc)
+        with self._session_factory() as session:
+            stmt = sa.update(sql_schema.review_queue).where(
+                sql_schema.review_queue.c.review_id == review_id
+            ).values(status=status, notes=notes, last_updated=now)
+            session.execute(stmt)
+            session.commit()
+
+    def upsert_queue_entry(
+        self,
+        *,
+        review_id: Optional[str],
+        case_id: str,
+        status: str,
+        queued_at: datetime,
+        priority: str = "medium",
+        last_updated: Optional[datetime] = None,
+        assigned_to: Optional[str] = None,
+        notes: Optional[str] = None,
+    ) -> str:
+        normalized_review_id = review_id or str(uuid.uuid4())
+        last_updated = last_updated or queued_at
+        
+        with self._session_factory() as session:
+            stmt = sa.dialects.postgresql.insert(sql_schema.review_queue).values(
+                review_id=normalized_review_id,
+                case_id=case_id,
+                queued_at=queued_at,
+                priority=priority,
+                status=status,
+                assigned_to=assigned_to,
+                notes=notes,
+                last_updated=last_updated,
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["review_id"],
+                set_={
+                    "case_id": stmt.excluded.case_id,
+                    "queued_at": stmt.excluded.queued_at,
+                    "priority": stmt.excluded.priority,
+                    "status": stmt.excluded.status,
+                    "assigned_to": stmt.excluded.assigned_to,
+                    "notes": stmt.excluded.notes,
+                    "last_updated": stmt.excluded.last_updated,
+                },
+            )
+            session.execute(stmt)
+            session.commit()
+        return normalized_review_id
+
+    def log_action(
+        self,
+        review_id: str,
+        action: str,
+        actor: str = "system",
+        payload: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        action_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+        with self._session_factory() as session:
+            stmt = sa.insert(sql_schema.review_actions).values(
+                action_id=action_id,
+                review_id=review_id,
+                actor=actor,
+                action=action,
+                payload=payload,
+                created_at=now,
+            )
+            session.execute(stmt)
+            session.commit()
+        return action_id
+
+    def get_actions(self, review_id: str) -> List[Dict[str, Any]]:
+        with self._session_factory() as session:
+            rows = session.execute(
+                sa.select(sql_schema.review_actions)
+                .where(sql_schema.review_actions.c.review_id == review_id)
+                .order_by(sql_schema.review_actions.c.created_at.asc())
+            ).all()
+            return [dict(r._mapping) for r in rows]
+
+    def save_search(
+        self,
+        name: str,
+        params: Dict[str, Any],
+        owner: Optional[str] = None,
+        search_id: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+    ) -> str:
+        sid = search_id or str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+        tags_json = tags or []
+        
+        with self._session_factory() as session:
+            stmt = sa.dialects.postgresql.insert(sql_schema.saved_searches).values(
+                search_id=sid,
+                name=name,
+                owner=owner,
+                params=params,
+                created_at=now,
+                tags=tags_json,
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["search_id"],
+                set_={
+                    "name": stmt.excluded.name,
+                    "owner": stmt.excluded.owner,
+                    "params": stmt.excluded.params,
+                    "tags": stmt.excluded.tags,
+                },
+            )
+            session.execute(stmt)
+            session.commit()
+        return sid
+
+    def list_searches(self, owner: Optional[str] = None) -> List[Dict[str, Any]]:
+        with self._session_factory() as session:
+            query = sa.select(sql_schema.saved_searches)
+            if owner:
+                query = query.where(sql_schema.saved_searches.c.owner == owner)
+            query = query.order_by(sql_schema.saved_searches.c.created_at.desc())
+            rows = session.execute(query).all()
+            return [dict(r._mapping) for r in rows]
+
+    def get_search(self, search_id: str) -> Optional[Dict[str, Any]]:
+        with self._session_factory() as session:
+            row = session.execute(
+                sa.select(sql_schema.saved_searches).where(sql_schema.saved_searches.c.search_id == search_id)
+            ).first()
+            return dict(row._mapping) if row else None
+
+    def delete_search(self, search_id: str) -> bool:
+        with self._session_factory() as session:
+            result = session.execute(
+                sa.delete(sql_schema.saved_searches).where(sql_schema.saved_searches.c.search_id == search_id)
+            )
+            session.commit()
+            return result.rowcount > 0
+
+    def toggle_favorite(self, search_id: str, favorite: bool) -> bool:
+        with self._session_factory() as session:
+            result = session.execute(
+                sa.update(sql_schema.saved_searches)
+                .where(sql_schema.saved_searches.c.search_id == search_id)
+                .values(favorite=favorite)
+            )
+            session.commit()
+            return result.rowcount > 0
+
+    def update_saved_search(
+        self,
+        search_id: str,
+        name: Optional[str] = None,
+        params: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+    ) -> bool:
+        values = {}
+        if name is not None: values["name"] = name
+        if params is not None: values["params"] = params
+        if tags is not None: values["tags"] = tags
+        
+        if not values:
+            return False
+
+        with self._session_factory() as session:
+            result = session.execute(
+                sa.update(sql_schema.saved_searches)
+                .where(sql_schema.saved_searches.c.search_id == search_id)
+                .values(**values)
+            )
+            session.commit()
+            return result.rowcount > 0
+
+    def bulk_tag_searches(self, search_ids: List[str], tags: List[str]) -> int:
+        updated = 0
+        for sid in search_ids:
+            search = self.get_search(sid)
+            if not search:
+                continue
+            current_tags = search.get("tags") or []
+            if not isinstance(current_tags, list):
+                current_tags = []
+            
+            new_tags = list(set(current_tags + tags))
+            if self.update_saved_search(sid, tags=new_tags):
+                updated += 1
+        return updated

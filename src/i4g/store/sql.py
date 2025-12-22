@@ -180,6 +180,56 @@ ingestion_retry_queue = sa.Table(
 sa.Index("idx_retry_queue_case_backend", ingestion_retry_queue.c.case_id, ingestion_retry_queue.c.backend)
 
 
+scam_records = sa.Table(
+    "scam_records",
+    METADATA,
+    sa.Column("case_id", sa.Text(), primary_key=True),
+    sa.Column("text", sa.Text(), nullable=True),
+    sa.Column("entities", JSON_TYPE, nullable=True),
+    sa.Column("classification", sa.Text(), nullable=True),
+    sa.Column("confidence", sa.Float(), nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=True),
+    sa.Column("embedding", JSON_TYPE, nullable=True),
+    sa.Column("metadata", JSON_TYPE, nullable=True),
+)
+
+review_queue = sa.Table(
+    "review_queue",
+    METADATA,
+    sa.Column("review_id", sa.Text(), primary_key=True),
+    sa.Column("case_id", sa.Text(), nullable=False),
+    sa.Column("queued_at", TIMESTAMP, nullable=False),
+    sa.Column("priority", sa.Text(), server_default="medium"),
+    sa.Column("status", sa.Text(), server_default="queued"),
+    sa.Column("assigned_to", sa.Text(), nullable=True),
+    sa.Column("notes", sa.Text(), nullable=True),
+    sa.Column("last_updated", TIMESTAMP, nullable=True),
+)
+
+review_actions = sa.Table(
+    "review_actions",
+    METADATA,
+    sa.Column("action_id", sa.Text(), primary_key=True),
+    sa.Column("review_id", sa.Text(), sa.ForeignKey("review_queue.review_id"), nullable=False),
+    sa.Column("actor", sa.Text(), nullable=True),
+    sa.Column("action", sa.Text(), nullable=True),
+    sa.Column("payload", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=True),
+)
+
+saved_searches = sa.Table(
+    "saved_searches",
+    METADATA,
+    sa.Column("search_id", sa.Text(), primary_key=True),
+    sa.Column("name", sa.Text(), nullable=False),
+    sa.Column("owner", sa.Text(), nullable=True),
+    sa.Column("params", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=True),
+    sa.Column("favorite", sa.Boolean(), server_default=sa.text("false")),
+    sa.Column("tags", JSON_TYPE, server_default=sa.text("'[]'")),
+)
+
+
 def _resolve_database_url(settings: Settings | None = None) -> str:
     """Return the SQLAlchemy URL considering overrides and configured backend."""
 
@@ -202,7 +252,43 @@ def _resolve_database_url(settings: Settings | None = None) -> str:
 def build_engine(*, echo: bool = False, settings: Settings | None = None) -> Engine:
     """Instantiate a SQLAlchemy engine aligned with project settings."""
 
-    url = _resolve_database_url(settings)
+    resolved = settings or get_settings()
+    backend = resolved.storage.structured_backend
+
+    if backend == "cloudsql":
+        from google.cloud.sql.connector import Connector, IPTypes
+
+        instance_connection_name = resolved.storage.cloudsql_instance
+        db_user = resolved.storage.cloudsql_user
+        db_pass = resolved.storage.cloudsql_password
+        db_name = resolved.storage.cloudsql_database
+
+        if not all([instance_connection_name, db_user, db_pass, db_name]):
+            raise ValueError("Missing Cloud SQL configuration (instance, user, password, or database)")
+
+        # Initialize Connector object
+        connector = Connector()
+
+        def getconn():
+            conn = connector.connect(
+                instance_connection_name,
+                "pg8000",
+                user=db_user,
+                password=db_pass,
+                db=db_name,
+                ip_type=IPTypes.PUBLIC,
+            )
+            return conn
+
+        return sa.create_engine(
+            "postgresql+pg8000://",
+            creator=getconn,
+            echo=echo,
+            future=True,
+            pool_pre_ping=True,
+        )
+
+    url = _resolve_database_url(resolved)
     connect_args: dict[str, Any] = {}
     if url.startswith("sqlite:///"):
         connect_args["check_same_thread"] = False

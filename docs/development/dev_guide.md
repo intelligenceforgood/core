@@ -61,7 +61,21 @@ The `data/i4g_store.db` file is a local SQLite database used for storing applica
 
 This file is created automatically when you run the application and is not meant to be shared or committed to version control. If you want to start with a fresh database, you can delete this file.
 
-For a complete overview of storage backends (including Vector and Blob storage) across environments, see the [Storage Architecture](../design/storage_architecture.md) guide.
+For a complete overview of storage backends (including Vector and Blob storage) across environments, see the [Storage Architecture](../design/storage.md) guide.
+
+### Cloud SQL Proxy (Optional)
+
+If you need to connect to the Cloud SQL instance from your local machine (e.g., for debugging or running migrations against the dev database), install the [Cloud SQL Auth Proxy](https://cloud.google.com/sql/docs/postgres/sql-proxy).
+
+```bash
+# Install proxy
+brew install cloud-sql-proxy
+
+# Start proxy (in a separate terminal)
+cloud-sql-proxy i4g-dev:us-central1:i4g-dev-db
+```
+
+Then configure your local settings to point to `127.0.0.1:5432`.
 
 ---
 
@@ -532,6 +546,13 @@ manual test until the automated LEA portal ships.
 - **Snapshot context:** `bash tests/adhoc/generate_context_snapshot.sh --help`
 - **Install git hook:** `ln -sf ../../scripts/git-hooks/pre-commit .git/hooks/pre-commit`
 - **First hook run:** `pre-commit run --all-files`
+
+### Debugging Tools
+
+The `scripts/` directory contains standalone utilities for diagnosing configuration and authentication issues:
+
+- **`scripts/debug_settings.py`**: Prints the resolved Pydantic settings and environment variable overrides. Use this to verify that your `.env` files or shell exports are being picked up correctly by the application.
+- **`scripts/debug_iap.py`**: Tests Identity-Aware Proxy (IAP) authentication flows by impersonating a service account and generating an ID token. Use this to verify service-to-service authentication when connecting to protected Cloud Run endpoints.
 
 For a consolidated checklist of ingestion and intake smoke tests, see [`docs/cookbooks/smoke_test.md`](./cookbooks/smoke_test.md).
 

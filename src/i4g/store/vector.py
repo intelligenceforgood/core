@@ -30,7 +30,7 @@ def _default_backend() -> str:
     """Return the configured vector backend or fall back to Chroma."""
 
     backend = SETTINGS.vector.backend.lower()
-    if backend not in {"chroma", "faiss"}:
+    if backend not in {"chroma", "faiss", "vertex_ai"}:
         return "chroma"
     return backend
 
@@ -189,12 +189,17 @@ class VectorStore:
             reset: If True, remove any existing persisted data before init.
         """
         backend_name = (backend or _default_backend()).lower()
-        if backend_name not in {"chroma", "faiss"}:
+        if backend_name not in {"chroma", "faiss", "vertex_ai"}:
             raise ValueError(f"Unsupported vector backend '{backend_name}'")
 
         self.backend_name = backend_name
         self.embedding_model_name = embedding_model
-        self.embeddings = OllamaEmbeddings(model=embedding_model)
+        
+        # Only initialize Ollama embeddings if using a local backend
+        if backend_name in {"chroma", "faiss"}:
+            self.embeddings = OllamaEmbeddings(model=embedding_model)
+        else:
+            self.embeddings = None
 
         default_dir = DEFAULT_VECTOR_DIR if backend_name == "chroma" else DEFAULT_FAISS_DIR
         self.persist_dir = persist_dir or default_dir
@@ -204,6 +209,15 @@ class VectorStore:
 
         if backend_name == "chroma":
             self._backend = _ChromaBackend(self.persist_dir, self.embeddings, collection_name)
+        elif backend_name == "vertex_ai":
+            from i4g.store.vertex_vector import _VertexAIBackend
+
+            self._backend = _VertexAIBackend(
+                project_id=SETTINGS.vector.vertex_ai_project,
+                location=SETTINGS.vector.vertex_ai_location,
+                data_store_id=SETTINGS.vector.vertex_ai_data_store,
+                branch_id=SETTINGS.vector.vertex_ai_branch,
+            )
         else:
             self._backend = _FaissBackend(self.persist_dir, self.embeddings)
 

@@ -13,21 +13,26 @@ This document details the storage backends used by the i4g platform across diffe
 | **Document** | `FirestoreWriter` (Case Metadata) | **Mock/No-op** (or SQLite) | **Firestore** (Native Mode) |
 | **Vector** | `VectorStore` (Embeddings) | **Chroma** (`data/chroma_store`) | **Vertex AI Search** |
 | **Blob/File** | `EvidenceStorage` (PDFs, Images) | **Local FS** (`data/evidence`) | **Cloud Storage** (GCS) |
-| **Queue/State** | `ReviewStore` (Analyst Queue) | **SQLite** (`data/i4g_store.db`) | **SQLite** (Ephemeral)* |
+| **Queue/State** | `ReviewStore` (Analyst Queue) | **SQLite** (`data/i4g_store.db`) | **Cloud SQL** (Postgres) |
 
-> (*) **Note on Review Queue**: The `ReviewStore` currently relies on SQLite in all environments. In Cloud Run, this results in ephemeral queue state that resets on container restarts. A Firestore-backed `ReviewStore` is planned for full persistence.
+> (*) **Note on Review Queue**: The `ReviewStore` now uses the shared Cloud SQL instance in cloud environments, ensuring persistent queue state across container restarts.
 
 ## Component Details
 
 ### 1. Relational Store (SQL)
-**Purpose**: The "source of truth" for high-volume structured data generated during ingestion.
+**Purpose**: The "source of truth" for high-volume structured data generated during ingestion and analyst queue state.
 - **Schema**: Defined in `src/i4g/store/sql.py`.
 - **Tables**:
     - `ingestion_runs`: Audit log of batch processing jobs.
     - `cases`: Core case metadata (deduplicated by dataset + hash).
     - `entities`: Extracted indicators (crypto addresses, emails, phones) linked to cases.
     - `source_documents`: Chunked text from evidence files.
-- **Access**: Accessed via `EntityStore` and SQLAlchemy sessions.
+    - `reviews`: Analyst review queue items and status.
+- **Access**: Accessed via `EntityStore`, `ReviewStore`, and SQLAlchemy sessions.
+- **Infrastructure**:
+    - **Instance**: `i4g-dev-db` (Cloud SQL Postgres 15)
+    - **Database**: `i4g_db`
+    - **Users**: `ingest_user` (jobs), `app_user` (API)
 
 ### 2. Document Store (NoSQL)
 **Purpose**: Flexible storage for case documents that need real-time updates or schema evolution.
@@ -43,6 +48,10 @@ This document details the storage backends used by the i4g platform across diffe
     - **Chroma**: Used locally for zero-cost development. Stores artifacts in `data/chroma_store`.
     - **Vertex AI Search**: Managed service used in cloud environments for scalability and managed infrastructure.
 - **Access**: Accessed via `VectorStore` and `HybridRetriever`.
+- **Infrastructure**:
+    - **Data Store ID**: `retrieval-poc`
+    - **Location**: `global` (required for Search edition)
+    - **Project**: `i4g-dev`
 
 ### 4. Blob Storage (Unstructured)
 **Purpose**: Storage for raw evidence files (PDFs, screenshots) and generated reports.
