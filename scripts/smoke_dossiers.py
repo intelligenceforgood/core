@@ -204,9 +204,7 @@ def run_smoke(args: argparse.Namespace) -> VerificationResult:
     selected = select_plan(dossiers, args.plan_id)
     verification = verify_plan(args.api_url, args.token, str(selected.get("plan_id")), iap_token)
     download_via_api(args.api_url, args.token, selected.get("downloads") or {}, iap_token)
-    signature_manifest = fetch_signature_manifest(
-        args.api_url, args.token, str(selected.get("plan_id")), iap_token
-    )
+    signature_manifest = fetch_signature_manifest(args.api_url, args.token, str(selected.get("plan_id")), iap_token)
     manifest_path = selected.get("manifest_path") or (selected.get("downloads", {}).get("local", {}) or {}).get(
         "manifest"
     )

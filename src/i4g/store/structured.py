@@ -405,9 +405,7 @@ class SqlAlchemyStructuredStore:
         """List the most recent records ordered by created_at descending."""
         with self._session_factory() as session:
             rows = session.execute(
-                sa.select(sql_schema.scam_records)
-                .order_by(sql_schema.scam_records.c.created_at.desc())
-                .limit(limit)
+                sa.select(sql_schema.scam_records).order_by(sql_schema.scam_records.c.created_at.desc()).limit(limit)
             ).all()
             return [self._row_to_record(r) for r in rows]
 
@@ -425,18 +423,22 @@ class SqlAlchemyStructuredStore:
                 elif value.startswith("<="):
                     op = "<="
                     num = float(value[2:])
-                
+
                 col = sql_schema.scam_records.c.confidence
-                if op == ">": query = query.where(col > num)
-                elif op == "<": query = query.where(col < num)
-                elif op == ">=": query = query.where(col >= num)
-                elif op == "<=": query = query.where(col <= num)
-                
+                if op == ">":
+                    query = query.where(col > num)
+                elif op == "<":
+                    query = query.where(col < num)
+                elif op == ">=":
+                    query = query.where(col >= num)
+                elif op == "<=":
+                    query = query.where(col <= num)
+
                 query = query.order_by(col.desc())
 
             elif field in ("case_id", "classification"):
                 query = query.where(getattr(sql_schema.scam_records.c, field) == value)
-            
+
             elif field == "dataset":
                 # JSON search for dataset in metadata
                 query = query.where(sql_schema.scam_records.c.metadata["dataset"].astext == str(value))
@@ -454,13 +456,17 @@ class SqlAlchemyStructuredStore:
         """Run a simple case-insensitive substring search against the text column."""
         if not query:
             return []
-        
+
         with self._session_factory() as session:
             pattern = f"%{query.strip()}%"
-            stmt = sa.select(sql_schema.scam_records).where(
-                sql_schema.scam_records.c.text.ilike(pattern)
-            ).order_by(sql_schema.scam_records.c.created_at.desc()).limit(top_k).offset(offset)
-            
+            stmt = (
+                sa.select(sql_schema.scam_records)
+                .where(sql_schema.scam_records.c.text.ilike(pattern))
+                .order_by(sql_schema.scam_records.c.created_at.desc())
+                .limit(top_k)
+                .offset(offset)
+            )
+
             rows = session.execute(stmt).all()
             return [self._row_to_record(r) for r in rows]
 
@@ -472,4 +478,3 @@ class SqlAlchemyStructuredStore:
             )
             session.commit()
             return result.rowcount > 0
-

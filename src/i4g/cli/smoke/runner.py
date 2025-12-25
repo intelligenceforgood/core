@@ -172,13 +172,18 @@ def _execute_job(
     job_id: str,
     api_url: str | None = None,
     api_key: str | None = None,
+    impersonate_service_account: str | None = None,
 ) -> str:
     # Workaround for gcloud 550.0.0 bug (delayExecution): use curl to trigger job
-    token_proc = _run_command(["gcloud", "auth", "print-access-token"])
+    cmd = ["gcloud", "auth", "print-access-token"]
+    if impersonate_service_account:
+        cmd.extend(["--impersonate-service-account", impersonate_service_account])
+
+    token_proc = _run_command(cmd)
     access_token = token_proc.stdout.strip()
 
     url = f"https://run.googleapis.com/v2/projects/{project}/locations/{region}/jobs/{job}:run"
-    
+
     env_vars = [
         {"name": "I4G_INTAKE__ID", "value": intake_id},
         {"name": "I4G_INTAKE__JOB_ID", "value": job_id},
@@ -214,11 +219,21 @@ def _execute_job(
     ]
 
     proc = _run_command(curl_cmd)
+    if proc.returncode != 0:
+        raise SmokeError(f"Failed to trigger job: {proc.stderr}")
+
+    # Check for HTTP errors in stdout (since curl -sS writes response body to stdout)
+    # If the response is not JSON or contains an error field, it might be a 403/404/500
     try:
         resp = json.loads(proc.stdout)
+        if "error" in resp:
+            error_msg = json.dumps(resp["error"])
+            raise SmokeError(f"Job trigger failed (API error): {error_msg}")
+
         full_name = resp["metadata"]["name"]
         execution_name = full_name.split("/")[-1]
     except (KeyError, IndexError, json.JSONDecodeError) as exc:
+        # If we can't parse JSON, it might be a raw error message or HTML
         raise SmokeError(f"Failed to parse job execution response: {proc.stdout}") from exc
 
     console.print(f"Job triggered: {execution_name}. Waiting for completion...")
@@ -247,7 +262,7 @@ def _execute_job(
         status = json.loads(proc.stdout)
         conditions = status.get("status", {}).get("conditions", [])
         completed = next((c for c in conditions if c["type"] == "Completed"), None)
-        
+
         if completed:
             status_str = completed.get("status")
             message = completed.get("message")
@@ -263,7 +278,7 @@ def _execute_job(
                 # Unknown/Running
                 console.print(f"Job running... ({message})")
         else:
-             console.print("Job status unknown...")
+            console.print("Job status unknown...")
 
         time.sleep(10)
 
@@ -292,6 +307,7 @@ def _fetch_intake(api_url: str, intake_id: str, token: str, iap_token: str | Non
 def cloud_run_smoke(args: Any) -> None:
     """Run the dev Cloud Run intake smoke end-to-end."""
     iap_token = getattr(args, "iap_token", None)
+    impersonate_sa = getattr(args, "impersonate_service_account", None)
 
     try:
         intake_id, job_id = _submit_intake(args.api_url.rstrip("/"), args.token, iap_token)
@@ -304,6 +320,7 @@ def cloud_run_smoke(args: Any) -> None:
             job_id,
             api_url=args.api_url,
             api_key=args.token,
+            impersonate_service_account=impersonate_sa,
         )
         intake = _fetch_intake(args.api_url.rstrip("/"), intake_id, args.token, iap_token)
     except SmokeError as exc:

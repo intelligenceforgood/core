@@ -766,7 +766,7 @@ class SqlAlchemyReviewStore:
         normalized = list({str(cid).strip() for cid in case_ids if cid and str(cid).strip()})
         if not normalized:
             return {}
-        
+
         with self._session_factory() as session:
             rows = session.execute(
                 sa.select(sql_schema.review_queue).where(sql_schema.review_queue.c.case_id.in_(normalized))
@@ -776,9 +776,11 @@ class SqlAlchemyReviewStore:
     def update_status(self, review_id: str, status: str, notes: Optional[str] = None) -> None:
         now = datetime.now(timezone.utc)
         with self._session_factory() as session:
-            stmt = sa.update(sql_schema.review_queue).where(
-                sql_schema.review_queue.c.review_id == review_id
-            ).values(status=status, notes=notes, last_updated=now)
+            stmt = (
+                sa.update(sql_schema.review_queue)
+                .where(sql_schema.review_queue.c.review_id == review_id)
+                .values(status=status, notes=notes, last_updated=now)
+            )
             session.execute(stmt)
             session.commit()
 
@@ -796,7 +798,7 @@ class SqlAlchemyReviewStore:
     ) -> str:
         normalized_review_id = review_id or str(uuid.uuid4())
         last_updated = last_updated or queued_at
-        
+
         with self._session_factory() as session:
             stmt = sa.dialects.postgresql.insert(sql_schema.review_queue).values(
                 review_id=normalized_review_id,
@@ -866,7 +868,7 @@ class SqlAlchemyReviewStore:
         sid = search_id or str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         tags_json = tags or []
-        
+
         with self._session_factory() as session:
             stmt = sa.dialects.postgresql.insert(sql_schema.saved_searches).values(
                 search_id=sid,
@@ -931,10 +933,13 @@ class SqlAlchemyReviewStore:
         tags: Optional[List[str]] = None,
     ) -> bool:
         values = {}
-        if name is not None: values["name"] = name
-        if params is not None: values["params"] = params
-        if tags is not None: values["tags"] = tags
-        
+        if name is not None:
+            values["name"] = name
+        if params is not None:
+            values["params"] = params
+        if tags is not None:
+            values["tags"] = tags
+
         if not values:
             return False
 
@@ -956,7 +961,7 @@ class SqlAlchemyReviewStore:
             current_tags = search.get("tags") or []
             if not isinstance(current_tags, list):
                 current_tags = []
-            
+
             new_tags = list(set(current_tags + tags))
             if self.update_saved_search(sid, tags=new_tags):
                 updated += 1

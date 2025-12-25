@@ -50,6 +50,8 @@ i4g/
 - `scripts/`: automation you can run in production or staging (OCR pipeline, semantic extraction, index rebuilds).
 - `tests/adhoc/`: developer-only demos, diagnostics, data synthesizers, and lightweight utilities (including context snapshots).
 
+For detailed environment bootstrapping instructions, see [Bootstrap Environments](bootstrap_environments.md).
+
 ---
 
 ## Local Datastore
@@ -66,6 +68,8 @@ For a complete overview of storage backends (including Vector and Blob storage) 
 ### Cloud SQL Proxy (Optional)
 
 If you need to connect to the Cloud SQL instance from your local machine (e.g., for debugging or running migrations against the dev database), install the [Cloud SQL Auth Proxy](https://cloud.google.com/sql/docs/postgres/sql-proxy).
+
+See the [Cloud SQL Primer](../cookbooks/cloud_sql_primer.md) for detailed connection instructions and common queries.
 
 ```bash
 # Install proxy
@@ -176,11 +180,11 @@ conda run -n i4g uvicorn i4g.api.app:app --reload
 # 3) Run the Next.js console pointed at the API and dossier base path
 cd ../ui
 I4G_API_URL=http://127.0.0.1:8000 \
-I4G_API_KEY=dev-analyst-token \
-I4G_API_KIND=core \
-I4G_DOSSIER_BASE_PATH=$PWD/../core/data/reports/dossiers \
-NEXT_PUBLIC_USE_MOCK_DATA=false \
-pnpm --filter web dev
+    I4G_API_KEY=dev-analyst-token \
+    I4G_API_KIND=core \
+    I4G_DOSSIER_BASE_PATH=$PWD/../core/data/reports/dossiers \
+    NEXT_PUBLIC_USE_MOCK_DATA=false \
+    pnpm --filter web dev
 
 # 4) In the browser, open /reports/dossiers
 #    - Verify Download chips stream files (local via proxy, remote links open Drive)
@@ -648,11 +652,11 @@ docker buildx inspect --bootstrap # optional: verify builder
 ```
 ```bash
 docker buildx build \
---platform linux/amd64 \
--f docker/fastapi.Dockerfile \
--t us-central1-docker.pkg.dev/i4g-dev/applications/fastapi:dev \
---push \
-.
+    --platform linux/amd64 \
+    -f docker/fastapi.Dockerfile \
+    -t us-central1-docker.pkg.dev/i4g-dev/applications/fastapi:dev \
+    --push \
+    .
 ```
 For x86 development machines, plain docker build/tag/push still works:
 ```bash

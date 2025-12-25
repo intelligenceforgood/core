@@ -287,9 +287,7 @@ class SqlWriter:
         ).scalar()
 
         if existing_id:
-            LOGGER.info(
-                "Deduplicating case %s -> existing %s (dataset=%s)", case_id, existing_id, payload.dataset
-            )
+            LOGGER.info("Deduplicating case %s -> existing %s (dataset=%s)", case_id, existing_id, payload.dataset)
             session.execute(
                 sa.update(sql_schema.cases).where(sql_schema.cases.c.case_id == existing_id).values(**values)
             )

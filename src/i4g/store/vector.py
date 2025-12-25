@@ -194,7 +194,7 @@ class VectorStore:
 
         self.backend_name = backend_name
         self.embedding_model_name = embedding_model
-        
+
         # Only initialize Ollama embeddings if using a local backend
         if backend_name in {"chroma", "faiss"}:
             self.embeddings = OllamaEmbeddings(model=embedding_model)
@@ -260,7 +260,13 @@ class VectorStore:
             raise ValueError("Length of metadatas must match length of texts")
 
         sanitized = [_sanitize_metadata(meta) for meta in metadatas]
-        return self._backend.add_texts(texts=texts, metadatas=sanitized, ids=ids)
+
+        # Truncate texts to avoid context length errors.
+        # Some models (e.g. mxbai-embed-large) have small context windows (512 tokens).
+        # Using 1000 chars as a safe upper bound (approx 250 tokens).
+        truncated_texts = [t[:1000] for t in texts]
+
+        return self._backend.add_texts(texts=truncated_texts, metadatas=sanitized, ids=ids)
 
     def query_similar(self, query_text: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """Perform semantic similarity search."""

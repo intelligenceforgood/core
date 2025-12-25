@@ -35,7 +35,9 @@ def extract_extraction(
 @extract_app.command("semantic", help="Run semantic extraction pipeline.")
 def extract_semantic(
     input_path: Path = typer.Option(Path("data/ocr_output.jsonl"), "--input", help="OCR output JSONL."),
-    output_path: Path = typer.Option(Path("data/entities_semantic.jsonl"), "--output", help="Semantic entities output."),
+    output_path: Path = typer.Option(
+        Path("data/entities_semantic.jsonl"), "--output", help="Semantic entities output."
+    ),
     model: str = typer.Option("llama3.1", "--model", help="Semantic extractor model."),
 ) -> None:
     code = tasks.semantic(SimpleNamespace(input=input_path, output=output_path, model=model))

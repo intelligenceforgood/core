@@ -7,6 +7,7 @@ from .runner import cloud_run_smoke
 
 smoke_app = typer.Typer(help="Run smoketests against local or remote services.")
 
+
 @smoke_app.command("dossiers", help="Verify dossier artifacts and signature manifests via API.")
 def smoke_dossiers(
     api_url: str = typer.Option("http://localhost:8000", "--api-url", help="FastAPI base URL."),

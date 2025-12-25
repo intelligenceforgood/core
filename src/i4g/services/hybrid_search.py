@@ -128,10 +128,10 @@ class HybridSearchService:
         limit = query.limit or self.settings.search.default_limit
         # Fetch enough results to cover the offset + limit + 1 (to detect next page)
         needed_k = query.offset + limit + 1
-        
+
         vector_top_k = query.vector_limit or needed_k
         structured_top_k = query.structured_limit or needed_k
-        
+
         filters = self._build_filter_items(query)
         metric_tags = self._metric_tags(query)
         self.observability.increment("hybrid_search.query.total", tags=metric_tags)

@@ -95,6 +95,13 @@ def _extract_text(record: Dict[str, Any], metadata: Dict[str, Any]) -> Tuple[str
     if isinstance(raw_text, str) and raw_text.strip():
         return raw_text.strip(), "record.text"
 
+    # Handle Vertex AI Search export format
+    struct_data = record.get("structData")
+    if isinstance(struct_data, dict):
+        content = struct_data.get("content")
+        if isinstance(content, str) and content.strip():
+            return content.strip(), "structData.content"
+
     sections = []
     for key in ("summary", "details", "description", "body"):
         value = record.get(key)

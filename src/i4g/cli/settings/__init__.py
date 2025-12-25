@@ -7,6 +7,7 @@ settings_app = typer.Typer(help="Inspect and export configuration manifests.")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 
+
 @settings_app.command("export-manifest", help="Export settings manifest (JSON/YAML/Markdown).")
 def settings_export_manifest(
     proto_docs_dir: Path = typer.Option(

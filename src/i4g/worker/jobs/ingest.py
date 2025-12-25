@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, Iterator, Optional
 
@@ -64,21 +65,32 @@ def _load_jsonl(path: Path | str) -> Iterator[dict]:
 
         client = storage.Client()
         parts = path_str[5:].split("/", 1)
-        if len(parts) != 2:
-            raise ValueError(f"Invalid GCS URI: {path_str}")
-        bucket_name, blob_name = parts
+        bucket_name = parts[0]
+        blob_name = parts[1] if len(parts) > 1 else ""
         bucket = client.bucket(bucket_name)
 
-        if path_str.endswith("/"):
-            blobs = list(client.list_blobs(bucket, prefix=blob_name))
-            jsonl_blobs = [b for b in blobs if b.name.endswith(".jsonl")]
-            if not jsonl_blobs:
-                LOGGER.warning("No .jsonl files found in %s", path_str)
-                return
-            for blob in jsonl_blobs:
-                yield from _download_and_yield(blob)
-        else:
-            blob = bucket.blob(blob_name)
+        # List all blobs matching the prefix (handles both file and directory cases)
+        blobs = list(client.list_blobs(bucket, prefix=blob_name))
+        jsonl_blobs = []
+
+        for b in blobs:
+            if not b.name.endswith(".jsonl"):
+                continue
+
+            if path_str.endswith("/") or not blob_name:
+                # Explicit directory or bucket root: accept all matches
+                jsonl_blobs.append(b)
+            else:
+                # Implicit: could be file or directory
+                if b.name == blob_name:
+                    jsonl_blobs.append(b)
+                elif b.name.startswith(blob_name + "/"):
+                    jsonl_blobs.append(b)
+
+        if not jsonl_blobs:
+            LOGGER.warning("No .jsonl files found in %s", path_str)
+            return
+        for blob in jsonl_blobs:
             yield from _download_and_yield(blob)
     else:
         path = Path(path)
@@ -173,6 +185,18 @@ def main() -> int:
 
     _configure_logging()
 
+    # --- Enhanced Debug Logging (Safe) ---
+    LOGGER.info("=== Ingestion Job Startup ===")
+    LOGGER.info("Environment Variables:")
+    for key in sorted(os.environ):
+        if key.startswith("I4G_"):
+            val = os.environ[key]
+            # Redact potential secrets
+            if any(s in key for s in ("TOKEN", "KEY", "PASSWORD", "SECRET")):
+                val = "<redacted>"
+            LOGGER.info("  %s=%s", key, val)
+    # -------------------------------------
+
     settings = get_settings()
 
     dataset_override = os.getenv("I4G_INGEST__JSONL_PATH")
@@ -187,6 +211,14 @@ def main() -> int:
     except ValueError:
         LOGGER.warning("Invalid batch limit override: %s", batch_limit_override)
         batch_limit = settings.ingestion.batch_limit
+
+    rate_limit_delay = 0.0
+    rate_limit_override = os.getenv("I4G_INGEST__RATE_LIMIT_DELAY")
+    if rate_limit_override:
+        try:
+            rate_limit_delay = float(rate_limit_override)
+        except ValueError:
+            LOGGER.warning("Invalid rate limit override: %s", rate_limit_override)
 
     is_local = settings.env == "local"
 
@@ -217,17 +249,19 @@ def main() -> int:
 
     LOGGER.info(
         (
-            "Starting ingestion job: dataset=%s batch_limit=%s dry_run=%s "
+            "Starting ingestion job: dataset=%s batch_limit=%s rate_limit_delay=%.2f dry_run=%s "
             "enable_vector=%s enable_vertex=%s enable_firestore=%s reset_vector=%s"
         ),
         dataset_name,
         batch_limit or "unbounded",
+        rate_limit_delay,
         dry_run,
         enable_vector,
         enable_vertex,
         enable_firestore,
         reset_vector,
     )
+    LOGGER.info("Resolved dataset path: %s", dataset_path)
 
     if isinstance(dataset_path, Path) and not dataset_path.exists():
         LOGGER.warning("JSONL dataset not found; nothing to ingest: %s", dataset_path)
@@ -286,6 +320,8 @@ def main() -> int:
         for record in _load_jsonl(dataset_path):
             if batch_limit and processed >= batch_limit:
                 break
+            if rate_limit_delay > 0:
+                time.sleep(rate_limit_delay)
             payload, diagnostics = prepare_ingest_payload(record, default_dataset=dataset_name)
             if dry_run:
                 LOGGER.info(

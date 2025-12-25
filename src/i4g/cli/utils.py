@@ -89,7 +89,7 @@ def stage_bundle(bundle_uri: str | None, bundles_dir: Path) -> Path | None:
         target = bundles_dir / jsonls[0].name
         target.write_bytes(jsonls[0].read_bytes())
         return target
-    
+
     return bundle_path
 
 

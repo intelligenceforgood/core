@@ -8,6 +8,8 @@ The scenarios are split into two groups:
 - **GCP smoke tests** hit the deployed FastAPI gateway and Cloud Run jobs in the dev project (`i4g-dev`).
 - **UI smoke tests** boot the Next.js analyst console and verify core filters render (see below).
 
+For detailed environment bootstrapping and verification instructions, see [Bootstrap Environments](../development/bootstrap_environments.md).
+
 ## Vault Secrets Smoke (GCP)
 
 Use this to prove the vault secrets are present, readable via Workload Identity, and wired into Cloud Run before
@@ -471,11 +473,11 @@ These steps ensure the deployed services, Cloud Run jobs, and shared storage pat
      --project i4g-dev \
      --region us-central1 \
      --container=container-0 \
-     --update-env-vars=I4G_INTAKE__API_BASE=https://fastapi-gateway-y5jge5w2cq-uc.a.run.app/intakes,\
-I4G_API__KEY=dev-analyst-token,\
-I4G_STORAGE__SQLITE_PATH=/tmp/i4g/sqlite/intake.db,\
-I4G_RUNTIME__FALLBACK_DIR=/tmp/i4g,\
-I4G_INGEST__ENABLE_VECTOR=false
+     --update-env-vars="I4G_INTAKE__API_BASE=https://fastapi-gateway-y5jge5w2cq-uc.a.run.app/intakes,\
+     I4G_API__KEY=dev-analyst-token,\
+     I4G_STORAGE__SQLITE_PATH=/tmp/i4g/sqlite/intake.db,\
+     I4G_RUNTIME__FALLBACK_DIR=/tmp/i4g,\
+     I4G_INGEST__ENABLE_VECTOR=false"
    ```
    Confirm the change with `gcloud run jobs describe process-intakes --format='value(spec.template.spec.template.spec.containers[0].env)'` if needed.
 2. Ensure the remote FastAPI gateway is healthy: https://fastapi-gateway-y5jge5w2cq-uc.a.run.app/ (you should see the default OpenAPI docs).
@@ -562,13 +564,13 @@ This flow validates the scheduled exporter that now backs the analyst reports.
      --project i4g-dev \
      --region us-central1 \
      --container=container-0 \
-     --update-env-vars=I4G_RUNTIME__LOG_LEVEL=INFO,\
-   I4G_ACCOUNT_JOB__WINDOW_DAYS=15,\
-   I4G_ACCOUNT_JOB__CATEGORIES=bank,crypto,payments,\
-   I4G_ACCOUNT_JOB__OUTPUT_FORMATS=pdf,xlsx,\
-   I4G_ACCOUNT_JOB__INCLUDE_SOURCES=true,\
-   I4G_ACCOUNT_LIST__DRIVE_FOLDER_ID=<drive-folder-id>,\
-   I4G_STORAGE__REPORTS_BUCKET=<reports-bucket>
+     --update-env-vars="I4G_RUNTIME__LOG_LEVEL=INFO,\
+     I4G_ACCOUNT_JOB__WINDOW_DAYS=15,\
+     I4G_ACCOUNT_JOB__CATEGORIES=bank,crypto,payments,\
+     I4G_ACCOUNT_JOB__OUTPUT_FORMATS=pdf,xlsx,\
+     I4G_ACCOUNT_JOB__INCLUDE_SOURCES=true,\
+     I4G_ACCOUNT_LIST__DRIVE_FOLDER_ID=<drive-folder-id>,\
+     I4G_STORAGE__REPORTS_BUCKET=<reports-bucket>"
    ```
    The nested `I4G_ACCOUNT_LIST__*` and `I4G_STORAGE__*` env vars ensure exporters can publish to
    Google Drive or Cloud Storage the same way they do locally. You can omit Drive settings if the
@@ -685,30 +687,30 @@ Vertex so UI chips stay in sync with the demo dataset.
      --timeout 600s \
      --cpu 1 \
      --memory 512Mi \
-     --set-env-vars=I4G_ENV=dev, \
-I4G_STORAGE__FIRESTORE_PROJECT=i4g-dev, \
-I4G_STORAGE__REPORTS_BUCKET=i4g-reports-dev, \
-I4G_VECTOR__BACKEND=vertex_ai, \
-I4G_VECTOR__VERTEX_AI__PROJECT=i4g-dev, \
-I4G_VECTOR__VERTEX_AI__LOCATION=global, \
-I4G_VECTOR__VERTEX_AI__DATA_STORE=retrieval-poc, \
-I4G_VECTOR__VERTEX_AI__BRANCH=default_branch, \
-I4G_VERTEX_SEARCH_PROJECT=i4g-dev, \
-I4G_VERTEX_SEARCH_LOCATION=global, \
-I4G_VERTEX_SEARCH_DATA_STORE=retrieval-poc, \
-I4G_VERTEX_SEARCH_BRANCH=default_branch, \
-I4G_INGEST__JSONL_PATH=/app/data/manual_demo/network_entities.jsonl, \
-I4G_INGEST__DEFAULT_DATASET=network_smoke, \
-I4G_INGEST__BATCH_LIMIT=1, \
-I4G_INGEST__ENABLE_SQL=true, \
-I4G_INGEST__ENABLE_VECTOR=true, \
-I4G_INGEST__ENABLE_VECTOR_STORE=true, \
-I4G_INGEST__ENABLE_VERTEX=true, \
-I4G_INGEST__ENABLE_FIRESTORE=true, \
-I4G_INGEST__RESET_VECTOR=false, \
-I4G_INGEST__DRY_RUN=false, \
-I4G_LLM__PROVIDER=mock, \
-I4G_RUNTIME__LOG_LEVEL=INFO
+     --set-env-vars="I4G_ENV=dev,\
+     I4G_STORAGE__FIRESTORE_PROJECT=i4g-dev,\
+     I4G_STORAGE__REPORTS_BUCKET=i4g-reports-dev,\
+     I4G_VECTOR__BACKEND=vertex_ai,\
+     I4G_VECTOR__VERTEX_AI__PROJECT=i4g-dev,\
+     I4G_VECTOR__VERTEX_AI__LOCATION=global,\
+     I4G_VECTOR__VERTEX_AI__DATA_STORE=retrieval-poc,\
+     I4G_VECTOR__VERTEX_AI__BRANCH=default_branch,\
+     I4G_VERTEX_SEARCH_PROJECT=i4g-dev,\
+     I4G_VERTEX_SEARCH_LOCATION=global,\
+     I4G_VERTEX_SEARCH_DATA_STORE=retrieval-poc,\
+     I4G_VERTEX_SEARCH_BRANCH=default_branch,\
+     I4G_INGEST__JSONL_PATH=/app/data/manual_demo/network_entities.jsonl,\
+     I4G_INGEST__DEFAULT_DATASET=network_smoke,\
+     I4G_INGEST__BATCH_LIMIT=1,\
+     I4G_INGEST__ENABLE_SQL=true,\
+     I4G_INGEST__ENABLE_VECTOR=true,\
+     I4G_INGEST__ENABLE_VECTOR_STORE=true,\
+     I4G_INGEST__ENABLE_VERTEX=true,\
+     I4G_INGEST__ENABLE_FIRESTORE=true,\
+     I4G_INGEST__RESET_VECTOR=false,\
+     I4G_INGEST__DRY_RUN=false,\
+     I4G_LLM__PROVIDER=mock,\
+     I4G_RUNTIME__LOG_LEVEL=INFO"
    ```
    Re-run the same command with `jobs update` whenever the ingest image or env vars change. Keep the
    digest in sync with the latest `ingest-job` release so Terraform diffs stay predictable.

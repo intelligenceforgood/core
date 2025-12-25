@@ -30,7 +30,7 @@ The bootstrap flow expects three bundles staged in the versioned bucket `gs://i4
   gsutil -m rsync -r data/bundles/synthetic_coverage/full gs://i4g-dev-data-bundles/synthetic_coverage/$RUN_DATE/full
   ```
   - For the smoke slice, rerun step 1 with `--smoke` and upload to `.../synthetic_coverage_smoke/$RUN_DATE/`.
-4) Use the uploaded manifest path as `--bundle-uri` when running `i4g bootstrap ...`.
+4) Use the uploaded directory path as `--bundle-uri` when running `i4g bootstrap ...`.
 
 ## Legacy Azure export bundle (rebuild from Azure, then upload)
 Prereqs: access to Azure SQL, Blob Storage, and Cognitive Search plus GCP auth to write to the target bucket. Run from repo root in the `i4g` Conda env.
@@ -127,7 +127,7 @@ Review the [Azure legacy data primer](azure_legacy_data.md) for the environment 
   ```bash
   gsutil -m rsync -r data/bundles/legacy_azure/$RUN_DATE gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/
   ```
-  The upload includes `manifest.generated.json` (along with the blobs, search exports, and reports). Point `--bundle-uri` at that file (`gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/manifest.generated.json`) to match the manifest the pipeline produces; the helper stages exactly what you uploaded before rebuilding the sandbox.
+  The upload includes `manifest.generated.json` (along with the blobs, search exports, and reports). Point `--bundle-uri` at the directory (`gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/`) so the pipeline can discover all `.jsonl` files; the helper stages exactly what you uploaded before rebuilding the sandbox.
 
 ## Public/third-party scam bundle (recreate from upstream sources)
 Sources and licenses are listed in [docs/development/bundle_sources_and_coverage.md](docs/development/bundle_sources_and_coverage.md). Keep PII-free and honor licensing.
@@ -194,4 +194,4 @@ Sources and licenses are listed in [docs/development/bundle_sources_and_coverage
 
   gsutil -m rsync -r data/bundles/public_scams/$RUN_DATE gs://i4g-dev-data-bundles/public_scams/$RUN_DATE
   ```
-4) Reference the uploaded manifest as `--bundle-uri` when bootstrapping.
+4) Reference the uploaded directory as `--bundle-uri` when bootstrapping.

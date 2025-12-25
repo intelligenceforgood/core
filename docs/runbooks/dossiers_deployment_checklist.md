@@ -56,10 +56,10 @@ manifest stored in `docs/config/`.
      --image us-central1-docker.pkg.dev/i4g-dev/applications/dossier-job:dev \
      --container=container-0 \
      --update-env-vars=I4G_ENV=dev,I4G_REPORT__HASH_ALGORITHM=sha256,\
-I4G_REPORT__DRIVE_PARENT_ID=$DRIVE_PARENT,\
-I4G_DOSSIER__BATCH_SIZE=3,\
-I4G_DOSSIER__DRY_RUN=false,\
-I4G_RUNTIME__LOG_LEVEL=INFO
+     I4G_REPORT__DRIVE_PARENT_ID=$DRIVE_PARENT,\
+     I4G_DOSSIER__BATCH_SIZE=3,\
+     I4G_DOSSIER__DRY_RUN=false,\
+     I4G_RUNTIME__LOG_LEVEL=INFO
    ```
    Mirrors the Terraform configuration but lets you test before committing infra changes.
 4. Execute the job with a controlled batch size:

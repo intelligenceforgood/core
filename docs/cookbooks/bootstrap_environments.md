@@ -10,14 +10,13 @@ See [Prepare Bootstrap Data Bundles](prepare_bootstrap_bundles.md) for instructi
 ### Prerequisites
 1.  **Conda Environment**: Ensure you are in the `i4g` environment.
 2.  **Directory**: Run from the `core/` root.
-3.  **Run Date**: Set the `RUN_DATE` environment variable (e.g., `2025-01-01`).
+3.  **Run Date**: Set the `RUN_DATE` environment variable (e.g., `2025-12-17`).
 
 ### Bootstrap Command
-To fully reset the local sandbox (wipes and rebuilds SQLite, Chroma, OCR artifacts):
+To fully reset the local sandbox (wipes and rebuilds SQLite, Chroma, OCR artifacts) using the standard 4 data bundles:
 
 ```bash
-I4G_ENV=local i4g bootstrap local reset \
-  --bundle-uri gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/ \
+I4G_ENV=local RUN_DATE=2025-12-17 i4g bootstrap local reset \
   --report-dir data/reports/bootstrap_local
 ```
 
@@ -36,12 +35,14 @@ i4g bootstrap local verify --smoke-search --smoke-dossiers
 ```
 
 - Flags to know:
-  - `--bundle-uri PATH` to stage a specific bundle into `data/bundles/`.
+  - `--bundle-uri PATH` to stage a specific bundle into `data/bundles/` (in addition to the defaults).
   - `--verify-only` (implied by `verify` command) to emit reports without regenerating data.
   - `--smoke-search` to run the Vertex search smoke; `--smoke-dossiers` (FastAPI running) to verify dossier manifests/signatures.
   - `--force` required if `I4G_ENV` is not `local` (use sparingly).
 - After running:
-  - Inspect `data/reports/bootstrap_local/` for JSON/Markdown reports (bundle hashes, manifest sha256, ingestion-run summary, smokes).
+  - Inspect `data/reports/bootstrap_local/` for verification reports:
+    - `verify.md`: Human-readable summary of bundles, record counts, and smoke results.
+    - `verify.json`: Machine-readable details including file hashes and full smoke outputs.
   - Point ingestion/search to the refreshed dataset (`ingestion.default_dataset`).
   - Run a quick smoke: [docs/cookbooks/smoke_test.md](docs/cookbooks/smoke_test.md).
 
@@ -60,26 +61,26 @@ i4g bootstrap local verify --smoke-search --smoke-dossiers
     ```
 
 ### Bootstrap Command
-To reset the dev environment by triggering Cloud Run jobs (standard procedure):
+To reset the dev environment by triggering Cloud Run jobs (standard procedure). This will ingest all 4 standard data bundles.
 
-1.  **Set the Run Date**: Identify the date of the legacy Azure bundle you wish to restore (e.g., `2025-01-01`).
+1.  **Set the Run Date**: Identify the date of the bundles you wish to restore (e.g., `2025-12-17`).
     ```bash
-    export RUN_DATE="2025-01-01"
+    export RUN_DATE="2025-12-17"
     ```
 
 2.  **Run Bootstrap**:
     ```bash
     I4G_ENV=dev i4g bootstrap dev reset \
-      --bundle-uri gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/ \
-      --dataset legacy_azure_$RUN_DATE \
+      --rate-limit-delay 0.5 \
       --run-smoke \
       --run-dossier-smoke \
       --run-search-smoke
     ```
 
-    *   This command triggers Cloud Run jobs to rehydrate Firestore, Vertex AI, and BigQuery.
+    *   This command triggers multiple Cloud Run jobs (one set per bundle) to rehydrate Firestore, Vertex AI, and BigQuery.
     *   It runs smoke tests immediately after to verify health.
     *   Reports are saved to `data/reports/bootstrap_dev/`.
+    *   `--rate-limit-delay 0.5` adds a 0.5s pause between records to respect Vertex AI quotas.
 
 ### Verification Only
 If you only want to run the smoke tests without rebuilding data:
@@ -91,16 +92,45 @@ I4G_ENV=dev i4g bootstrap dev verify \
   --run-search-smoke
 ```
 
+### Verifying Cloud State from Local
+
+You can verify the state of the cloud resources (Cloud SQL, Firestore) from your local machine.
+
+**Important**: The local CLI defaults to SQLite. To verify Cloud SQL, you must explicitly configure the backend and provide credentials via environment variables.
+
+```bash
+# Retrieve DB password
+DB_PASS=$(gcloud secrets versions access latest --secret="ingest-db-password" --project=i4g-dev)
+
+# Run verification
+I4G_ENV=dev \
+I4G_STORAGE__STRUCTURED_BACKEND=cloudsql \
+I4G_STORAGE__CLOUDSQL_INSTANCE="i4g-dev:us-central1:i4g-dev-db" \
+I4G_STORAGE__CLOUDSQL_USER="ingest_user" \
+I4G_STORAGE__CLOUDSQL_PASSWORD="$DB_PASS" \
+I4G_STORAGE__CLOUDSQL_DATABASE="i4g_db" \
+i4g bootstrap dev verify --project i4g-dev --no-run-smoke
+```
+
+### Troubleshooting Ingestion
+
+If ingestion jobs fail with `ResourceExhausted` errors (Vertex AI Quota), use the `--rate-limit-delay` flag to throttle the ingestion:
+
+```bash
+i4g bootstrap dev reset --project i4g-dev --rate-limit-delay 2.0
+```
+
+See [Cloud SQL Primer](cloud_sql_primer.md) for details on inspecting the database directly.
+
 ### Debugging: Local Execution
 To run the ingestion logic **locally** on your machine but target the Dev environment's infrastructure (Firestore, Vertex AI). This is useful for debugging ingestion logic without waiting for Cloud Run job scheduling or container builds.
 
 > **Note**: This requires your local credentials to have permission to write to Dev Firestore and Vertex AI.
 
 ```bash
-I4G_ENV=dev i4g bootstrap dev reset \
+I4G_ENV=dev RUN_DATE=2025-12-17 i4g bootstrap dev reset \
   --local-execution \
-  --bundle-uri gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/ \
-  --dataset legacy_azure_$RUN_DATE
+  --rate-limit-delay 0.5
 ```
 
 ### Troubleshooting: IAP Authentication
@@ -177,6 +207,19 @@ Dev default: `retrieval-poc` with serving config `default_search`.
     - Review `data/reports/bootstrap_dev/report.json` for detailed machine-readable logs, including specific error messages if any step failed.
     - If the intake smoke passed, you can verify the created case in the analyst console or by querying the API directly using the `intake_id` from the logs.
 
-## Notes and further reading
-- Avoid hand-editing `data/`; rerun the bootstrap scripts for reproducibility. Keep `config/settings.local.toml` aligned when overriding paths and regenerate manifests with `scripts/export_settings_manifest.py` if needed.
-- Design/background: see [Bundle Sources and Synthetic Coverage](../development/bundle_sources_and_coverage.md) for source inventory, licensing, and synthetic coverage scope.
+## Data Sources & Design
+
+The bootstrap process uses a frozen snapshot of data captured on **2025-12-17** to ensure consistent environments. These bundles are automatically downloaded from `gs://i4g-dev-data-bundles` during the bootstrap process.
+
+| Bundle | Content | Source |
+| :--- | :--- | :--- |
+| `legacy_azure` | Historical intake & account artifacts | `legacy_azure/2025-12-17/search_exports/vertex/` |
+| `public_scams` | Public datasets (SMS, SpamAssassin) | `public_scams/2025-12-17/cases.jsonl` |
+| `retrieval_poc` | Retrieval POC cases | `retrieval_poc/20251217/cases.jsonl` |
+| `synthetic_coverage` | Synthetic coverage cases | `synthetic_coverage/2025-12-17/full/cases.jsonl` |
+
+For full inventory, licensing, and synthetic scope details, see [Bundle Sources and Synthetic Coverage](../development/bundle_sources_and_coverage.md).
+
+### Maintenance Notes
+- **Do not hand-edit `data/`**: Rerun `i4g bootstrap local reset` to restore the baseline.
+- **Configuration**: Keep `config/settings.local.toml` aligned when overriding paths and regenerate manifests with `scripts/export_settings_manifest.py` if needed.

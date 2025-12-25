@@ -17,6 +17,16 @@ from typing import Optional
 import typer
 
 from i4g.cli.utils import hash_file, stage_bundle
+from i4g.cli.bootstrap.common import (
+    get_bundles,
+    download_bundles as common_download_bundles,
+    run_search_smoke,
+    run_dossier_smoke,
+    SearchSmokeResult,
+    DossierSmokeResult,
+    VerificationReport,
+)
+from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[4]
 SRC_DIR = ROOT / "src"
@@ -167,7 +177,9 @@ def build_bundles() -> None:
 
 
 def ingest_bundles(skip_vector: bool) -> None:
-    bundles = sorted(BUNDLES_DIR.glob("*.jsonl"))
+    # Look for JSONL files in the BUNDLES_DIR recursively
+    bundles = sorted(BUNDLES_DIR.glob("**/*.jsonl"))
+
     if not bundles:
         print("⚠️  No bundles found to ingest.")
         return
@@ -266,8 +278,8 @@ def apply_migrations() -> None:
 
 def verify_sandbox(
     report_dir: Path,
-    search_smoke: dict[str, str] | None = None,
-    dossier_smoke: dict[str, str | None] | None = None,
+    search_smoke: SearchSmokeResult | None = None,
+    dossier_smoke: DossierSmokeResult | None = None,
 ) -> Path:
     """Run lightweight verification and emit JSON + Markdown reports."""
 
@@ -279,21 +291,15 @@ def verify_sandbox(
     db_exists = SQLITE_DB.exists()
     pilot_exists = PILOT_CASES_PATH.exists()
 
-    bundle_hashes = {str(path): hash_file(path) for path in bundles}
-    bundle_manifest_hash = None
-    if bundle_hashes:
-        manifest_digest = hashlib.sha256()
-        for path, digest in sorted(bundle_hashes.items()):
-            manifest_digest.update(path.encode("utf-8"))
-            manifest_digest.update(digest.encode("utf-8"))
-        bundle_manifest_hash = manifest_digest.hexdigest()
+    bundle_hashes = {str(path.name): hash_file(path) for path in bundles}
+
     bundle_counts: dict[str, int] = {}
     for path in bundles:
         try:
             with path.open("r", encoding="utf-8") as handle:
-                bundle_counts[str(path)] = sum(1 for _ in handle)
+                bundle_counts[str(path.name)] = sum(1 for _ in handle)
         except OSError:
-            bundle_counts[str(path)] = -1
+            bundle_counts[str(path.name)] = -1
 
     ocr_count: int | None = None
     if ocr_exists:
@@ -303,14 +309,13 @@ def verify_sandbox(
         except OSError:
             ocr_count = -1
 
-    db_counts: dict[str, int] | None = None
+    db_counts: dict[str, int] = {}
     ingestion_run_summary: dict[str, str | int] | None = None
     if db_exists:
         try:
             with sqlite3.connect(SQLITE_DB) as conn:
                 cur = conn.cursor()
                 cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
-                db_counts = {}
                 for (table_name,) in cur.fetchall():
                     try:
                         cur.execute(f"SELECT COUNT(*) FROM {table_name}")
@@ -328,156 +333,88 @@ def verify_sandbox(
                     except sqlite3.DatabaseError:
                         ingestion_run_summary = {"count": -1, "last_started_at": None}
         except sqlite3.DatabaseError:
-            db_counts = None
+            pass
 
-    report = {
-        "bundles": [str(path) for path in bundles],
-        "bundle_count": len(bundles),
-        "bundle_hashes": bundle_hashes,
-        "bundle_manifest_hash": bundle_manifest_hash,
-        "bundle_record_counts": bundle_counts,
-        "ocr_output": str(OCR_OUTPUT) if ocr_exists else None,
-        "ocr_record_count": ocr_count,
-        "vector_store_present": vector_exists,
-        "sqlite_db_present": db_exists,
-        "sqlite_table_counts": db_counts,
-        "pilot_cases_present": pilot_exists,
+    # Construct VerificationReport
+    storage_stats = {
+        "primary_db": db_counts,
+        "vector_store": {"present": vector_exists, "path": str(CHROMA_DIR)},
+        "ocr": {"present": ocr_exists, "count": ocr_count, "path": str(OCR_OUTPUT)},
+        "pilot_cases": {"present": pilot_exists, "path": str(PILOT_CASES_PATH)},
     }
     if ingestion_run_summary:
-        report["ingestion_run_summary"] = ingestion_run_summary
+        storage_stats["ingestion_run"] = ingestion_run_summary
+
+    smoke_tests = {}
     if search_smoke:
-        report["search_smoke"] = search_smoke
-    if bundle_manifest_hash:
-        print(f"Bundle manifest sha256: {bundle_manifest_hash}")
+        smoke_tests["search"] = vars(search_smoke)
     if dossier_smoke:
-        report["dossier_smoke"] = dossier_smoke
+        smoke_tests["dossier"] = vars(dossier_smoke)
+
+    report = VerificationReport(
+        environment="local",
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        bundles={
+            "files": [str(p.name) for p in bundles],
+            "hashes": bundle_hashes,
+            "counts": bundle_counts,
+        },
+        storage=storage_stats,
+        smoke_tests=smoke_tests,
+        errors=[],
+    )
 
     json_path = report_dir / "verify.json"
     md_path = report_dir / "verify.md"
 
-    json_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    json_path.write_text(json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
     md_lines = ["# Local Bootstrap Verification", ""]
-    md_lines.append(f"- Bundles: {report['bundle_count']} ({', '.join(report['bundles']) or 'none'})")
+    md_lines.append(f"- Bundles: {len(bundles)} ({', '.join(report.bundles['files']) or 'none'})")
     if bundle_hashes:
-        for path, digest in bundle_hashes.items():
-            md_lines.append(f"  - {path}: sha256={digest}")
-    if bundle_manifest_hash:
-        md_lines.append(f"- Bundle manifest hash: {bundle_manifest_hash}")
+        for name, digest in bundle_hashes.items():
+            md_lines.append(f"  - {name}: sha256={digest}")
     if bundle_counts:
-        for path, count in bundle_counts.items():
-            md_lines.append(f"  - {path}: records={count}")
+        for name, count in bundle_counts.items():
+            md_lines.append(f"  - {name}: records={count}")
+
     md_lines.append(f"- OCR output present: {ocr_exists}")
     if ocr_count is not None:
         md_lines.append(f"  - OCR records: {ocr_count}")
+
     md_lines.append(f"- Vector store present: {vector_exists}")
     md_lines.append(f"- SQLite DB present: {db_exists}")
+
     if db_counts:
         for table, count in db_counts.items():
             md_lines.append(f"  - {table}: rows={count}")
+
     if ingestion_run_summary:
         md_lines.append("- Ingestion runs:")
         md_lines.append(f"  - count: {ingestion_run_summary.get('count')}")
         md_lines.append(f"  - last_started_at: {ingestion_run_summary.get('last_started_at')}")
+
     md_lines.append(f"- Pilot cases present: {pilot_exists}")
+
     if search_smoke:
         md_lines.append("")
         md_lines.append("## Search smoke")
-        md_lines.append(f"- {search_smoke.get('status')}: {search_smoke.get('message')}")
+        md_lines.append(f"- {search_smoke.status}: {search_smoke.message}")
     if dossier_smoke:
         md_lines.append("")
         md_lines.append("## Dossier smoke")
-        md_lines.append(f"- {dossier_smoke.get('status')}: {dossier_smoke.get('message')}")
-        if dossier_smoke.get("plan_id"):
-            md_lines.append(f"- plan_id: {dossier_smoke.get('plan_id')}")
-        if dossier_smoke.get("manifest_path"):
-            md_lines.append(f"- manifest: {dossier_smoke.get('manifest_path')}")
-        if dossier_smoke.get("signature_path"):
-            md_lines.append(f"- signature: {dossier_smoke.get('signature_path')}")
+        md_lines.append(f"- {dossier_smoke.status}: {dossier_smoke.message}")
+        if dossier_smoke.plan_id:
+            md_lines.append(f"- plan_id: {dossier_smoke.plan_id}")
+        if dossier_smoke.manifest_path:
+            md_lines.append(f"- manifest: {dossier_smoke.manifest_path}")
+        if dossier_smoke.signature_path:
+            md_lines.append(f"- signature: {dossier_smoke.signature_path}")
+
     md_path.write_text("\n".join(md_lines) + "\n", encoding="utf-8")
 
     print(f"🧾 Verification reports written to {report_dir}")
     return json_path
-
-
-def _run_search_smoke(args: argparse.Namespace) -> dict[str, str]:
-    """Run a lightweight Vertex search smoke when requested."""
-
-    if not args.smoke_search:
-        return {"status": "skipped", "message": "Search smoke disabled."}
-
-    project = args.search_project or os.getenv("I4G_VECTOR__VERTEX_AI_PROJECT") or os.getenv("I4G_PROJECT")
-    data_store = args.search_data_store_id or os.getenv("I4G_VECTOR__VERTEX_AI_DATA_STORE")
-    serving_config = args.search_serving_config_id or os.getenv("I4G_VECTOR__VERTEX_AI_SERVING_CONFIG")
-    location = args.search_location or os.getenv("I4G_VECTOR__VERTEX_AI_LOCATION") or "global"
-
-    if not project or not data_store or not serving_config:
-        return {
-            "status": "skipped",
-            "message": "Missing search configuration (project/data_store/serving_config).",
-        }
-
-    try:
-        from i4g.cli import smoke
-
-        search_args = SimpleNamespace(
-            project=project,
-            location=location,
-            data_store_id=data_store,
-            serving_config_id=serving_config,
-            query=args.search_query,
-            page_size=args.search_page_size,
-        )
-        smoke.vertex_search_smoke(search_args)
-    except SystemExit as exc:  # pragma: no cover - subprocess failure path
-        return {"status": "failed", "message": str(exc)}
-    except Exception as exc:  # pragma: no cover - safety net
-        return {"status": "failed", "message": str(exc)}
-
-    return {"status": "success", "message": "Vertex search returned results."}
-
-
-def _run_dossier_smoke(args: argparse.Namespace) -> dict[str, str | None]:
-    """Run dossier signature verification smoke when requested."""
-
-    if not args.smoke_dossiers:
-        return {"status": "skipped", "message": "Dossier smoke disabled."}
-
-    try:
-        from scripts import smoke_dossiers
-
-        smoke_args = SimpleNamespace(
-            api_url=args.smoke_api_url,
-            token=args.smoke_token,
-            status=args.smoke_dossier_status,
-            limit=args.smoke_dossier_limit,
-            plan_id=args.smoke_dossier_plan_id,
-        )
-        result = smoke_dossiers.run_smoke(smoke_args)
-    except Exception as exc:  # pragma: no cover - CLI/network boundary safety net
-        return {"status": "failed", "message": str(exc)}
-
-    return {
-        "status": "success",
-        "message": "Dossier verification passed.",
-        "plan_id": str(result.plan_id) if getattr(result, "plan_id", None) else None,
-        "manifest_path": str(result.manifest_path) if getattr(result, "manifest_path", None) else None,
-        "signature_path": str(result.signature_path) if getattr(result, "signature_path", None) else None,
-    }
-
-
-def download_retrieval_poc() -> None:
-    """Download the retrieval POC dataset from GCS if missing."""
-    target = DATA_DIR / "retrieval_poc" / "cases.jsonl"
-    if target.exists():
-        return
-
-    target.parent.mkdir(parents=True, exist_ok=True)
-    uri = "gs://i4g-dev-data-bundles/retrieval_poc/20251217/cases.jsonl"
-    print(f"⬇️  Downloading retrieval POC data from {uri}...")
-    try:
-        run(["gcloud", "storage", "cp", uri, str(target)])
-    except Exception:
-        print("⚠️  Failed to download retrieval POC data. Ensure you have gcloud auth and permissions.")
 
 
 def run_local(
@@ -521,7 +458,7 @@ def run_local(
         return
 
     ensure_dirs()
-    download_retrieval_poc()
+    common_download_bundles(BUNDLES_DIR)
 
     if reset:
         reset_artifacts(skip_ocr=skip_ocr, skip_vector=skip_vector)
@@ -546,19 +483,20 @@ def run_local(
     )
 
     if verify_only:
-        search_smoke = _run_search_smoke(args_ns)
-        if search_smoke.get("status") == "failed":
-            raise SystemExit(search_smoke.get("message"))
-        dossier_smoke = _run_dossier_smoke(args_ns)
-        if dossier_smoke.get("status") == "failed":
-            raise SystemExit(dossier_smoke.get("message"))
+        search_smoke = run_search_smoke(args_ns)
+        if search_smoke.status == "failed":
+            raise SystemExit(search_smoke.message)
+        dossier_smoke = run_dossier_smoke(args_ns)
+        if dossier_smoke.status == "failed":
+            raise SystemExit(dossier_smoke.message)
         verify_sandbox(report_dir, search_smoke, dossier_smoke)
         return
 
     apply_migrations()
 
-    if not BUNDLES_DIR.exists() or not any(BUNDLES_DIR.glob("*.jsonl")):
-        build_bundles()
+    # Skip building synthetic bundles; use the downloaded Azure data
+    # if not BUNDLES_DIR.exists() or not any(BUNDLES_DIR.glob("*.jsonl")):
+    #    build_bundles()
 
     ingest_bundles(skip_vector=skip_vector)
 
@@ -584,12 +522,12 @@ def run_local(
     ensure_pilot_cases_file()
     seed_review_cases()
 
-    search_smoke = _run_search_smoke(args_ns)
-    if search_smoke.get("status") == "failed":
-        raise SystemExit(search_smoke.get("message"))
-    dossier_smoke = _run_dossier_smoke(args_ns)
-    if dossier_smoke.get("status") == "failed":
-        raise SystemExit(dossier_smoke.get("message"))
+    search_smoke = run_search_smoke(args_ns)
+    if search_smoke.status == "failed":
+        raise SystemExit(search_smoke.message)
+    dossier_smoke = run_dossier_smoke(args_ns)
+    if dossier_smoke.status == "failed":
+        raise SystemExit(dossier_smoke.message)
     verify_sandbox(report_dir, search_smoke, dossier_smoke)
 
     print("✅ Local sandbox refreshed. Data directory:", DATA_DIR)

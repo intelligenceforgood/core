@@ -25,6 +25,7 @@ from i4g.cli.smoke import smoke_app
 
 try:
     from importlib.metadata import version
+
     VERSION = version("i4g")
 except Exception:
     VERSION = "unknown"

@@ -39,7 +39,7 @@ instructions and planning prompts listed below.
   tests, record it in the summary.
 - Docs: when behavior or env vars change, update the relevant doc (architecture/config) and the change log. Keep snippets
   short with links to full files.
-- Wrap-up: update COPILOT_SESSION with what happened + next step; ensure `planning/change_log.md` reflects decisions.
+- Wrap-up: update COPILOT_SESSION with what happened + next step; ensure `planning/change_log.md` reflects decisions. Run `savecopilot` to commit session state.
 
 ## Quick References
 - Prompts: [planning/copilot_prompt/i4g_copilot_prompts_full.md](../planning/copilot_prompt/i4g_copilot_prompts_full.md),

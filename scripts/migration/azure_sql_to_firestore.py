@@ -162,11 +162,11 @@ def get_sql_connection(connection_string: str, use_aad: bool, aad_user: Optional
         if aad_user:
             logging.warning("Ignoring --aad-user; Access Token auth does not allow User/UID in the connection string.")
         return pyodbc.connect(sanitized_connection_string, attrs_before=attrs_before)
-    
+
     # Ensure connection timeout is set to avoid hanging indefinitely
     if "LoginTimeout=" not in connection_string:
         connection_string = f"{connection_string};LoginTimeout=30"
-        
+
     return pyodbc.connect(connection_string)
 
 

@@ -6,6 +6,7 @@ from . import logic as ingest
 
 ingest_app = typer.Typer(help="Ingestion utilities and helpers.")
 
+
 @ingest_app.command("bundles", help="Ingest bundle JSONL files.")
 def ingest_bundles(
     input_path: Path = typer.Option(..., "--input", exists=True, readable=True, help="Path to JSONL bundle file."),

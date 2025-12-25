@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Iterable, List, Optional, Sequence
+from typing import Any, Iterable, List, Optional, Sequence
 
 import google.auth
 import google.auth.impersonated_credentials
@@ -25,6 +25,16 @@ import typer
 from i4g.settings import get_settings
 
 from i4g.cli.utils import hash_file, stage_bundle
+from i4g.cli.bootstrap.common import (
+    get_bundles,
+    download_bundles as common_download_bundles,
+    run_search_smoke,
+    run_dossier_smoke,
+    SearchSmokeResult,
+    DossierSmokeResult,
+    SmokeResult,
+    VerificationReport,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DATA_DIR = REPO_ROOT / "data"
@@ -52,6 +62,7 @@ class JobSpec:
     label: str
     job_name: str
     args: list[str]
+    env: dict[str, str] | None = None
 
 
 @dataclass
@@ -63,27 +74,6 @@ class JobResult:
     stdout: str
     stderr: str
     error: str | None
-
-
-@dataclass
-class SmokeResult:
-    status: str
-    message: str
-
-
-@dataclass
-class DossierSmokeResult:
-    status: str
-    message: str
-    plan_id: Optional[str]
-    manifest_path: Optional[str]
-    signature_path: Optional[str]
-
-
-@dataclass
-class SearchSmokeResult:
-    status: str
-    message: str
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -125,6 +115,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Run Cloud Run intake smoke after job execution (or standalone with --verify-only).",
     )
     parser.add_argument(
+        "--limit",
+        type=int,
+        default=0,
+        help="Limit the number of records to ingest (0 = unlimited). Useful for quick smoke tests.",
+    )
+    parser.add_argument(
         "--report-dir",
         type=Path,
         default=DEFAULT_REPORT_DIR,
@@ -161,6 +157,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--local-execution",
         action="store_true",
         help="Run ingestion logic locally instead of triggering Cloud Run jobs.",
+    )
+    parser.add_argument(
+        "--rate-limit-delay",
+        type=float,
+        default=0.0,
+        help="Delay in seconds between records during ingestion (for rate limiting).",
     )
     parser.add_argument("--run-dossier-smoke", action="store_true", help="Run dossier verification smoke via API.")
     parser.add_argument("--run-search-smoke", action="store_true", help="Run Vertex search smoke after bootstrap.")
@@ -264,26 +266,63 @@ def run_command(cmd: Sequence[str], *, dry_run: bool) -> subprocess.CompletedPro
 
 
 def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
-    common_args: list[str] = []
+    # Determine bundles
+    bundles_to_process = []
     if args.bundle_uri:
-        common_args.append(f"--bundle-uri={args.bundle_uri}")
+        bundles_to_process.append(args.bundle_uri)
+    else:
+        # Use default bundles (GCS URIs)
+        bundles_to_process = list(get_bundles().values())
+
+    specs: list[JobSpec] = []
+
+    # Ingestion jobs (run per bundle)
+    for bundle_uri in bundles_to_process:
+        bundle_name = Path(bundle_uri).name
+
+        # Prepare env vars for ingestion jobs
+        ingest_env: dict[str, str] = {}
+        ingest_env["I4G_INGEST__JSONL_PATH"] = bundle_uri
+        if args.dataset:
+            ingest_env["I4G_INGEST__DATASET_NAME"] = args.dataset
+        if args.limit > 0:
+            ingest_env["I4G_INGEST__BATCH_LIMIT"] = str(args.limit)
+        if args.rate_limit_delay > 0:
+            ingest_env["I4G_INGEST__RATE_LIMIT_DELAY"] = str(args.rate_limit_delay)
+
+        job_args: list[str] = []
+        job_args.append(f"--bundle-uri={bundle_uri}")
+        if args.dataset:
+            job_args.append(f"--dataset={args.dataset}")
+
+        if not args.skip_firestore and args.firestore_job:
+            specs.append(
+                JobSpec(label=f"firestore-{bundle_name}", job_name=args.firestore_job, args=job_args, env=ingest_env)
+            )
+        if not args.skip_vertex and args.vertex_job:
+            specs.append(
+                JobSpec(label=f"vertex-{bundle_name}", job_name=args.vertex_job, args=job_args, env=ingest_env)
+            )
+        if not args.skip_sql and args.sql_job:
+            specs.append(JobSpec(label=f"sql-{bundle_name}", job_name=args.sql_job, args=job_args))
+        if not args.skip_bigquery and args.bigquery_job:
+            specs.append(JobSpec(label=f"bigquery-{bundle_name}", job_name=args.bigquery_job, args=job_args))
+
+    # One-time jobs (run once)
+    common_args: list[str] = []
     if args.dataset:
         common_args.append(f"--dataset={args.dataset}")
-    specs: list[JobSpec] = []
-    if not args.skip_firestore and args.firestore_job:
-        specs.append(JobSpec(label="firestore", job_name=args.firestore_job, args=common_args))
-    if not args.skip_vertex and args.vertex_job:
-        specs.append(JobSpec(label="vertex", job_name=args.vertex_job, args=common_args))
-    if not args.skip_sql and args.sql_job:
-        specs.append(JobSpec(label="sql", job_name=args.sql_job, args=common_args))
-    if not args.skip_bigquery and args.bigquery_job:
-        specs.append(JobSpec(label="bigquery", job_name=args.bigquery_job, args=common_args))
+    # Note: We don't pass bundle-uri to one-time jobs if we are processing multiple bundles.
+    # If args.bundle_uri was provided, we could pass it, but if we are using defaults, which one to pass?
+    # Probably none.
+
     if not args.skip_gcs_assets and args.gcs_assets_job:
         specs.append(JobSpec(label="gcs_assets", job_name=args.gcs_assets_job, args=common_args))
     if not args.skip_reports and args.reports_job:
         specs.append(JobSpec(label="reports", job_name=args.reports_job, args=common_args))
     if not args.skip_saved_searches and args.saved_searches_job:
         specs.append(JobSpec(label="saved_searches", job_name=args.saved_searches_job, args=common_args))
+
     return specs
 
 
@@ -307,6 +346,11 @@ def execute_job(spec: JobSpec, args: argparse.Namespace) -> JobResult:
     ]
     if spec.args:
         cmd_display.append(f"--args={','.join(spec.args)}")
+    if spec.env:
+        # Note: gcloud run jobs execute doesn't strictly support one-off env vars without updating,
+        # but we display it this way to indicate intent.
+        env_pairs = [f"{k}={v}" for k, v in spec.env.items()]
+        cmd_display.append(f"--update-env-vars={','.join(env_pairs)}")
 
     command_str = format_command(cmd_display, redacted_flags={"--impersonate-service-account"})
     logging.info("Executing (API): %s", command_str)
@@ -343,8 +387,23 @@ def execute_job(spec: JobSpec, args: argparse.Namespace) -> JobResult:
 
         # 3. Run Job
         overrides = {}
+        container_override = {}
         if spec.args:
-            overrides["containerOverrides"] = [{"args": spec.args}]
+            container_override["args"] = spec.args
+        if spec.env:
+            container_override["env"] = [{"name": k, "value": v} for k, v in spec.env.items()]
+
+        if container_override:
+            overrides["containerOverrides"] = [container_override]
+
+        # --- Enhanced Debug Logging ---
+        logging.info("=== Cloud Run Job Trigger ===")
+        logging.info("Job: %s", spec.job_name)
+        if spec.env:
+            logging.info("Environment Overrides:")
+            for k, v in spec.env.items():
+                logging.info("  %s=%s", k, v)
+        # ------------------------------
 
         logging.info("Triggering job %s...", spec.job_name)
         request = service.projects().locations().jobs().run(name=parent, body={"overrides": overrides})
@@ -399,47 +458,66 @@ def _get_iap_token(project: str, service_account: str | None) -> str | None:
     """Fetch an IAP-compatible ID token by looking up the backend service audience."""
     # Always use the runtime SA for IAP access as it has the correct permissions
     impersonate_sa = DEFAULT_RUNTIME_SA
+    audience = None
 
+    # 1. Authenticate (User credentials)
     try:
-        # 1. Authenticate (User credentials)
         source_creds, _ = google.auth.default()
         request = google.auth.transport.requests.Request()
+        source_creds.refresh(request)
+    except Exception as exc:
+        logging.debug("Failed to get default credentials: %s", exc)
+        return None
 
-        # Create impersonated credentials once
+    # 2. Fetch the IAP Client ID (audience)
+    # Try using user credentials first to avoid impersonation issues just for lookup
+    try:
+        service = build("compute", "v1", credentials=source_creds, cache_discovery=False)
+        response = service.backendServices().get(project=project, backendService="i4g-lb-backend-api").execute()
+        audience = response.get("iap", {}).get("oauth2ClientId")
+    except Exception:
+        pass
+
+    if not audience:
+        # Fallback to known Client ID
+        audience = IAP_CLIENT_ID_FALLBACK
+
+    if not audience:
+        return None
+
+    # 3. Try to generate ID token via impersonation (preferred for CI/automation)
+    try:
         compute_creds = google.auth.impersonated_credentials.Credentials(
             source_credentials=source_creds,
             target_principal=impersonate_sa,
             target_scopes=["https://www.googleapis.com/auth/cloud-platform"],
             lifetime=3600,
         )
-        compute_creds.refresh(request)
-
-        # 2. Fetch the IAP Client ID (audience) from the backend service
-        audience = None
-        try:
-            service = build("compute", "v1", credentials=compute_creds, cache_discovery=False)
-            response = service.backendServices().get(project=project, backendService="i4g-lb-backend-api").execute()
-            audience = response.get("iap", {}).get("oauth2ClientId")
-        except Exception:
-            pass
-
-        if not audience:
-            # Fallback to known Client ID if lookup fails (e.g. permissions)
-            audience = IAP_CLIENT_ID_FALLBACK
-
-        if not audience:
-            return None
-
-        # 3. Generate ID token with the audience and email claim
         id_token_creds = google.auth.impersonated_credentials.IDTokenCredentials(
             target_credentials=compute_creds, target_audience=audience, include_email=True
         )
         id_token_creds.refresh(request)
         return id_token_creds.token
-
     except Exception as exc:
-        logging.debug("_get_iap_token failed: %s", exc)
-        return None
+        logging.debug("Impersonated IAP token generation failed: %s", exc)
+
+    # 4. Fallback: Generate ID token using local user credentials with the correct audience
+    try:
+        # Note: gcloud auth print-identity-token --audiences=... requires the user to be logged in
+        # and have permissions. We use subprocess because google-auth doesn't easily support
+        # minting ID tokens for user credentials with arbitrary audiences without a refresh flow.
+        proc = subprocess.run(
+            ["gcloud", "auth", "print-identity-token", f"--audiences={audience}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode == 0:
+            return proc.stdout.strip()
+    except Exception as exc:
+        logging.debug("Local gcloud IAP token generation failed: %s", exc)
+
+    return None
 
 
 def run_smoke(args: argparse.Namespace) -> SmokeResult:
@@ -455,6 +533,7 @@ def run_smoke(args: argparse.Namespace) -> SmokeResult:
         job=args.smoke_job,
         container=args.smoke_container,
         iap_token=iap_token,
+        impersonate_service_account=args.wif_service_account,
     )
     try:
         smoke.cloud_run_smoke(smoke_args)
@@ -463,85 +542,166 @@ def run_smoke(args: argparse.Namespace) -> SmokeResult:
     return SmokeResult(status="success", message="Cloud Run intake smoke passed")
 
 
-def run_dossier_smoke(args: argparse.Namespace) -> DossierSmokeResult:
-    from scripts import smoke_dossiers
+def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
+    """Verify state of cloud resources (Firestore, Cloud SQL, Vertex, GCS)."""
 
-    iap_token = _get_iap_token(args.project, args.wif_service_account)
-    if not iap_token:
+    settings = get_settings()
+    errors = []
+
+    # 1. GCS Bundles
+    bundles_state = {}
+    try:
+        from google.cloud import storage
+        from i4g.cli.bootstrap.common import get_bundles
+
+        storage_client = storage.Client(project=args.project)
+        bundles = get_bundles()
+
+        for name, uri in bundles.items():
+            if uri.startswith("gs://"):
+                parts = uri[5:].split("/", 1)
+                bucket_name = parts[0]
+                prefix = parts[1] if len(parts) > 1 else ""
+
+                bucket = storage_client.bucket(bucket_name)
+                blob = bucket.blob(prefix)
+                if blob.exists():
+                    bundles_state[name] = {"exists": True, "size": blob.size, "uri": uri}
+                else:
+                    # It might be a directory (prefix)
+                    blobs = list(bucket.list_blobs(prefix=prefix, max_results=1))
+                    if blobs:
+                        bundles_state[name] = {"exists": True, "type": "directory", "uri": uri}
+                    else:
+                        bundles_state[name] = {"exists": False, "uri": uri}
+    except Exception as exc:
+        errors.append(f"GCS Bundle Check Failed: {exc}")
+
+    # 2. Primary DB (Firestore or SQLite if local_execution)
+    primary_db_stats = {}
+    if getattr(args, "local_execution", False):
         try:
-            proc = subprocess.run(
-                ["gcloud", "auth", "print-identity-token"],
-                capture_output=True,
-                text=True,
-                check=False,
+            from sqlalchemy import create_engine, text
+
+            # Resolve path relative to project root if needed
+            db_path = Path(settings.storage.sqlite_path)
+            if not db_path.is_absolute():
+                db_path = REPO_ROOT / db_path
+
+            if not db_path.exists():
+                errors.append(f"SQLite DB not found at {db_path}")
+            else:
+                engine = create_engine(f"sqlite:///{db_path}")
+                with engine.connect() as conn:
+                    # Count cases
+                    result = conn.execute(text("SELECT COUNT(*) FROM cases"))
+                    count = result.scalar()
+                    primary_db_stats["cases"] = count
+        except Exception as exc:
+            errors.append(f"SQLite Check Failed: {exc}")
+    else:
+        try:
+            from google.cloud import firestore
+
+            db = firestore.Client(project=args.project)
+            collections = ["cases"]
+            for col in collections:
+                try:
+                    query = db.collection(col).count()
+                    results = query.get()
+                    primary_db_stats[col] = int(results[0][0].value)
+                except Exception as e:
+                    primary_db_stats[col] = -1
+                    errors.append(f"Firestore collection '{col}' check failed: {e}")
+        except Exception as exc:
+            errors.append(f"Firestore Connection Failed: {exc}")
+
+    # 3. Relational DB (Cloud SQL)
+    relational_db_stats = {}
+    if settings.storage.structured_backend == "cloudsql" or not getattr(args, "local_execution", False):
+        try:
+            from sqlalchemy import create_engine, text
+            from i4g.store.sql import build_engine
+
+            verify_settings = settings
+            if verify_settings.storage.structured_backend != "cloudsql":
+                verify_settings = settings.model_copy(
+                    update={"storage": settings.storage.model_copy(update={"structured_backend": "cloudsql"})}
+                )
+
+            if not verify_settings.storage.cloudsql_instance:
+                verify_settings.storage.cloudsql_instance = os.getenv("I4G_STORAGE__CLOUDSQL_INSTANCE") or os.getenv(
+                    "CLOUDSQL_INSTANCE"
+                )
+            if not verify_settings.storage.cloudsql_user:
+                verify_settings.storage.cloudsql_user = os.getenv("I4G_STORAGE__CLOUDSQL_USER") or os.getenv(
+                    "CLOUDSQL_USER"
+                )
+            if not verify_settings.storage.cloudsql_password:
+                verify_settings.storage.cloudsql_password = os.getenv("I4G_STORAGE__CLOUDSQL_PASSWORD") or os.getenv(
+                    "CLOUDSQL_PASSWORD"
+                )
+            if not verify_settings.storage.cloudsql_database:
+                verify_settings.storage.cloudsql_database = os.getenv("I4G_STORAGE__CLOUDSQL_DATABASE") or os.getenv(
+                    "CLOUDSQL_DATABASE"
+                )
+
+            engine = build_engine(settings=verify_settings)
+            with engine.connect() as conn:
+                result = conn.execute(text("SELECT COUNT(*) FROM cases"))
+                count = result.scalar()
+                relational_db_stats["cases"] = count
+        except Exception as exc:
+            errors.append(f"Cloud SQL Check Failed: {exc}")
+
+    # 4. Vector Store (Vertex AI Search)
+    vector_store_stats = {}
+    try:
+        from google.cloud import discoveryengine_v1beta as discoveryengine
+
+        data_store_id = args.search_data_store_id or settings.vector.vertex_ai_data_store
+        serving_config_id = (
+            args.search_serving_config_id or os.getenv("I4G_VECTOR__VERTEX_AI_SERVING_CONFIG") or "default_search"
+        )
+        location = args.search_location or settings.vector.vertex_ai_location or "global"
+
+        if data_store_id:
+            client = discoveryengine.SearchServiceClient()
+            serving_config = client.serving_config_path(
+                project=args.project,
+                location=location,
+                data_store=data_store_id,
+                serving_config=serving_config_id,
             )
-            if proc.returncode == 0:
-                iap_token = proc.stdout.strip()
-        except Exception:
-            pass
 
-    smoke_args = SimpleNamespace(
-        api_url=args.smoke_api_url,
-        token=args.smoke_token,
-        status="completed",
-        limit=5,
-        plan_id=None,
-        iap_token=iap_token,
+            request = discoveryengine.SearchRequest(
+                serving_config=serving_config,
+                query="*",
+                page_size=0,
+            )
+            response = client.search(request=request)
+            vector_store_stats = {
+                "total_size": response.total_size,
+                "data_store_id": data_store_id,
+            }
+        else:
+            vector_store_stats = {"status": "skipped", "reason": "No data store ID"}
+
+    except Exception as exc:
+        errors.append(f"Vertex Search Check Failed: {exc}")
+
+    return VerificationReport(
+        environment="dev",
+        timestamp=datetime.now(timezone.utc).isoformat(),
+        bundles=bundles_state,
+        storage={
+            "primary_db": primary_db_stats,
+            "relational_db": relational_db_stats,
+            "vector_store": vector_store_stats,
+        },
+        smoke_tests={},
+        errors=errors,
     )
-    try:
-        result = smoke_dossiers.run_smoke(smoke_args)
-    except smoke_dossiers.SmokeError as exc:
-        return DossierSmokeResult(
-            status="failed",
-            message=str(exc),
-            plan_id=None,
-            manifest_path=None,
-            signature_path=None,
-        )
-    except Exception as exc:  # pragma: no cover - safety net
-        return DossierSmokeResult(
-            status="failed",
-            message=str(exc),
-            plan_id=None,
-            manifest_path=None,
-            signature_path=None,
-        )
-
-    return DossierSmokeResult(
-        status="success",
-        message="Dossier verification passed",
-        plan_id=str(result.plan_id),
-        manifest_path=str(result.manifest_path) if result.manifest_path else None,
-        signature_path=str(result.signature_path) if result.signature_path else None,
-    )
-
-
-def run_search_smoke(args: argparse.Namespace) -> SearchSmokeResult:
-    from i4g.cli import smoke
-
-    if not args.search_project or not args.search_data_store_id or not args.search_serving_config_id:
-        return SearchSmokeResult(
-            status="skipped",
-            message="Search smoke skipped; search project/data store/serving config not provided.",
-        )
-
-    search_args = SimpleNamespace(
-        project=args.search_project,
-        location=args.search_location or "global",
-        data_store_id=args.search_data_store_id,
-        serving_config_id=args.search_serving_config_id,
-        query=args.search_query,
-        page_size=args.search_page_size,
-    )
-
-    try:
-        smoke.vertex_search_smoke(search_args)
-    except SystemExit as exc:  # pragma: no cover - subprocess failure path
-        return SearchSmokeResult(status="failed", message=str(exc))
-    except Exception as exc:  # pragma: no cover - safety net
-        return SearchSmokeResult(status="failed", message=str(exc))
-
-    return SearchSmokeResult(status="success", message="Vertex search returned results.")
 
 
 def write_reports(
@@ -553,6 +713,16 @@ def write_reports(
 ) -> None:
     args.report_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now(timezone.utc).isoformat()
+
+    # Gather verification state
+    verification_report = verify_cloud_state(args)
+
+    # Populate smoke tests in verification report
+    if search_smoke:
+        verification_report.smoke_tests["search"] = vars(search_smoke)
+    if dossier_smoke:
+        verification_report.smoke_tests["dossier"] = vars(dossier_smoke)
+
     report = {
         "project": args.project,
         "region": args.region,
@@ -576,22 +746,11 @@ def write_reports(
             }
             for r in results
         ],
-        "smoke": None,
-        "dossier_smoke": None,
-        "search_smoke": None,
+        "smoke": vars(smoke_result) if smoke_result else None,
+        "dossier_smoke": vars(dossier_smoke) if dossier_smoke else None,
+        "search_smoke": vars(search_smoke) if search_smoke else None,
+        "verification": verification_report.to_dict(),
     }
-    if smoke_result:
-        report["smoke"] = {"status": smoke_result.status, "message": smoke_result.message}
-    if dossier_smoke:
-        report["dossier_smoke"] = {
-            "status": dossier_smoke.status,
-            "message": dossier_smoke.message,
-            "plan_id": dossier_smoke.plan_id,
-            "manifest_path": dossier_smoke.manifest_path,
-            "signature_path": dossier_smoke.signature_path,
-        }
-    if search_smoke:
-        report["search_smoke"] = {"status": search_smoke.status, "message": search_smoke.message}
 
     json_path = args.report_dir / "report.json"
     json_path.write_text(json.dumps(report, indent=2, sort_keys=True))
@@ -632,35 +791,83 @@ def write_reports(
 
     (args.report_dir / "report.md").write_text("\n".join(lines))
 
+    # Write verify.json and verify.md using VerificationReport
+    (args.report_dir / "verify.json").write_text(json.dumps(verification_report.to_dict(), indent=2, sort_keys=True))
+
+    verify_lines = [
+        f"# Dev Bootstrap Verification ({timestamp})",
+        "",
+        f"Project: {args.project}",
+        "",
+        "## Bundles",
+    ]
+    for name, info in verification_report.bundles.items():
+        status = "✅" if info.get("exists") else "❌"
+        verify_lines.append(f"- {status} {name}: {info.get('uri')}")
+
+    verify_lines.append("")
+    verify_lines.append("## Storage Stats")
+
+    verify_lines.append("### Primary DB")
+    for k, v in verification_report.storage.get("primary_db", {}).items():
+        verify_lines.append(f"- {k}: {v}")
+
+    verify_lines.append("### Relational DB")
+    for k, v in verification_report.storage.get("relational_db", {}).items():
+        verify_lines.append(f"- {k}: {v}")
+
+    verify_lines.append("### Vector Store")
+    for k, v in verification_report.storage.get("vector_store", {}).items():
+        verify_lines.append(f"- {k}: {v}")
+
+    if verification_report.errors:
+        verify_lines.append("")
+        verify_lines.append("## Errors")
+        for err in verification_report.errors:
+            verify_lines.append(f"- ❌ {err}")
+
+    (args.report_dir / "verify.md").write_text("\n".join(verify_lines))
+
+    logging.info("Reports written to %s", args.report_dir)
+
 
 def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
     """Run ingestion logic locally instead of via Cloud Run jobs."""
     results: list[JobResult] = []
 
-    # 1. Stage bundle locally if needed
-    local_bundle_path = None
+    bundles_to_process = []
+
+    # 1. Determine bundles
     if args.bundle_uri:
-        try:
-            local_bundle_path = stage_bundle(args.bundle_uri, BUNDLES_DIR)
-            logging.info("Staged bundle to %s", local_bundle_path)
-        except Exception as exc:
-            logging.error("Failed to stage bundle: %s", exc)
-            return [
-                JobResult(
-                    label="bundle_stage",
-                    job_name="local-bundle-stage",
-                    command=f"stage_bundle({args.bundle_uri})",
-                    status="failure",
-                    stdout="",
-                    stderr=str(exc),
-                    error=str(exc),
-                )
-            ]
+        if args.bundle_uri.startswith("gs://"):
+            logging.info("Using GCS URI directly for local execution: %s", args.bundle_uri)
+            bundles_to_process.append(args.bundle_uri)
+        else:
+            try:
+                local_bundle_path = stage_bundle(args.bundle_uri, BUNDLES_DIR)
+                logging.info("Staged bundle to %s", local_bundle_path)
+                bundles_to_process.append(str(local_bundle_path))
+            except Exception as exc:
+                logging.error("Failed to stage bundle: %s", exc)
+                return [
+                    JobResult(
+                        label="bundle_stage",
+                        job_name="local-bundle-stage",
+                        command=f"stage_bundle({args.bundle_uri})",
+                        status="failure",
+                        stdout="",
+                        stderr=str(exc),
+                        error=str(exc),
+                    )
+                ]
+    else:
+        # Default behavior: download and use all bundles
+        common_download_bundles(BUNDLES_DIR)
+        bundles_to_process = [str(p) for p in sorted(BUNDLES_DIR.glob("**/*.jsonl"))]
+        if not bundles_to_process:
+            logging.warning("No bundles found in %s", BUNDLES_DIR)
 
-    # 2. Run Ingest (covers firestore, vertex, sql, bigquery via structured store)
-    # We map the requested jobs to flags for the ingest script
-
-    # Check if any ingest-related job is requested
+    # 2. Run Ingest for each bundle
     ingest_jobs = {"firestore", "vertex", "sql", "bigquery"}
     requested_jobs = set()
     if not args.skip_firestore:
@@ -672,21 +879,29 @@ def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
     if not args.skip_bigquery:
         requested_jobs.add("bigquery")
 
-    if requested_jobs:
-        logging.info("Running local ingestion for: %s", requested_jobs)
+    if not requested_jobs:
+        return results
+
+    logging.info("Running local ingestion for: %s on %d bundles", requested_jobs, len(bundles_to_process))
+
+    for bundle_path in bundles_to_process:
+        logging.info("Processing bundle: %s", bundle_path)
+
         env = os.environ.copy()
-        env["I4G_ENV"] = "dev"  # Force dev env even if running locally
-        if local_bundle_path:
-            env["I4G_INGEST__JSONL_PATH"] = str(local_bundle_path)
+        env["I4G_ENV"] = "dev"
+        env["I4G_INGEST__JSONL_PATH"] = bundle_path
 
         if args.dataset:
             env["I4G_INGEST__DATASET_NAME"] = args.dataset
+        if args.limit > 0:
+            env["I4G_INGEST__BATCH_LIMIT"] = str(args.limit)
+        if args.rate_limit_delay > 0:
+            env["I4G_INGEST__RATE_LIMIT_DELAY"] = str(args.rate_limit_delay)
 
-        # Enable backends based on requested jobs
         env["I4G_INGEST__ENABLE_FIRESTORE"] = "1" if "firestore" in requested_jobs else "0"
         env["I4G_INGEST__ENABLE_VERTEX"] = "1" if "vertex" in requested_jobs else "0"
+        env["I4G_INGEST__ENABLE_VECTOR"] = "1" if "vertex" in requested_jobs else "0"
 
-        # Pass Vertex configuration if enabled
         if "vertex" in requested_jobs:
             if args.search_project:
                 env["I4G_VERTEX_SEARCH_PROJECT"] = args.search_project
@@ -695,22 +910,17 @@ def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
             if args.search_data_store_id:
                 env["I4G_VERTEX_SEARCH_DATA_STORE"] = args.search_data_store_id
             elif not os.getenv("I4G_VERTEX_SEARCH_DATA_STORE"):
-                # Fallback to a reasonable default if not provided and not in env
                 env["I4G_VERTEX_SEARCH_DATA_STORE"] = "retrieval-poc"
-
-        # SQL/BigQuery are handled by structured store which is enabled by default in ingest pipeline
-        # unless we explicitly disable it, but ingest.py doesn't seem to have a flag to disable structured store easily
-        # other than not building it. But build_structured_store uses settings.
 
         if args.dry_run:
             env["I4G_INGEST__DRY_RUN"] = "1"
 
         cmd = [sys.executable, "-m", "i4g.worker.jobs.ingest"]
-        command_str = " ".join(cmd)
+        command_str = " ".join(cmd) + f" (bundle={bundle_path})"
 
         try:
             if args.dry_run:
-                logging.info("[dry-run] Would run: %s with env overrides", command_str)
+                logging.info("[dry-run] Would run: %s", command_str)
                 results.append(JobResult("ingest", "local-ingest", command_str, "skipped", "<dry-run>", "", None))
             else:
                 proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=True)
@@ -718,7 +928,7 @@ def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
                     JobResult("ingest", "local-ingest", command_str, "success", proc.stdout, proc.stderr, None)
                 )
         except subprocess.CalledProcessError as exc:
-            logging.error("Local ingestion failed: %s", exc.stderr)
+            logging.error("Local ingestion failed for %s: %s", bundle_path, exc.stderr)
             results.append(
                 JobResult("ingest", "local-ingest", command_str, "failure", exc.stdout, exc.stderr, str(exc))
             )
@@ -814,7 +1024,7 @@ def bootstrap_dev(args: argparse.Namespace) -> int:
             logging.info("verify-only set; skipping job execution.")
 
     smoke_result: SmokeResult | None = None
-    if args.run_smoke or args.verify_only:
+    if args.run_smoke:
         logging.info("Running Cloud Run smoke...")
         smoke_result = run_smoke(args)
         if smoke_result.status != "success":
@@ -885,12 +1095,16 @@ def run_dev(
     smoke_job: str,
     smoke_container: str,
     local_execution: bool = False,
+    limit: int = 0,
+    rate_limit_delay: float = 0.0,
 ) -> int:
     args = argparse.Namespace(
         project=project,
         region=region,
         bundle_uri=bundle_uri,
         dataset=dataset,
+        limit=limit,
+        rate_limit_delay=rate_limit_delay,
         wif_service_account=wif_service_account,
         firestore_job=firestore_job,
         vertex_job=vertex_job,
@@ -970,6 +1184,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         smoke_job=args.smoke_job,
         smoke_container=args.smoke_container,
         local_execution=args.local_execution,
+        limit=args.limit,
+        rate_limit_delay=args.rate_limit_delay,
     )
 
 
@@ -989,6 +1205,7 @@ def bootstrap_dev_reset(
     region: str = typer.Option(DEFAULT_REGION, "--region", help="Cloud Run region (default: us-central1)."),
     bundle_uri: Optional[str] = typer.Option(None, "--bundle-uri", help="Bundle URI passed to jobs, if supported."),
     dataset: Optional[str] = typer.Option(None, "--dataset", help="Dataset identifier injected into job args."),
+    limit: int = typer.Option(0, "--limit", help="Limit the number of records to ingest (0 = unlimited)."),
     wif_service_account: str = typer.Option(
         DEFAULT_WIF_SA,
         "--wif-service-account",
@@ -1069,6 +1286,9 @@ def bootstrap_dev_reset(
     local_execution: bool = typer.Option(
         False, "--local-execution", help="Run ingestion logic locally instead of triggering Cloud Run jobs."
     ),
+    rate_limit_delay: float = typer.Option(
+        0.0, "--rate-limit-delay", help="Delay in seconds between records during ingestion (for rate limiting)."
+    ),
 ) -> None:
     """Execute dev Cloud Run bootstrap jobs; optional smoke after run."""
 
@@ -1115,6 +1335,8 @@ def bootstrap_dev_reset(
             smoke_job=smoke_job,
             smoke_container=smoke_container,
             local_execution=local_execution,
+            limit=limit,
+            rate_limit_delay=rate_limit_delay,
         )
     )
 
@@ -1205,6 +1427,10 @@ def bootstrap_dev_load(
     local_execution: bool = typer.Option(
         False, "--local-execution", help="Run ingestion logic locally instead of triggering Cloud Run jobs."
     ),
+    limit: int = typer.Option(0, "--limit", help="Limit the number of records to ingest (0 = unlimited)."),
+    rate_limit_delay: float = typer.Option(
+        0.0, "--rate-limit-delay", help="Delay in seconds between records during ingestion (for rate limiting)."
+    ),
 ) -> None:
     """Alias of reset for dev bootstrap jobs (kept for symmetry)."""
 
@@ -1251,6 +1477,8 @@ def bootstrap_dev_load(
             smoke_job=smoke_job,
             smoke_container=smoke_container,
             local_execution=local_execution,
+            limit=limit,
+            rate_limit_delay=rate_limit_delay,
         )
     )
 

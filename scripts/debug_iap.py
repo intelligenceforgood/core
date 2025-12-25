@@ -8,6 +8,7 @@ from googleapiclient.discovery import build
 # Configure logging to stdout
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
+
 def test_iap():
     project = "i4g-dev"
     impersonate_sa = "sa-app@i4g-dev.iam.gserviceaccount.com"
@@ -21,19 +22,18 @@ def test_iap():
         source_credentials=source_creds,
         target_principal=impersonate_sa,
         target_scopes=["https://www.googleapis.com/auth/cloud-platform"],
-        lifetime=3600
+        lifetime=3600,
     )
-    
+
     print("Creating IDTokenCredentials...")
     id_token_creds = google.auth.impersonated_credentials.IDTokenCredentials(
-        target_credentials=compute_creds,
-        target_audience=audience,
-        include_email=True
+        target_credentials=compute_creds, target_audience=audience, include_email=True
     )
-    
+
     print("Refreshing token...")
     id_token_creds.refresh(request)
     print(f"Token: {id_token_creds.token[:10]}...")
+
 
 if __name__ == "__main__":
     try:

@@ -60,7 +60,7 @@ def _local_discovery_search(query: str, limit: int, offset: int = 0) -> Dict[str
 
             # Try to find a title/summary
             title = metadata.get("title") or metadata.get("case_id") or f"Result {doc_id}"
-            
+
             # Resolve snippet from various possible locations
             snippet = (
                 metadata.get("summary")
@@ -90,7 +90,7 @@ def _local_discovery_search(query: str, limit: int, offset: int = 0) -> Dict[str
         # Estimate total size to be at least the next page if we have a token
         total_size = result["total"]
         if next_page_token and total_size <= (offset + limit):
-             total_size = offset + limit + 1
+            total_size = offset + limit + 1
 
         return {"results": mapped_results, "total_size": total_size, "next_page_token": next_page_token}
     except Exception:
@@ -143,7 +143,7 @@ def discovery_search(
         params.filter_expression = filter_expression
     if boost_json:
         params.boost_json = boost_json
-    
+
     try:
         return run_discovery_search(params)
     except RuntimeError as exc:  # pragma: no cover - surfaces backend errors
