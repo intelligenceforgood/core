@@ -1,8 +1,6 @@
-#!/usr/bin/env python3
 """Enqueue a sample dossier plan into the project's DossierQueueStore DB.
 
-This script writes a DossierPlan and marks it as completed so the running server can
-discover it via `/reports/dossiers` endpoints.
+This module backs `i4g bootstrap seed-sample`.
 """
 from __future__ import annotations
 
@@ -16,7 +14,7 @@ from i4g.settings import get_settings
 from i4g.store.dossier_queue_store import DossierQueueStore
 
 
-def main() -> int:
+def seed_sample_dossier() -> int:
     settings = get_settings()
     data_dir = Path(settings.data_dir)
     artifacts_dir = data_dir / "reports" / "dossiers"
@@ -64,7 +62,3 @@ def main() -> int:
     store.mark_complete(plan.plan_id)
     print("Inserted plan", plan_id)
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

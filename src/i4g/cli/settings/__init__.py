@@ -23,15 +23,15 @@ def settings_export_manifest(
 ) -> None:
     """Generate settings manifests and optional docs copies."""
 
-    from scripts import export_settings_manifest as esm
+    from . import manifest
 
-    records = esm.build_manifest()
-    target_dir = esm.ensure_directory(proto_docs_dir)
-    esm.write_json(records, target_dir)
-    esm.write_yaml(records, target_dir)
-    esm.write_markdown(records, target_dir)
+    records = manifest.build_manifest()
+    target_dir = manifest.ensure_directory(proto_docs_dir)
+    manifest.write_json(records, target_dir)
+    manifest.write_yaml(records, target_dir)
+    manifest.write_markdown(records, target_dir)
     if docs_repo:
-        esm.write_docs_repo(records, docs_repo)
+        manifest.write_docs_repo(records, docs_repo)
 
 
 @settings_app.command("info", help="Show configuration precedence and resolved settings files.")

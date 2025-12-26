@@ -21,9 +21,9 @@ def _exit_from_return(code: int | None) -> None:
 
 @bootstrap_app.command("seed-sample", help="Enqueue the sample dossier plan into the local queue store.")
 def bootstrap_seed_sample() -> None:
-    from scripts import enqueue_sample_dossier
+    from . import seed
 
-    _exit_from_return(enqueue_sample_dossier.main())
+    _exit_from_return(seed.seed_sample_dossier())
 
 
 __all__ = [

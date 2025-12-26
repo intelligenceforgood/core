@@ -105,7 +105,7 @@ def run_dossier_smoke(args: argparse.Namespace) -> DossierSmokeResult:
         return DossierSmokeResult(status="skipped", message="Dossier smoke disabled.")
 
     try:
-        from scripts import smoke_dossiers
+        from i4g.cli.smoke import dossiers
 
         smoke_args = SimpleNamespace(
             api_url=getattr(args, "smoke_api_url", None),
@@ -114,7 +114,7 @@ def run_dossier_smoke(args: argparse.Namespace) -> DossierSmokeResult:
             limit=getattr(args, "smoke_dossier_limit", 5),
             plan_id=getattr(args, "smoke_dossier_plan_id", None),
         )
-        result = smoke_dossiers.run_smoke(smoke_args)
+        result = dossiers.run_smoke(smoke_args)
     except Exception as exc:  # pragma: no cover - CLI/network boundary safety net
         return DossierSmokeResult(status="failed", message=str(exc))
 

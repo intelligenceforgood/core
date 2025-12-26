@@ -1,12 +1,6 @@
-#!/usr/bin/env python3
 """Smoke test for dossier listings and verification endpoints.
 
-This script fetches dossier queue entries, selects a plan, and calls
-`/reports/dossiers/{plan_id}/verify` to ensure manifests and signatures are
-readable. It also checks that referenced local artifact paths exist.
-
-Run from repo root:
-    conda run -n i4g python scripts/smoke_dossiers.py --api-url http://localhost:8000 --token dev-token
+This module backs `i4g smoke dossiers`.
 """
 from __future__ import annotations
 
@@ -217,21 +211,3 @@ def run_smoke(args: argparse.Namespace) -> VerificationResult:
             f"missing={result.missing_count}, mismatch={result.mismatch_count}"
         )
     return result
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    args = parse_args(argv)
-    try:
-        result = run_smoke(args)
-    except SmokeError as exc:  # pragma: no cover - CLI boundary
-        print(f"SMOKE FAILED: {exc}", file=sys.stderr)
-        return 1
-    print(
-        "SMOKE OK: plan=%s verified, manifest=%s, signature=%s"
-        % (result.plan_id, result.manifest_path or "<none>", result.signature_path or "<none>")
-    )
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())

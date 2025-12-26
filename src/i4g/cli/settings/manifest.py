@@ -32,7 +32,7 @@ INTRO_TEXT = (
     "Usage guidance for developers and sysadmins:\n\n"
     "1. Prefer the `I4G_*` env vars when exporting values; legacy aliases exist only for backwards compatibility.\n"
     "2. When adding or changing a setting, update `src/i4g/settings/config.py`, extend "
-    "`tests/unit/settings/`, and rerun `python scripts/export_settings_manifest.py` (pass `--docs-repo ../docs` when the "
+    "`tests/unit/settings/`, and rerun `i4g settings export-manifest` (pass `--docs-repo ../docs` when the "
     "docs checkout is available) before committing.\n"
     "3. Store credentials in `.env.local` or Secret Manager rather than committing secrets here; laptop runs can source "
     "the file via `direnv` or the built-in dotenv loader.\n"
@@ -40,7 +40,7 @@ INTRO_TEXT = (
     "are reachable.\n"
     "5. Machine-readable manifests live next to this page (`docs/config/settings_manifest.{json,yaml}` in core, "
     "`config/settings.yaml` in the docs site) for automation and CI validation.\n\n"
-    "This catalog is assembled by `core/scripts/export_settings_manifest.py` directly from "
+    "This catalog is assembled by `i4g settings export-manifest` directly from "
     "`src/i4g/settings/config.py`. The descriptions below are automatically generated—do not hand-edit them; change the "
     "implementation defaults and rerun the exporter instead."
 )
@@ -349,39 +349,3 @@ def write_docs_repo(records: list[SettingRecord], docs_repo: Path) -> None:
         "fields": [record.as_jsonable() for record in records],
     }
     yaml_path.write_text(yaml.safe_dump(yaml_payload, sort_keys=False), encoding="utf-8")
-
-
-def parse_args() -> argparse.Namespace:
-    """Parse CLI arguments."""
-
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--proto-docs-dir",
-        type=Path,
-        default=PROJECT_ROOT / "docs" / "config",
-        help="Directory (inside proto) where manifest outputs should be written.",
-    )
-    parser.add_argument(
-        "--docs-repo",
-        type=Path,
-        default=None,
-        help="Optional path to the docs repository root to mirror outputs.",
-    )
-    return parser.parse_args()
-
-
-def main() -> None:
-    """Entry point for CLI usage."""
-
-    args = parse_args()
-    records = build_manifest()
-    target_dir = ensure_directory(args.proto_docs_dir)
-    write_json(records, target_dir)
-    write_yaml(records, target_dir)
-    write_markdown(records, target_dir)
-    if args.docs_repo:
-        write_docs_repo(records, args.docs_repo)
-
-
-if __name__ == "__main__":
-    main()
