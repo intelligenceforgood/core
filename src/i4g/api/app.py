@@ -98,7 +98,7 @@ SETTINGS = get_settings()
 
 # In-memory request log (in production, replace with Redis or PostgreSQL table)
 REQUEST_LOG = {}
-MAX_REQUESTS_PER_MINUTE = 0 if getattr(SETTINGS, "is_local", False) else 10
+MAX_REQUESTS_PER_MINUTE = SETTINGS.api.rate_limit_per_minute
 
 
 @app.middleware("http")

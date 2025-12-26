@@ -836,6 +836,26 @@ class SqlAlchemyReviewStore:
         action_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         with self._session_factory() as session:
+            # Special handling for search history: ensure the "search" review exists
+            if review_id == "search":
+                try:
+                    # Try to insert the dummy search review if it doesn't exist
+                    session.execute(
+                        sa.dialects.postgresql.insert(sql_schema.review_queue)
+                        .values(
+                            review_id="search",
+                            case_id="search_placeholder",
+                            queued_at=now,
+                            priority="low",
+                            status="completed",
+                            last_updated=now,
+                        )
+                        .on_conflict_do_nothing()
+                    )
+                except Exception:
+                    # Ignore errors if it already exists or race condition
+                    pass
+
             stmt = sa.insert(sql_schema.review_actions).values(
                 action_id=action_id,
                 review_id=review_id,
@@ -848,6 +868,15 @@ class SqlAlchemyReviewStore:
             session.commit()
         return action_id
 
+    def get_recent_actions(self, action: Optional[str] = None, limit: int = 20) -> List[Dict[str, Any]]:
+        with self._session_factory() as session:
+            query = sa.select(sql_schema.review_actions)
+            if action:
+                query = query.where(sql_schema.review_actions.c.action == action)
+            query = query.order_by(sql_schema.review_actions.c.created_at.desc()).limit(limit)
+            rows = session.execute(query).all()
+            return [dict(r._mapping) for r in rows]
+
     def get_actions(self, review_id: str) -> List[Dict[str, Any]]:
         with self._session_factory() as session:
             rows = session.execute(
@@ -857,12 +886,13 @@ class SqlAlchemyReviewStore:
             ).all()
             return [dict(r._mapping) for r in rows]
 
-    def save_search(
+    def upsert_saved_search(
         self,
         name: str,
         params: Dict[str, Any],
         owner: Optional[str] = None,
         search_id: Optional[str] = None,
+        favorite: bool = False,
         tags: Optional[List[str]] = None,
     ) -> str:
         sid = search_id or str(uuid.uuid4())
@@ -876,6 +906,7 @@ class SqlAlchemyReviewStore:
                 owner=owner,
                 params=params,
                 created_at=now,
+                favorite=favorite,
                 tags=tags_json,
             )
             stmt = stmt.on_conflict_do_update(
@@ -885,11 +916,29 @@ class SqlAlchemyReviewStore:
                     "owner": stmt.excluded.owner,
                     "params": stmt.excluded.params,
                     "tags": stmt.excluded.tags,
+                    "favorite": stmt.excluded.favorite,
                 },
             )
             session.execute(stmt)
             session.commit()
         return sid
+
+    def list_saved_searches(self, owner: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
+        with self._session_factory() as session:
+            query = sa.select(sql_schema.saved_searches)
+            if owner:
+                query = query.where(
+                    sa.or_(
+                        sql_schema.saved_searches.c.owner == owner,
+                        sql_schema.saved_searches.c.owner.is_(None),
+                    )
+                )
+            query = query.order_by(
+                sql_schema.saved_searches.c.favorite.desc(),
+                sql_schema.saved_searches.c.created_at.desc(),
+            ).limit(limit)
+            rows = session.execute(query).all()
+            return [dict(r._mapping) for r in rows]
 
     def list_searches(self, owner: Optional[str] = None) -> List[Dict[str, Any]]:
         with self._session_factory() as session:

@@ -55,7 +55,7 @@ def test_run_discovery_search_pagination(mock_client_factory):
     mock_client = MagicMock()
     mock_client.serving_config_path.return_value = "projects/p/locations/l/dataStores/d/servingConfigs/default_search"
     mock_client_factory.return_value = mock_client
-    
+
     # Mock response
     mock_response = MagicMock()
     mock_response.total_size = 100
@@ -64,13 +64,7 @@ def test_run_discovery_search_pagination(mock_client_factory):
     mock_client.search.return_value = mock_response
 
     params = DiscoverySearchParams(
-        query="test",
-        project="p",
-        location="l",
-        data_store_id="d",
-        page_size=20,
-        page_token="curr-token",
-        offset=50
+        query="test", project="p", location="l", data_store_id="d", page_size=20, page_token="curr-token", offset=50
     )
 
     run_discovery_search(params)
@@ -78,7 +72,7 @@ def test_run_discovery_search_pagination(mock_client_factory):
     # Verify call args
     call_args = mock_client.search.call_args
     request = call_args.kwargs["request"]
-    
+
     assert request.page_size == 20
     assert request.page_token == "curr-token"
     assert request.offset == 50
@@ -96,27 +90,20 @@ def test_run_discovery_search_results_mapping(mock_client_factory):
     mock_result = MagicMock()
     mock_result.document.id = "doc-1"
     mock_result.document.name = "Document 1"
-    mock_result.document.json_data = json.dumps({
-        "summary": "Test Summary",
-        "title": "Test Title",
-        "source": "Test Source"
-    })
+    mock_result.document.json_data = json.dumps(
+        {"summary": "Test Summary", "title": "Test Title", "source": "Test Source"}
+    )
     # Mock protobuf conversion
     mock_result._pb = MagicMock()
-    
+
     mock_response = MagicMock()
     mock_response.__iter__.return_value = [mock_result]
     mock_client.search.return_value = mock_response
 
-    params = DiscoverySearchParams(
-        query="test",
-        project="p",
-        location="l",
-        data_store_id="d"
-    )
+    params = DiscoverySearchParams(query="test", project="p", location="l", data_store_id="d")
 
     result = run_discovery_search(params)
-    
+
     assert len(result["results"]) == 1
     item = result["results"][0]
     assert item["document_id"] == "doc-1"

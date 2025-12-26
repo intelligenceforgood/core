@@ -18,6 +18,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, ValidationError
 
 from i4g.api.auth import require_token
+from i4g.services.factories import build_review_store
 from i4g.services.hybrid_search import HybridSearchQuery, HybridSearchService, QueryEntityFilter, QueryTimeRange
 from i4g.settings import get_settings
 from i4g.store.retriever import HybridRetriever
@@ -118,7 +119,7 @@ class BulkTagUpdateRequest(BaseModel):
 # Dependency factory for store (simple)
 def get_store() -> ReviewStore:
     """Return a ReviewStore instance (mounted to default DB path)."""
-    return ReviewStore()
+    return build_review_store()
 
 
 def get_retriever() -> HybridRetriever:
@@ -197,29 +198,31 @@ def search_cases(
     diagnostics = query_result.get("diagnostics")
     diag_counts = diagnostics.get("counts", {}) if isinstance(diagnostics, dict) else {}
     search_id = f"search:{uuid.uuid4()}"
-    store.log_action(
-        review_id="search",
-        actor=user["username"],
-        action="search",
-        payload={
-            "search_id": search_id,
-            "text": text,
-            "classification": classification,
-            "case_id": case_id,
-            "limit": limit,
-            "vector_limit": vector_limit,
-            "structured_limit": structured_limit,
-            "offset": offset,
-            "page_size": page_size,
-            "results_count": len(results),
-            "total": query_result["total"],
-            "vector_hits": query_result.get("vector_hits"),
-            "structured_hits": query_result.get("structured_hits"),
-            "merged_results": diag_counts.get("merged_results"),
-            "source_breakdown": diag_counts.get("source_breakdown"),
-            "diagnostics": diagnostics,
-        },
-    )
+    # TODO: Re-enable search logging once we have a dedicated table or a way to log
+    # actions not tied to a specific review_id (schema constraint).
+    # store.log_action(
+    #     review_id="search",
+    #     actor=user["username"],
+    #     action="search",
+    #     payload={
+    #         "search_id": search_id,
+    #         "text": text,
+    #         "classification": classification,
+    #         "case_id": case_id,
+    #         "limit": limit,
+    #         "vector_limit": vector_limit,
+    #         "structured_limit": structured_limit,
+    #         "offset": offset,
+    #         "page_size": page_size,
+    #         "results_count": len(results),
+    #         "total": query_result["total"],
+    #         "vector_hits": query_result.get("vector_hits"),
+    #         "structured_hits": query_result.get("structured_hits"),
+    #         "merged_results": diag_counts.get("merged_results"),
+    #         "source_breakdown": diag_counts.get("source_breakdown"),
+    #         "diagnostics": diagnostics,
+    #     },
+    # )
 
     return {
         "results": results,
@@ -282,6 +285,8 @@ def search_cases_advanced(
             log_payload["saved_search_owner"] = saved_search_descriptor["owner"]
         if saved_search_descriptor.get("tags"):
             log_payload["saved_search_tags"] = saved_search_descriptor["tags"]
+    # TODO: Re-enable search logging once we have a dedicated table or a way to log
+    # actions not tied to a specific review_id (schema constraint).
     store.log_action(
         review_id="search",
         actor=user["username"],

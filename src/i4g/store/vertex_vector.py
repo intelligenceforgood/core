@@ -151,7 +151,18 @@ class _VertexAIBackend:
         results = []
         for result in response.results:
             doc = result.document
-            data = json.loads(doc.json_data) if doc.json_data else {}
+            data = {}
+            if doc.json_data:
+                try:
+                    parsed = json.loads(doc.json_data)
+                    if isinstance(parsed, dict):
+                        data = parsed
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+            if not data and doc.struct_data:
+                # struct_data is a proto Map, dict() converts it safely
+                data = dict(doc.struct_data)
 
             # Extract content/text
             content = data.get("content", "")
@@ -161,6 +172,10 @@ class _VertexAIBackend:
 
             # Reconstruct metadata
             metadata = {k: v for k, v in data.items() if k != "content"}
+
+            # Ensure case_id is present (Vertex AI uses doc.id as the primary key)
+            if "case_id" not in metadata and doc.id:
+                metadata["case_id"] = doc.id
 
             # Create a compatible document object (duck typing or LangChain Document)
             # The interface expects (Document, score) tuples

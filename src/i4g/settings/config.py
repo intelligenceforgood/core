@@ -174,6 +174,10 @@ class APISettings(BaseSettings):
         default="dev-analyst-token",
         validation_alias=AliasChoices("API_KEY", "API__KEY"),
     )
+    rate_limit_per_minute: int = Field(
+        default=60,
+        validation_alias=AliasChoices("API_RATE_LIMIT", "API__RATE_LIMIT_PER_MINUTE"),
+    )
 
 
 class IdentitySettings(BaseSettings):
