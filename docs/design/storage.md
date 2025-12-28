@@ -14,6 +14,7 @@ This document details the storage backends used by the i4g platform across diffe
 | **Vector** | `VectorStore` (Embeddings) | **Chroma** (`data/chroma_store`) | **Vertex AI Search** |
 | **Blob/File** | `EvidenceStorage` (PDFs, Images) | **Local FS** (`data/evidence`) | **Cloud Storage** (GCS) |
 | **Queue/State** | `ReviewStore` (Analyst Queue) | **SQLite** (`data/i4g_store.db`) | **Cloud SQL** (Postgres) |
+| **Agent Queue** | `DossierQueueStore` (Dossier Plans) | **SQLite** (`data/i4g_store.db`) | **Cloud SQL** (Postgres) |
 
 > (*) **Note on Review Queue**: The `ReviewStore` now uses the shared Cloud SQL instance in cloud environments, ensuring persistent queue state across container restarts.
 
@@ -59,6 +60,16 @@ This document details the storage backends used by the i4g platform across diffe
     - `evidence`: Raw user uploads and scraped content.
     - `reports`: Generated Markdown/JSON dossiers and investigation reports.
 - **Access**: Accessed via `EvidenceStorage` (which abstracts `pathlib` vs `google-cloud-storage`).
+
+### 5. Agent Queue (Dossier)
+**Purpose**: Persists "Dossier Plans" for the agentic workflow. This queue decouples the API (which requests a dossier) from the background worker (which executes the LangChain agents).
+- **Schema**: Defined in `src/i4g/store/dossier_queue_store.py`.
+- **Table**: `dossier_queue`
+    - `plan_id`: Unique identifier for the dossier generation task.
+    - `status`: `queued`, `processing`, `completed`, `failed`.
+    - `payload`: JSON blob containing the initial case context and instructions.
+- **Access**: Accessed via `DossierQueueStore`.
+- **Infrastructure**: Shares the same SQLite/Cloud SQL instance as the Entity and Review stores.
 
 ## Data Flow
 

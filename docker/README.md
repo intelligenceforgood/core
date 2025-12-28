@@ -2,6 +2,8 @@
 
 This directory contains Dockerfiles for the various services and background jobs that make up the I4G Core platform.
 
+> **See Also:** For a detailed architectural breakdown of these jobs, their business logic, and execution triggers, please refer to the [Background Jobs & Worker Architecture](../docs/design/jobs.md) guide.
+
 ## Service Images
 
 ### `fastapi.Dockerfile`
