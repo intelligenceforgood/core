@@ -17,8 +17,14 @@ DEFAULT_ENV = "local"
 
 
 def _env_project_root(var_name: str) -> Path | None:
-    """Resolve an override path from the provided environment variable."""
+    """Resolve an override path from the provided environment variable.
 
+    Args:
+        var_name: The name of the environment variable to check.
+
+    Returns:
+        The resolved path if the variable is set, otherwise None.
+    """
     raw_value = os.getenv(var_name)
     if not raw_value:
         return None
@@ -27,8 +33,11 @@ def _env_project_root(var_name: str) -> Path | None:
 
 
 def _detect_project_root() -> Path:
-    """Return the repository root, honoring environment overrides when set."""
+    """Return the repository root, honoring environment overrides when set.
 
+    Returns:
+        The absolute path to the project root directory.
+    """
     for env_var in ("I4G_PROJECT_ROOT", "I4G_RUNTIME__PROJECT_ROOT"):
         candidate = _env_project_root(env_var)
         if candidate:
@@ -83,8 +92,14 @@ def _env_file_candidates(env: str) -> list[Path]:
 
 
 def _resolve_config_path(raw_path: str | None) -> Path | None:
-    """Return an absolute config path from user input."""
+    """Return an absolute config path from user input.
 
+    Args:
+        raw_path: The path string to resolve.
+
+    Returns:
+        The absolute path if input is provided, otherwise None.
+    """
     if not raw_path:
         return None
     candidate = Path(raw_path).expanduser()
@@ -94,8 +109,14 @@ def _resolve_config_path(raw_path: str | None) -> Path | None:
 
 
 def _config_file_priority(include_missing: bool = False) -> tuple[Path, ...]:
-    """Return config files in descending precedence order."""
+    """Return config files in descending precedence order.
 
+    Args:
+        include_missing: If True, include paths even if they don't exist.
+
+    Returns:
+        A tuple of config file paths in order of priority.
+    """
     ordered: list[Path] = []
     env_override = _resolve_config_path(os.getenv(SETTINGS_FILE_ENV_VAR))
     if env_override:

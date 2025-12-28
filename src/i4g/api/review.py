@@ -118,17 +118,29 @@ class BulkTagUpdateRequest(BaseModel):
 
 # Dependency factory for store (simple)
 def get_store() -> ReviewStore:
-    """Return a ReviewStore instance (mounted to default DB path)."""
+    """Return a ReviewStore instance (mounted to default DB path).
+
+    Returns:
+        A configured ReviewStore instance.
+    """
     return build_review_store()
 
 
 def get_retriever() -> HybridRetriever:
-    """Return a HybridRetriever instance."""
+    """Return a HybridRetriever instance.
+
+    Returns:
+        A configured HybridRetriever instance.
+    """
     return HybridRetriever()
 
 
 def get_hybrid_search_service() -> HybridSearchService:
-    """Return a HybridSearchService instance for dependency injection."""
+    """Return a HybridSearchService instance for dependency injection.
+
+    Returns:
+        A configured HybridSearchService instance.
+    """
 
     return HybridSearchService()
 
@@ -141,10 +153,19 @@ def get_hybrid_search_service() -> HybridSearchService:
 @router.post("/", summary="Enqueue a case for review")
 def enqueue_case(
     payload: EnqueueRequest,
-    user=Depends(require_token),
+    user: Dict[str, Any] = Depends(require_token),
     store: ReviewStore = Depends(get_store),
-):
-    """Add a case to the review queue."""
+) -> Dict[str, str]:
+    """Add a case to the review queue.
+
+    Args:
+        payload: The request payload containing case ID and priority.
+        user: The authenticated user (injected dependency).
+        store: The review store instance (injected dependency).
+
+    Returns:
+        A dictionary containing the new review ID and the case ID.
+    """
     review_id = store.enqueue_case(case_id=payload.case_id, priority=payload.priority)
     # Optionally log that user enqueued it
     store.log_action(
@@ -161,8 +182,17 @@ def list_queue(
     status: str = Query("queued"),
     limit: int = Query(25),
     store: ReviewStore = Depends(get_store),
-):
-    """List queued cases by status."""
+) -> Dict[str, Any]:
+    """List queued cases by status.
+
+    Args:
+        status: The status to filter by (default: "queued").
+        limit: The maximum number of items to return.
+        store: The review store instance.
+
+    Returns:
+        A dictionary containing the list of items and the count.
+    """
     items = store.get_queue(status=status, limit=limit)
     return {"items": items, "count": len(items)}
 
@@ -178,11 +208,27 @@ def search_cases(
     offset: int = Query(0, ge=0),
     page_size: Optional[int] = Query(None, ge=1, le=100, description="Maximum number of merged results to return"),
     search_service: HybridSearchService = Depends(get_hybrid_search_service),
-    user=Depends(require_token),
+    user: Dict[str, Any] = Depends(require_token),
     store: ReviewStore = Depends(get_store),
-):
-    """Combine semantic and structured search for analyst triage."""
+) -> Dict[str, Any]:
+    """Combine semantic and structured search for analyst triage.
 
+    Args:
+        text: Free-text search query.
+        classification: Filter by classification label.
+        case_id: Filter by exact case ID.
+        limit: Limit for individual search components (deprecated, use page_size).
+        vector_limit: Specific limit for vector search.
+        structured_limit: Specific limit for structured search.
+        offset: Pagination offset.
+        page_size: Maximum number of merged results to return.
+        search_service: The hybrid search service.
+        user: The authenticated user.
+        store: The review store.
+
+    Returns:
+        A dictionary containing search results and diagnostics.
+    """
     payload = HybridSearchRequest(
         text=text,
         classifications=[classification] if classification else [],

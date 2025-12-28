@@ -32,11 +32,17 @@ TASK_STATUS: Dict[str, Dict[str, str]] = {}
 
 
 @task_router.get("/{task_id}")
-def get_task_status(task_id: str):
-    """
-    Retrieve the current status of a background task.
-    This endpoint is used by Streamlit or external clients
-    to monitor report generation, ingestion, or review actions.
+def get_task_status(task_id: str) -> Dict[str, str]:
+    """Retrieve the current status of a background task.
+
+    This endpoint is used by Streamlit or external clients to monitor report
+    generation, ingestion, or review actions.
+
+    Args:
+        task_id: The unique identifier of the task.
+
+    Returns:
+        A dictionary containing the task ID, status, and any associated message.
     """
     if task_id not in TASK_STATUS:
         return {"task_id": task_id, "status": "unknown", "message": "Task not found"}
@@ -45,12 +51,17 @@ def get_task_status(task_id: str):
 
 
 @task_router.post("/{task_id}/update")
-def update_task_status(task_id: str, payload: Dict[str, str]):
-    """
-    Update or register a task status entry.
+def update_task_status(task_id: str, payload: Dict[str, str]) -> Dict[str, str | bool]:
+    """Update or register a task status entry.
+
     This simulates what a background worker would do.
-    Example payload:
-        {"status": "in_progress", "message": "Generating report..."}
+
+    Args:
+        task_id: The unique identifier of the task.
+        payload: A dictionary containing status updates (e.g., status, message).
+
+    Returns:
+        A dictionary confirming the update.
     """
     TASK_STATUS[task_id] = payload
     return {"task_id": task_id, "updated": True}

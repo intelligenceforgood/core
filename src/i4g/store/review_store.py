@@ -31,14 +31,18 @@ SETTINGS = get_settings()
 
 
 class ReviewStore:
-    """Lightweight SQLite-based review queue and audit logger."""
+    """Lightweight SQLite-based review queue and audit logger.
+
+    This class manages the analyst review queue and action logs using a SQLite
+    database. It is designed to integrate with the StructuredStore.
+    """
 
     def __init__(self, db_path: str | Path | None = None) -> None:
-        """
-        Initialize the ReviewStore, creating tables if they do not exist.
+        """Initialize the ReviewStore, creating tables if they do not exist.
 
         Args:
-            db_path: Path to the SQLite database file.
+            db_path: Path to the SQLite database file. If None, uses the
+                configured path from settings.
         """
         resolved = Path(db_path) if db_path else Path(SETTINGS.storage.sqlite_path)
         if not resolved.is_absolute():
@@ -51,13 +55,20 @@ class ReviewStore:
     # Internal utilities
     # -------------------------------------------------------------------------
     def _connect(self) -> sqlite3.Connection:
-        """Return a SQLite connection with row factory set to dict."""
+        """Return a SQLite connection with row factory set to dict.
+
+        Returns:
+            A configured sqlite3.Connection object.
+        """
         conn = sqlite3.connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
         return conn
 
     def _init_tables(self) -> None:
-        """Create required tables if they do not exist."""
+        """Create required tables if they do not exist.
+
+        Creates 'review_queue', 'review_actions', and 'saved_searches' tables.
+        """
         conn = self._connect()
         cur = conn.cursor()
 
