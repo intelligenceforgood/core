@@ -139,13 +139,12 @@ def run(cmd: list[str], *, cwd: Path | None = None, env_overrides: dict[str, str
     subprocess.run(cmd, cwd=cwd or ROOT, check=True, env=env)
 
 
-def reset_artifacts(skip_ocr: bool, skip_vector: bool) -> None:
+def reset_artifacts(skip_vector: bool) -> None:
     """Remove generated artifacts so the sandbox refreshes cleanly."""
 
-    if not skip_ocr:
-        shutil.rmtree(CHAT_SCREENS_DIR, ignore_errors=True)
-        if OCR_OUTPUT.exists():
-            OCR_OUTPUT.unlink()
+    shutil.rmtree(CHAT_SCREENS_DIR, ignore_errors=True)
+    if OCR_OUTPUT.exists():
+        OCR_OUTPUT.unlink()
     if SEMANTIC_OUTPUT.exists():
         SEMANTIC_OUTPUT.unlink()
     if not skip_vector:
@@ -197,22 +196,23 @@ def ingest_bundles(skip_vector: bool) -> None:
         run([sys.executable, "-m", "i4g.worker.jobs.ingest"], env_overrides=env)
 
 
-def synthesize_screens() -> Path:
-    bundles = sorted(BUNDLES_DIR.glob("*.jsonl"))
-    if not bundles:
-        raise RuntimeError("No bundle JSONL files found in data/bundles; rerun build step.")
-    bundle = bundles[0]
-    run(
-        [
-            sys.executable,
-            "tests/adhoc/synthesize_chat_screenshots.py",
-            "--input",
-            str(bundle),
-            "--limit",
-            "20",
-        ]
-    )
-    return bundle
+def stage_ocr_images() -> None:
+    """Copy downloaded OCR test images to the processing directory."""
+    source_dir = BUNDLES_DIR / "ocr_test_images"
+    if not source_dir.exists():
+        print(f"⚠️  OCR images bundle not found at {source_dir}. Skipping OCR staging.")
+        return
+
+    print(f"📸 Staging OCR images from {source_dir}...")
+    CHAT_SCREENS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Copy all files
+    count = 0
+    for item in source_dir.iterdir():
+        if item.is_file():
+            shutil.copy2(item, CHAT_SCREENS_DIR / item.name)
+            count += 1
+    print(f"   → Staged {count} images.")
 
 
 def run_ocr() -> None:
@@ -240,7 +240,12 @@ def rebuild_manual_demo() -> None:
             str(SQLITE_DB),
             "--vector-dir",
             str(CHROMA_DIR),
-        ]
+        ],
+        env_overrides={
+            "I4G_INGESTION__ENABLE_VERTEX": "false",
+            "I4G_INGESTION__ENABLE_FIRESTORE": "false",
+            "I4G_INGESTION__ENABLE_SQL": "true",
+        },
     )
 
 
@@ -420,7 +425,6 @@ def verify_sandbox(
 def run_local(
     *,
     reset: bool,
-    skip_ocr: bool,
     skip_vector: bool,
     bundle_uri: Optional[str],
     dry_run: bool,
@@ -452,8 +456,8 @@ def run_local(
 
     if dry_run:
         print(
-            "[dry-run] Would reset=%s skip_ocr=%s skip_vector=%s bundle_uri=%s verify_only=%s"
-            % (reset, skip_ocr, skip_vector, bundle_uri, verify_only)
+            "[dry-run] Would reset=%s skip_vector=%s bundle_uri=%s verify_only=%s"
+            % (reset, skip_vector, bundle_uri, verify_only)
         )
         return
 
@@ -461,7 +465,7 @@ def run_local(
     common_download_bundles(BUNDLES_DIR)
 
     if reset:
-        reset_artifacts(skip_ocr=skip_ocr, skip_vector=skip_vector)
+        reset_artifacts(skip_vector=skip_vector)
 
     if bundle_uri:
         stage_bundle(bundle_uri, BUNDLES_DIR)
@@ -501,18 +505,15 @@ def run_local(
     ingest_bundles(skip_vector=skip_vector)
 
     tesseract_available = shutil.which("tesseract") is not None
-    if not skip_ocr:
-        if not tesseract_available:
-            print(
-                "⚠️  Tesseract not found on PATH; skipping OCR and semantic extraction. "
-                "Install it or rerun with --skip-ocr."
-            )
-        else:
-            synthesize_screens()
-            run_ocr()
-            run_semantic_extraction()
+    if tesseract_available:
+        stage_ocr_images()
+        run_ocr()
+        run_semantic_extraction()
     else:
-        print("⚠️  Skipping OCR pipeline; existing artifacts will be reused if present.")
+        print(
+            "⚠️  Tesseract not found on PATH; skipping OCR and semantic extraction. "
+            "Install it to enable OCR testing."
+        )
 
     if not skip_vector:
         rebuild_manual_demo()
@@ -545,7 +546,6 @@ def _exit_from_return(code: int | None) -> None:
 
 @local_app.command("reset", help="Wipe and reload local sandbox artifacts.")
 def bootstrap_local_reset(
-    skip_ocr: bool = typer.Option(False, "--skip-ocr", help="Skip generating chat screenshots and OCR."),
     skip_vector: bool = typer.Option(False, "--skip-vector", help="Skip rebuilding vector/structured stores."),
     bundle_uri: Optional[str] = typer.Option(
         None, "--bundle-uri", help="Optional bundle JSONL path/URI to place into data/bundles."
@@ -586,7 +586,6 @@ def bootstrap_local_reset(
     _exit_from_return(
         run_local(
             reset=True,
-            skip_ocr=skip_ocr,
             skip_vector=skip_vector,
             bundle_uri=bundle_uri,
             dry_run=dry_run,
@@ -612,7 +611,6 @@ def bootstrap_local_reset(
 
 @local_app.command("load", help="Refresh local sandbox without wiping artifacts.")
 def bootstrap_local_load(
-    skip_ocr: bool = typer.Option(False, "--skip-ocr", help="Skip generating chat screenshots and OCR."),
     skip_vector: bool = typer.Option(False, "--skip-vector", help="Skip rebuilding vector/structured stores."),
     bundle_uri: Optional[str] = typer.Option(
         None, "--bundle-uri", help="Optional bundle JSONL path/URI to place into data/bundles."
@@ -653,7 +651,6 @@ def bootstrap_local_load(
     _exit_from_return(
         run_local(
             reset=False,
-            skip_ocr=skip_ocr,
             skip_vector=skip_vector,
             bundle_uri=bundle_uri,
             dry_run=dry_run,
@@ -717,7 +714,6 @@ def bootstrap_local_verify(
     _exit_from_return(
         run_local(
             reset=False,
-            skip_ocr=False,
             skip_vector=False,
             bundle_uri=bundle_uri,
             dry_run=False,
@@ -767,7 +763,6 @@ def bootstrap_local_smoke(
     _exit_from_return(
         run_local(
             reset=False,
-            skip_ocr=False,
             skip_vector=False,
             bundle_uri=bundle_uri,
             dry_run=False,

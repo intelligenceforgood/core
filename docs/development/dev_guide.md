@@ -422,11 +422,16 @@ For full dashboard functionality (API-backed), you can run the main UI:
 
 ```bash
 streamlit run src/i4g/ui/analyst_dashboard.py
+```
 
 Developer note: dependency resolution
 
-`requirements.txt` is generated with `pip-compile --extra=test pyproject.toml`. Thanks to the `protobuf>=5,<6` pin, the resolver should converge without manual edits. Run the command inside the `i4g` conda environment so the right interpreter is on PATH, and commit both `pyproject.toml` and `requirements.txt` when you intentionally update dependencies.
+`requirements.txt` is generated with
 ```
+pip-compile --extra=test pyproject.toml
+```
+
+Thanks to the `protobuf>=5,<6` pin, the resolver should converge without manual edits. Run the command inside the `i4g` conda environment so the right interpreter is on PATH, and commit both `pyproject.toml` and `requirements.txt` when you intentionally update dependencies.
 
 **Streamlit Analyst Dashboard**
 

@@ -22,13 +22,23 @@ reviewing local/dev refreshes.
 - Record fields: id/source/text/platform/scam_type/confidence, entities (wallets, banks, payment handles), structured
   fields, tags; optional OCR-like text for a subset.
 - Artifacts to emit:
-  - `synthetic_cases.jsonl` (primary records)
-  - `synthetic_cases_ground_truth.yaml` (labels/entities/tags)
-  - `vertex_docs.jsonl` (Vertex-ready docs)
-  - `saved_searches.json` (tag presets / saved searches)
-  - `ocr_samples/` (text or renders) with extraction ground truth
+  - `cases.jsonl` (primary records, standardized schema)
+  - `ocr_test_images/` (synthetic chat screenshots for OCR testing)
+  - `ground_truth.yaml` (optional labels/entities for verification)
   - Manifest with hashes/counts for all artifacts
 - Sizing: full bundle a few GB across all sources; smoke slice <50 MB, PII-free where possible.
+
+## Current Snapshot (2025-12-17)
+
+The current bootstrap process relies on a frozen snapshot of data stored in `gs://i4g-dev-data-bundles/2025-12-17/`.
+
+| Bundle Key | Description | GCS Path (Relative to Run Date) |
+| :--- | :--- | :--- |
+| `legacy_azure` | Historical intake & account artifacts exported from Azure. | `legacy_azure/search_exports/vertex/` |
+| `public_scams` | Public datasets (SMS Spam Collection, SpamAssassin). | `public_scams/cases.jsonl` |
+| `retrieval_poc` | Small subset of synthetic cases for retrieval testing. | `synthetic_coverage/retrieval_poc/cases.jsonl` |
+| `synthetic_coverage` | Full set of synthetic cases for broad coverage testing. | `synthetic_coverage/full/cases.jsonl` |
+| `ocr_test_images` | Synthetic chat screenshots for OCR pipeline testing. | `synthetic_coverage/ocr_test_images/` |
 
 ## Placement and manifests
 - Author locally under `data/bundles/` (gitignored), then publish to the versioned bucket `gs://i4g-dev-data-bundles/{bundle_id}/`.

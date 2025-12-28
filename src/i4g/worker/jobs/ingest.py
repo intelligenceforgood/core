@@ -5,11 +5,16 @@ from __future__ import annotations
 import json
 import logging
 import os
+import shutil
 import sys
+import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Iterator, List, Optional, Union
 
+from google.cloud import storage
+
+from i4g.ocr.tesseract import batch_extract_text
 from i4g.services.factories import (
     build_ingestion_retry_store,
     build_ingestion_run_tracker,
@@ -25,12 +30,14 @@ LOGGER = logging.getLogger("i4g.worker.jobs.ingest")
 
 
 def _configure_logging() -> None:
+    """Configures the logging level based on environment variables."""
     level_name = os.getenv("I4G_RUNTIME__LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
     logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 
-def _env_flag(name: str) -> bool | None:
+def _env_flag(name: str) -> Optional[bool]:
+    """Parses a boolean environment variable."""
     raw = os.getenv(name)
     if raw is None:
         return None
@@ -42,10 +49,8 @@ def _env_flag(name: str) -> bool | None:
     return None
 
 
-def _download_and_yield(blob) -> Iterator[dict]:
-    import tempfile
-    import os
-
+def _download_and_yield(blob: storage.Blob) -> Iterator[Dict[str, Any]]:
+    """Downloads a JSONL blob to a temp file and yields records."""
     fd, tmp_path = tempfile.mkstemp(suffix=".jsonl")
     os.close(fd)
     try:
@@ -58,52 +63,116 @@ def _download_and_yield(blob) -> Iterator[dict]:
             os.unlink(tmp_path)
 
 
-def _load_jsonl(path: Path | str) -> Iterator[dict]:
-    path_str = str(path)
-    if path_str.startswith("gs://"):
-        from google.cloud import storage
+def _process_images_and_yield(
+    image_paths: List[Union[str, Path]], is_gcs: bool = False, bucket: Optional[storage.Bucket] = None
+) -> Iterator[Dict[str, Any]]:
+    """
+    Runs OCR on a list of images and yields the results.
 
+    Args:
+        image_paths: List of paths (local) or blob names (if is_gcs).
+        is_gcs: Whether the paths are GCS blob names.
+        bucket: The GCS bucket object (required if is_gcs is True).
+    """
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+
+        if is_gcs:
+            if not bucket:
+                raise ValueError("Bucket is required for GCS image processing")
+
+            LOGGER.info("Downloading %d images from GCS to %s", len(image_paths), tmp_path)
+            for blob_name in image_paths:
+                blob = bucket.blob(str(blob_name))
+                # Keep the filename
+                filename = Path(str(blob_name)).name
+                blob.download_to_filename(tmp_path / filename)
+        else:
+            LOGGER.info("Staging %d local images to %s", len(image_paths), tmp_path)
+            for img_path in image_paths:
+                if isinstance(img_path, str):
+                    img_path = Path(img_path)
+                shutil.copy(img_path, tmp_path / img_path.name)
+
+        LOGGER.info("Running OCR on staged images in %s", tmp_path)
+        # batch_extract_text returns List[Dict[str, str]]
+        results = batch_extract_text(str(tmp_path))
+
+        for result in results:
+            yield result
+
+
+def _load_data(path: Union[Path, str]) -> Iterator[Dict[str, Any]]:
+    """
+    Loads data from a path (local or GCS).
+    Supports .jsonl files and image files (via OCR).
+    """
+    path_str = str(path)
+    image_extensions = {".png", ".jpg", ".jpeg", ".pdf", ".tiff", ".bmp"}
+
+    if path_str.startswith("gs://"):
         client = storage.Client()
         parts = path_str[5:].split("/", 1)
         bucket_name = parts[0]
         blob_name = parts[1] if len(parts) > 1 else ""
         bucket = client.bucket(bucket_name)
 
-        # List all blobs matching the prefix (handles both file and directory cases)
+        # List all blobs matching the prefix
         blobs = list(client.list_blobs(bucket, prefix=blob_name))
+
         jsonl_blobs = []
+        image_blobs = []
 
         for b in blobs:
-            if not b.name.endswith(".jsonl"):
-                continue
-
-            if path_str.endswith("/") or not blob_name:
-                # Explicit directory or bucket root: accept all matches
+            if b.name.endswith(".jsonl"):
                 jsonl_blobs.append(b)
-            else:
-                # Implicit: could be file or directory
-                if b.name == blob_name:
-                    jsonl_blobs.append(b)
-                elif b.name.startswith(blob_name + "/"):
-                    jsonl_blobs.append(b)
+            elif any(b.name.lower().endswith(ext) for ext in image_extensions):
+                image_blobs.append(b.name)
 
-        if not jsonl_blobs:
-            LOGGER.warning("No .jsonl files found in %s", path_str)
+        if jsonl_blobs:
+            LOGGER.info("Found %d .jsonl files in %s", len(jsonl_blobs), path_str)
+            for blob in jsonl_blobs:
+                yield from _download_and_yield(blob)
+        elif image_blobs:
+            LOGGER.info("Found %d image files in %s. Running OCR...", len(image_blobs), path_str)
+            yield from _process_images_and_yield(image_blobs, is_gcs=True, bucket=bucket)
+        else:
+            LOGGER.warning("No .jsonl or image files found in %s", path_str)
             return
-        for blob in jsonl_blobs:
-            yield from _download_and_yield(blob)
+
     else:
         path = Path(path)
+        if not path.exists():
+            LOGGER.warning("Path not found: %s", path)
+            return
+
         if path.is_dir():
-            for file_path in path.glob("*.jsonl"):
-                with file_path.open("r", encoding="utf-8") as handle:
-                    yield from _yield_from_handle(handle)
+            jsonl_files = list(path.glob("*.jsonl"))
+            image_files = [p for p in path.glob("*.*") if p.suffix.lower() in image_extensions]
+
+            if jsonl_files:
+                LOGGER.info("Found %d .jsonl files in %s", len(jsonl_files), path)
+                for file_path in jsonl_files:
+                    with file_path.open("r", encoding="utf-8") as handle:
+                        yield from _yield_from_handle(handle)
+            elif image_files:
+                LOGGER.info("Found %d image files in %s. Running OCR...", len(image_files), path)
+                yield from _process_images_and_yield(image_files, is_gcs=False)
+            else:
+                LOGGER.warning("No .jsonl or image files found in %s", path)
         else:
-            with path.open("r", encoding="utf-8") as handle:
-                yield from _yield_from_handle(handle)
+            # Single file
+            if path.suffix == ".jsonl":
+                with path.open("r", encoding="utf-8") as handle:
+                    yield from _yield_from_handle(handle)
+            elif path.suffix.lower() in image_extensions:
+                yield from _process_images_and_yield([path], is_gcs=False)
+            else:
+                LOGGER.warning("Unsupported file type: %s", path)
 
 
-def _yield_from_handle(handle) -> Iterator[dict]:
+def _yield_from_handle(handle: Iterator[str]) -> Iterator[Dict[str, Any]]:
+    """Yields parsed JSON objects from a file handle."""
     for line_no, raw in enumerate(handle, start=1):
         raw = raw.strip()
         if not raw:
@@ -114,14 +183,16 @@ def _yield_from_handle(handle) -> Iterator[dict]:
             raise ValueError(f"failed to parse JSON on line {line_no}: {exc}") from exc
 
 
-def _clone_payload(payload: dict) -> dict:
+def _clone_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Deep clones a payload dictionary."""
     try:
         return json.loads(json.dumps(payload, default=str))
     except Exception:
         return dict(payload)
 
 
-def _serialise_sql_result(result: Optional[SqlWriterResult]) -> Dict[str, Any] | None:
+def _serialise_sql_result(result: Optional[SqlWriterResult]) -> Optional[Dict[str, Any]]:
+    """Serialises a SqlWriterResult to a dictionary."""
     if result is None:
         return None
     return {
@@ -133,17 +204,18 @@ def _serialise_sql_result(result: Optional[SqlWriterResult]) -> Dict[str, Any] |
 
 
 def _maybe_enqueue_retry(
-    retry_store,
+    retry_store: Any,
     *,
     backend: str,
     attempted: bool,
     succeeded: bool,
-    payload: dict,
+    payload: Dict[str, Any],
     retry_delay: int,
     max_retries: int,
     error: Optional[str] = None,
     sql_result: Optional[SqlWriterResult] = None,
 ) -> int:
+    """Enqueues a retry if the operation failed and retries are enabled."""
     if not retry_store or not attempted or succeeded:
         return 0
     if max_retries <= 0:
@@ -264,7 +336,7 @@ def main() -> int:
     LOGGER.info("Resolved dataset path: %s", dataset_path)
 
     if isinstance(dataset_path, Path) and not dataset_path.exists():
-        LOGGER.warning("JSONL dataset not found; nothing to ingest: %s", dataset_path)
+        LOGGER.warning("Dataset path not found; nothing to ingest: %s", dataset_path)
         return 0
 
     structured_store = build_structured_store()
@@ -317,7 +389,7 @@ def main() -> int:
     scheduled_retries = 0
 
     try:
-        for record in _load_jsonl(dataset_path):
+        for record in _load_data(dataset_path):
             if batch_limit and processed >= batch_limit:
                 break
             if rate_limit_delay > 0:

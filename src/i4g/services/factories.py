@@ -24,7 +24,7 @@ from i4g.store.dossier_queue_store import DossierQueueStore
 from i4g.store.entity_store import EntityStore
 from i4g.store.ingestion_retry_store import IngestionRetryStore
 from i4g.store.ingestion_run_tracker import IngestionRunTracker
-from i4g.store.intake_store import IntakeStore
+from i4g.store.intake_store import IntakeStore, SqlAlchemyIntakeStore
 from i4g.store.review_store import ReviewStore, SqlAlchemyReviewStore
 from i4g.store.sql import session_factory as build_sql_session_factory
 from i4g.store.sql_writer import SqlWriter
@@ -150,7 +150,8 @@ def build_intake_store(db_path: str | Path | None = None) -> IntakeStore:
         raise NotImplementedError("Firestore intake backend not implemented yet")
 
     if backend == "cloudsql":
-        raise NotImplementedError("Cloud SQL intake backend not implemented yet")
+        session_factory = build_sql_session_factory()
+        return SqlAlchemyIntakeStore(session_factory=session_factory)
 
     raise NotImplementedError(f"Unsupported intake storage backend '{backend}'")
 

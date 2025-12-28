@@ -230,6 +230,59 @@ saved_searches = sa.Table(
 )
 
 
+intake_records = sa.Table(
+    "intake_records",
+    METADATA,
+    sa.Column("intake_id", sa.Text(), primary_key=True),
+    sa.Column("reporter_name", sa.Text(), nullable=True),
+    sa.Column("contact_email", sa.Text(), nullable=True),
+    sa.Column("contact_phone", sa.Text(), nullable=True),
+    sa.Column("contact_handle", sa.Text(), nullable=True),
+    sa.Column("preferred_contact", sa.Text(), nullable=True),
+    sa.Column("incident_date", sa.Text(), nullable=True),
+    sa.Column("loss_amount", sa.Float(), nullable=True),
+    sa.Column("summary", sa.Text(), nullable=True),
+    sa.Column("details", sa.Text(), nullable=True),
+    sa.Column("status", sa.Text(), nullable=True),
+    sa.Column("submitted_by", sa.Text(), nullable=True),
+    sa.Column("source", sa.Text(), nullable=True),
+    sa.Column("case_id", sa.Text(), nullable=True),
+    sa.Column("review_id", sa.Text(), nullable=True),
+    sa.Column("job_id", sa.Text(), nullable=True),
+    sa.Column("job_status", sa.Text(), nullable=True),
+    sa.Column("job_message", sa.Text(), nullable=True),
+    sa.Column("metadata", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=True),
+    sa.Column("updated_at", TIMESTAMP, nullable=True),
+)
+
+intake_attachments = sa.Table(
+    "intake_attachments",
+    METADATA,
+    sa.Column("attachment_id", sa.Text(), primary_key=True),
+    sa.Column("intake_id", sa.Text(), sa.ForeignKey("intake_records.intake_id"), nullable=False),
+    sa.Column("file_name", sa.Text(), nullable=True),
+    sa.Column("content_type", sa.Text(), nullable=True),
+    sa.Column("size_bytes", sa.Integer(), nullable=True),
+    sa.Column("checksum_sha256", sa.Text(), nullable=True),
+    sa.Column("storage_uri", sa.Text(), nullable=True),
+    sa.Column("storage_backend", sa.Text(), nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=True),
+)
+
+intake_jobs = sa.Table(
+    "intake_jobs",
+    METADATA,
+    sa.Column("job_id", sa.Text(), primary_key=True),
+    sa.Column("intake_id", sa.Text(), sa.ForeignKey("intake_records.intake_id"), nullable=False),
+    sa.Column("status", sa.Text(), nullable=True),
+    sa.Column("message", sa.Text(), nullable=True),
+    sa.Column("metadata", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=True),
+    sa.Column("updated_at", TIMESTAMP, nullable=True),
+)
+
+
 def _resolve_database_url(settings: Settings | None = None) -> str:
     """Return the SQLAlchemy URL considering overrides and configured backend."""
 

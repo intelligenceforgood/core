@@ -8,10 +8,27 @@ from typing import Optional
 
 import typer
 
-from i4g.cli.admin import dossiers, pilot, saved_searches
+from i4g.cli.admin import dossiers, pilot, saved_searches, seed
 from i4g.settings import get_settings
 
 admin_app = typer.Typer(help="Saved search and dossier administration.")
+
+
+@admin_app.command("seed-reviews", help="Seed the review queue with synthetic cases.")
+def admin_seed_reviews(
+    queued: int = typer.Option(5, help="Number of queued cases."),
+    in_review: int = typer.Option(2, help="Number of in-review cases."),
+    accepted: int = typer.Option(1, help="Number of accepted cases."),
+    rejected: int = typer.Option(1, help="Number of rejected cases."),
+    reset: bool = typer.Option(False, help="Clear existing data before seeding."),
+) -> None:
+    seed.seed_reviews(
+        queued=queued,
+        in_review=in_review,
+        accepted=accepted,
+        rejected=rejected,
+        reset=reset,
+    )
 
 
 @admin_app.command("query", help="Run scam-detection RAG query using the configured vector backend.")

@@ -52,8 +52,9 @@ def get_bundles() -> dict[str, str]:
     return {
         "legacy_azure": f"gs://i4g-dev-data-bundles/{run_date}/legacy_azure/search_exports/vertex/",
         "public_scams": f"gs://i4g-dev-data-bundles/{run_date}/public_scams/cases.jsonl",
-        "retrieval_poc": f"gs://i4g-dev-data-bundles/{run_date}/retrieval_poc/cases.jsonl",
+        "retrieval_poc": f"gs://i4g-dev-data-bundles/{run_date}/synthetic_coverage/retrieval_poc/cases.jsonl",
         "synthetic_coverage": f"gs://i4g-dev-data-bundles/{run_date}/synthetic_coverage/full/cases.jsonl",
+        "ocr_test_images": f"gs://i4g-dev-data-bundles/{run_date}/synthetic_coverage/ocr_test_images/",
     }
 
 

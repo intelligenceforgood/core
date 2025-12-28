@@ -20,6 +20,8 @@ RUN apt-get update \
         libxext6 \
         libxrender1 \
         rsync \
+        tesseract-ocr \
+        libtesseract-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml README.md VERSION.txt LICENSE ./

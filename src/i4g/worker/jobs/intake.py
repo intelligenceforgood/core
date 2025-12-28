@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 import urllib.parse
+from typing import Any, Dict, Optional
 
 import httpx
 from google.auth.transport.requests import Request
@@ -18,6 +19,7 @@ LOGGER = logging.getLogger("i4g.worker.jobs.intake")
 
 
 def _configure_logging() -> None:
+    """Configures the logging level based on environment variables."""
     level_name = os.getenv("I4G_RUNTIME__LOG_LEVEL", "INFO").upper()
     level = getattr(logging, level_name, logging.INFO)
     logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -26,11 +28,24 @@ def _configure_logging() -> None:
 def _safe_post(
     client: httpx.Client,
     path: str,
-    payload: dict,
+    payload: Dict[str, Any],
     *,
     required: bool = True,
     log_context: str,
-) -> httpx.Response | None:
+) -> Optional[httpx.Response]:
+    """
+    Performs a POST request and handles errors gracefully.
+
+    Args:
+        client: The HTTP client to use.
+        path: The URL path to post to.
+        payload: The JSON payload to send.
+        required: Whether to raise an exception on failure.
+        log_context: Context string for logging.
+
+    Returns:
+        The response object if successful, None otherwise.
+    """
     try:
         response = client.post(path, json=payload)
         response.raise_for_status()
@@ -42,8 +57,16 @@ def _safe_post(
         raise
 
 
-def _get_oidc_token(audience: str) -> str | None:
-    """Fetch an OIDC token for the given audience if running in GCP."""
+def _get_oidc_token(audience: str) -> Optional[str]:
+    """
+    Fetch an OIDC token for the given audience if running in GCP.
+
+    Args:
+        audience: The target audience for the token.
+
+    Returns:
+        The OIDC token string, or None if it could not be fetched.
+    """
     try:
         auth_req = Request()
         return id_token.fetch_id_token(auth_req, audience)
@@ -53,7 +76,19 @@ def _get_oidc_token(audience: str) -> str | None:
         return None
 
 
-def _process_via_api(intake_id: str, job_id: str, api_base: str, api_key: str | None) -> int:
+def _process_via_api(intake_id: str, job_id: str, api_base: str, api_key: Optional[str]) -> int:
+    """
+    Processes an intake job by communicating with the API.
+
+    Args:
+        intake_id: The ID of the intake record.
+        job_id: The ID of the job.
+        api_base: The base URL of the API.
+        api_key: The API key for authentication.
+
+    Returns:
+        0 on success, 1 on failure.
+    """
     runner = LocalPipelineIntakeJobRunner()
     headers = {"X-API-KEY": api_key} if api_key else {}
 

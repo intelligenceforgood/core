@@ -47,13 +47,14 @@ DEFAULT_PROJECT = "i4g-dev"
 DEFAULT_REGION = "us-central1"
 DEFAULT_REPORT_DIR = REPO_ROOT / "data" / "reports" / "bootstrap_dev"
 DEFAULT_JOBS = {
-    "firestore": "ingest-azure-snapshot",  # Main ingestion job (covers Firestore + Vector)
-    "vertex": "",  # Skipped (included in ingest-azure-snapshot)
+    "firestore": "ingest-bootstrap",  # Main ingestion job (covers Firestore + Vector)
+    "vertex": "",  # Skipped (included in ingest-bootstrap)
     "sql": "",  # Skipped (not deployed)
     "bigquery": "",  # Skipped (not deployed)
     "gcs_assets": "",  # Skipped (not deployed)
     "reports": "generate-reports",  # Correct job name
     "saved_searches": "",  # Skipped (not deployed)
+    "seed_reviews": "generate-reports",  # Reuse report-job image for seeding
 }
 
 
@@ -63,6 +64,7 @@ class JobSpec:
     job_name: str
     args: list[str]
     env: dict[str, str] | None = None
+    command: list[str] | None = None
 
 
 @dataclass
@@ -80,6 +82,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Bootstrap the dev environment via Cloud Run jobs")
     parser.add_argument("--project", default=DEFAULT_PROJECT, help="Target GCP project (default: i4g-dev).")
     parser.add_argument("--region", default=DEFAULT_REGION, help="Cloud Run region (default: us-central1).")
+    parser.add_argument("--bundle", help="Name of a specific bundle to process (e.g. 'ocr_test_images').")
     parser.add_argument("--bundle-uri", dest="bundle_uri", help="Bundle URI passed to all jobs, if supported.")
     parser.add_argument("--dataset", help="Dataset identifier injected into job args, if supported.")
     parser.add_argument(
@@ -98,7 +101,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_JOBS["saved_searches"],
         help="Saved searches/tag presets job name.",
     )
-    parser.add_argument("--skip-firestore", action="store_true", help="Skip Firestore refresh job.")
+    parser.add_argument(
+        "--seed-reviews-job",
+        default=DEFAULT_JOBS["seed_reviews"],
+        help="Job to run for seeding reviews (reuses report-job image).",
+    )
+    parser.add_argument("--skip-seed-reviews", action="store_true", help="Skip seeding reviews.")
+    parser.add_argument("--skip-ocr", action="store_true", help="Skip OCR test images bundle.")
+    parser.add_argument(
+        "--skip-firestore", action="store_true", help="Skip Firestore ingestion (ingest-bootstrap)."
+    )
     parser.add_argument("--skip-vertex", action="store_true", help="Skip Vertex import job.")
     parser.add_argument("--skip-sql", action="store_true", help="Skip SQL/Firestore sync job.")
     parser.add_argument("--skip-bigquery", action="store_true", help="Skip BigQuery refresh job.")
@@ -106,6 +118,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--skip-reports", action="store_true", help="Skip reports/dossiers job.")
     parser.add_argument("--skip-saved-searches", action="store_true", help="Skip saved searches job.")
     parser.add_argument("--dry-run", action="store_true", help="Print planned commands without executing them.")
+    parser.add_argument(
+        "--ingest-dry-run",
+        action="store_true",
+        help="Run ingestion in dry-run mode (perform extraction but skip DB writes).",
+    )
     parser.add_argument(
         "--verify-only", action="store_true", help="Skip job execution and only run verification smokes."
     )
@@ -163,6 +180,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         type=float,
         default=0.0,
         help="Delay in seconds between records during ingestion (for rate limiting).",
+    )
+    parser.add_argument(
+        "--timeout",
+        default="3600s",
+        help="Job execution timeout (e.g. 3600s, 60m). Default: 3600s.",
     )
     parser.add_argument("--run-dossier-smoke", action="store_true", help="Run dossier verification smoke via API.")
     parser.add_argument("--run-search-smoke", action="store_true", help="Run Vertex search smoke after bootstrap.")
@@ -268,13 +290,24 @@ def run_command(cmd: Sequence[str], *, dry_run: bool) -> subprocess.CompletedPro
 def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
     # Determine bundles
     bundles_to_process = []
-    if args.bundle_uri:
+    if args.bundle:
+        all_bundles = get_bundles()
+        if args.bundle not in all_bundles:
+            logging.error("Bundle '%s' not found. Available: %s", args.bundle, list(all_bundles.keys()))
+            return []
+        bundles_to_process.append(all_bundles[args.bundle])
+    elif args.bundle_uri:
         bundles_to_process.append(args.bundle_uri)
     else:
-        # Use default bundles (GCS URIs)
-        bundles_to_process = list(get_bundles().values())
+        # Use default bundles, filtering out OCR if requested
+        all_bundles = get_bundles()
+        for name, uri in all_bundles.items():
+            if args.skip_ocr and name == "ocr_test_images":
+                continue
+            bundles_to_process.append(uri)
 
     specs: list[JobSpec] = []
+    settings = get_settings()
 
     # Ingestion jobs (run per bundle)
     for bundle_uri in bundles_to_process:
@@ -289,8 +322,11 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
             ingest_env["I4G_INGEST__BATCH_LIMIT"] = str(args.limit)
         if args.rate_limit_delay > 0:
             ingest_env["I4G_INGEST__RATE_LIMIT_DELAY"] = str(args.rate_limit_delay)
+        if args.ingest_dry_run:
+            ingest_env["I4G_INGEST__DRY_RUN"] = "1"
 
-        job_args: list[str] = []
+        # Standard ingestion uses 'ingest' subcommand
+        job_args: list[str] = ["ingest"]
         job_args.append(f"--bundle-uri={bundle_uri}")
         if args.dataset:
             job_args.append(f"--dataset={args.dataset}")
@@ -320,6 +356,17 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
         specs.append(JobSpec(label="gcs_assets", job_name=args.gcs_assets_job, args=common_args))
     if not args.skip_reports and args.reports_job:
         specs.append(JobSpec(label="reports", job_name=args.reports_job, args=common_args))
+
+    if args.seed_reviews_job and not args.skip_seed_reviews:
+        specs.append(
+            JobSpec(
+                label="seed_reviews",
+                job_name=args.seed_reviews_job,
+                args=[],
+                command=["i4g", "admin", "seed-reviews"],
+            )
+        )
+
     if not args.skip_saved_searches and args.saved_searches_job:
         specs.append(JobSpec(label="saved_searches", job_name=args.saved_searches_job, args=common_args))
 
@@ -387,11 +434,18 @@ def execute_job(spec: JobSpec, args: argparse.Namespace) -> JobResult:
 
         # 3. Run Job
         overrides = {}
+        if args.timeout:
+            overrides["timeout"] = args.timeout
+
         container_override = {}
         if spec.args:
             container_override["args"] = spec.args
         if spec.env:
             container_override["env"] = [{"name": k, "value": v} for k, v in spec.env.items()]
+        if spec.command:
+            logging.warning(
+                "Ignoring command override for job %s as it is not supported by Cloud Run Jobs API.", spec.job_name
+            )
 
         if container_override:
             overrides["containerOverrides"] = [container_override]
@@ -599,7 +653,7 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
                     primary_db_stats["cases"] = count
         except Exception as exc:
             errors.append(f"SQLite Check Failed: {exc}")
-    else:
+    elif settings.ingestion.enable_firestore:
         try:
             from google.cloud import firestore
 
@@ -615,6 +669,8 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
                     errors.append(f"Firestore collection '{col}' check failed: {e}")
         except Exception as exc:
             errors.append(f"Firestore Connection Failed: {exc}")
+    else:
+        primary_db_stats["status"] = "skipped (disabled)"
 
     # 3. Relational DB (Cloud SQL)
     relational_db_stats = {}
@@ -760,6 +816,7 @@ def write_reports(
         "",
         f"Project: {args.project}",
         f"Region: {args.region}",
+        f"Bundle: {args.bundle or '<none>'}",
         f"Bundle URI: {args.bundle_uri or '<none>'}",
         f"Dataset: {args.dataset or '<none>'}",
         f"Dry run: {args.dry_run}",
@@ -838,7 +895,24 @@ def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
     bundles_to_process = []
 
     # 1. Determine bundles
-    if args.bundle_uri:
+    if args.bundle:
+        all_bundles = get_bundles()
+        if args.bundle not in all_bundles:
+            logging.error("Bundle '%s' not found. Available: %s", args.bundle, list(all_bundles.keys()))
+            return []
+        # For local execution, we need to stage the bundle if it's a GCS URI
+        uri = all_bundles[args.bundle]
+        if uri.startswith("gs://"):
+            try:
+                local_bundle_path = stage_bundle(uri, BUNDLES_DIR)
+                logging.info("Staged bundle '%s' to %s", args.bundle, local_bundle_path)
+                bundles_to_process.append(str(local_bundle_path))
+            except Exception as exc:
+                logging.error("Failed to stage bundle: %s", exc)
+                return []
+        else:
+            bundles_to_process.append(uri)
+    elif args.bundle_uri:
         if args.bundle_uri.startswith("gs://"):
             logging.info("Using GCS URI directly for local execution: %s", args.bundle_uri)
             bundles_to_process.append(args.bundle_uri)
@@ -897,6 +971,8 @@ def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
             env["I4G_INGEST__BATCH_LIMIT"] = str(args.limit)
         if args.rate_limit_delay > 0:
             env["I4G_INGEST__RATE_LIMIT_DELAY"] = str(args.rate_limit_delay)
+        if args.ingest_dry_run:
+            env["I4G_INGEST__DRY_RUN"] = "1"
 
         env["I4G_INGEST__ENABLE_FIRESTORE"] = "1" if "firestore" in requested_jobs else "0"
         env["I4G_INGEST__ENABLE_VERTEX"] = "1" if "vertex" in requested_jobs else "0"
@@ -959,6 +1035,31 @@ def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
                 JobResult("reports", "local-reports", command_str, "failure", exc.stdout, exc.stderr, str(exc))
             )
 
+    # 4. Run Seed Reviews
+    if args.seed_reviews_job:
+        logging.info("Running local seed reviews...")
+        env = os.environ.copy()
+        env["I4G_ENV"] = "dev"
+
+        # Run via the CLI entry point
+        cmd = ["i4g", "admin", "seed-reviews"]
+        command_str = " ".join(cmd)
+
+        try:
+            if args.dry_run:
+                logging.info("[dry-run] Would run: %s", command_str)
+                results.append(JobResult("seed_reviews", "local-seed-reviews", command_str, "skipped", "<dry-run>", "", None))
+            else:
+                proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=True)
+                results.append(
+                    JobResult("seed_reviews", "local-seed-reviews", command_str, "success", proc.stdout, proc.stderr, None)
+                )
+        except subprocess.CalledProcessError as exc:
+            logging.error("Local seed reviews failed: %s", exc.stderr)
+            results.append(
+                JobResult("seed_reviews", "local-seed-reviews", command_str, "failure", exc.stdout, exc.stderr, str(exc))
+            )
+
     return results
 
 
@@ -978,10 +1079,11 @@ def bootstrap_dev(args: argparse.Namespace) -> int:
         logging.info("Bundle sha256: %s", bundle_sha)
 
     logging.info(
-        "Bootstrap dev: project=%s region=%s bundle=%s "
+        "Bootstrap dev: project=%s region=%s bundle=%s bundle_uri=%s "
         "dataset=%s dry_run=%s verify_only=%s run_smoke=%s local_execution=%s",
         args.project,
         args.region,
+        args.bundle or "<none>",
         args.bundle_uri or "<none>",
         args.dataset or "<none>",
         args.dry_run,
@@ -1059,6 +1161,7 @@ def run_dev(
     *,
     project: str,
     region: str,
+    bundle: Optional[str] = None,
     bundle_uri: Optional[str],
     dataset: Optional[str],
     wif_service_account: str,
@@ -1069,6 +1172,7 @@ def run_dev(
     gcs_assets_job: str,
     reports_job: str,
     saved_searches_job: str,
+    seed_reviews_job: str,
     skip_firestore: bool,
     skip_vertex: bool,
     skip_sql: bool,
@@ -1076,7 +1180,10 @@ def run_dev(
     skip_gcs_assets: bool,
     skip_reports: bool,
     skip_saved_searches: bool,
+    skip_seed_reviews: bool,
+    skip_ocr: bool,
     dry_run: bool,
+    ingest_dry_run: bool,
     verify_only: bool,
     run_smoke: bool,
     run_dossier_smoke: bool,
@@ -1097,14 +1204,17 @@ def run_dev(
     local_execution: bool = False,
     limit: int = 0,
     rate_limit_delay: float = 0.0,
+    timeout: str = "3600s",
 ) -> int:
     args = argparse.Namespace(
         project=project,
         region=region,
+        bundle=bundle,
         bundle_uri=bundle_uri,
         dataset=dataset,
         limit=limit,
         rate_limit_delay=rate_limit_delay,
+        timeout=timeout,
         wif_service_account=wif_service_account,
         firestore_job=firestore_job,
         vertex_job=vertex_job,
@@ -1113,6 +1223,7 @@ def run_dev(
         gcs_assets_job=gcs_assets_job,
         reports_job=reports_job,
         saved_searches_job=saved_searches_job,
+        seed_reviews_job=seed_reviews_job,
         skip_firestore=skip_firestore,
         skip_vertex=skip_vertex,
         skip_sql=skip_sql,
@@ -1120,7 +1231,10 @@ def run_dev(
         skip_gcs_assets=skip_gcs_assets,
         skip_reports=skip_reports,
         skip_saved_searches=skip_saved_searches,
+        skip_seed_reviews=skip_seed_reviews,
+        skip_ocr=skip_ocr,
         dry_run=dry_run,
+        ingest_dry_run=ingest_dry_run,
         verify_only=verify_only,
         run_smoke=run_smoke,
         run_dossier_smoke=run_dossier_smoke,
@@ -1148,6 +1262,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     return run_dev(
         project=args.project,
         region=args.region,
+        bundle=args.bundle,
         bundle_uri=args.bundle_uri,
         dataset=args.dataset,
         wif_service_account=args.wif_service_account,
@@ -1165,7 +1280,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         skip_gcs_assets=args.skip_gcs_assets,
         skip_reports=args.skip_reports,
         skip_saved_searches=args.skip_saved_searches,
+        skip_seed_reviews=args.skip_seed_reviews,
+        skip_ocr=args.skip_ocr,
         dry_run=args.dry_run,
+        ingest_dry_run=args.ingest_dry_run,
         verify_only=args.verify_only,
         run_smoke=args.run_smoke,
         run_dossier_smoke=args.run_dossier_smoke,
@@ -1186,6 +1304,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         local_execution=args.local_execution,
         limit=args.limit,
         rate_limit_delay=args.rate_limit_delay,
+        timeout=args.timeout,
     )
 
 
@@ -1203,6 +1322,7 @@ def _exit_from_return(code: int | None) -> None:
 def bootstrap_dev_reset(
     project: str = typer.Option(DEFAULT_PROJECT, "--project", help="Target GCP project (default: i4g-dev)."),
     region: str = typer.Option(DEFAULT_REGION, "--region", help="Cloud Run region (default: us-central1)."),
+    bundle: Optional[str] = typer.Option(None, "--bundle", help="Name of a specific bundle to process."),
     bundle_uri: Optional[str] = typer.Option(None, "--bundle-uri", help="Bundle URI passed to jobs, if supported."),
     dataset: Optional[str] = typer.Option(None, "--dataset", help="Dataset identifier injected into job args."),
     limit: int = typer.Option(0, "--limit", help="Limit the number of records to ingest (0 = unlimited)."),
@@ -1228,6 +1348,9 @@ def bootstrap_dev_reset(
     saved_searches_job: str = typer.Option(
         DEFAULT_JOBS["saved_searches"], "--saved-searches-job", help="Saved searches/tag presets job.", hidden=True
     ),
+    seed_reviews_job: str = typer.Option(
+        DEFAULT_JOBS["seed_reviews"], "--seed-reviews-job", help="Seed reviews job.", hidden=True
+    ),
     skip_firestore: bool = typer.Option(False, "--skip-firestore", help="Skip Firestore refresh job."),
     skip_vertex: bool = typer.Option(False, "--skip-vertex", help="Skip Vertex import job."),
     skip_vector: bool = typer.Option(False, "--skip-vector", help="Alias for --skip-vertex (for local parity)."),
@@ -1236,7 +1359,12 @@ def bootstrap_dev_reset(
     skip_gcs_assets: bool = typer.Option(False, "--skip-gcs-assets", help="Skip GCS asset sync job."),
     skip_reports: bool = typer.Option(False, "--skip-reports", help="Skip reports/dossiers job."),
     skip_saved_searches: bool = typer.Option(False, "--skip-saved-searches", help="Skip saved searches job."),
+    skip_seed_reviews: bool = typer.Option(False, "--skip-seed-reviews", help="Skip seed reviews job."),
+    skip_ocr: bool = typer.Option(False, "--skip-ocr", help="Skip OCR test images bundle."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print planned commands without executing."),
+    ingest_dry_run: bool = typer.Option(
+        False, "--ingest-dry-run", help="Run ingestion in dry-run mode (skip DB writes)."
+    ),
     run_smoke: bool = typer.Option(False, "--run-smoke/--no-run-smoke", help="Run Cloud Run intake smoke."),
     run_dossier_smoke: bool = typer.Option(
         False, "--run-dossier-smoke/--no-run-dossier-smoke", help="Run dossier verification smoke."
@@ -1289,6 +1417,7 @@ def bootstrap_dev_reset(
     rate_limit_delay: float = typer.Option(
         0.0, "--rate-limit-delay", help="Delay in seconds between records during ingestion (for rate limiting)."
     ),
+    timeout: int = typer.Option(3600, "--timeout", help="Timeout in seconds for Cloud Run jobs."),
 ) -> None:
     """Execute dev Cloud Run bootstrap jobs; optional smoke after run."""
 
@@ -1309,6 +1438,7 @@ def bootstrap_dev_reset(
             gcs_assets_job=gcs_assets_job,
             reports_job=reports_job,
             saved_searches_job=saved_searches_job,
+            seed_reviews_job=seed_reviews_job,
             skip_firestore=skip_firestore,
             skip_vertex=skip_vertex,
             skip_sql=skip_sql,
@@ -1316,7 +1446,10 @@ def bootstrap_dev_reset(
             skip_gcs_assets=skip_gcs_assets,
             skip_reports=skip_reports,
             skip_saved_searches=skip_saved_searches,
+            skip_seed_reviews=skip_seed_reviews,
+            skip_ocr=skip_ocr,
             dry_run=dry_run,
+            ingest_dry_run=ingest_dry_run,
             verify_only=False,
             run_smoke=run_smoke,
             run_dossier_smoke=run_dossier_smoke,
@@ -1337,6 +1470,7 @@ def bootstrap_dev_reset(
             local_execution=local_execution,
             limit=limit,
             rate_limit_delay=rate_limit_delay,
+            timeout=f"{timeout}s",
         )
     )
 
@@ -1345,6 +1479,7 @@ def bootstrap_dev_reset(
 def bootstrap_dev_load(
     project: str = typer.Option(DEFAULT_PROJECT, "--project", help="Target GCP project (default: i4g-dev)."),
     region: str = typer.Option(DEFAULT_REGION, "--region", help="Cloud Run region (default: us-central1)."),
+    bundle: Optional[str] = typer.Option(None, "--bundle", help="Name of a specific bundle to process."),
     bundle_uri: Optional[str] = typer.Option(None, "--bundle-uri", help="Bundle URI passed to jobs, if supported."),
     dataset: Optional[str] = typer.Option(None, "--dataset", help="Dataset identifier injected into job args."),
     wif_service_account: str = typer.Option(
@@ -1369,6 +1504,9 @@ def bootstrap_dev_load(
     saved_searches_job: str = typer.Option(
         DEFAULT_JOBS["saved_searches"], "--saved-searches-job", help="Saved searches/tag presets job.", hidden=True
     ),
+    seed_reviews_job: str = typer.Option(
+        DEFAULT_JOBS["seed_reviews"], "--seed-reviews-job", help="Seed reviews job.", hidden=True
+    ),
     skip_firestore: bool = typer.Option(False, "--skip-firestore", help="Skip Firestore refresh job."),
     skip_vertex: bool = typer.Option(False, "--skip-vertex", help="Skip Vertex import job."),
     skip_vector: bool = typer.Option(False, "--skip-vector", help="Alias for --skip-vertex (for local parity)."),
@@ -1377,7 +1515,12 @@ def bootstrap_dev_load(
     skip_gcs_assets: bool = typer.Option(False, "--skip-gcs-assets", help="Skip GCS asset sync job."),
     skip_reports: bool = typer.Option(False, "--skip-reports", help="Skip reports/dossiers job."),
     skip_saved_searches: bool = typer.Option(False, "--skip-saved-searches", help="Skip saved searches job."),
+    skip_seed_reviews: bool = typer.Option(False, "--skip-seed-reviews", help="Skip seed reviews job."),
+    skip_ocr: bool = typer.Option(False, "--skip-ocr", help="Skip OCR test images bundle."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print planned commands without executing."),
+    ingest_dry_run: bool = typer.Option(
+        False, "--ingest-dry-run", help="Run ingestion in dry-run mode (skip DB writes)."
+    ),
     run_smoke: bool = typer.Option(False, "--run-smoke/--no-run-smoke", help="Run Cloud Run intake smoke."),
     run_dossier_smoke: bool = typer.Option(
         False, "--run-dossier-smoke/--no-run-dossier-smoke", help="Run dossier verification smoke."
@@ -1431,6 +1574,7 @@ def bootstrap_dev_load(
     rate_limit_delay: float = typer.Option(
         0.0, "--rate-limit-delay", help="Delay in seconds between records during ingestion (for rate limiting)."
     ),
+    timeout: int = typer.Option(3600, "--timeout", help="Timeout in seconds for Cloud Run jobs."),
 ) -> None:
     """Alias of reset for dev bootstrap jobs (kept for symmetry)."""
 
@@ -1451,6 +1595,7 @@ def bootstrap_dev_load(
             gcs_assets_job=gcs_assets_job,
             reports_job=reports_job,
             saved_searches_job=saved_searches_job,
+            seed_reviews_job=seed_reviews_job,
             skip_firestore=skip_firestore,
             skip_vertex=skip_vertex,
             skip_sql=skip_sql,
@@ -1458,7 +1603,10 @@ def bootstrap_dev_load(
             skip_gcs_assets=skip_gcs_assets,
             skip_reports=skip_reports,
             skip_saved_searches=skip_saved_searches,
+            skip_seed_reviews=skip_seed_reviews,
+            skip_ocr=skip_ocr,
             dry_run=dry_run,
+            ingest_dry_run=ingest_dry_run,
             verify_only=False,
             run_smoke=run_smoke,
             run_dossier_smoke=run_dossier_smoke,
@@ -1479,6 +1627,7 @@ def bootstrap_dev_load(
             local_execution=local_execution,
             limit=limit,
             rate_limit_delay=rate_limit_delay,
+            timeout=f"{timeout}s",
         )
     )
 
@@ -1487,6 +1636,7 @@ def bootstrap_dev_load(
 def bootstrap_dev_verify(
     project: str = typer.Option(DEFAULT_PROJECT, "--project", help="Target GCP project (default: i4g-dev)."),
     region: str = typer.Option(DEFAULT_REGION, "--region", help="Cloud Run region (default: us-central1)."),
+    bundle: Optional[str] = typer.Option(None, "--bundle", help="Name of a specific bundle to process."),
     bundle_uri: Optional[str] = typer.Option(None, "--bundle-uri", help="Bundle URI passed to jobs, if supported."),
     dataset: Optional[str] = typer.Option(None, "--dataset", help="Dataset identifier injected into job args."),
     wif_service_account: str = typer.Option(
@@ -1502,6 +1652,9 @@ def bootstrap_dev_verify(
     reports_job: str = typer.Option(DEFAULT_JOBS["reports"], "--reports-job", help="Reports/dossiers job."),
     saved_searches_job: str = typer.Option(
         DEFAULT_JOBS["saved_searches"], "--saved-searches-job", help="Saved searches/tag presets job."
+    ),
+    seed_reviews_job: str = typer.Option(
+        DEFAULT_JOBS["seed_reviews"], "--seed-reviews-job", help="Seed reviews job."
     ),
     run_smoke: bool = typer.Option(True, "--run-smoke/--no-run-smoke", help="Run Cloud Run intake smoke."),
     run_dossier_smoke: bool = typer.Option(
@@ -1560,6 +1713,7 @@ def bootstrap_dev_verify(
             gcs_assets_job=gcs_assets_job,
             reports_job=reports_job,
             saved_searches_job=saved_searches_job,
+            seed_reviews_job=seed_reviews_job,
             skip_firestore=False,
             skip_vertex=False,
             skip_sql=False,
@@ -1567,7 +1721,10 @@ def bootstrap_dev_verify(
             skip_gcs_assets=False,
             skip_reports=False,
             skip_saved_searches=False,
+            skip_seed_reviews=False,
+            skip_ocr=False,
             dry_run=False,
+            ingest_dry_run=False,
             verify_only=True,
             run_smoke=run_smoke,
             run_dossier_smoke=run_dossier_smoke,
@@ -1629,6 +1786,7 @@ def bootstrap_dev_smoke(
             gcs_assets_job="",
             reports_job="",
             saved_searches_job="",
+            seed_reviews_job="",
             skip_firestore=True,
             skip_vertex=True,
             skip_sql=True,
@@ -1636,7 +1794,10 @@ def bootstrap_dev_smoke(
             skip_gcs_assets=True,
             skip_reports=True,
             skip_saved_searches=True,
+            skip_seed_reviews=True,
+            skip_ocr=True,
             dry_run=False,
+            ingest_dry_run=False,
             verify_only=True,
             run_smoke=True,
             run_dossier_smoke=False,

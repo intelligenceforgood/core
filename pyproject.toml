@@ -43,6 +43,7 @@ dependencies = [
     "azure-storage-blob",
     "protobuf>=5,<6",
     "pytesseract",
+    "pypdfium2",
     "python-docx",
     "openpyxl",
     "reportlab",

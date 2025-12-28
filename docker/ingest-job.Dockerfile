@@ -17,6 +17,8 @@ RUN apt-get update \
         libsm6 \
         libxext6 \
         libxrender1 \
+        tesseract-ocr \
+        libtesseract-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml README.md VERSION.txt LICENSE ./
@@ -33,4 +35,5 @@ USER 65532:65532
 ENV I4G_ENV=dev \
     I4G_INGEST__JSONL_PATH=gs://i4g-dev-data-bundles/retrieval_poc/20251217/cases.jsonl
 
-ENTRYPOINT ["i4g", "jobs", "ingest"]
+ENTRYPOINT ["i4g", "jobs"]
+CMD ["ingest"]

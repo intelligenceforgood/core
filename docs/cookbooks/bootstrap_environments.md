@@ -73,6 +73,7 @@ To reset the dev environment by triggering Cloud Run jobs (standard procedure). 
     I4G_ENV=dev i4g bootstrap dev reset \
       --rate-limit-delay 0.5 \
       --run-smoke \
+      --timeout 7200s \
       --run-dossier-smoke \
       --run-search-smoke
     ```
@@ -133,6 +134,35 @@ I4G_ENV=dev RUN_DATE=2025-12-17 i4g bootstrap dev reset \
   --rate-limit-delay 0.5
 ```
 
+### Fast Testing / Debugging
+To test specific bootstrap steps without running the full pipeline (which can take hours):
+
+**1. Test OCR Extraction Only:**
+Target the `ocr_test_images` bundle and skip other steps.
+```bash
+i4g bootstrap dev --bundle ocr_test_images --skip-reports --skip-saved-searches
+```
+
+**2. Test Review Seeding Only:**
+Skip all ingestion steps to run just the review seeding job.
+```bash
+i4g bootstrap dev \
+  --skip-firestore --skip-vertex --skip-sql --skip-bigquery --skip-gcs-assets \
+  --skip-reports --skip-saved-searches
+```
+
+**3. Dry Run Ingestion (No DB Writes):**
+Run the full ingestion pipeline (including OCR and classification) but skip writing to Firestore/Vertex. Useful for debugging extraction crashes or rate limits.
+```bash
+i4g bootstrap dev reset --bundle ocr_test_images --ingest-dry-run
+```
+
+**3. Test Review Seeding Locally:**
+Run the seeding logic directly on your machine (requires dev credentials).
+```bash
+I4G_ENV=dev i4g admin seed-reviews
+```
+
 ### Troubleshooting: IAP Authentication
 If you encounter authentication issues with Cloud Run services (e.g., 401/403 errors during smoke tests), you can use the `debug_iap.py` script to verify token generation and audience configuration.
 
@@ -151,8 +181,8 @@ The bootstrap process orchestrates several Cloud Run Jobs. These jobs are define
 
 | Job Name | Docker Image | Purpose |
 | :--- | :--- | :--- |
-| `ingest-azure-snapshot` | `ingest-job.Dockerfile` | **Primary Ingestion**: Loads metadata to Firestore, generates embeddings for Vertex AI, syncs SQL/BigQuery. |
-| `generate-reports` | `report-job.Dockerfile` | **Reporting**: Generates dossiers and investigation reports. |
+| `ingest-bootstrap` | `ingest-job.Dockerfile` | **Primary Ingestion**: Loads metadata to Firestore, generates embeddings for Vertex AI, syncs SQL/BigQuery. |
+| `generate-reports` | `report-job.Dockerfile` | **Reporting**: Generates dossiers and investigation reports. Also used for **Review Seeding** (via `seed-reviews` command override). |
 | `account-setup` | `account-job.Dockerfile` | **Configuration**: Seeds default saved searches and tag presets. |
 | `process-intakes` | `intake-job.Dockerfile` | **Smoke Test**: Processes new intake submissions. |
 
@@ -169,13 +199,13 @@ If `gcloud run jobs execute` fails with `Unknown name "delayExecution" at 'overr
 1.  **List Jobs**:
     ```bash
     gcloud run jobs list --project i4g-dev --region us-central1 --format='table(name)'
-    # Example: ingest-azure-snapshot, generate-reports, process-intakes
+    # Example: ingest-bootstrap, generate-reports, process-intakes
     ```
 
 2.  **Execute via API**:
     ```bash
     ACCESS_TOKEN=$(gcloud auth print-access-token --impersonate-service-account sa-infra@i4g-dev.iam.gserviceaccount.com)
-    JOB=ingest-azure-snapshot
+    JOB=ingest-bootstrap
     
     curl -s -X POST \
       -H "Authorization: Bearer $ACCESS_TOKEN" \
@@ -210,13 +240,6 @@ Dev default: `retrieval-poc` with serving config `default_search`.
 ## Data Sources & Design
 
 The bootstrap process uses a frozen snapshot of data captured on **2025-12-17** to ensure consistent environments. These bundles are automatically downloaded from `gs://i4g-dev-data-bundles` during the bootstrap process.
-
-| Bundle | Content | Source |
-| :--- | :--- | :--- |
-| `legacy_azure` | Historical intake & account artifacts | `legacy_azure/2025-12-17/search_exports/vertex/` |
-| `public_scams` | Public datasets (SMS, SpamAssassin) | `public_scams/2025-12-17/cases.jsonl` |
-| `retrieval_poc` | Retrieval POC cases | `retrieval_poc/20251217/cases.jsonl` |
-| `synthetic_coverage` | Synthetic coverage cases | `synthetic_coverage/2025-12-17/full/cases.jsonl` |
 
 For full inventory, licensing, and synthetic scope details, see [Bundle Sources and Synthetic Coverage](../development/bundle_sources_and_coverage.md).
 

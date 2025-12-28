@@ -10,7 +10,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import sqlalchemy as sa
+from sqlalchemy.orm import sessionmaker
+
 from i4g.settings import get_settings
+from i4g.store import sql as sql_schema
+from i4g.store.sql import session_factory as default_session_factory
 
 SETTINGS = get_settings()
 
@@ -349,3 +354,225 @@ class IntakeStore:
         data = dict(row)
         data["metadata"] = json.loads(data.get("metadata") or "{}")
         return data
+
+class SqlAlchemyIntakeStore:
+    """SQLAlchemy-backed intake storage for i4g."""
+
+    def __init__(self, session_factory: sessionmaker | None = None) -> None:
+        self._session_factory = session_factory or default_session_factory()
+        # Create tables if they don't exist
+        with self._session_factory() as session:
+            sql_schema.METADATA.create_all(session.get_bind())
+
+    def create_intake(
+        self,
+        reporter_name: str,
+        summary: str,
+        details: str,
+        submitted_by: str,
+        contact_email: str | None = None,
+        contact_phone: str | None = None,
+        contact_handle: str | None = None,
+        preferred_contact: str | None = None,
+        incident_date: str | None = None,
+        loss_amount: float | None = None,
+        source: str = "unknown",
+        metadata: Dict[str, Any] | None = None,
+    ) -> str:
+        intake_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+        with self._session_factory() as session:
+            session.execute(
+                sa.insert(sql_schema.intake_records).values(
+                    intake_id=intake_id,
+                    reporter_name=reporter_name,
+                    contact_email=contact_email,
+                    contact_phone=contact_phone,
+                    contact_handle=contact_handle,
+                    preferred_contact=preferred_contact,
+                    incident_date=incident_date,
+                    loss_amount=loss_amount,
+                    summary=summary,
+                    details=details,
+                    status="received",
+                    submitted_by=submitted_by,
+                    source=source,
+                    metadata=metadata or {},
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            session.commit()
+        return intake_id
+
+    def add_attachment(
+        self,
+        intake_id: str,
+        file_name: str,
+        content_type: str | None,
+        size_bytes: int,
+        checksum_sha256: str,
+        storage_uri: str,
+        storage_backend: str,
+    ) -> str:
+        attachment_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+        with self._session_factory() as session:
+            session.execute(
+                sa.insert(sql_schema.intake_attachments).values(
+                    attachment_id=attachment_id,
+                    intake_id=intake_id,
+                    file_name=file_name,
+                    content_type=content_type,
+                    size_bytes=size_bytes,
+                    checksum_sha256=checksum_sha256,
+                    storage_uri=storage_uri,
+                    storage_backend=storage_backend,
+                    created_at=now,
+                )
+            )
+            session.commit()
+        return attachment_id
+
+    def create_job(
+        self,
+        intake_id: str,
+        status: str = "queued",
+        message: str | None = None,
+        metadata: Dict[str, Any] | None = None,
+    ) -> str:
+        job_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+        with self._session_factory() as session:
+            session.execute(
+                sa.insert(sql_schema.intake_jobs).values(
+                    job_id=job_id,
+                    intake_id=intake_id,
+                    status=status,
+                    message=message,
+                    metadata=metadata or {},
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            # Also update intake record with job_id
+            session.execute(
+                sa.update(sql_schema.intake_records)
+                .where(sql_schema.intake_records.c.intake_id == intake_id)
+                .values(job_id=job_id, job_status=status, job_message=message, updated_at=now)
+            )
+            session.commit()
+        return job_id
+
+    def update_job(
+        self,
+        job_id: str,
+        status: str,
+        message: str | None = None,
+        metadata: Dict[str, Any] | None = None,
+    ) -> bool:
+        now = datetime.now(timezone.utc)
+        with self._session_factory() as session:
+            # Get intake_id for this job
+            job_row = session.execute(
+                sa.select(sql_schema.intake_jobs.c.intake_id).where(sql_schema.intake_jobs.c.job_id == job_id)
+            ).first()
+            if not job_row:
+                return False
+            intake_id = job_row.intake_id
+
+            values = {"status": status, "updated_at": now}
+            if message is not None:
+                values["message"] = message
+            if metadata is not None:
+                # Merge metadata? Or replace? SQLite implementation replaces.
+                # But here we should probably merge if possible, but let's stick to replace for consistency.
+                # Wait, SQLite implementation does:
+                # current = json.loads(row["metadata"] or "{}")
+                # current.update(metadata)
+                # So it merges.
+                
+                # Fetch current metadata
+                current_meta_row = session.execute(
+                    sa.select(sql_schema.intake_jobs.c.metadata).where(sql_schema.intake_jobs.c.job_id == job_id)
+                ).scalar()
+                current_meta = dict(current_meta_row) if current_meta_row else {}
+                current_meta.update(metadata)
+                values["metadata"] = current_meta
+
+            session.execute(
+                sa.update(sql_schema.intake_jobs).where(sql_schema.intake_jobs.c.job_id == job_id).values(**values)
+            )
+
+            # Update intake record
+            intake_values = {"job_status": status, "updated_at": now}
+            if message is not None:
+                intake_values["job_message"] = message
+            
+            session.execute(
+                sa.update(sql_schema.intake_records)
+                .where(sql_schema.intake_records.c.intake_id == intake_id)
+                .values(**intake_values)
+            )
+            session.commit()
+        return True
+
+    def get_intake(self, intake_id: str) -> Optional[Dict[str, Any]]:
+        with self._session_factory() as session:
+            row = session.execute(
+                sa.select(sql_schema.intake_records).where(sql_schema.intake_records.c.intake_id == intake_id)
+            ).first()
+            if not row:
+                return None
+            
+            attachments = session.execute(
+                sa.select(sql_schema.intake_attachments)
+                .where(sql_schema.intake_attachments.c.intake_id == intake_id)
+                .order_by(sql_schema.intake_attachments.c.created_at.asc())
+            ).all()
+
+            job = None
+            if row.job_id:
+                job = session.execute(
+                    sa.select(sql_schema.intake_jobs).where(sql_schema.intake_jobs.c.job_id == row.job_id)
+                ).first()
+
+            record = dict(row._mapping)
+            # Metadata is already a dict in SQLAlchemy if using JSON type
+            record["metadata"] = record.get("metadata") or {}
+            record["attachments"] = [dict(a._mapping) for a in attachments]
+            
+            if job:
+                job_dict = dict(job._mapping)
+                job_dict["metadata"] = job_dict.get("metadata") or {}
+                record["job"] = job_dict
+            else:
+                record["job"] = None
+            
+            return record
+
+    def list_intakes(self, limit: int = 25) -> List[Dict[str, Any]]:
+        with self._session_factory() as session:
+            rows = session.execute(
+                sa.select(sql_schema.intake_records)
+                .order_by(sql_schema.intake_records.c.created_at.desc())
+                .limit(limit)
+            ).all()
+            
+            results = []
+            for row in rows:
+                data = dict(row._mapping)
+                data["metadata"] = data.get("metadata") or {}
+                results.append(data)
+            return results
+
+    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+        with self._session_factory() as session:
+            row = session.execute(
+                sa.select(sql_schema.intake_jobs).where(sql_schema.intake_jobs.c.job_id == job_id)
+            ).first()
+            if not row:
+                return None
+            data = dict(row._mapping)
+            data["metadata"] = data.get("metadata") or {}
+            return data
