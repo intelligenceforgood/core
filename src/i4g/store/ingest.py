@@ -272,6 +272,31 @@ class IngestPipeline:
                 )
                 if tokenized_entities:
                     payload["entities"] = tokenized_entities
+
+                # Tokenize metadata (recursively)
+                if "metadata" in payload:
+                    payload["metadata"] = self.tokenization_service.tokenize_tree(
+                        payload["metadata"],
+                        detector="ingest_metadata",
+                        case_id=case_id,
+                    )
+
+                # Tokenize structured_fields (recursively)
+                if "structured_fields" in payload:
+                    payload["structured_fields"] = self.tokenization_service.tokenize_tree(
+                        payload["structured_fields"],
+                        detector="ingest_structured",
+                        case_id=case_id,
+                    )
+
+                # Tokenize text content
+                if "text" in payload and isinstance(payload["text"], str):
+                    payload["text"] = self.tokenization_service.tokenize_text_content(
+                        payload["text"],
+                        detector="ingest_text",
+                        case_id=case_id,
+                    )
+
             except Exception:
                 LOGGER.exception("Tokenization failed for case_id=%s", case_id)
         classification_result = payload

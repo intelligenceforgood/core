@@ -302,6 +302,11 @@ def main() -> int:
     vector_override = _env_flag("I4G_INGEST__ENABLE_VECTOR")
     enable_vector = vector_override if vector_override is not None else settings.ingestion.enable_vector_store
 
+    tokenization_override = _env_flag("I4G_INGEST__ENABLE_TOKENIZATION")
+    enable_tokenization = (
+        tokenization_override if tokenization_override is not None else settings.ingestion.enable_tokenization
+    )
+
     vertex_override = _env_flag("I4G_INGEST__ENABLE_VERTEX")
     if vertex_override is not None:
         enable_vertex = vertex_override
@@ -322,7 +327,7 @@ def main() -> int:
     LOGGER.info(
         (
             "Starting ingestion job: dataset=%s batch_limit=%s rate_limit_delay=%.2f dry_run=%s "
-            "enable_vector=%s enable_vertex=%s enable_firestore=%s reset_vector=%s"
+            "enable_vector=%s enable_vertex=%s enable_firestore=%s reset_vector=%s enable_tokenization=%s"
         ),
         dataset_name,
         batch_limit or "unbounded",
@@ -332,6 +337,7 @@ def main() -> int:
         enable_vertex,
         enable_firestore,
         reset_vector,
+        enable_tokenization,
     )
     LOGGER.info("Resolved dataset path: %s", dataset_path)
 
@@ -358,6 +364,7 @@ def main() -> int:
         enable_vertex=enable_vertex,
         enable_firestore=enable_firestore,
         default_dataset=dataset_name,
+        enable_tokenization=enable_tokenization,
     )
 
     run_tracker = None

@@ -118,6 +118,46 @@ class PiiTokenStore:
             created_at=row["created_at"],
         )
 
+    def log_access(
+        self,
+        *,
+        actor: str,
+        action: str,
+        token: str | None = None,
+        prefix: str | None = None,
+        outcome: str,
+        reason: str | None = None,
+        case_id: str | None = None,
+    ) -> None:
+        """Record an audit log entry for a sensitive operation."""
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO audit_log (
+                    timestamp,
+                    actor,
+                    action,
+                    token,
+                    prefix,
+                    outcome,
+                    reason,
+                    case_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    timestamp,
+                    actor,
+                    action,
+                    token,
+                    prefix,
+                    outcome,
+                    reason,
+                    case_id,
+                ),
+            )
+
     def list_tokens(self, *, prefixes: Iterable[str] | None = None) -> list[StoredToken]:
         """Enumerate stored tokens (dev/test helper)."""
 
@@ -178,6 +218,23 @@ class PiiTokenStore:
                 """
             )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_pii_tokens_prefix ON pii_tokens(prefix)")
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS audit_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    actor TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    token TEXT,
+                    prefix TEXT,
+                    outcome TEXT NOT NULL,
+                    reason TEXT,
+                    case_id TEXT
+                )
+                """
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_log_token ON audit_log(token)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor)")
 
     def _encrypt(self, value: str) -> bytes | None:
         if self.fernet is None:

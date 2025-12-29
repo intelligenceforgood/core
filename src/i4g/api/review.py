@@ -307,6 +307,12 @@ def search_cases_advanced(
         if saved_search_descriptor.get("tags"):
             log_payload["saved_search_tags"] = saved_search_descriptor["tags"]
 
+    store.log_action(
+        actor=user.get("username"),
+        action="search",
+        payload=log_payload,
+    )
+
     return {**query_result, "search_id": search_id}
 
 

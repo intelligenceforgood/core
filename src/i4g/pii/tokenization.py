@@ -144,6 +144,89 @@ class TokenizationService:
                 tokenized[entity_type] = tokens
         return tokenized
 
+    def tokenize_text_content(
+        self,
+        text: str,
+        *,
+        detector: str | None = None,
+        case_id: str | None = None,
+    ) -> str:
+        """Scan text for PII patterns and replace with tokens."""
+        if not text:
+            return text
+
+        # Email
+        # Simple regex, can be improved
+        text = re.sub(
+            r"[\w\.-]+@[\w\.-]+\.\w+",
+            lambda m: self.tokenize(m.group(0), "EID", detector=detector, case_id=case_id).token,
+            text
+        )
+
+        # IPv4
+        text = re.sub(
+            r"\b(?:\d{1,3}\.){3}\d{1,3}\b",
+            lambda m: self.tokenize(m.group(0), "IPA", detector=detector, case_id=case_id).token,
+            text
+        )
+
+        return text
+
+    def tokenize_tree(
+        self,
+        data: Any,
+        *,
+        detector: str | None = None,
+        case_id: str | None = None,
+    ) -> Any:
+        """Recursively walk a structure and tokenize values where keys match PII types."""
+        if isinstance(data, dict):
+            return {
+                k: self._tokenize_value_if_pii(k, v, detector=detector, case_id=case_id)
+                for k, v in data.items()
+            }
+        if isinstance(data, list):
+            return [self.tokenize_tree(item, detector=detector, case_id=case_id) for item in data]
+        return data
+
+    def _tokenize_value_if_pii(
+        self, key: str, value: Any, *, detector: str | None = None, case_id: str | None = None
+    ) -> Any:
+        # If value is complex, recurse
+        if isinstance(value, (dict, list)):
+            return self.tokenize_tree(value, detector=detector, case_id=case_id)
+
+        # If value is string, check if key implies PII
+        if isinstance(value, str) and value:
+            prefix = self._infer_prefix(key)
+            if prefix != "UNK":
+                # Tokenize!
+                return self.tokenize(value, prefix, detector=detector, case_id=case_id).token
+
+        return value
+
+    def _infer_prefix(self, key: str) -> str:
+        key_lower = key.lower()
+        # Exact match
+        if key_lower in self._ENTITY_PREFIX_MAP:
+            return self._ENTITY_PREFIX_MAP[key_lower]
+
+        # Common variations
+        if "email" in key_lower:
+            return "EID"
+        if "phone" in key_lower or "mobile" in key_lower:
+            return "PHN"
+        if "ip_address" in key_lower or key_lower == "ip" or key_lower.endswith("_ip"):
+            return "IPA"
+        if "wallet" in key_lower:
+            return "WLT"
+        if "dob" in key_lower or "birth" in key_lower:
+            return "DOB"
+        if "ssn" in key_lower or "tax_id" in key_lower:
+            return "TIN"
+
+        return "UNK"
+
     def resolve_prefix(self, entity_type: str | None) -> str:
         """Return a prefix code for the provided entity type."""
 
@@ -157,6 +240,7 @@ class TokenizationService:
         actor_name = actor or "unknown"
         stored = self.store.fetch(token)
         outcome = "success" if stored and stored.canonical_value else "not_found"
+        
         self.observability.record_detokenization_attempt(
             actor=actor_name,
             prefix=stored.prefix if stored else None,
@@ -164,6 +248,17 @@ class TokenizationService:
             reason=None if stored else "missing",
             case_id=case_id,
         )
+        
+        self.store.log_access(
+            actor=actor_name,
+            action="detokenize",
+            token=token,
+            prefix=stored.prefix if stored else None,
+            outcome=outcome,
+            reason=None if stored else "missing",
+            case_id=case_id,
+        )
+        
         return stored
 
     @staticmethod

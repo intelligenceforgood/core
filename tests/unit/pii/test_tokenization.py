@@ -66,6 +66,38 @@ def test_tokenize_entities(service):
     assert len(result["phone"]) == 1
     assert result["phone"][0]["prefix"] == "PHN"
 
+def test_tokenize_tree(service):
+    data = {
+        "email": "test@example.com",
+        "nested": {
+            "phone": "+1234567890",
+            "safe": "value"
+        },
+        "list": [
+            {"ip_address": "1.2.3.4"},
+            "not-pii"
+        ]
+    }
+    
+    result = service.tokenize_tree(data)
+    
+    assert result["email"].startswith("EID-")
+    assert result["nested"]["phone"].startswith("PHN-")
+    assert result["nested"]["safe"] == "value"
+    assert result["list"][0]["ip_address"].startswith("IPA-")
+    assert result["list"][1] == "not-pii"
+
+def test_tokenize_text_content(service):
+    text = "Contact me at test@example.com or 192.168.1.1 for info."
+    
+    result = service.tokenize_text_content(text)
+    
+    assert "test@example.com" not in result
+    assert "192.168.1.1" not in result
+    assert "EID-" in result
+    assert "IPA-" in result
+    assert "Contact me at " in result
+
 def test_detokenize(service, mock_store):
     mock_token_record = MagicMock()
     mock_token_record.canonical_value = "original-value"
