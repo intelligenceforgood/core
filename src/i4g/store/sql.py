@@ -19,6 +19,7 @@ TIMESTAMP = sa.DateTime(timezone=True)
 UUID_TYPE = sa.String(length=64)
 
 METADATA = sa.MetaData()
+VAULT_METADATA = sa.MetaData()
 
 ingestion_runs = sa.Table(
     "ingestion_runs",
@@ -44,6 +45,23 @@ ingestion_runs = sa.Table(
 )
 sa.Index("idx_ingestion_runs_started_at", ingestion_runs.c.started_at)
 sa.Index("idx_ingestion_runs_status", ingestion_runs.c.status)
+
+pii_tokens = sa.Table(
+    "pii_tokens",
+    VAULT_METADATA,
+    sa.Column("token", sa.String(length=20), primary_key=True),
+    sa.Column("prefix", sa.String(length=3), nullable=False),
+    sa.Column("digest", sa.String(length=64), nullable=False),
+    sa.Column("normalized_value", sa.Text(), nullable=False),
+    sa.Column("canonical_value", sa.Text(), nullable=True),
+    sa.Column("encrypted_value", sa.LargeBinary(), nullable=True),
+    sa.Column("pepper_version", sa.String(length=10), nullable=False),
+    sa.Column("detector", sa.String(length=50), nullable=True),
+    sa.Column("case_id", sa.String(length=64), nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_pii_tokens_digest", pii_tokens.c.digest)
+sa.Index("idx_pii_tokens_prefix", pii_tokens.c.prefix)
 
 cases = sa.Table(
     "cases",
@@ -302,34 +320,51 @@ def _resolve_database_url(settings: Settings | None = None) -> str:
     raise NotImplementedError(f"Unsupported structured backend '{backend}' for SQL engine creation")
 
 
-def build_engine(*, echo: bool = False, settings: Settings | None = None) -> Engine:
-    """Instantiate a SQLAlchemy engine aligned with project settings."""
+def build_engine(
+    *,
+    echo: bool = False,
+    settings: Settings | None = None,
+    backend_override: str | None = None,
+    connection_details: dict[str, Any] | None = None,
+) -> Engine:
+    """Instantiate a SQLAlchemy engine aligned with project settings.
+
+    Args:
+        echo: Whether to log SQL statements.
+        settings: Optional settings object.
+        backend_override: Force a specific backend (e.g., 'cloudsql').
+        connection_details: Optional dictionary with 'instance', 'user', 'password', 'database', 'enable_iam_auth'.
+    """
 
     resolved = settings or get_settings()
-    backend = resolved.storage.structured_backend
+    backend = backend_override or resolved.storage.structured_backend
 
     if backend == "cloudsql":
         from google.cloud.sql.connector import Connector, IPTypes
 
-        instance_connection_name = resolved.storage.cloudsql_instance
-        db_user = resolved.storage.cloudsql_user
-        db_pass = resolved.storage.cloudsql_password
-        db_name = resolved.storage.cloudsql_database
+        details = connection_details or {}
+        instance_connection_name = details.get("instance") or resolved.storage.cloudsql_instance
+        db_user = details.get("user") or resolved.storage.cloudsql_user
+        db_pass = details.get("password") or resolved.storage.cloudsql_password
+        db_name = details.get("database") or resolved.storage.cloudsql_database
+        enable_iam_auth = details.get("enable_iam_auth", False)
 
-        if not all([instance_connection_name, db_user, db_pass, db_name]):
-            raise ValueError("Missing Cloud SQL configuration (instance, user, password, or database)")
+        # Password is not required if IAM auth is enabled
+        if not all([instance_connection_name, db_user, db_name]) or (not enable_iam_auth and not db_pass):
+            raise ValueError("Missing Cloud SQL configuration (instance, user, [password], database)")
 
         # Initialize Connector object
         connector = Connector()
 
         def getconn():
             conn = connector.connect(
-                instance_connection_name,
+                instance_connection_name,  # type: ignore
                 "pg8000",
-                user=db_user,
-                password=db_pass,
-                db=db_name,
+                user=db_user,  # type: ignore
+                password=db_pass,  # type: ignore
+                db=db_name,  # type: ignore
                 ip_type=IPTypes.PUBLIC,
+                enable_iam_auth=enable_iam_auth,
             )
             return conn
 
@@ -348,8 +383,17 @@ def build_engine(*, echo: bool = False, settings: Settings | None = None) -> Eng
     return sa.create_engine(url, echo=echo, future=True, pool_pre_ping=True, connect_args=connect_args)
 
 
-def session_factory(*, settings: Settings | None = None) -> sessionmaker:
+def session_factory(
+    *,
+    settings: Settings | None = None,
+    backend_override: str | None = None,
+    connection_details: dict[str, Any] | None = None,
+) -> sessionmaker:
     """Return a configured sessionmaker bound to the active engine."""
 
-    engine = build_engine(settings=settings)
+    engine = build_engine(
+        settings=settings,
+        backend_override=backend_override,
+        connection_details=connection_details,
+    )
     return sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)

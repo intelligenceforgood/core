@@ -414,6 +414,30 @@ class TokenizationSettings(BaseSettings):
         default=True,
         validation_alias=AliasChoices("TOKENIZATION_REQUIRE_PEPPER", "TOKENIZATION__REQUIRE_PEPPER"),
     )
+    backend: Literal["sqlite", "cloudsql"] = Field(
+        default="sqlite",
+        validation_alias=AliasChoices("TOKENIZATION_BACKEND", "TOKENIZATION__BACKEND"),
+    )
+    cloudsql_instance: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("TOKENIZATION_CLOUDSQL_INSTANCE", "TOKENIZATION__CLOUDSQL_INSTANCE"),
+    )
+    cloudsql_database: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("TOKENIZATION_CLOUDSQL_DATABASE", "TOKENIZATION__CLOUDSQL_DATABASE"),
+    )
+    cloudsql_user: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("TOKENIZATION_CLOUDSQL_USER", "TOKENIZATION__CLOUDSQL_USER"),
+    )
+    cloudsql_password: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("TOKENIZATION_CLOUDSQL_PASSWORD", "TOKENIZATION__CLOUDSQL_PASSWORD"),
+    )
+    cloudsql_enable_iam_auth: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("TOKENIZATION_CLOUDSQL_ENABLE_IAM_AUTH", "TOKENIZATION__CLOUDSQL_ENABLE_IAM_AUTH"),
+    )
 
 
 class SecretsSettings(BaseSettings):

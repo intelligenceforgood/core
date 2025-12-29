@@ -23,13 +23,18 @@ from i4g.storage import EvidenceStorage
 from i4g.store.dossier_queue_store import DossierQueueStore
 from i4g.store.entity_store import EntityStore
 from i4g.store.ingestion_retry_store import IngestionRetryStore
-from i4g.store.ingestion_run_tracker import IngestionRunTracker
-from i4g.store.intake_store import IntakeStore, SqlAlchemyIntakeStore
+from i4g.store.pii_token_store import PiiTokenStore
+from i4g.store.pii_token_store_sql import SqlAlchemyPiiTokenStore
 from i4g.store.review_store import ReviewStore, SqlAlchemyReviewStore
 from i4g.store.sql import session_factory as build_sql_session_factory
 from i4g.store.sql_writer import SqlWriter
 from i4g.store.structured import StructuredStore, SqlAlchemyStructuredStore
 from i4g.store.vector import VectorStore
+
+try:
+    from cryptography.fernet import Fernet
+except ImportError:
+    Fernet = None
 
 
 def build_structured_store(db_path: str | Path | None = None) -> StructuredStore:
@@ -232,7 +237,42 @@ def build_dossier_queue_store(db_path: str | Path | None = None) -> DossierQueue
 def build_tokenization_service() -> TokenizationService:
     """Instantiate the tokenization service with configured secrets."""
 
-    return TokenizationService()
+    settings = get_settings()
+    backend = settings.tokenization.backend
+    
+    store = None
+    if backend == "sqlite":
+        store = PiiTokenStore()
+    elif backend == "cloudsql":
+        # Pass tokenization-specific connection details if present
+        connection_details = {}
+        if settings.tokenization.cloudsql_instance:
+            connection_details["instance"] = settings.tokenization.cloudsql_instance
+        if settings.tokenization.cloudsql_database:
+            connection_details["database"] = settings.tokenization.cloudsql_database
+        if settings.tokenization.cloudsql_user:
+            connection_details["user"] = settings.tokenization.cloudsql_user
+        if settings.tokenization.cloudsql_password:
+            connection_details["password"] = settings.tokenization.cloudsql_password
+        if settings.tokenization.cloudsql_enable_iam_auth:
+            connection_details["enable_iam_auth"] = settings.tokenization.cloudsql_enable_iam_auth
+
+        fernet = None
+        if settings.crypto.pii_key and Fernet:
+            try:
+                fernet = Fernet(settings.crypto.pii_key.encode("utf-8"))
+            except Exception:
+                pass
+
+        session_factory = build_sql_session_factory(
+            backend_override="cloudsql",
+            connection_details=connection_details,
+        )
+        store = SqlAlchemyPiiTokenStore(session_factory=session_factory, fernet=fernet)
+    else:
+        raise NotImplementedError(f"Unsupported tokenization backend '{backend}'")
+
+    return TokenizationService(store=store)
 
 
 def build_bundle_builder(

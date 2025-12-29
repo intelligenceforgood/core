@@ -1,4 +1,4 @@
-"""Alembic environment configuration for the i4g project."""
+"""Alembic environment configuration for the i4g PII Vault."""
 
 from __future__ import annotations
 
@@ -12,14 +12,14 @@ from sqlalchemy import engine_from_config, pool
 from sqlalchemy.engine import Connection
 
 from i4g.settings import get_settings
-from i4g.store.sql import METADATA
+from i4g.store.sql import VAULT_METADATA
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = METADATA
+target_metadata = VAULT_METADATA
 
 
 def _resolve_database_url() -> str:
@@ -29,8 +29,9 @@ def _resolve_database_url() -> str:
     if override:
         return override
 
+    # Default to a local sqlite file for vault if not specified
     settings = get_settings()
-    sqlite_path = Path(settings.storage.sqlite_path)
+    sqlite_path = Path(settings.storage.sqlite_path).parent / "vault.db"
     if not sqlite_path.is_absolute():
         sqlite_path = (Path(settings.project_root) / sqlite_path).resolve()
     normalized = sqlite_path.as_posix()
@@ -61,8 +62,8 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode using a SQLAlchemy engine."""
 
-    # Allow injecting a connection (e.g. for Cloud SQL with IAM auth)
-    connectable = config.attributes.get("connection")
+    # Check if a connection is already provided in the config attributes
+    connectable = config.attributes.get("connection", None)
 
     if connectable is None:
         section = _prepare_config_section()

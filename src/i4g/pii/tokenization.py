@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterable, Mapping, Tuple
 
 from cryptography.fernet import Fernet, InvalidToken
 
+from i4g.pii.normalization import normalize
 from i4g.pii.observability import PiiVaultObservability
 from i4g.settings import Settings, get_settings
 from i4g.store.pii_token_store import PiiTokenStore, StoredToken
@@ -174,22 +175,14 @@ class TokenizationService:
     # ------------------------------------------------------------------
 
     def _hmac_digest(self, prefix: str, normalized_value: str) -> str:
-        message = f"{prefix}:{self.pepper_version}:{normalized_value}".encode("utf-8")
+        # Design: HMAC-SHA256(value || prefix || version)
+        # We use a separator for safety against concatenation collisions, though design implies concatenation.
+        # Using concatenation as per design doc: value + prefix + version
+        message = f"{normalized_value}{prefix}{self.pepper_version}".encode("utf-8")
         return hmac.new(self._pepper_bytes, message, hashlib.sha256).hexdigest()
 
     def _normalize(self, prefix: str, value: str) -> str:
-        normalized = value.strip()
-        key = prefix.upper()
-        if key == "EID":
-            return normalized.lower()
-        if key == "PHN":
-            digits = re.sub(r"[^0-9+]+", "", normalized)
-            return digits
-        if key == "IPA":
-            return normalized.lower()
-        if key in {"NAM", "ADR"}:
-            return re.sub(r"\s+", " ", normalized).strip().lower()
-        return normalized.lower()
+        return normalize(prefix, value)
 
     def _prefix_for_entity(self, entity_type: str) -> str:
         normalized = (entity_type or "").strip().lower()
