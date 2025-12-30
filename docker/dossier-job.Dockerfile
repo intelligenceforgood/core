@@ -27,6 +27,6 @@ RUN mkdir -p /app/data/reports/dossiers \
 
 USER 65532:65532
 
-ENV I4G_ENV=dev
+ENV I4G_ENV=dev \
 
 CMD ["i4g", "jobs", "dossier"]

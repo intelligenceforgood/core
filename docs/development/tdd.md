@@ -63,14 +63,13 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
   - `ingestion.enable_vector_store`
   - `ingestion.enable_vertex`
   - `ingestion.enable_firestore`
-  - `ingestion.enable_tokenization`
   - `ingestion.default_dataset`
 - Paths: `storage.sqlite_path`, `vector.chroma_dir`, `ingestion.dataset_path`, `data/` assets seeded via `i4g bootstrap local reset --report-dir data/reports/local_bootstrap`.
 - Secrets: prefer Secret Manager in managed envs; local `.env.local` for pepper/key (`I4G_TOKENIZATION__PEPPER`, `I4G_CRYPTO__PII_KEY`).
 
 ## 6) Ingestion Flow (canonical)
 1. **Input normalization**: `prepare_ingest_payload()` merges text, entities, structured fields, network entities, metadata, dataset.
-2. **Tokenization (optional)**: if `enable_tokenization` true, `TokenizationService.tokenize_entities()` replaces entity values with deterministic tokens and stores canonical values in the PII vault.
+2. **Tokenization**: `TokenizationService.tokenize_entities()` replaces entity values with deterministic tokens and stores canonical values in the PII vault.
 3. **Structured write**: `StructuredStore.upsert_record()` persists the `ScamRecord` for console reads.
 4. **Case bundle build**: `build_case_bundle()` assembles `CasePayload`, `SourceDocumentPayload`, `EntityPayload` from classification result and metadata.
 5. **SQL dual-write**: `SqlWriter.persist_case_bundle()` writes cases/entities/documents; controlled by `enable_sql`.

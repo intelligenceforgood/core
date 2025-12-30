@@ -34,7 +34,7 @@ RUN mkdir -p /app/data \
     && chown -R 65532:65532 /app/data
 
 ENV PORT=8080 \
-    I4G_ENV=dev
+    I4G_ENV=dev \
 
 USER 65532:65532
 

@@ -60,6 +60,6 @@ RUN mkdir -p /app/data/reports/account_list \
 
 USER 65532:65532
 
-ENV I4G_ENV=dev
+ENV I4G_ENV=dev \
 
 CMD ["/app/scripts/run_account_job.sh"]

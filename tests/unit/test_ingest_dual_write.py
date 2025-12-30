@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from unittest import mock
 import sqlalchemy as sa
 
 from i4g.services.firestore_writer import FirestoreWriteResult
@@ -124,7 +125,6 @@ def test_ingest_pipeline_persists_network_entities(tmp_path, monkeypatch):
     monkeypatch.setenv("I4G_STORAGE__SQLITE_PATH", str(db_path))
     monkeypatch.setenv("I4G_INGESTION__ENABLE_SQL", "true")
     monkeypatch.setenv("I4G_INGESTION__DEFAULT_DATASET", "network_demo")
-    monkeypatch.setenv("I4G_INGESTION__ENABLE_TOKENIZATION", "false")
 
     try:
         reload_settings(env="local")
@@ -133,12 +133,38 @@ def test_ingest_pipeline_persists_network_entities(tmp_path, monkeypatch):
         sql_schema.METADATA.create_all(engine)
         engine.dispose()
 
+        # Mock tokenization service to return values as-is (identity transform)
+        mock_tokenizer = mock.Mock()
+
+        def identity_tokenize_entities(entities, **kwargs):
+            if not entities:
+                return {}
+            result = {}
+            for k, vs in entities.items():
+                # Handle both list of strings and list of dicts
+                values = [v["value"] if isinstance(v, dict) else v for v in vs]
+                result[k] = [
+                    {
+                        "token": v,  # Return raw value as token
+                        "value": v,
+                        "prefix": "mock",
+                        "pepper_version": "v1",
+                    }
+                    for v in values
+                ]
+            return result
+
+        mock_tokenizer.tokenize_entities.side_effect = identity_tokenize_entities
+        mock_tokenizer.tokenize_tree.side_effect = lambda x, **kwargs: x
+        mock_tokenizer.tokenize_text_content.side_effect = lambda x, **kwargs: x
+
         structured_store = StructuredStore(str(db_path))
         pipeline = IngestPipeline(
             structured_store=structured_store,
             vector_store=None,
             enable_vector=False,
             default_dataset="network_demo",
+            tokenization_service=mock_tokenizer,
         )
 
         record = {

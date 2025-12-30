@@ -516,15 +516,6 @@ class IngestionSettings(BaseSettings):
             "INGESTION__ENABLE_VECTOR",
         ),
     )
-    enable_tokenization: bool = Field(
-        default=False,
-        validation_alias=AliasChoices(
-            "INGEST_ENABLE_TOKENIZATION",
-            "INGEST__ENABLE_TOKENIZATION",
-            "INGESTION_ENABLE_TOKENIZATION",
-            "INGESTION__ENABLE_TOKENIZATION",
-        ),
-    )
     dataset_path: Path = Field(
         default=PROJECT_ROOT / "data" / "retrieval_poc" / "cases.jsonl",
         validation_alias=AliasChoices(
@@ -868,6 +859,15 @@ class Settings(BaseSettings):
             *config_sources,
             file_secret_settings,
         )
+
+    @model_validator(mode="after")
+    def _apply_local_defaults(self) -> "Settings":
+        """Apply convenience defaults for local development."""
+        if self.env == "local":
+            if not self.tokenization.pepper:
+                update = {"pepper": "local-secret-pepper"}
+                object.__setattr__(self, "tokenization", self.tokenization.model_copy(update=update))
+        return self
 
     @model_validator(mode="after")
     def _resolve_paths(self) -> "Settings":

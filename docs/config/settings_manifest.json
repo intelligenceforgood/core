@@ -353,20 +353,6 @@
       "description": "Scheduler + job configuration for ingestion workflows."
     },
     {
-      "path": "ingestion.enable_tokenization",
-      "section": "ingestion",
-      "type": "bool",
-      "default": false,
-      "env_vars": [
-        "I4G_INGESTION__ENABLE_TOKENIZATION",
-        "INGEST_ENABLE_TOKENIZATION",
-        "INGEST__ENABLE_TOKENIZATION",
-        "INGESTION_ENABLE_TOKENIZATION",
-        "INGESTION__ENABLE_TOKENIZATION"
-      ],
-      "description": "Scheduler + job configuration for ingestion workflows."
-    },
-    {
       "path": "ingestion.enable_vector_store",
       "section": "ingestion",
       "type": "bool",

@@ -189,12 +189,7 @@ The suite opens `/search`, confirms the query box, filter sidebar, and primary a
 
 Validate that the ingestion worker can read the sample dataset and produce diagnostics without writing to the vector store.
 
-Set a local pepper (reuse the dev/prod pepper if you want deterministic tokens across envs) or the job will fail with
-"Tokenization pepper is required but missing":
-
-```bash
-export I4G_TOKENIZATION__PEPPER=${I4G_TOKENIZATION__PEPPER:-local-dev-pepper}
-```
+The local environment will automatically use a default pepper if one is not provided.
 
 ```bash
 env \
@@ -202,7 +197,6 @@ env \
   I4G_INGEST__DRY_RUN=true \
   I4G_INGEST__BATCH_LIMIT=3 \
   I4G_RUNTIME__LOG_LEVEL=INFO \
-  I4G_TOKENIZATION__PEPPER="$I4G_TOKENIZATION__PEPPER" \
   conda run -n i4g i4g jobs ingest
 ```
 
@@ -226,7 +220,6 @@ new verification helper.
      I4G_INGEST__BATCH_LIMIT=5 \
      I4G_INGEST__ENABLE_VECTOR=false \
      I4G_RUNTIME__LOG_LEVEL=INFO \
-     I4G_TOKENIZATION__PEPPER="$I4G_TOKENIZATION__PEPPER" \
      conda run -n i4g i4g jobs ingest
    ```
    Expected log highlights:
@@ -247,7 +240,6 @@ new verification helper.
      I4G_INGEST__BATCH_LIMIT=0 \
      I4G_INGEST__ENABLE_VECTOR=true \
      I4G_RUNTIME__LOG_LEVEL=INFO \
-     I4G_TOKENIZATION__PEPPER="$I4G_TOKENIZATION__PEPPER" \
      conda run -n i4g i4g jobs ingest
    ```
    Expect `vector_enabled=true` plus `vertex_writes` counts that match the case count.

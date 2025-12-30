@@ -267,25 +267,6 @@ def test_tokenization_env_overrides(monkeypatch: object) -> None:
     assert overridden.tokenization.require_pepper is False
 
 
-def test_ingestion_tokenization_env_override(monkeypatch: object) -> None:
-    """Ingestion tokenization toggle should honor environment variables."""
-
-    _clear_env(
-        monkeypatch,
-        "I4G_INGESTION__ENABLE_TOKENIZATION",
-        "INGESTION_ENABLE_TOKENIZATION",
-        "I4G_ENV",
-    )
-
-    defaults = reload_settings(env="dev")
-    assert defaults.ingestion.enable_tokenization is False
-
-    _set_env(monkeypatch, "I4G_INGESTION__ENABLE_TOKENIZATION", "true")
-
-    overridden = reload_settings(env="dev")
-    assert overridden.ingestion.enable_tokenization is True
-
-
 def test_ingestion_local_config_dataset_override(tmp_path, monkeypatch: object) -> None:
     """Local config files should override the ingestion default dataset."""
 

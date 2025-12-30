@@ -16,15 +16,16 @@ See [Prepare Bootstrap Data Bundles](prepare_bootstrap_bundles.md) for instructi
 To fully reset the local sandbox (wipes and rebuilds SQLite, Chroma, OCR artifacts) using the standard 4 data bundles:
 
 ```bash
-I4G_ENV=local RUN_DATE=2025-12-17 i4g bootstrap local reset \
-  --report-dir data/reports/bootstrap_local
+RUN_DATE=2025-12-17 \
+I4G_ENV=local \
+i4g bootstrap local reset
 ```
 
 ### Partial Rebuilds
 Skip heavy steps if you only need structured/vector data:
 
 ```bash
-i4g bootstrap local reset --skip-ocr --skip-vector --report-dir data/reports/bootstrap_local
+i4g bootstrap local reset --skip-ocr --skip-vector
 ```
 
 ### Verification

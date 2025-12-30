@@ -32,6 +32,6 @@ RUN mkdir -p /app/data/reports \
 
 USER 65532:65532
 
-ENV I4G_ENV=dev
+ENV I4G_ENV=dev \
 
 ENTRYPOINT ["i4g", "jobs", "report"]

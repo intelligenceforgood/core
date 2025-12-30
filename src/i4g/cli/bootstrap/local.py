@@ -203,7 +203,7 @@ def ingest_bundles(skip_vector: bool) -> None:
             "I4G_STORAGE__SQLITE_PATH": str(SQLITE_DB),
             "I4G_INGEST__MAX_RETRIES": "0",
         }
-        run([sys.executable, "-m", "i4g.worker.jobs.ingest"], env_overrides=env)
+        run([sys.executable, "-m", "i4g.worker.jobs.ingest"], env_overrides=env, unset_env_vars=["I4G_DATABASE_URL"])
 
 
 def stage_ocr_images() -> None:
@@ -256,6 +256,7 @@ def rebuild_manual_demo() -> None:
             "I4G_INGESTION__ENABLE_FIRESTORE": "false",
             "I4G_INGESTION__ENABLE_SQL": "true",
         },
+        unset_env_vars=["I4G_DATABASE_URL"],
     )
 
 
