@@ -27,6 +27,8 @@ from i4g.store.review_store import ReviewStore
 # Import the worker task — will be scheduled in background on "accepted"
 from i4g.worker.tasks import generate_report_for_case
 
+SEARCH_AUDIT_REVIEW_ID = "audit-search-history"
+
 router = APIRouter()
 SETTINGS = get_settings()
 
@@ -307,7 +309,9 @@ def search_cases_advanced(
         if saved_search_descriptor.get("tags"):
             log_payload["saved_search_tags"] = saved_search_descriptor["tags"]
 
+    store.ensure_placeholder_review(SEARCH_AUDIT_REVIEW_ID, case_id="system:search-audit")
     store.log_action(
+        review_id=SEARCH_AUDIT_REVIEW_ID,
         actor=user.get("username"),
         action="search",
         payload=log_payload,

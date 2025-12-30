@@ -23,6 +23,7 @@ from i4g.storage import EvidenceStorage
 from i4g.store.dossier_queue_store import DossierQueueStore
 from i4g.store.entity_store import EntityStore
 from i4g.store.ingestion_retry_store import IngestionRetryStore
+from i4g.store.ingestion_run_tracker import IngestionRunTracker
 from i4g.store.pii_token_store import PiiTokenStore
 from i4g.store.pii_token_store_sql import SqlAlchemyPiiTokenStore
 from i4g.store.review_store import ReviewStore, SqlAlchemyReviewStore

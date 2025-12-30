@@ -123,13 +123,23 @@ DEFAULT_PILOT_CASES = [
 ]
 
 
-def run(cmd: list[str], *, cwd: Path | None = None, env_overrides: dict[str, str] | None = None) -> None:
+def run(
+    cmd: list[str],
+    *,
+    cwd: Path | None = None,
+    env_overrides: dict[str, str] | None = None,
+    unset_env_vars: list[str] | None = None,
+) -> None:
     """Execute a command, streaming stdout/stderr with PYTHONPATH set."""
 
     print("→", " ".join(cmd))
     env = os.environ.copy()
     if env_overrides:
         env.update(env_overrides)
+    if unset_env_vars:
+        for key in unset_env_vars:
+            env.pop(key, None)
+
     existing_pythonpath = env.get("PYTHONPATH")
     pythonpath_parts = [str(SRC_DIR)]
     if existing_pythonpath:
@@ -278,7 +288,8 @@ def seed_review_cases() -> None:
 def apply_migrations() -> None:
     """Apply Alembic migrations before seeding structured data."""
 
-    run([sys.executable, "-m", "alembic", "upgrade", "head"])
+    # Ensure we don't accidentally use a dev/prod DB URL from the environment
+    run([sys.executable, "-m", "alembic", "upgrade", "head"], unset_env_vars=["I4G_DATABASE_URL"])
 
 
 def verify_sandbox(
