@@ -287,6 +287,45 @@ def run_command(cmd: Sequence[str], *, dry_run: bool) -> subprocess.CompletedPro
         raise
 
 
+def _fetch_pepper(project_id: str) -> str | None:
+    """Attempt to fetch the tokenization pepper from Secret Manager.
+
+    Args:
+        project_id: The active GCP project ID (e.g. "i4g-dev").
+
+    Returns:
+        The secret payload string if found, otherwise None.
+    """
+    # Infer vault project from app project (e.g. i4g-dev -> i4g-pii-vault-dev)
+    if "-dev" in project_id:
+        vault_project = project_id.replace("-dev", "-pii-vault-dev")
+    elif "-prod" in project_id:
+        vault_project = project_id.replace("-prod", "-pii-vault-prod")
+    else:
+        # Fallback or unknown pattern
+        vault_project = f"{project_id}-pii-vault"
+
+    secret_name = "tokenization-pepper"
+    logging.info("Attempting to fetch pepper from %s/secrets/%s...", vault_project, secret_name)
+
+    try:
+        # Use gcloud to fetch the secret payload
+        cmd = [
+            "gcloud",
+            "secrets",
+            "versions",
+            "access",
+            "latest",
+            f"--secret={secret_name}",
+            f"--project={vault_project}",
+        ]
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        return proc.stdout.strip()
+    except subprocess.CalledProcessError as exc:
+        logging.warning("Failed to fetch pepper from Secret Manager: %s", exc.stderr.strip())
+        return None
+
+
 def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
     # Determine bundles
     bundles_to_process = []
@@ -309,12 +348,23 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
     specs: list[JobSpec] = []
     settings = get_settings()
 
+    common_env: dict[str, str] = {}
+    if settings.pii.pepper:
+        common_env["I4G_PII__PEPPER"] = settings.pii.pepper
+    else:
+        # Fallback: try to fetch from Secret Manager if not set locally
+        fetched_pepper = _fetch_pepper(args.project)
+        if fetched_pepper:
+            common_env["I4G_PII__PEPPER"] = fetched_pepper
+        else:
+            logging.warning("PII pepper not found locally or in Secret Manager. Jobs may fail.")
+
     # Ingestion jobs (run per bundle)
     for bundle_uri in bundles_to_process:
         bundle_name = Path(bundle_uri).name
 
         # Prepare env vars for ingestion jobs
-        ingest_env: dict[str, str] = {}
+        ingest_env: dict[str, str] = common_env.copy()
         ingest_env["I4G_INGEST__JSONL_PATH"] = bundle_uri
         if args.dataset:
             ingest_env["I4G_INGEST__DATASET_NAME"] = args.dataset
@@ -340,9 +390,9 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
                 JobSpec(label=f"vertex-{bundle_name}", job_name=args.vertex_job, args=job_args, env=ingest_env)
             )
         if not args.skip_sql and args.sql_job:
-            specs.append(JobSpec(label=f"sql-{bundle_name}", job_name=args.sql_job, args=job_args))
+            specs.append(JobSpec(label=f"sql-{bundle_name}", job_name=args.sql_job, args=job_args, env=common_env))
         if not args.skip_bigquery and args.bigquery_job:
-            specs.append(JobSpec(label=f"bigquery-{bundle_name}", job_name=args.bigquery_job, args=job_args))
+            specs.append(JobSpec(label=f"bigquery-{bundle_name}", job_name=args.bigquery_job, args=job_args, env=common_env))
 
     # One-time jobs (run once)
     common_args: list[str] = []
@@ -353,9 +403,9 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
     # Probably none.
 
     if not args.skip_gcs_assets and args.gcs_assets_job:
-        specs.append(JobSpec(label="gcs_assets", job_name=args.gcs_assets_job, args=common_args))
+        specs.append(JobSpec(label="gcs_assets", job_name=args.gcs_assets_job, args=common_args, env=common_env))
     if not args.skip_reports and args.reports_job:
-        specs.append(JobSpec(label="reports", job_name=args.reports_job, args=common_args))
+        specs.append(JobSpec(label="reports", job_name=args.reports_job, args=common_args, env=common_env))
 
     if args.seed_reviews_job and not args.skip_seed_reviews:
         specs.append(
@@ -363,12 +413,13 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
                 label="seed_reviews",
                 job_name=args.seed_reviews_job,
                 args=[],
+                env=common_env,
                 command=["i4g", "admin", "seed-reviews"],
             )
         )
 
     if not args.skip_saved_searches and args.saved_searches_job:
-        specs.append(JobSpec(label="saved_searches", job_name=args.saved_searches_job, args=common_args))
+        specs.append(JobSpec(label="saved_searches", job_name=args.saved_searches_job, args=common_args, env=common_env))
 
     return specs
 
