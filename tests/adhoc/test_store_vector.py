@@ -13,9 +13,9 @@ sample = {
         "wallet_addresses": [{"value": "0xAbC..."}],
     },
 }
-    result = pipeline.ingest_classified_case(sample)
-    print("Ingested case:", result.case_id)
-print("Stored case:", cid)
+result = pipeline.ingest_classified_case(sample)
+print("Ingested case:", result.case_id)
+# print("Stored case:", cid)
 
 similar = pipeline.query_similar_cases("TrustWallet verification fee", top_k=3)
 print(similar)

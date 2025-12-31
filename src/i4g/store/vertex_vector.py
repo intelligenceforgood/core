@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from google.api_core.client_options import ClientOptions
 from google.cloud import discoveryengine_v1 as discoveryengine
+from google.protobuf.json_format import MessageToDict
 from langchain_core.documents import Document
 
 logger = logging.getLogger(__name__)
@@ -161,8 +162,17 @@ class _VertexAIBackend:
                     pass
 
             if not data and doc.struct_data:
-                # struct_data is a proto Map, dict() converts it safely
-                data = dict(doc.struct_data)
+                # struct_data is a proto Map (MapComposite), so we need the underlying pb for MessageToDict
+                # or fallback to dict() if it's already a dict-like object without _pb
+                if hasattr(doc, "_pb"):
+                    data = MessageToDict(doc._pb.struct_data)
+                else:
+                    # Fallback for mocks or raw protos
+                    try:
+                        data = MessageToDict(doc.struct_data)
+                    except AttributeError:
+                        # If it lacks DESCRIPTOR, it might be a MapComposite or dict
+                        data = dict(doc.struct_data)
 
             # Extract content/text
             content = data.get("content", "")

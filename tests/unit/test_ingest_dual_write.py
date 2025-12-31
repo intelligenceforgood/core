@@ -20,7 +20,6 @@ def test_ingest_pipeline_persists_sql_bundle(tmp_path, monkeypatch):
     monkeypatch.setenv("I4G_STORAGE__SQLITE_PATH", str(db_path))
     monkeypatch.setenv("I4G_INGESTION__ENABLE_SQL", "true")
     monkeypatch.setenv("I4G_INGESTION__DEFAULT_DATASET", "dual_demo")
-    monkeypatch.setenv("I4G_INGESTION__ENABLE_TOKENIZATION", "false")
 
     try:
         # Refresh settings so builders pick up the temporary database path.
@@ -84,7 +83,6 @@ def test_ingest_pipeline_writes_firestore_when_enabled(tmp_path, monkeypatch):
     monkeypatch.setenv("I4G_STORAGE__SQLITE_PATH", str(db_path))
     monkeypatch.setenv("I4G_INGESTION__ENABLE_SQL", "true")
     monkeypatch.setenv("I4G_INGESTION__DEFAULT_DATASET", "dual_demo")
-    monkeypatch.setenv("I4G_INGESTION__ENABLE_TOKENIZATION", "false")
 
     dummy_writer = _DummyFirestoreWriter()
 

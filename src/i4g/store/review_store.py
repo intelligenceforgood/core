@@ -837,6 +837,28 @@ class SqlAlchemyReviewStore:
             session.commit()
         return normalized_review_id
 
+    def ensure_placeholder_review(self, review_id: str, case_id: str) -> None:
+        """Ensure a placeholder review exists for audit logging purposes."""
+        now = datetime.now(timezone.utc)
+        with self._session_factory() as session:
+            try:
+                session.execute(
+                    sa.dialects.postgresql.insert(sql_schema.review_queue)
+                    .values(
+                        review_id=review_id,
+                        case_id=case_id,
+                        queued_at=now,
+                        priority="low",
+                        status="completed",
+                        last_updated=now,
+                    )
+                    .on_conflict_do_nothing()
+                )
+                session.commit()
+            except Exception:
+                # Ignore errors if it already exists or race condition
+                pass
+
     def log_action(
         self,
         review_id: str,
