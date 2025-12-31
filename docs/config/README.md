@@ -102,9 +102,9 @@ This catalog is assembled by `core/scripts/export_settings_manifest.py` directly
 | storage | `storage.reports_bucket` | `I4G_STORAGE__REPORTS_BUCKET` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
 | storage | `storage.sqlite_path` | `I4G_STORAGE__SQLITE_PATH` | `Path` | `/Users/jerry/Work/project/i4g/core/data/i4g_store.db` | Structured + blob storage configuration. |
 | storage | `storage.structured_backend` | `I4G_STORAGE__STRUCTURED_BACKEND`<br />`STRUCTURED_BACKEND`<br />`STORAGE__STRUCTURED_BACKEND` | `Literal['sqlite', 'firestore', 'cloudsql']` | `sqlite` | Structured + blob storage configuration. |
-| tokenization | `tokenization.pepper` | `I4G_TOKENIZATION__PEPPER`<br />`TOKENIZATION_PEPPER`<br />`TOKENIZATION__PEPPER` | `str &#124; NoneType` | `None` | Deterministic tokenization controls for PII vault integration. |
-| tokenization | `tokenization.pepper_version` | `I4G_TOKENIZATION__PEPPER_VERSION`<br />`TOKENIZATION_PEPPER_VERSION`<br />`TOKENIZATION__PEPPER_VERSION` | `str` | `v1` | Deterministic tokenization controls for PII vault integration. |
-| tokenization | `tokenization.require_pepper` | `I4G_TOKENIZATION__REQUIRE_PEPPER`<br />`TOKENIZATION_REQUIRE_PEPPER`<br />`TOKENIZATION__REQUIRE_PEPPER` | `bool` | `True` | Deterministic tokenization controls for PII vault integration. |
+| pii | `pii.pepper` | `I4G_PII__PEPPER`<br />`PII_PEPPER`<br />`PII__PEPPER` | `str &#124; NoneType` | `None` | Deterministic tokenization controls for PII vault integration. |
+| pii | `pii.pepper_version` | `I4G_PII__PEPPER_VERSION`<br />`PII_PEPPER_VERSION`<br />`PII__PEPPER_VERSION` | `str` | `v1` | Deterministic tokenization controls for PII vault integration. |
+| pii | `pii.require_pepper` | `I4G_PII__REQUIRE_PEPPER`<br />`PII_REQUIRE_PEPPER`<br />`PII__REQUIRE_PEPPER` | `bool` | `True` | Deterministic tokenization controls for PII vault integration. |
 | vector | `vector.backend` | `I4G_VECTOR__BACKEND`<br />`VECTOR_BACKEND`<br />`VECTOR__BACKEND` | `Literal['chroma', 'faiss', 'pgvector', 'vertex_ai']` | `chroma` | Vector store configuration supporting multiple backends. |
 | vector | `vector.chroma_dir` | `I4G_VECTOR__CHROMA_DIR` | `Path` | `/Users/jerry/Work/project/i4g/core/data/chroma_store` | Vector store configuration supporting multiple backends. |
 | vector | `vector.collection` | `I4G_VECTOR__COLLECTION`<br />`VECTOR_COLLECTION`<br />`VECTOR__COLLECTION` | `str` | `i4g_vectors` | Vector store configuration supporting multiple backends. |

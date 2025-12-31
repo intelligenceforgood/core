@@ -58,7 +58,7 @@ class TokenizationService:
         encryption_key: str | None = None,
     ) -> None:
         self.settings = settings or get_settings()
-        token_settings = self.settings.tokenization
+        token_settings = self.settings.pii
         self.pepper = (pepper or token_settings.pepper or "").strip()
         self.pepper_version = token_settings.pepper_version.strip() or "v1"
         self.require_pepper = bool(token_settings.require_pepper)
