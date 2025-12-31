@@ -12,7 +12,7 @@ from sqlalchemy import engine_from_config, pool
 from sqlalchemy.engine import Connection
 
 from i4g.settings import get_settings
-from i4g.store.sql import VAULT_METADATA
+from i4g.store.sql import VAULT_METADATA, build_engine
 
 config = context.config
 
@@ -66,8 +66,29 @@ def run_migrations_online() -> None:
     connectable = config.attributes.get("connection", None)
 
     if connectable is None:
-        section = _prepare_config_section()
-        connectable = engine_from_config(section, prefix="sqlalchemy.", poolclass=pool.NullPool)
+        settings = get_settings()
+        backend = settings.pii.backend
+
+        if backend == "cloudsql":
+            connection_details = {}
+            if settings.pii.cloudsql_instance:
+                connection_details["instance"] = settings.pii.cloudsql_instance
+            if settings.pii.cloudsql_database:
+                connection_details["database"] = settings.pii.cloudsql_database
+            if settings.pii.cloudsql_user:
+                connection_details["user"] = settings.pii.cloudsql_user
+            if settings.pii.cloudsql_password:
+                connection_details["password"] = settings.pii.cloudsql_password
+            if settings.pii.cloudsql_enable_iam_auth:
+                connection_details["enable_iam_auth"] = settings.pii.cloudsql_enable_iam_auth
+
+            connectable = build_engine(
+                backend_override="cloudsql",
+                connection_details=connection_details,
+            )
+        else:
+            section = _prepare_config_section()
+            connectable = engine_from_config(section, prefix="sqlalchemy.", poolclass=pool.NullPool)
 
     if isinstance(connectable, Connection):
         context.configure(connection=connectable, target_metadata=target_metadata)

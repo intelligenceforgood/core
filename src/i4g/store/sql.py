@@ -347,7 +347,7 @@ def build_engine(
         db_user = details.get("user") or resolved.storage.cloudsql_user
         db_pass = details.get("password") or resolved.storage.cloudsql_password
         db_name = details.get("database") or resolved.storage.cloudsql_database
-        enable_iam_auth = details.get("enable_iam_auth", False)
+        enable_iam_auth = details.get("enable_iam_auth", resolved.storage.cloudsql_enable_iam_auth)
 
         # Password is not required if IAM auth is enabled
         if not all([instance_connection_name, db_user, db_name]) or (not enable_iam_auth and not db_pass):

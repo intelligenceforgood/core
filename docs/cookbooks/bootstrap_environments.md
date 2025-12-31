@@ -107,10 +107,10 @@ DB_PASS=$(gcloud secrets versions access latest --secret="ingest-db-password" --
 # Run verification
 I4G_ENV=dev \
 I4G_STORAGE__STRUCTURED_BACKEND=cloudsql \
-I4G_STORAGE__CLOUDSQL_INSTANCE="i4g-dev:us-central1:i4g-dev-db" \
-I4G_STORAGE__CLOUDSQL_USER="ingest_user" \
-I4G_STORAGE__CLOUDSQL_PASSWORD="$DB_PASS" \
-I4G_STORAGE__CLOUDSQL_DATABASE="i4g_db" \
+I4G_APP__CLOUDSQL__INSTANCE="i4g-dev:us-central1:i4g-dev-db" \
+I4G_APP__CLOUDSQL__USER="ingest_user" \
+I4G_APP__CLOUDSQL__PASSWORD="$DB_PASS" \
+I4G_APP__CLOUDSQL__DATABASE="i4g_db" \
 i4g bootstrap dev verify --project i4g-dev --no-run-smoke
 ```
 

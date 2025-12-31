@@ -239,7 +239,7 @@ def build_tokenization_service() -> TokenizationService:
     """Instantiate the tokenization service with configured secrets."""
 
     settings = get_settings()
-    backend = settings.tokenization.backend
+    backend = settings.pii.backend
     
     store = None
     if backend == "sqlite":
@@ -247,16 +247,16 @@ def build_tokenization_service() -> TokenizationService:
     elif backend == "cloudsql":
         # Pass tokenization-specific connection details if present
         connection_details = {}
-        if settings.tokenization.cloudsql_instance:
-            connection_details["instance"] = settings.tokenization.cloudsql_instance
-        if settings.tokenization.cloudsql_database:
-            connection_details["database"] = settings.tokenization.cloudsql_database
-        if settings.tokenization.cloudsql_user:
-            connection_details["user"] = settings.tokenization.cloudsql_user
-        if settings.tokenization.cloudsql_password:
-            connection_details["password"] = settings.tokenization.cloudsql_password
-        if settings.tokenization.cloudsql_enable_iam_auth:
-            connection_details["enable_iam_auth"] = settings.tokenization.cloudsql_enable_iam_auth
+        if settings.pii.cloudsql_instance:
+            connection_details["instance"] = settings.pii.cloudsql_instance
+        if settings.pii.cloudsql_database:
+            connection_details["database"] = settings.pii.cloudsql_database
+        if settings.pii.cloudsql_user:
+            connection_details["user"] = settings.pii.cloudsql_user
+        if settings.pii.cloudsql_password:
+            connection_details["password"] = settings.pii.cloudsql_password
+        if settings.pii.cloudsql_enable_iam_auth:
+            connection_details["enable_iam_auth"] = settings.pii.cloudsql_enable_iam_auth
 
         fernet = None
         if settings.crypto.pii_key and Fernet:

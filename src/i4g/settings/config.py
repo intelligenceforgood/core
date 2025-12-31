@@ -263,19 +263,23 @@ class StorageSettings(BaseSettings):
     )
     cloudsql_instance: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("CLOUDSQL_INSTANCE", "STORAGE__CLOUDSQL__INSTANCE"),
+        validation_alias=AliasChoices("APP__CLOUDSQL__INSTANCE", "I4G_APP__CLOUDSQL__INSTANCE"),
     )
     cloudsql_database: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("CLOUDSQL_DATABASE", "STORAGE__CLOUDSQL__DATABASE"),
+        validation_alias=AliasChoices("APP__CLOUDSQL__DATABASE", "I4G_APP__CLOUDSQL__DATABASE"),
     )
     cloudsql_user: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("CLOUDSQL_USER", "STORAGE__CLOUDSQL__USER"),
+        validation_alias=AliasChoices("APP__CLOUDSQL__USER", "I4G_APP__CLOUDSQL__USER"),
     )
     cloudsql_password: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("CLOUDSQL_PASSWORD", "STORAGE__CLOUDSQL__PASSWORD"),
+        validation_alias=AliasChoices("APP__CLOUDSQL__PASSWORD", "I4G_APP__CLOUDSQL__PASSWORD"),
+    )
+    cloudsql_enable_iam_auth: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("APP__CLOUDSQL__ENABLE_IAM_AUTH", "I4G_APP__CLOUDSQL__ENABLE_IAM_AUTH"),
     )
 
 
@@ -391,52 +395,50 @@ class CryptoSettings(BaseSettings):
         validation_alias=AliasChoices(
             "CRYPTO_PII_KEY",
             "CRYPTO__PII_KEY",
-            "TOKENIZATION_PII_KEY",
-            "TOKENIZATION__PII_KEY",
         ),
     )
 
 
-class TokenizationSettings(BaseSettings):
+class PIISettings(BaseSettings):
     """Deterministic tokenization controls for PII vault integration."""
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
     pepper: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("TOKENIZATION_PEPPER", "TOKENIZATION__PEPPER"),
+        validation_alias=AliasChoices("PII_PEPPER", "PII__PEPPER"),
     )
     pepper_version: str = Field(
         default="v1",
-        validation_alias=AliasChoices("TOKENIZATION_PEPPER_VERSION", "TOKENIZATION__PEPPER_VERSION"),
+        validation_alias=AliasChoices("PII_PEPPER_VERSION", "PII__PEPPER_VERSION"),
     )
     require_pepper: bool = Field(
         default=True,
-        validation_alias=AliasChoices("TOKENIZATION_REQUIRE_PEPPER", "TOKENIZATION__REQUIRE_PEPPER"),
+        validation_alias=AliasChoices("PII_REQUIRE_PEPPER", "PII__REQUIRE_PEPPER"),
     )
     backend: Literal["sqlite", "cloudsql"] = Field(
         default="sqlite",
-        validation_alias=AliasChoices("TOKENIZATION_BACKEND", "TOKENIZATION__BACKEND"),
+        validation_alias=AliasChoices("PII_BACKEND", "PII__BACKEND"),
     )
     cloudsql_instance: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("TOKENIZATION_CLOUDSQL_INSTANCE", "TOKENIZATION__CLOUDSQL_INSTANCE"),
+        validation_alias=AliasChoices("PII__CLOUDSQL__INSTANCE", "I4G_PII__CLOUDSQL__INSTANCE"),
     )
     cloudsql_database: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("TOKENIZATION_CLOUDSQL_DATABASE", "TOKENIZATION__CLOUDSQL_DATABASE"),
+        validation_alias=AliasChoices("PII__CLOUDSQL__DATABASE", "I4G_PII__CLOUDSQL__DATABASE"),
     )
     cloudsql_user: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("TOKENIZATION_CLOUDSQL_USER", "TOKENIZATION__CLOUDSQL_USER"),
+        validation_alias=AliasChoices("PII__CLOUDSQL__USER", "I4G_PII__CLOUDSQL__USER"),
     )
     cloudsql_password: str | None = Field(
         default=None,
-        validation_alias=AliasChoices("TOKENIZATION_CLOUDSQL_PASSWORD", "TOKENIZATION__CLOUDSQL_PASSWORD"),
+        validation_alias=AliasChoices("PII__CLOUDSQL__PASSWORD", "I4G_PII__CLOUDSQL__PASSWORD"),
     )
     cloudsql_enable_iam_auth: bool = Field(
         default=False,
-        validation_alias=AliasChoices("TOKENIZATION_CLOUDSQL_ENABLE_IAM_AUTH", "TOKENIZATION__CLOUDSQL_ENABLE_IAM_AUTH"),
+        validation_alias=AliasChoices("PII__CLOUDSQL__ENABLE_IAM_AUTH", "I4G_PII__CLOUDSQL__ENABLE_IAM_AUTH"),
     )
 
 
@@ -822,7 +824,7 @@ class Settings(BaseSettings):
     vector: VectorSettings = Field(default_factory=VectorSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     crypto: CryptoSettings = Field(default_factory=CryptoSettings)
-    tokenization: TokenizationSettings = Field(default_factory=TokenizationSettings)
+    pii: PIISettings = Field(default_factory=PIISettings)
     secrets: SecretsSettings = Field(default_factory=SecretsSettings)
     ingestion: IngestionSettings = Field(default_factory=IngestionSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
@@ -864,9 +866,9 @@ class Settings(BaseSettings):
     def _apply_local_defaults(self) -> "Settings":
         """Apply convenience defaults for local development."""
         if self.env == "local":
-            if not self.tokenization.pepper:
+            if not self.pii.pepper:
                 update = {"pepper": "local-secret-pepper"}
-                object.__setattr__(self, "tokenization", self.tokenization.model_copy(update=update))
+                object.__setattr__(self, "pii", self.pii.model_copy(update=update))
         return self
 
     @model_validator(mode="after")
@@ -959,11 +961,11 @@ class Settings(BaseSettings):
                 secrets_update["local_env_file"] = self.project_root / ".env.local"
             object.__setattr__(self, "secrets", self.secrets.model_copy(update=secrets_update))
 
-            tokenization_update = {
+            pii_update = {
                 "require_pepper": False,
-                "pepper": self.tokenization.pepper or "local-dev-pepper",
+                "pepper": self.pii.pepper or "local-dev-pepper",
             }
-            object.__setattr__(self, "tokenization", self.tokenization.model_copy(update=tokenization_update))
+            object.__setattr__(self, "pii", self.pii.model_copy(update=pii_update))
 
             ingestion_update = {
                 "enable_scheduled_jobs": False,

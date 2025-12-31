@@ -245,26 +245,33 @@ def test_tokenization_env_overrides(monkeypatch: object) -> None:
 
     _clear_env(
         monkeypatch,
+        "I4G_PII__PEPPER",
+        "PII_PEPPER",
         "I4G_TOKENIZATION__PEPPER",
         "TOKENIZATION_PEPPER",
+        "I4G_PII__REQUIRE_PEPPER",
+        "PII_REQUIRE_PEPPER",
         "I4G_TOKENIZATION__REQUIRE_PEPPER",
         "TOKENIZATION_REQUIRE_PEPPER",
+        "I4G_PII__PEPPER_VERSION",
+        "PII_PEPPER_VERSION",
         "I4G_TOKENIZATION__PEPPER_VERSION",
         "TOKENIZATION_PEPPER_VERSION",
     )
 
     defaults = reload_settings(env="dev")
-    assert defaults.tokenization.pepper_version == "v1"
-    assert defaults.tokenization.require_pepper is True
+    assert defaults.pii.pepper_version == "v1"
+    assert defaults.pii.require_pepper is True
 
-    _set_env(monkeypatch, "I4G_TOKENIZATION__PEPPER", "test-pepper")
-    _set_env(monkeypatch, "I4G_TOKENIZATION__PEPPER_VERSION", "v2")
-    _set_env(monkeypatch, "I4G_TOKENIZATION__REQUIRE_PEPPER", "false")
+    # Test with new PII prefix
+    _set_env(monkeypatch, "I4G_PII__PEPPER", "test-pepper")
+    _set_env(monkeypatch, "I4G_PII__PEPPER_VERSION", "v2")
+    _set_env(monkeypatch, "I4G_PII__REQUIRE_PEPPER", "false")
 
     overridden = reload_settings(env="dev")
-    assert overridden.tokenization.pepper == "test-pepper"
-    assert overridden.tokenization.pepper_version == "v2"
-    assert overridden.tokenization.require_pepper is False
+    assert overridden.pii.pepper == "test-pepper"
+    assert overridden.pii.pepper_version == "v2"
+    assert overridden.pii.require_pepper is False
 
 
 def test_ingestion_local_config_dataset_override(tmp_path, monkeypatch: object) -> None:

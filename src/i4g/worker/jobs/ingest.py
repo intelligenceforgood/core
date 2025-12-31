@@ -257,18 +257,6 @@ def main() -> int:
 
     _configure_logging()
 
-    # --- Enhanced Debug Logging (Safe) ---
-    LOGGER.info("=== Ingestion Job Startup ===")
-    LOGGER.info("Environment Variables:")
-    for key in sorted(os.environ):
-        if key.startswith("I4G_"):
-            val = os.environ[key]
-            # Redact potential secrets
-            if any(s in key for s in ("TOKEN", "KEY", "PASSWORD", "SECRET")):
-                val = "<redacted>"
-            LOGGER.info("  %s=%s", key, val)
-    # -------------------------------------
-
     settings = get_settings()
 
     dataset_override = os.getenv("I4G_INGEST__JSONL_PATH")
@@ -319,10 +307,12 @@ def main() -> int:
         or settings.ingestion.default_dataset
     )
 
+    tokenization_backend = settings.pii.backend
+
     LOGGER.info(
         (
             "Starting ingestion job: dataset=%s batch_limit=%s rate_limit_delay=%.2f dry_run=%s "
-            "enable_vector=%s enable_vertex=%s enable_firestore=%s reset_vector=%s"
+            "enable_vector=%s enable_vertex=%s enable_firestore=%s reset_vector=%s tokenization_backend=%s"
         ),
         dataset_name,
         batch_limit or "unbounded",
@@ -332,6 +322,7 @@ def main() -> int:
         enable_vertex,
         enable_firestore,
         reset_vector,
+        tokenization_backend,
     )
     LOGGER.info("Resolved dataset path: %s", dataset_path)
 

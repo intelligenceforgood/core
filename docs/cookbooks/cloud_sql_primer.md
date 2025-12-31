@@ -1,136 +1,149 @@
 # Cloud SQL Primer
 
-This guide explains how to inspect and query the Cloud SQL (PostgreSQL) database used by the i4g platform. It covers connecting via `gcloud`, using the Cloud SQL Auth Proxy for local tools, and common queries for verifying ingestion.
+This guide explains how to inspect, query, and manage permissions for the Cloud SQL (PostgreSQL) databases used by the i4g platform.
 
-## Prerequisites
+## Overview
+
+The platform uses two distinct Cloud SQL instances per environment:
+
+| Project | Environment | Instance Name | Database Name | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| **App** | `dev` | `i4g-dev-db` | `i4g_db` | Main application database (cases, reviews, etc.) |
+| **App** | `prod` | `i4g-prod-db` | `i4g_db` | Production application database |
+| **PII Vault** | `dev` | `i4g-vault-dev-db` | `vault_db` | Isolated PII storage (tokens, secrets) |
+| **PII Vault** | `prod` | `i4g-vault-prod-db` | `vault_db` | Production PII storage |
+
+## Connection (Cloud SQL Proxy)
+
+We recommend using the **Cloud SQL Auth Proxy** for all local connections. This allows you to use standard tools (`psql`, DBeaver, Python scripts) by forwarding a local port to the remote instance.
+
+### 1. Prerequisites
 
 -   **Google Cloud SDK** installed and authenticated (`gcloud auth login`).
--   **PostgreSQL Client** (`psql`) installed locally (e.g., `brew install libpq` or `brew install postgresql`).
--   **Permissions**: You need `roles/cloudsql.client` and `roles/cloudsql.instanceUser` (or `roles/cloudsql.admin`) on the project.
+-   **Cloud SQL Auth Proxy** installed (`brew install cloud-sql-proxy`).
+-   **PostgreSQL Client** (`psql`) installed (`brew install libpq` or `brew install postgresql`).
 
-## Connection Methods
+### 2. Start the Proxy
 
-### Method 1: Using `gcloud sql connect` (Quickest)
+Open a terminal and run the proxy for the target instance.
 
-This method connects directly from your terminal using the `gcloud` wrapper. It handles the ephemeral certificate generation for you.
-
+**For App Dev:**
 ```bash
-# Connect to the dev database
-gcloud sql connect i4g-dev-db --user=ingest_user --database=i4g_db --project=i4g-dev
+cloud-sql-proxy i4g-dev:us-central1:i4g-dev-db
 ```
 
-*   **Note**: You will be prompted for the password. You can retrieve it from Secret Manager:
-    ```bash
-    gcloud secrets versions access latest --secret="ingest-db-password" --project=i4g-dev
-    ```
+**For PII Vault Dev:**
+```bash
+cloud-sql-proxy i4g-pii-vault-dev:us-central1:i4g-vault-dev-db
+```
 
-*   **Troubleshooting**: 
-    *   If you see `FATAL: database "i4g_db" does not exist`, check the database name in the Terraform config (`infra/environments/app/dev/database.tf`). 
-    *   If you see `FATAL: password authentication failed`, ensure you are using the latest secret version.
-    *   If you see `HTTPError 403` and a warning about **impersonation**, try adding `--no-impersonate-service-account` to use your personal credentials:
-        ```bash
-        gcloud sql connect i4g-dev-db --user=ingest_user --database=i4g_db --project=i4g-dev --no-impersonate-service-account
-        ```
+*Leave this terminal running.*
 
-### Method 2: Using Cloud SQL Auth Proxy (Recommended for GUI/Scripts)
+### 3. Connect via `psql`
 
-The proxy allows you to connect using local tools (like DBeaver, pgAdmin, or local Python scripts) by forwarding a local port to the Cloud SQL instance.
+In a new terminal, connect using your IAM identity.
 
-1.  **Install the proxy** (if not already installed):
-    ```bash
-    brew install cloud-sql-proxy
-    ```
+```bash
+# 1. Get your OAuth access token (used as password)
+export PGPASSWORD=$(gcloud auth print-access-token)
 
-2.  **Start the proxy**:
-    ```bash
-    # Forward local port 5432 to the instance
-    cloud-sql-proxy i4g-dev:us-central1:i4g-dev-db
-    ```
-    *Leave this running in a separate terminal.*
+# 2. Connect (replace DB_NAME with i4g_db or vault_db)
+psql "host=127.0.0.1 port=5432 sslmode=disable user=jerry@intelligenceforgood.org dbname=i4g_db"
+```
 
-3.  **Connect via `psql`**:
-    ```bash
-    # Retrieve password
-    export DB_PASS=$(gcloud secrets versions access latest --secret="ingest-db-password" --project=i4g-dev)
+## User & Permission Management
 
-    # Connect to localhost
-    PGPASSWORD=$DB_PASS psql -h 127.0.0.1 -U ingest_user -d i4g_db
-    ```
+While Terraform manages the infrastructure (instances, IAM users), **table-level permissions (GRANTS) must be applied manually** inside the database. This is often required after creating new tables via Alembic.
+
+### Key Accounts
+
+| Role | Account Email | Permissions Needed |
+| :--- | :--- | :--- |
+| **Admins** | `jerry@intelligenceforgood.org`<br>`gcp-i4g-admin@intelligenceforgood.org` | `ALL PRIVILEGES` on tables<br>`CREATE` on schema |
+| **Analysts** | `gcp-i4g-analyst@intelligenceforgood.org` | `SELECT` (Read-only) |
+| **Service Accounts** | `sa-ingest@i4g-dev.iam`<br>`sa-app@i4g-dev.iam`<br>`sa-vault@i4g-pii-vault-dev.iam` | `SELECT, INSERT, UPDATE, DELETE` |
+
+*Note: Service Account usernames in Postgres are the email **without** `.gserviceaccount.com`.*
+
+### Bootstrapping Permissions (The "Manual" Fix)
+
+If a user or service account gets "Permission Denied", follow these steps to fix it.
+
+#### 1. Connect as Superuser (`postgres`)
+You must connect as a user with `GRANT OPTION`. If you don't have the `postgres` password, reset it:
+
+```bash
+# Example for PII Vault Dev
+gcloud sql users set-password postgres \
+    --instance=i4g-vault-dev-db \
+    --project=i4g-pii-vault-dev \
+    --password=TEMPORARY_PASSWORD
+```
+
+Connect via proxy:
+```bash
+PGPASSWORD=TEMPORARY_PASSWORD psql "host=127.0.0.1 port=5432 sslmode=disable user=postgres dbname=vault_db"
+```
+
+#### 2. Grant Permissions
+Run the following SQL commands to fix access for all roles.
+
+```sql
+-- 1. Grant Usage on Schema
+GRANT USAGE ON SCHEMA public TO "jerry@intelligenceforgood.org";
+GRANT USAGE ON SCHEMA public TO "gcp-i4g-admin@intelligenceforgood.org";
+GRANT USAGE ON SCHEMA public TO "gcp-i4g-analyst@intelligenceforgood.org";
+GRANT USAGE ON SCHEMA public TO "sa-ingest@i4g-dev.iam";
+
+-- 2. Grant Admin Access (Developers)
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "jerry@intelligenceforgood.org";
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "gcp-i4g-admin@intelligenceforgood.org";
+
+-- 3. Grant Read-Only Access (Analysts)
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO "gcp-i4g-analyst@intelligenceforgood.org";
+
+-- 4. Grant App/Ingest Access (Service Accounts)
+-- Replace 'sa-ingest' with the relevant SA for the project
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "sa-ingest@i4g-dev.iam";
+
+-- OPTIONAL: Ensure future tables get these grants automatically
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "sa-ingest@i4g-dev.iam";
+```
+
+#### 3. Verify Permissions
+**Warning:** `information_schema` only shows grants where you are the grantor or grantee. To verify permissions for another user (like `sa-ingest`) when logged in as yourself, use `has_table_privilege`:
+
+```sql
+-- Check if sa-ingest can INSERT into pii_tokens
+SELECT has_table_privilege('sa-ingest@i4g-dev.iam', 'pii_tokens', 'INSERT');
+-- Expected: t (true)
+```
 
 ## Common Queries
 
-Once connected, you can run standard SQL queries.
-
-### 1. Check Ingestion Runs (Status & Counters)
-
-This table tracks the status and counters for each ingestion job. **Crucially**, if `sql_writes` is high but the `cases` table count is low, it indicates heavy deduplication (see below).
-
+### Check Ingestion Status
 ```sql
-SELECT run_id, dataset, status, case_count, sql_writes, vertex_writes, created_at 
+SELECT run_id, dataset, status, case_count, sql_writes, created_at 
 FROM ingestion_runs 
 ORDER BY created_at DESC 
 LIMIT 5;
 ```
 
-### 2. Verify Ingested Cases (Deduplication Check)
-
-The `cases` table enforces a unique constraint on `(dataset, raw_text_sha256)`. If your source data contains many records with identical text (or empty text), they will be deduplicated into a single row per unique text content.
-
+### Check Deduplication
 ```sql
--- Count by dataset
 SELECT dataset, COUNT(*) as total_rows
 FROM cases 
 GROUP BY dataset;
 ```
 
-### 3. Inspect Recent Cases
-
-View the most recently added cases to verify data integrity.
-
-```sql
-SELECT case_id, classification, confidence, created_at, dataset 
-FROM cases 
-ORDER BY created_at DESC 
-LIMIT 5;
-```
-
-### 4. Check for Retries
-
-If you suspect failures, check the `ingestion_retries` table (if applicable/implemented in your schema).
-
-```sql
-SELECT * FROM ingestion_retries LIMIT 10;
-```
-
-### 5. Diagnose Missing SQL Writes
-
-If `sql_writes` is 0 in `ingestion_runs` but `case_count` is high, it means the SQL writer skipped the records. This usually happens if:
-1.  **Empty Text**: The source record has no text content. Check logs for "Skipping SQL/Firestore fan-out... due to empty text".
-2.  **SQL Disabled**: The `I4G_INGEST__ENABLE_SQL` environment variable is set to `false` (or defaults to false).
-3.  **Writer Init Failure**: The SQL writer failed to initialize. Check logs for "SQL writer initialisation failed".
-4.  **Bad Credentials**: If `I4G_STORAGE__CLOUDSQL_PASSWORD` is incorrect (e.g., set to the username `ingest_user` by mistake), the connection will fail, causing the writer initialization to fail.
-
-### 6. Check `scam_records` (Structured Store)
-
-The ingestion pipeline writes to two tables:
-1.  `scam_records`: The primary "structured store" table (always written, even if text is empty).
-2.  `cases`: The "dual-write" table (skipped if text is empty).
-
-If `cases` is empty but `scam_records` has data, it confirms the **Empty Text** hypothesis.
-
-```sql
-SELECT count(*) FROM scam_records;
-```
-
 ## Troubleshooting
 
-### "FATAL: database 'i4g' does not exist"
-Ensure you are connecting to the correct database name. In dev, it is typically `i4g_db`, not `i4g`.
+### "FATAL: database '...' does not exist"
+Check the **Overview** table above. You might be connecting to `postgres` instead of `i4g_db` or `vault_db`.
 
 ### "FATAL: password authentication failed"
--   Verify you are using the correct user (`ingest_user` vs `postgres`).
--   Ensure you have the latest password from Secret Manager.
+-   **IAM User:** Ensure your OAuth token is fresh (`gcloud auth print-access-token`).
+-   **Postgres User:** Ensure you are using the password you just set.
 
-### "Connection refused" (Proxy)
--   Ensure the proxy is running.
--   Check if the instance is stopped or undergoing maintenance.
+### "Permission denied for table ..."
+Follow the **Bootstrapping Permissions** section above to grant the missing privileges.
