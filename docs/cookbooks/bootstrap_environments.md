@@ -73,8 +73,8 @@ To reset the dev environment by triggering Cloud Run jobs (standard procedure). 
     ```bash
     I4G_ENV=dev i4g bootstrap dev reset \
       --rate-limit-delay 0.5 \
+      --timeout 10800 \
       --run-smoke \
-      --timeout 7200s \
       --run-dossier-smoke \
       --run-search-smoke
     ```
