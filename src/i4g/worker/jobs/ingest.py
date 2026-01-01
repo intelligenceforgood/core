@@ -118,7 +118,9 @@ def _load_data(path: Union[Path, str]) -> Iterator[Dict[str, Any]]:
         bucket = client.bucket(bucket_name)
 
         # List all blobs matching the prefix
+        LOGGER.info("Listing blobs in bucket %s with prefix %r", bucket_name, blob_name)
         blobs = list(client.list_blobs(bucket, prefix=blob_name))
+        LOGGER.info("Found %d blobs matching prefix", len(blobs))
 
         jsonl_blobs = []
         image_blobs = []

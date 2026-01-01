@@ -359,6 +359,11 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
         else:
             logging.warning("PII pepper not found locally or in Secret Manager. Jobs may fail.")
 
+    # Ensure PII backend is Cloud SQL for dev/prod environments
+    # This prevents falling back to SQLite (default) if the job definition is stale
+    if "dev" in args.project or "prod" in args.project:
+        common_env["I4G_PII__BACKEND"] = "cloudsql"
+
     # Ingestion jobs (run per bundle)
     for bundle_uri in bundles_to_process:
         bundle_name = Path(bundle_uri).name

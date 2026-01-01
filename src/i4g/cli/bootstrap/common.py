@@ -50,11 +50,11 @@ def get_bundles() -> dict[str, str]:
     run_date = os.getenv("RUN_DATE", "2025-12-17")
 
     return {
-        "legacy_azure": f"gs://i4g-dev-data-bundles/{run_date}/legacy_azure/search_exports/vertex/",
+        "legacy_azure": f"gs://i4g-dev-data-bundles/{run_date}/legacy_azure/search_exports/vertex",
         "public_scams": f"gs://i4g-dev-data-bundles/{run_date}/public_scams/cases.jsonl",
         "retrieval_poc": f"gs://i4g-dev-data-bundles/{run_date}/synthetic_coverage/retrieval_poc/cases.jsonl",
         "synthetic_coverage": f"gs://i4g-dev-data-bundles/{run_date}/synthetic_coverage/full/cases.jsonl",
-        "ocr_test_images": f"gs://i4g-dev-data-bundles/{run_date}/synthetic_coverage/ocr_test_images/",
+        "ocr_test_images": f"gs://i4g-dev-data-bundles/{run_date}/synthetic_coverage/ocr_test_images",
     }
 
 
