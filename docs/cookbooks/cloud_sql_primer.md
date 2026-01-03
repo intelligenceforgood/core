@@ -120,14 +120,14 @@ REASSIGN OWNED BY "sa-app@i4g-dev.iam" TO postgres;
 
 ### 3. Verifying Access
 
-To check if a user (e.g., `sa-report`) is missing access to any tables:
+To check if a user (e.g., `sa-report` or `jerry@intelligenceforgood.org`) is missing access to any tables:
 
 ```sql
 SELECT t.tablename AS "Missing Access To"
 FROM pg_tables t
 LEFT JOIN information_schema.role_table_grants g
   ON t.tablename = g.table_name
-  AND g.grantee = 'sa-report@i4g-dev.iam'
+  AND g.grantee = 'jerry@intelligenceforgood.org'
   AND g.table_schema = 'public'
 WHERE t.schemaname = 'public'
   AND g.table_name IS NULL;
@@ -151,6 +151,27 @@ LIMIT 5;
 SELECT dataset, COUNT(*) as total_rows
 FROM cases 
 GROUP BY dataset;
+```
+
+### Deduplicate Source Documents
+If `source_documents` has duplicate entries (same text/hash for the same case), use this to keep only the oldest record:
+
+```sql
+DELETE FROM source_documents
+WHERE document_id IN (
+    SELECT document_id
+    FROM (
+        SELECT
+            document_id,
+            ROW_NUMBER() OVER (
+                PARTITION BY case_id, text_sha256
+                ORDER BY created_at ASC
+            ) as row_num
+        FROM source_documents
+        WHERE text_sha256 IS NOT NULL
+    ) t
+    WHERE t.row_num > 1
+);
 ```
 
 ## Troubleshooting

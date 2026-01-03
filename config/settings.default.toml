@@ -80,7 +80,7 @@
 
 [vector]
 # vertex_ai_project = "i4g-dev"
-# vertex_ai_data_store = "retrieval-poc"
+vertex_ai_data_store = "retrieval-poc"
 # vertex_ai_branch = "default_branch"
 # vertex_ai_location = "us-central1"
 # backend = "chroma"

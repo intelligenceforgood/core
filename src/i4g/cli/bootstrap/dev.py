@@ -378,6 +378,13 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
             common_env["I4G_PII__CLOUDSQL__USER"] = f"sa-ingest@{args.project}.iam"
             common_env["I4G_PII__CLOUDSQL__ENABLE_IAM_AUTH"] = "true"
 
+            # Enable Vertex AI Search ingestion for dev
+            common_env["I4G_INGEST__ENABLE_VERTEX"] = "true"
+            # Disable ephemeral vector store (Chroma) to save time/resources
+            common_env["I4G_INGEST__ENABLE_VECTOR"] = "false"
+            # Ensure Vertex writer knows where to write (defaults to settings, but good to be explicit if needed)
+            # common_env["I4G_VERTEX_SEARCH_DATA_STORE"] = "retrieval-poc" # Already in settings.default.toml
+
     # Ingestion jobs (run per bundle)
     for bundle_uri in bundles_to_process:
         bundle_name = Path(bundle_uri).name
@@ -679,6 +686,24 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
     """Verify state of cloud resources (Firestore, Cloud SQL, Vertex, GCS)."""
 
     settings = get_settings()
+
+    # Workaround: Manually load Cloud SQL settings from local TOML if missing
+    # (Pydantic sometimes fails to map these specific fields from TOML source)
+    if not settings.storage.cloudsql_instance:
+        try:
+            import tomllib
+            local_conf = Path("config/settings.local.toml")
+            if local_conf.exists():
+                with open(local_conf, "rb") as f:
+                    data = tomllib.load(f)
+                    storage_conf = data.get("storage", {})
+                    if "cloudsql_instance" in storage_conf:
+                        settings.storage.cloudsql_instance = storage_conf["cloudsql_instance"]
+                    if "cloudsql_database" in storage_conf:
+                        settings.storage.cloudsql_database = storage_conf["cloudsql_database"]
+        except Exception as e:
+            logging.warning(f"Failed to apply local settings workaround: {e}")
+
     errors = []
 
     # 1. GCS Bundles
@@ -769,6 +794,8 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
                 if not verify_settings.storage.cloudsql_database and "dev" in args.project:
                     verify_settings.storage.cloudsql_database = "i4g_db"
 
+            logging.info(f"Cloud SQL Verify: instance={verify_settings.storage.cloudsql_instance}, user={verify_settings.storage.cloudsql_user}, db={verify_settings.storage.cloudsql_database}")
+
             # If we still lack connection details, skip the check instead of failing
             if not all(
                 [
@@ -781,12 +808,111 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
             else:
                 engine = build_engine(settings=verify_settings)
                 with engine.connect() as conn:
-                    result = conn.execute(text("SELECT COUNT(*) FROM cases"))
-                    count = result.scalar()
-                    cloud_sql_stats["cases"] = count
+                    # Fetch all tables in public schema
+                    tables_result = conn.execute(
+                        text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+                    )
+                    tables = [row[0] for row in tables_result]
+                    
+                    for table in tables:
+                        try:
+                            if table == "alembic_version":
+                                version_result = conn.execute(text(f"SELECT version_num FROM {table} LIMIT 1"))
+                                cloud_sql_stats[table] = version_result.scalar()
+                            else:
+                                count_result = conn.execute(text(f"SELECT COUNT(*) FROM {table}"))
+                                cloud_sql_stats[table] = count_result.scalar()
+                        except Exception as e:
+                            cloud_sql_stats[table] = -1
+                            logging.warning(f"Failed to count table {table}: {e}")
         except Exception as exc:
             errors.append(f"Cloud SQL Check Failed: {exc}")
     storage_stats["cloud_sql"] = cloud_sql_stats
+
+    # 3b. PII DB (Cloud SQL)
+    pii_stats = {}
+    # Always try to check PII DB if we are in dev, even if backend is sqlite locally
+    if settings.pii.backend == "cloudsql" or "dev" in args.project:
+        try:
+            # Clone settings for PII connection
+            pii_settings = settings.model_copy(deep=True)
+            
+            # Apply PII-specific overrides
+            # Similar workaround for PII settings if missing
+            if not pii_settings.pii.cloudsql_instance:
+                try:
+                    import tomllib
+                    local_conf = Path("config/settings.local.toml")
+                    if local_conf.exists():
+                        with open(local_conf, "rb") as f:
+                            data = tomllib.load(f)
+                            pii_conf = data.get("pii", {})
+                            # If PII section is missing or empty, try to infer from secrets project or defaults
+                            if not pii_conf:
+                                # Fallback: Check if we can infer from secrets project (often PII vault)
+                                secrets_conf = data.get("secrets", {})
+                                if secrets_conf.get("project") == "i4g-pii-vault-dev":
+                                    # Hardcoded fallback for dev environment parity if not explicitly set
+                                    # Correct instance name for dev PII vault
+                                    pii_settings.pii.cloudsql_instance = "i4g-pii-vault-dev:us-central1:i4g-vault-dev-db"
+                                    pii_settings.pii.cloudsql_database = "vault_db"
+                                    pii_settings.pii.cloudsql_user = "jerry@intelligenceforgood.org"
+                                    pii_settings.pii.cloudsql_enable_iam_auth = True
+                            
+                            if "cloudsql_instance" in pii_conf:
+                                pii_settings.pii.cloudsql_instance = pii_conf["cloudsql_instance"]
+                            if "cloudsql_database" in pii_conf:
+                                pii_settings.pii.cloudsql_database = pii_conf["cloudsql_database"]
+                            if "cloudsql_user" in pii_conf:
+                                pii_settings.pii.cloudsql_user = pii_conf["cloudsql_user"]
+                except Exception:
+                    pass
+
+            # Map PII settings to storage settings for build_engine
+            pii_settings.storage.structured_backend = "cloudsql"
+            pii_settings.storage.cloudsql_instance = pii_settings.pii.cloudsql_instance
+            pii_settings.storage.cloudsql_database = pii_settings.pii.cloudsql_database
+            pii_settings.storage.cloudsql_user = pii_settings.pii.cloudsql_user
+            pii_settings.storage.cloudsql_password = pii_settings.pii.cloudsql_password
+            pii_settings.storage.cloudsql_enable_iam_auth = pii_settings.pii.cloudsql_enable_iam_auth
+
+            # Fallback: If PII settings are empty, try using the primary DB settings but switch DB name if needed
+            # Often PII is in the same instance but different DB, or same DB different table (but here we assume different DB/Instance if configured)
+            if not pii_settings.storage.cloudsql_instance:
+                 # If no specific PII instance is set, assume it might be the same as primary for dev, 
+                 # or check if we should default to a known PII DB name.
+                 # For now, we'll just log if it's missing.
+                 pass
+
+            logging.info(f"PII DB Verify: instance={pii_settings.storage.cloudsql_instance}, user={pii_settings.storage.cloudsql_user}, db={pii_settings.storage.cloudsql_database}")
+
+            if not all([
+                pii_settings.storage.cloudsql_instance,
+                pii_settings.storage.cloudsql_database,
+                pii_settings.storage.cloudsql_user
+            ]):
+                 pii_stats["status"] = "skipped (missing PII connection details)"
+            else:
+                pii_engine = build_engine(settings=pii_settings)
+                with pii_engine.connect() as conn:
+                    # Check for pii_tokens table
+                    try:
+                        # Check alembic version for PII DB as well
+                        try:
+                            version_result = conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1"))
+                            pii_stats["alembic_version"] = version_result.scalar()
+                        except Exception:
+                            pii_stats["alembic_version"] = "unknown"
+
+                        count_result = conn.execute(text("SELECT COUNT(*) FROM pii_tokens"))
+                        pii_stats["pii_tokens"] = count_result.scalar()
+                    except Exception:
+                        pii_stats["pii_tokens"] = "table not found"
+                        
+        except Exception as exc:
+            pii_stats["error"] = str(exc)
+            
+    storage_stats["pii_db"] = pii_stats
 
     # 4. Vector Store (Vertex AI Search)
     vector_store_stats = {}
@@ -810,7 +936,7 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
 
             request = discoveryengine.SearchRequest(
                 serving_config=serving_config,
-                query="*",
+                query="",
                 page_size=0,
             )
             response = client.search(request=request)
@@ -1489,6 +1615,9 @@ def bootstrap_dev_reset(
         0.0, "--rate-limit-delay", help="Delay in seconds between records during ingestion (for rate limiting)."
     ),
     timeout: int = typer.Option(3600, "--timeout", help="Timeout in seconds for Cloud Run jobs."),
+    verify_only: bool = typer.Option(
+        False, "--verify-only", help="Skip job execution and only run verification smokes."
+    ),
 ) -> None:
     """Execute dev Cloud Run bootstrap jobs; optional smoke after run."""
 
@@ -1522,7 +1651,7 @@ def bootstrap_dev_reset(
             skip_ocr=skip_ocr,
             dry_run=dry_run,
             ingest_dry_run=ingest_dry_run,
-            verify_only=False,
+            verify_only=verify_only,
             run_smoke=run_smoke,
             run_dossier_smoke=run_dossier_smoke,
             run_search_smoke=run_search_smoke,
