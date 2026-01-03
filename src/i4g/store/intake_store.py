@@ -370,6 +370,7 @@ class SqlAlchemyIntakeStore:
                 try:
                     conn.execute(sa.text("SET ROLE postgres"))
                 except Exception:
+                    conn.rollback()
                     pass  # Ignore if permission denied (e.g. local dev or missing grant)
 
             sql_schema.METADATA.create_all(conn)
