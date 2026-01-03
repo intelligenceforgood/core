@@ -7,7 +7,7 @@ import os
 import sys
 from typing import Any, Dict, Tuple
 
-from i4g.services.factories import build_firestore_writer, build_ingestion_retry_store, build_vertex_writer
+from i4g.services.factories import build_ingestion_retry_store, build_vertex_writer
 from i4g.settings import get_settings
 from i4g.store.ingest import build_case_bundle
 from i4g.store.ingestion_retry_store import IngestionRetryStore, RetryItem
@@ -48,31 +48,6 @@ def _deserialize_sql_result(data: Dict[str, Any] | None, fallback_case_id: str |
         entity_ids=list(data.get("entity_ids") or []),
         indicator_ids=list(data.get("indicator_ids") or []),
     )
-
-
-def _process_firestore_retry(
-    item: RetryItem,
-    record: Dict[str, Any],
-    context: Dict[str, Any],
-    *,
-    firestore_writer,
-    default_dataset: str,
-) -> None:
-    text = record.get("text")
-    if not text:
-        raise RetryPayloadError("retry payload missing text for Firestore fan-out")
-    dataset = record.get("dataset") or default_dataset
-    if not dataset:
-        raise RetryPayloadError("retry payload missing dataset for Firestore fan-out")
-
-    sql_result = _deserialize_sql_result(context.get("sql_result"), record.get("case_id") or item.case_id)
-    bundle = build_case_bundle(
-        record,
-        case_id=sql_result.case_id,
-        dataset=dataset,
-        text=text,
-    )
-    firestore_writer.persist_case_bundle(bundle, sql_result, ingestion_run_id=record.get("ingestion_run_id"))
 
 
 def _process_vertex_retry(
@@ -172,23 +147,12 @@ def main() -> int:
     rescheduled = 0
     dropped = 0
 
-    firestore_writer = None
     vertex_writer = None
 
     for item in ready_items:
         record, context = _extract_retry_payload(item.payload or {})
         try:
-            if item.backend == "firestore":
-                if firestore_writer is None:
-                    firestore_writer = build_firestore_writer()
-                _process_firestore_retry(
-                    item,
-                    record,
-                    context,
-                    firestore_writer=firestore_writer,
-                    default_dataset=default_dataset,
-                )
-            elif item.backend == "vertex":
+            if item.backend == "vertex":
                 if vertex_writer is None:
                     vertex_writer = build_vertex_writer()
                 _process_vertex_retry(

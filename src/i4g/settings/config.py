@@ -233,21 +233,13 @@ class StorageSettings(BaseSettings):
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
-    structured_backend: Literal["sqlite", "firestore", "cloudsql"] = Field(
+    structured_backend: Literal["sqlite", "cloudsql"] = Field(
         default="sqlite",
         validation_alias=AliasChoices("STRUCTURED_BACKEND", "STORAGE__STRUCTURED_BACKEND"),
     )
     sqlite_path: Path = Field(
         default=PROJECT_ROOT / "data" / "i4g_store.db",
         # validation_alias=AliasChoices("SQLITE_PATH", "STORAGE__SQLITE_PATH"),
-    )
-    firestore_project: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("FIRESTORE_PROJECT", "STORAGE__FIRESTORE__PROJECT"),
-    )
-    firestore_collection: str = Field(
-        default="cases",
-        validation_alias=AliasChoices("FIRESTORE_COLLECTION", "STORAGE__FIRESTORE__COLLECTION"),
     )
     evidence_bucket: str | None = Field(
         default=None,
@@ -489,15 +481,6 @@ class IngestionSettings(BaseSettings):
             "INGEST__ENABLE_SQL",
             "INGESTION_ENABLE_SQL",
             "INGESTION__ENABLE_SQL",
-        ),
-    )
-    enable_firestore: bool = Field(
-        default=False,
-        validation_alias=AliasChoices(
-            "INGEST_ENABLE_FIRESTORE",
-            "INGEST__ENABLE_FIRESTORE",
-            "INGESTION_ENABLE_FIRESTORE",
-            "INGESTION__ENABLE_FIRESTORE",
         ),
     )
     enable_vertex: bool = Field(

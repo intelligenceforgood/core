@@ -708,18 +708,18 @@ fields:
   type: str | NoneType
   default: null
   env_vars:
-  - I4G_STORAGE__CLOUDSQL_DATABASE
+  - I4G_APP__CLOUDSQL__DATABASE
   - CLOUDSQL_DATABASE
-  - STORAGE__CLOUDSQL__DATABASE
+  - APP__CLOUDSQL__DATABASE
   description: Structured + blob storage configuration.
 - path: storage.cloudsql_instance
   section: storage
   type: str | NoneType
   default: null
   env_vars:
-  - I4G_STORAGE__CLOUDSQL_INSTANCE
+  - I4G_APP__CLOUDSQL__INSTANCE
   - CLOUDSQL_INSTANCE
-  - STORAGE__CLOUDSQL__INSTANCE
+  - APP__CLOUDSQL__INSTANCE
   description: Structured + blob storage configuration.
 - path: storage.evidence_bucket
   section: storage

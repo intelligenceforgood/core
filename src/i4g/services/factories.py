@@ -16,7 +16,6 @@ from i4g.pii.tokenization import TokenizationService
 from i4g.reports.bundle_builder import BundleBuilder
 from i4g.reports.bundle_candidates import BundleCandidateProvider
 from i4g.reports.dossier_context import DossierContextLoader
-from i4g.services.firestore_writer import FirestoreWriter
 from i4g.services.vertex_writer import VertexDocumentWriter
 from i4g.settings import get_settings
 from i4g.storage import EvidenceStorage
@@ -24,6 +23,7 @@ from i4g.store.dossier_queue_store import DossierQueueStore
 from i4g.store.entity_store import EntityStore
 from i4g.store.ingestion_retry_store import IngestionRetryStore
 from i4g.store.ingestion_run_tracker import IngestionRunTracker
+from i4g.store.intake_store import IntakeStore, SqlAlchemyIntakeStore
 from i4g.store.pii_token_store import PiiTokenStore
 from i4g.store.pii_token_store_sql import SqlAlchemyPiiTokenStore
 from i4g.store.review_store import ReviewStore, SqlAlchemyReviewStore
@@ -57,9 +57,6 @@ def build_structured_store(db_path: str | Path | None = None) -> StructuredStore
     if backend == "sqlite":
         return StructuredStore(db_path=db_path)
 
-    if backend == "firestore":
-        raise NotImplementedError("Firestore structured backend not implemented yet")
-
     if backend == "cloudsql":
         session_factory = build_sql_session_factory()
         return SqlAlchemyStructuredStore(session_factory=session_factory)
@@ -81,9 +78,6 @@ def build_review_store(db_path: str | Path | None = None) -> ReviewStore:
     backend = settings.storage.structured_backend
     if backend == "sqlite":
         return ReviewStore(db_path=db_path)
-
-    if backend == "firestore":
-        raise NotImplementedError("Firestore review backend not implemented yet")
 
     if backend == "cloudsql":
         session_factory = build_sql_session_factory()
@@ -152,9 +146,6 @@ def build_intake_store(db_path: str | Path | None = None) -> IntakeStore:
     if backend == "sqlite":
         return IntakeStore(db_path=db_path)
 
-    if backend == "firestore":
-        raise NotImplementedError("Firestore intake backend not implemented yet")
-
     if backend == "cloudsql":
         session_factory = build_sql_session_factory()
         return SqlAlchemyIntakeStore(session_factory=session_factory)
@@ -212,21 +203,6 @@ def build_vertex_writer(*, settings: "Settings" | None = None) -> VertexDocument
         default_dataset=resolved.ingestion.default_dataset,
         timeout_seconds=resolved.ingestion.fanout_timeout_seconds,
     )
-
-
-def build_firestore_writer(*, settings: "Settings" | None = None) -> FirestoreWriter:
-    """Instantiate a Firestore writer aligned with storage settings."""
-
-    resolved = settings or get_settings()
-    project = resolved.storage.firestore_project
-    collection = resolved.storage.firestore_collection
-
-    if not project:
-        raise RuntimeError(
-            "Firestore writer requires storage.firestore_project; set I4G_STORAGE__FIRESTORE__PROJECT.",
-        )
-
-    return FirestoreWriter(project=project, collection=collection)
 
 
 def build_dossier_queue_store(db_path: str | Path | None = None) -> DossierQueueStore:
@@ -324,7 +300,6 @@ __all__ = [
     "build_ingestion_run_tracker",
     "build_ingestion_retry_store",
     "build_vertex_writer",
-    "build_firestore_writer",
     "build_dossier_queue_store",
     "build_bundle_builder",
     "build_bundle_candidate_provider",

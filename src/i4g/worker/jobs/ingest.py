@@ -298,11 +298,6 @@ def main() -> int:
     else:
         enable_vertex = False if is_local else settings.ingestion.enable_vertex
 
-    firestore_override = _env_flag("I4G_INGEST__ENABLE_FIRESTORE")
-    if firestore_override is not None:
-        enable_firestore = firestore_override
-    else:
-        enable_firestore = False if is_local else settings.ingestion.enable_firestore
     dataset_name = (
         os.getenv("I4G_INGEST__DATASET_NAME")
         or (dataset_path.stem if isinstance(dataset_path, Path) else "gcs_dataset")
@@ -314,7 +309,7 @@ def main() -> int:
     LOGGER.info(
         (
             "Starting ingestion job: dataset=%s batch_limit=%s rate_limit_delay=%.2f dry_run=%s "
-            "enable_vector=%s enable_vertex=%s enable_firestore=%s reset_vector=%s tokenization_backend=%s"
+            "enable_vector=%s enable_vertex=%s reset_vector=%s tokenization_backend=%s"
         ),
         dataset_name,
         batch_limit or "unbounded",
@@ -322,7 +317,6 @@ def main() -> int:
         dry_run,
         enable_vector,
         enable_vertex,
-        enable_firestore,
         reset_vector,
         tokenization_backend,
     )
@@ -349,7 +343,6 @@ def main() -> int:
         vector_store=vector_store,
         enable_vector=enable_vector,
         enable_vertex=enable_vertex,
-        enable_firestore=enable_firestore,
         default_dataset=dataset_name,
     )
 
@@ -409,24 +402,12 @@ def main() -> int:
                         run_tracker.record_case(
                             run_id,
                             result.sql_result,
-                            firestore_writes=1 if result.firestore_written else 0,
                             vertex_writes=1 if result.vertex_written else 0,
                         )
                     except Exception:
                         LOGGER.exception("Failed to update ingestion run counters run_id=%s", run_id)
 
                 if retry_store:
-                    scheduled_retries += _maybe_enqueue_retry(
-                        retry_store,
-                        backend="firestore",
-                        attempted=result.firestore_attempted,
-                        succeeded=result.firestore_written,
-                        payload=payload,
-                        retry_delay=retry_delay,
-                        max_retries=max_retries,
-                        error=result.firestore_error,
-                        sql_result=result.sql_result,
-                    )
                     scheduled_retries += _maybe_enqueue_retry(
                         retry_store,
                         backend="vertex",

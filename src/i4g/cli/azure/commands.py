@@ -28,11 +28,6 @@ def _run_script(relative_path: str, args: list[str] | None = None) -> None:
         raise typer.Exit(result.returncode)
 
 
-@app.command("azure-sql-to-firestore", help="Copy legacy Azure SQL intake tables into Firestore staging.")
-def azure_sql_to_firestore(extra_args: Optional[list[str]] = typer.Argument(None)) -> None:
-    _run_script("scripts/migration/azure_sql_to_firestore.py", extra_args or [])
-
-
 @app.command("azure-blob-to-gcs", help="Sync Azure Blob Storage containers into GCS.")
 def azure_blob_to_gcs(extra_args: Optional[list[str]] = typer.Argument(None)) -> None:
     _run_script("scripts/migration/azure_blob_to_gcs.py", extra_args or [])

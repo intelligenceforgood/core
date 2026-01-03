@@ -33,7 +33,6 @@ ingestion_runs = sa.Table(
     sa.Column("case_count", sa.Integer(), nullable=False, server_default="0"),
     sa.Column("entity_count", sa.Integer(), nullable=False, server_default="0"),
     sa.Column("indicator_count", sa.Integer(), nullable=False, server_default="0"),
-    sa.Column("firestore_writes", sa.Integer(), nullable=False, server_default="0"),
     sa.Column("vertex_writes", sa.Integer(), nullable=False, server_default="0"),
     sa.Column("sql_writes", sa.Integer(), nullable=False, server_default="0"),
     sa.Column("retry_count", sa.Integer(), nullable=False, server_default="0"),

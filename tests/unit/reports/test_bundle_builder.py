@@ -53,7 +53,7 @@ def test_build_and_enqueue_persists_queue(tmp_path) -> None:
     db_path = tmp_path / "queue.db"
     queue_store = DossierQueueStore(db_path=db_path)
     builder = BundleBuilder(queue_store=queue_store, shared_drive_parent_id="drive-folder-123")
-    now = datetime(2025, 12, 3, tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
     candidates = [
         DossierCandidate(
             case_id="case-1",

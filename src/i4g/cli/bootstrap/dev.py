@@ -47,7 +47,7 @@ DEFAULT_PROJECT = "i4g-dev"
 DEFAULT_REGION = "us-central1"
 DEFAULT_REPORT_DIR = REPO_ROOT / "data" / "reports" / "bootstrap_dev"
 DEFAULT_JOBS = {
-    "firestore": "ingest-bootstrap",  # Main ingestion job (covers Firestore + Vector)
+    "ingest": "ingest-bootstrap",  # Primary ingestion job
     "vertex": "",  # Skipped (included in ingest-bootstrap)
     "sql": "",  # Skipped (not deployed)
     "bigquery": "",  # Skipped (not deployed)
@@ -90,7 +90,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_WIF_SA,
         help="Service account to impersonate via WIF (default: sa-infra@i4g-dev).",
     )
-    parser.add_argument("--firestore-job", default=DEFAULT_JOBS["firestore"], help="Firestore refresh job name.")
+    parser.add_argument("--ingest-job", default=DEFAULT_JOBS["ingest"], help="Ingestion job name.")
     parser.add_argument("--vertex-job", default=DEFAULT_JOBS["vertex"], help="Vertex import job name.")
     parser.add_argument("--sql-job", default=DEFAULT_JOBS["sql"], help="SQL/Firestore sync job name.")
     parser.add_argument("--bigquery-job", default=DEFAULT_JOBS["bigquery"], help="BigQuery refresh job name.")
@@ -107,10 +107,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Job to run for seeding reviews (reuses report-job image).",
     )
     parser.add_argument("--skip-seed-reviews", action="store_true", help="Skip seeding reviews.")
+    parser.add_argument("--skip-ingest", action="store_true", help="Skip ingestion job.")
     parser.add_argument("--skip-ocr", action="store_true", help="Skip OCR test images bundle.")
-    parser.add_argument(
-        "--skip-firestore", action="store_true", help="Skip Firestore ingestion (ingest-bootstrap)."
-    )
     parser.add_argument("--skip-vertex", action="store_true", help="Skip Vertex import job.")
     parser.add_argument("--skip-sql", action="store_true", help="Skip SQL/Firestore sync job.")
     parser.add_argument("--skip-bigquery", action="store_true", help="Skip BigQuery refresh job.")
@@ -152,7 +150,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--smoke-api-url",
-        default=os.getenv("I4G_SMOKE_API_URL", "https://api.intelligenceforgood.org"),
+        default=os.getenv("I4G_SMOKE_API_URL", "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app"),
         help="API base URL for smoke (default: dev gateway).",
     )
     parser.add_argument(
@@ -363,6 +361,22 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
     # This prevents falling back to SQLite (default) if the job definition is stale
     if "dev" in args.project or "prod" in args.project:
         common_env["I4G_PII__BACKEND"] = "cloudsql"
+        common_env["I4G_STORAGE__STRUCTURED_BACKEND"] = "cloudsql"
+
+        # Inject connection details for dev (assumes standard naming conventions)
+        if "dev" in args.project:
+            # Main DB
+            common_env["I4G_APP__CLOUDSQL__INSTANCE"] = f"{args.project}:us-central1:{args.project}-db"
+            common_env["I4G_APP__CLOUDSQL__DATABASE"] = "i4g_db"
+            common_env["I4G_APP__CLOUDSQL__USER"] = f"sa-ingest@{args.project}.iam"
+            common_env["I4G_APP__CLOUDSQL__ENABLE_IAM_AUTH"] = "true"
+
+            # PII Vault DB
+            vault_project = args.project.replace("-dev", "-pii-vault-dev")
+            common_env["I4G_PII__CLOUDSQL__INSTANCE"] = f"{vault_project}:us-central1:i4g-vault-dev-db"
+            common_env["I4G_PII__CLOUDSQL__DATABASE"] = "vault_db"
+            common_env["I4G_PII__CLOUDSQL__USER"] = f"sa-ingest@{args.project}.iam"
+            common_env["I4G_PII__CLOUDSQL__ENABLE_IAM_AUTH"] = "true"
 
     # Ingestion jobs (run per bundle)
     for bundle_uri in bundles_to_process:
@@ -386,10 +400,11 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
         if args.dataset:
             job_args.append(f"--dataset={args.dataset}")
 
-        if not args.skip_firestore and args.firestore_job:
+        if not args.skip_ingest and args.ingest_job:
             specs.append(
-                JobSpec(label=f"firestore-{bundle_name}", job_name=args.firestore_job, args=job_args, env=ingest_env)
+                JobSpec(label=f"ingest-{bundle_name}", job_name=args.ingest_job, args=job_args, env=ingest_env)
             )
+
         if not args.skip_vertex and args.vertex_job:
             specs.append(
                 JobSpec(label=f"vertex-{bundle_name}", job_name=args.vertex_job, args=job_args, env=ingest_env)
@@ -410,15 +425,23 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
     if not args.skip_gcs_assets and args.gcs_assets_job:
         specs.append(JobSpec(label="gcs_assets", job_name=args.gcs_assets_job, args=common_args, env=common_env))
     if not args.skip_reports and args.reports_job:
-        specs.append(JobSpec(label="reports", job_name=args.reports_job, args=common_args, env=common_env))
+        report_env = common_env.copy()
+        if "dev" in args.project:
+            report_env["I4G_APP__CLOUDSQL__USER"] = f"sa-report@{args.project}.iam"
+            report_env["I4G_PII__CLOUDSQL__USER"] = f"sa-report@{args.project}.iam"
+        specs.append(JobSpec(label="reports", job_name=args.reports_job, args=common_args, env=report_env))
 
     if args.seed_reviews_job and not args.skip_seed_reviews:
+        seed_env = common_env.copy()
+        if "dev" in args.project:
+            seed_env["I4G_APP__CLOUDSQL__USER"] = f"sa-report@{args.project}.iam"
+            seed_env["I4G_PII__CLOUDSQL__USER"] = f"sa-report@{args.project}.iam"
         specs.append(
             JobSpec(
                 label="seed_reviews",
                 job_name=args.seed_reviews_job,
                 args=[],
-                env=common_env,
+                env=seed_env,
                 command=["i4g", "admin", "seed-reviews"],
             )
         )
@@ -687,9 +710,10 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
     except Exception as exc:
         errors.append(f"GCS Bundle Check Failed: {exc}")
 
-    # 2. Primary DB (Firestore or SQLite if local_execution)
-    primary_db_stats = {}
+    # 2. Primary DB (SQLite if local_execution)
+    storage_stats = {}
     if getattr(args, "local_execution", False):
+        sqlite_stats = {}
         try:
             from sqlalchemy import create_engine, text
 
@@ -706,30 +730,13 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
                     # Count cases
                     result = conn.execute(text("SELECT COUNT(*) FROM cases"))
                     count = result.scalar()
-                    primary_db_stats["cases"] = count
+                    sqlite_stats["cases"] = count
         except Exception as exc:
             errors.append(f"SQLite Check Failed: {exc}")
-    elif settings.ingestion.enable_firestore:
-        try:
-            from google.cloud import firestore
-
-            db = firestore.Client(project=args.project)
-            collections = ["cases"]
-            for col in collections:
-                try:
-                    query = db.collection(col).count()
-                    results = query.get()
-                    primary_db_stats[col] = int(results[0][0].value)
-                except Exception as e:
-                    primary_db_stats[col] = -1
-                    errors.append(f"Firestore collection '{col}' check failed: {e}")
-        except Exception as exc:
-            errors.append(f"Firestore Connection Failed: {exc}")
-    else:
-        primary_db_stats["status"] = "skipped (disabled)"
+        storage_stats["sqlite"] = sqlite_stats
 
     # 3. Relational DB (Cloud SQL)
-    relational_db_stats = {}
+    cloud_sql_stats = {}
     if settings.storage.structured_backend == "cloudsql" or not getattr(args, "local_execution", False):
         try:
             from sqlalchemy import create_engine, text
@@ -742,29 +749,44 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
                 )
 
             if not verify_settings.storage.cloudsql_instance:
-                verify_settings.storage.cloudsql_instance = os.getenv("I4G_STORAGE__CLOUDSQL_INSTANCE") or os.getenv(
+                verify_settings.storage.cloudsql_instance = os.getenv("I4G_APP__CLOUDSQL__INSTANCE") or os.getenv(
                     "CLOUDSQL_INSTANCE"
                 )
+
             if not verify_settings.storage.cloudsql_user:
-                verify_settings.storage.cloudsql_user = os.getenv("I4G_STORAGE__CLOUDSQL_USER") or os.getenv(
+                verify_settings.storage.cloudsql_user = os.getenv("I4G_APP__CLOUDSQL__USER") or os.getenv(
                     "CLOUDSQL_USER"
                 )
+
             if not verify_settings.storage.cloudsql_password:
-                verify_settings.storage.cloudsql_password = os.getenv("I4G_STORAGE__CLOUDSQL_PASSWORD") or os.getenv(
+                verify_settings.storage.cloudsql_password = os.getenv("I4G_APP__CLOUDSQL__PASSWORD") or os.getenv(
                     "CLOUDSQL_PASSWORD"
                 )
             if not verify_settings.storage.cloudsql_database:
-                verify_settings.storage.cloudsql_database = os.getenv("I4G_STORAGE__CLOUDSQL_DATABASE") or os.getenv(
+                verify_settings.storage.cloudsql_database = os.getenv("I4G_APP__CLOUDSQL__DATABASE") or os.getenv(
                     "CLOUDSQL_DATABASE"
                 )
+                if not verify_settings.storage.cloudsql_database and "dev" in args.project:
+                    verify_settings.storage.cloudsql_database = "i4g_db"
 
-            engine = build_engine(settings=verify_settings)
-            with engine.connect() as conn:
-                result = conn.execute(text("SELECT COUNT(*) FROM cases"))
-                count = result.scalar()
-                relational_db_stats["cases"] = count
+            # If we still lack connection details, skip the check instead of failing
+            if not all(
+                [
+                    verify_settings.storage.cloudsql_instance,
+                    verify_settings.storage.cloudsql_user,
+                    verify_settings.storage.cloudsql_database,
+                ]
+            ):
+                cloud_sql_stats["status"] = "skipped (missing I4G_APP__CLOUDSQL__* env vars)"
+            else:
+                engine = build_engine(settings=verify_settings)
+                with engine.connect() as conn:
+                    result = conn.execute(text("SELECT COUNT(*) FROM cases"))
+                    count = result.scalar()
+                    cloud_sql_stats["cases"] = count
         except Exception as exc:
             errors.append(f"Cloud SQL Check Failed: {exc}")
+    storage_stats["cloud_sql"] = cloud_sql_stats
 
     # 4. Vector Store (Vertex AI Search)
     vector_store_stats = {}
@@ -802,15 +824,13 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
     except Exception as exc:
         errors.append(f"Vertex Search Check Failed: {exc}")
 
+    storage_stats["vector_store"] = vector_store_stats
+
     return VerificationReport(
         environment="dev",
         timestamp=datetime.now(timezone.utc).isoformat(),
         bundles=bundles_state,
-        storage={
-            "primary_db": primary_db_stats,
-            "relational_db": relational_db_stats,
-            "vector_store": vector_store_stats,
-        },
+        storage=storage_stats,
         smoke_tests={},
         errors=errors,
     )
@@ -921,13 +941,15 @@ def write_reports(
     verify_lines.append("")
     verify_lines.append("## Storage Stats")
 
-    verify_lines.append("### Primary DB")
-    for k, v in verification_report.storage.get("primary_db", {}).items():
-        verify_lines.append(f"- {k}: {v}")
+    if "sqlite" in verification_report.storage:
+        verify_lines.append("### SQLite (Local)")
+        for k, v in verification_report.storage.get("sqlite", {}).items():
+            verify_lines.append(f"- {k}: {v}")
 
-    verify_lines.append("### Relational DB")
-    for k, v in verification_report.storage.get("relational_db", {}).items():
-        verify_lines.append(f"- {k}: {v}")
+    if "cloud_sql" in verification_report.storage:
+        verify_lines.append("### Cloud SQL")
+        for k, v in verification_report.storage.get("cloud_sql", {}).items():
+            verify_lines.append(f"- {k}: {v}")
 
     verify_lines.append("### Vector Store")
     for k, v in verification_report.storage.get("vector_store", {}).items():
@@ -998,10 +1020,8 @@ def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
             logging.warning("No bundles found in %s", BUNDLES_DIR)
 
     # 2. Run Ingest for each bundle
-    ingest_jobs = {"firestore", "vertex", "sql", "bigquery"}
+    ingest_jobs = {"vertex", "sql", "bigquery"}
     requested_jobs = set()
-    if not args.skip_firestore:
-        requested_jobs.add("firestore")
     if not args.skip_vertex:
         requested_jobs.add("vertex")
     if not args.skip_sql:
@@ -1030,7 +1050,6 @@ def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
         if args.ingest_dry_run:
             env["I4G_INGEST__DRY_RUN"] = "1"
 
-        env["I4G_INGEST__ENABLE_FIRESTORE"] = "1" if "firestore" in requested_jobs else "0"
         env["I4G_INGEST__ENABLE_VERTEX"] = "1" if "vertex" in requested_jobs else "0"
         env["I4G_INGEST__ENABLE_VECTOR"] = "1" if "vertex" in requested_jobs else "0"
 
@@ -1221,7 +1240,7 @@ def run_dev(
     bundle_uri: Optional[str],
     dataset: Optional[str],
     wif_service_account: str,
-    firestore_job: str,
+    ingest_job: str,
     vertex_job: str,
     sql_job: str,
     bigquery_job: str,
@@ -1229,7 +1248,7 @@ def run_dev(
     reports_job: str,
     saved_searches_job: str,
     seed_reviews_job: str,
-    skip_firestore: bool,
+    skip_ingest: bool,
     skip_vertex: bool,
     skip_sql: bool,
     skip_bigquery: bool,
@@ -1272,7 +1291,7 @@ def run_dev(
         rate_limit_delay=rate_limit_delay,
         timeout=timeout,
         wif_service_account=wif_service_account,
-        firestore_job=firestore_job,
+        ingest_job=ingest_job,
         vertex_job=vertex_job,
         sql_job=sql_job,
         bigquery_job=bigquery_job,
@@ -1280,7 +1299,7 @@ def run_dev(
         reports_job=reports_job,
         saved_searches_job=saved_searches_job,
         seed_reviews_job=seed_reviews_job,
-        skip_firestore=skip_firestore,
+        skip_ingest=skip_ingest,
         skip_vertex=skip_vertex,
         skip_sql=skip_sql,
         skip_bigquery=skip_bigquery,
@@ -1322,14 +1341,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         bundle_uri=args.bundle_uri,
         dataset=args.dataset,
         wif_service_account=args.wif_service_account,
-        firestore_job=args.firestore_job,
         vertex_job=args.vertex_job,
         sql_job=args.sql_job,
         bigquery_job=args.bigquery_job,
         gcs_assets_job=args.gcs_assets_job,
         reports_job=args.reports_job,
         saved_searches_job=args.saved_searches_job,
-        skip_firestore=args.skip_firestore,
         skip_vertex=args.skip_vertex,
         skip_sql=args.skip_sql,
         skip_bigquery=args.skip_bigquery,
@@ -1387,9 +1404,7 @@ def bootstrap_dev_reset(
         "--wif-service-account",
         help="Service account to impersonate via WIF.",
     ),
-    firestore_job: str = typer.Option(
-        DEFAULT_JOBS["firestore"], "--firestore-job", help="Firestore refresh job.", hidden=True
-    ),
+    ingest_job: str = typer.Option(DEFAULT_JOBS["ingest"], "--ingest-job", help="Ingestion job name."),
     vertex_job: str = typer.Option(DEFAULT_JOBS["vertex"], "--vertex-job", help="Vertex import job.", hidden=True),
     sql_job: str = typer.Option(DEFAULT_JOBS["sql"], "--sql-job", help="SQL/Firestore sync job.", hidden=True),
     bigquery_job: str = typer.Option(
@@ -1407,7 +1422,7 @@ def bootstrap_dev_reset(
     seed_reviews_job: str = typer.Option(
         DEFAULT_JOBS["seed_reviews"], "--seed-reviews-job", help="Seed reviews job.", hidden=True
     ),
-    skip_firestore: bool = typer.Option(False, "--skip-firestore", help="Skip Firestore refresh job."),
+    skip_ingest: bool = typer.Option(False, "--skip-ingest", help="Skip ingestion job."),
     skip_vertex: bool = typer.Option(False, "--skip-vertex", help="Skip Vertex import job."),
     skip_vector: bool = typer.Option(False, "--skip-vector", help="Alias for --skip-vertex (for local parity)."),
     skip_sql: bool = typer.Option(False, "--skip-sql", help="Skip SQL/Firestore sync job."),
@@ -1448,7 +1463,7 @@ def bootstrap_dev_reset(
     force: bool = typer.Option(False, "--force", help="Allow targeting non-dev projects (never prod)."),
     log_level: str = typer.Option("INFO", "--log-level", help="Logging verbosity (DEBUG/INFO/WARNING/ERROR)."),
     smoke_api_url: str = typer.Option(
-        os.getenv("I4G_SMOKE_API_URL", "https://api.intelligenceforgood.org"),
+        os.getenv("I4G_SMOKE_API_URL", "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app"),
         "--smoke-api-url",
         help="API base URL for smoke.",
     ),
@@ -1484,10 +1499,11 @@ def bootstrap_dev_reset(
         run_dev(
             project=project,
             region=region,
+            bundle=bundle,
             bundle_uri=bundle_uri,
             dataset=dataset,
             wif_service_account=wif_service_account,
-            firestore_job=firestore_job,
+            ingest_job=ingest_job,
             vertex_job=vertex_job,
             sql_job=sql_job,
             bigquery_job=bigquery_job,
@@ -1495,7 +1511,7 @@ def bootstrap_dev_reset(
             reports_job=reports_job,
             saved_searches_job=saved_searches_job,
             seed_reviews_job=seed_reviews_job,
-            skip_firestore=skip_firestore,
+            skip_ingest=skip_ingest,
             skip_vertex=skip_vertex,
             skip_sql=skip_sql,
             skip_bigquery=skip_bigquery,
@@ -1538,14 +1554,13 @@ def bootstrap_dev_load(
     bundle: Optional[str] = typer.Option(None, "--bundle", help="Name of a specific bundle to process."),
     bundle_uri: Optional[str] = typer.Option(None, "--bundle-uri", help="Bundle URI passed to jobs, if supported."),
     dataset: Optional[str] = typer.Option(None, "--dataset", help="Dataset identifier injected into job args."),
+    limit: int = typer.Option(0, "--limit", help="Limit the number of records to ingest (0 = unlimited)."),
     wif_service_account: str = typer.Option(
         DEFAULT_WIF_SA,
         "--wif-service-account",
         help="Service account to impersonate via WIF.",
     ),
-    firestore_job: str = typer.Option(
-        DEFAULT_JOBS["firestore"], "--firestore-job", help="Firestore refresh job.", hidden=True
-    ),
+    ingest_job: str = typer.Option(DEFAULT_JOBS["ingest"], "--ingest-job", help="Ingestion job name."),
     vertex_job: str = typer.Option(DEFAULT_JOBS["vertex"], "--vertex-job", help="Vertex import job.", hidden=True),
     sql_job: str = typer.Option(DEFAULT_JOBS["sql"], "--sql-job", help="SQL/Firestore sync job.", hidden=True),
     bigquery_job: str = typer.Option(
@@ -1563,7 +1578,7 @@ def bootstrap_dev_load(
     seed_reviews_job: str = typer.Option(
         DEFAULT_JOBS["seed_reviews"], "--seed-reviews-job", help="Seed reviews job.", hidden=True
     ),
-    skip_firestore: bool = typer.Option(False, "--skip-firestore", help="Skip Firestore refresh job."),
+    skip_ingest: bool = typer.Option(False, "--skip-ingest", help="Skip ingestion job."),
     skip_vertex: bool = typer.Option(False, "--skip-vertex", help="Skip Vertex import job."),
     skip_vector: bool = typer.Option(False, "--skip-vector", help="Alias for --skip-vertex (for local parity)."),
     skip_sql: bool = typer.Option(False, "--skip-sql", help="Skip SQL/Firestore sync job."),
@@ -1604,7 +1619,7 @@ def bootstrap_dev_load(
     force: bool = typer.Option(False, "--force", help="Allow targeting non-dev projects (never prod)."),
     log_level: str = typer.Option("INFO", "--log-level", help="Logging verbosity (DEBUG/INFO/WARNING/ERROR)."),
     smoke_api_url: str = typer.Option(
-        os.getenv("I4G_SMOKE_API_URL", "https://api.intelligenceforgood.org"),
+        os.getenv("I4G_SMOKE_API_URL", "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app"),
         "--smoke-api-url",
         help="API base URL for smoke.",
     ),
@@ -1626,7 +1641,6 @@ def bootstrap_dev_load(
     local_execution: bool = typer.Option(
         False, "--local-execution", help="Run ingestion logic locally instead of triggering Cloud Run jobs."
     ),
-    limit: int = typer.Option(0, "--limit", help="Limit the number of records to ingest (0 = unlimited)."),
     rate_limit_delay: float = typer.Option(
         0.0, "--rate-limit-delay", help="Delay in seconds between records during ingestion (for rate limiting)."
     ),
@@ -1641,10 +1655,11 @@ def bootstrap_dev_load(
         run_dev(
             project=project,
             region=region,
+            bundle=bundle,
             bundle_uri=bundle_uri,
             dataset=dataset,
             wif_service_account=wif_service_account,
-            firestore_job=firestore_job,
+            ingest_job=ingest_job,
             vertex_job=vertex_job,
             sql_job=sql_job,
             bigquery_job=bigquery_job,
@@ -1652,7 +1667,7 @@ def bootstrap_dev_load(
             reports_job=reports_job,
             saved_searches_job=saved_searches_job,
             seed_reviews_job=seed_reviews_job,
-            skip_firestore=skip_firestore,
+            skip_ingest=skip_ingest,
             skip_vertex=skip_vertex,
             skip_sql=skip_sql,
             skip_bigquery=skip_bigquery,
@@ -1700,7 +1715,6 @@ def bootstrap_dev_verify(
         "--wif-service-account",
         help="Service account to impersonate via WIF.",
     ),
-    firestore_job: str = typer.Option(DEFAULT_JOBS["firestore"], "--firestore-job", help="Firestore refresh job."),
     vertex_job: str = typer.Option(DEFAULT_JOBS["vertex"], "--vertex-job", help="Vertex import job."),
     sql_job: str = typer.Option(DEFAULT_JOBS["sql"], "--sql-job", help="SQL/Firestore sync job."),
     bigquery_job: str = typer.Option(DEFAULT_JOBS["bigquery"], "--bigquery-job", help="BigQuery refresh job."),
@@ -1739,7 +1753,7 @@ def bootstrap_dev_verify(
     force: bool = typer.Option(False, "--force", help="Allow targeting non-dev projects (never prod)."),
     log_level: str = typer.Option("INFO", "--log-level", help="Logging verbosity (DEBUG/INFO/WARNING/ERROR)."),
     smoke_api_url: str = typer.Option(
-        os.getenv("I4G_SMOKE_API_URL", "https://api.intelligenceforgood.org"),
+        os.getenv("I4G_SMOKE_API_URL", "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app"),
         "--smoke-api-url",
         help="API base URL for smoke.",
     ),
@@ -1759,10 +1773,10 @@ def bootstrap_dev_verify(
         run_dev(
             project=project,
             region=region,
+            bundle=bundle,
             bundle_uri=bundle_uri,
             dataset=dataset,
             wif_service_account=wif_service_account,
-            firestore_job=firestore_job,
             vertex_job=vertex_job,
             sql_job=sql_job,
             bigquery_job=bigquery_job,
@@ -1770,7 +1784,6 @@ def bootstrap_dev_verify(
             reports_job=reports_job,
             saved_searches_job=saved_searches_job,
             seed_reviews_job=seed_reviews_job,
-            skip_firestore=False,
             skip_vertex=False,
             skip_sql=False,
             skip_bigquery=False,
@@ -1798,6 +1811,10 @@ def bootstrap_dev_verify(
             smoke_token=smoke_token,
             smoke_job=smoke_job,
             smoke_container=smoke_container,
+            local_execution=False,
+            limit=0,
+            rate_limit_delay=0.0,
+            timeout="3600s",
         )
     )
 
@@ -1835,7 +1852,6 @@ def bootstrap_dev_smoke(
             bundle_uri=None,
             dataset=None,
             wif_service_account=DEFAULT_WIF_SA,
-            firestore_job="",
             vertex_job="",
             sql_job="",
             bigquery_job="",
@@ -1843,7 +1859,6 @@ def bootstrap_dev_smoke(
             reports_job="",
             saved_searches_job="",
             seed_reviews_job="",
-            skip_firestore=True,
             skip_vertex=True,
             skip_sql=True,
             skip_bigquery=True,

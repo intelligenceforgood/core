@@ -70,7 +70,7 @@ class AccountListExporter:
         if self._reports_bucket:
             if storage is None:
                 raise RuntimeError("google-cloud-storage required for reports bucket uploads")
-            project = storage_settings.firestore_project
+            project = self.settings.secrets.project
             client = storage.Client(project=project)  # type: ignore[attr-defined]
             self._bucket = client.bucket(self._reports_bucket)
         else:

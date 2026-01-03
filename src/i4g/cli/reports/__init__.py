@@ -34,9 +34,6 @@ def reports_verify_ingestion(
     expect_case_count: Optional[int] = typer.Option(None, "--expect-case-count", help="Exact case_count expected."),
     min_case_count: Optional[int] = typer.Option(None, "--min-case-count", help="Minimum acceptable case_count."),
     expect_sql_writes: Optional[int] = typer.Option(None, "--expect-sql-writes", help="Exact sql_writes expected."),
-    expect_firestore_writes: Optional[int] = typer.Option(
-        None, "--expect-firestore-writes", help="Exact firestore_writes expected."
-    ),
     expect_vertex_writes: Optional[int] = typer.Option(
         None, "--expect-vertex-writes", help="Exact vertex_writes expected."
     ),
@@ -54,7 +51,6 @@ def reports_verify_ingestion(
         expect_case_count=expect_case_count,
         min_case_count=min_case_count,
         expect_sql_writes=expect_sql_writes,
-        expect_firestore_writes=expect_firestore_writes,
         expect_vertex_writes=expect_vertex_writes,
         max_retry_count=max_retry_count,
         require_vector_enabled=require_vector_enabled,

@@ -164,7 +164,6 @@ def test_ingestion_sql_toggle_env_overrides(monkeypatch: object) -> None:
     _clear_env(
         monkeypatch,
         "I4G_INGEST__ENABLE_SQL",
-        "I4G_INGEST__ENABLE_FIRESTORE",
         "I4G_INGEST__ENABLE_VERTEX",
         "I4G_INGEST__DEFAULT_DATASET",
         "I4G_INGEST__MAX_RETRIES",
@@ -174,7 +173,6 @@ def test_ingestion_sql_toggle_env_overrides(monkeypatch: object) -> None:
 
     default_settings = reload_settings(env="dev")
     assert default_settings.ingestion.enable_sql is True
-    assert default_settings.ingestion.enable_firestore is False
     assert default_settings.ingestion.enable_vertex is False
     assert default_settings.ingestion.enable_vector_store is True
     assert default_settings.ingestion.default_dataset == "unknown"
@@ -182,7 +180,6 @@ def test_ingestion_sql_toggle_env_overrides(monkeypatch: object) -> None:
     assert default_settings.ingestion.retry_delay_seconds == 60
 
     _set_env(monkeypatch, "I4G_INGEST__ENABLE_SQL", "false")
-    _set_env(monkeypatch, "I4G_INGEST__ENABLE_FIRESTORE", "true")
     _set_env(monkeypatch, "I4G_INGEST__ENABLE_VERTEX", "true")
     _set_env(monkeypatch, "I4G_INGEST__DEFAULT_DATASET", "account_list")
     _set_env(monkeypatch, "I4G_INGEST__MAX_RETRIES", "5")
@@ -191,7 +188,6 @@ def test_ingestion_sql_toggle_env_overrides(monkeypatch: object) -> None:
 
     overridden = reload_settings(env="dev")
     assert overridden.ingestion.enable_sql is False
-    assert overridden.ingestion.enable_firestore is True
     assert overridden.ingestion.enable_vertex is True
     assert overridden.ingestion.enable_vector_store is False
     assert overridden.ingestion.default_dataset == "account_list"
@@ -204,9 +200,7 @@ def test_settings_file_override(tmp_path, monkeypatch: object) -> None:
 
     _clear_env(
         monkeypatch,
-        "I4G_STORAGE__FIRESTORE_PROJECT",
         "I4G_INGEST__DEFAULT_DATASET",
-        "I4G_INGEST__ENABLE_FIRESTORE",
         "I4G_ENV",
     )
     _set_env(monkeypatch, "I4G_ENV", "dev")
@@ -217,12 +211,8 @@ def test_settings_file_override(tmp_path, monkeypatch: object) -> None:
             """
             env = "dev"
 
-            [storage]
-            firestore_project = "i4g-dev"
-
             [ingestion]
             default_dataset = "toml_dataset"
-            enable_firestore = true
             """
         ).strip(),
         encoding="utf-8",
@@ -230,9 +220,7 @@ def test_settings_file_override(tmp_path, monkeypatch: object) -> None:
 
     monkeypatch.setenv("I4G_SETTINGS_FILE", str(settings_file))
     settings_from_file = reload_settings()
-    assert settings_from_file.storage.firestore_project == "i4g-dev"
     assert settings_from_file.ingestion.default_dataset == "toml_dataset"
-    assert settings_from_file.ingestion.enable_firestore is True
     assert settings_file in settings_from_file.config_files
 
     _set_env(monkeypatch, "I4G_INGEST__DEFAULT_DATASET", "env_dataset")

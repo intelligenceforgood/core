@@ -43,54 +43,6 @@ def test_main_no_items_returns_success(monkeypatch):
     store.fetch_ready.assert_called_once()
 
 
-def test_main_processes_firestore_retry_success(monkeypatch):
-    payload = {
-        "record": {
-            "case_id": "case-firestore",
-            "text": "scam text",
-            "fraud_type": "scam",
-            "fraud_confidence": 0.9,
-            "dataset": "demo",
-        },
-        "context": {
-            "sql_result": {
-                "case_id": "case-firestore",
-                "document_ids": ["doc-1"],
-                "entity_ids": [],
-                "indicator_ids": [],
-            }
-        },
-    }
-    item = _make_item("firestore", payload)
-
-    class StubStore:
-        def __init__(self):
-            self.deleted = []
-
-        def fetch_ready(self, limit):
-            return [item]
-
-        def delete(self, retry_id):
-            self.deleted.append(retry_id)
-
-        def schedule_retry(self, *args, **kwargs):  # pragma: no cover - not used
-            raise AssertionError("schedule_retry should not be called on success")
-
-    store = StubStore()
-    firestore_writer = Mock()
-
-    monkeypatch.setattr(ingest_retry, "build_ingestion_retry_store", lambda: store)
-    monkeypatch.setattr(ingest_retry, "build_firestore_writer", lambda: firestore_writer)
-    monkeypatch.setattr(ingest_retry, "build_vertex_writer", lambda: Mock())
-    monkeypatch.setattr(ingest_retry, "get_settings", lambda: _settings())
-
-    exit_code = ingest_retry.main()
-
-    assert exit_code == 0
-    firestore_writer.persist_case_bundle.assert_called_once()
-    assert store.deleted == [item.retry_id]
-
-
 def test_main_reschedules_and_drops_on_failure(monkeypatch):
     payload = {
         "record": {
@@ -121,7 +73,6 @@ def test_main_reschedules_and_drops_on_failure(monkeypatch):
 
     monkeypatch.setattr(ingest_retry, "build_ingestion_retry_store", lambda: store)
     monkeypatch.setattr(ingest_retry, "build_vertex_writer", lambda: vertex_writer)
-    monkeypatch.setattr(ingest_retry, "build_firestore_writer", lambda: Mock())
     monkeypatch.setattr(ingest_retry, "get_settings", lambda: _settings(retry_delay=15, max_retries=1))
 
     exit_code = ingest_retry.main()
@@ -134,7 +85,7 @@ def test_main_reschedules_and_drops_on_failure(monkeypatch):
 
 def test_main_drops_malformed_payload(monkeypatch):
     payload = {"record": {"case_id": "case-bad", "dataset": "demo"}}  # missing text
-    item = _make_item("firestore", payload)
+    item = _make_item("vertex", payload)
 
     class StubStore:
         def __init__(self):
@@ -152,16 +103,16 @@ def test_main_drops_malformed_payload(monkeypatch):
             return 1
 
     store = StubStore()
-    firestore_writer = Mock()
+    vertex_writer = Mock()
 
     monkeypatch.setattr(ingest_retry, "build_ingestion_retry_store", lambda: store)
-    monkeypatch.setattr(ingest_retry, "build_firestore_writer", lambda: firestore_writer)
-    monkeypatch.setattr(ingest_retry, "build_vertex_writer", lambda: Mock())
+    monkeypatch.setattr(ingest_retry, "build_vertex_writer", lambda: vertex_writer)
     monkeypatch.setattr(ingest_retry, "get_settings", lambda: _settings())
 
     exit_code = ingest_retry.main()
 
     assert exit_code == 1
-    firestore_writer.persist_case_bundle.assert_not_called()
+    assert store.deleted == [item.retry_id]
+    vertex_writer.upsert_record.assert_not_called()
     assert store.deleted == [item.retry_id]
     assert store.scheduled == []

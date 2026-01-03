@@ -362,7 +362,23 @@ class SqlAlchemyIntakeStore:
         self._session_factory = session_factory or default_session_factory()
         # Create tables if they don't exist
         with self._session_factory() as session:
-            sql_schema.METADATA.create_all(session.get_bind())
+            # Attempt to switch to postgres role for table creation (if permissions allow)
+            # This ensures tables are owned by postgres even if created by sa-app
+            settings = get_settings()
+            conn = session.connection()
+            if settings.storage.structured_backend == "cloudsql":
+                try:
+                    conn.execute(sa.text("SET ROLE postgres"))
+                except Exception:
+                    pass  # Ignore if permission denied (e.g. local dev or missing grant)
+
+            sql_schema.METADATA.create_all(conn)
+
+            if settings.storage.structured_backend == "cloudsql":
+                try:
+                    conn.execute(sa.text("RESET ROLE"))
+                except Exception:
+                    pass
 
     def create_intake(
         self,
@@ -404,6 +420,36 @@ class SqlAlchemyIntakeStore:
             )
             session.commit()
         return intake_id
+
+    def update_intake_status(self, intake_id: str, status: str, message: str | None = None) -> None:
+        now = datetime.now(timezone.utc)
+        with self._session_factory() as session:
+            values = {"status": status, "updated_at": now}
+            if message is not None:
+                values["job_message"] = message
+            
+            session.execute(
+                sa.update(sql_schema.intake_records)
+                .where(sql_schema.intake_records.c.intake_id == intake_id)
+                .values(**values)
+            )
+            session.commit()
+
+    def attach_case(self, intake_id: str, *, case_id: str | None = None, review_id: str | None = None) -> None:
+        now = datetime.now(timezone.utc)
+        with self._session_factory() as session:
+            values = {"updated_at": now}
+            if case_id is not None:
+                values["case_id"] = case_id
+            if review_id is not None:
+                values["review_id"] = review_id
+            
+            session.execute(
+                sa.update(sql_schema.intake_records)
+                .where(sql_schema.intake_records.c.intake_id == intake_id)
+                .values(**values)
+            )
+            session.commit()
 
     def add_attachment(
         self,
@@ -463,6 +509,15 @@ class SqlAlchemyIntakeStore:
             )
             session.commit()
         return job_id
+
+    def update_job_status(
+        self,
+        job_id: str,
+        status: str,
+        message: str | None = None,
+        metadata: Dict[str, Any] | None = None,
+    ) -> bool:
+        return self.update_job(job_id, status, message, metadata)
 
     def update_job(
         self,

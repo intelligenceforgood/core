@@ -9,7 +9,6 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from i4g.services.factories import (
-    build_firestore_writer,
     build_sql_writer,
     build_structured_store,
     build_tokenization_service,
@@ -29,7 +28,6 @@ from i4g.store.sql_writer import (
 
 if TYPE_CHECKING:
     from i4g.pii.tokenization import TokenizationService
-    from i4g.services.firestore_writer import FirestoreWriter
     from i4g.services.vertex_writer import VertexDocumentWriter
     from i4g.store.structured import StructuredStore
     from i4g.store.vector import VectorStore
@@ -46,11 +44,8 @@ class IngestResult:
     sql_result: SqlWriterResult | None = None
     vector_written: bool = False
     vertex_written: bool = False
-    firestore_written: bool = False
     vertex_attempted: bool = False
-    firestore_attempted: bool = False
     vertex_error: str | None = None
-    firestore_error: str | None = None
 
 
 @dataclass(slots=True)
@@ -150,10 +145,8 @@ class IngestPipeline:
         enable_vector: bool = True,
         enable_sql: Optional[bool] = None,
         enable_vertex: Optional[bool] = None,
-        enable_firestore: Optional[bool] = None,
         default_dataset: Optional[str] = None,
         vertex_writer: Optional["VertexDocumentWriter"] = None,
-        firestore_writer: Optional["FirestoreWriter"] = None,
         tokenization_service: "TokenizationService | None" = None,
     ) -> None:
         """Initialize pipeline with store instances.
@@ -176,13 +169,9 @@ class IngestPipeline:
         self._default_dataset = default_dataset or ingestion_settings.default_dataset
         self._sql_enabled = enable_sql if enable_sql is not None else ingestion_settings.enable_sql
         self._vertex_enabled = enable_vertex if enable_vertex is not None else ingestion_settings.enable_vertex
-        self._firestore_enabled = (
-            enable_firestore if enable_firestore is not None else ingestion_settings.enable_firestore
-        )
         self._tokenization_enabled = True
         self.sql_writer: Optional[SqlWriter]
         self.vertex_writer: Optional["VertexDocumentWriter"] = None
-        self.firestore_writer: Optional["FirestoreWriter"] = None
         self.tokenization_service = tokenization_service or build_tokenization_service()
 
         if vector_store is not None:
@@ -220,17 +209,6 @@ class IngestPipeline:
                     LOGGER.exception("Vertex writer initialisation failed; continuing without Vertex fan-out")
                     self.vertex_writer = None
                     self._vertex_enabled = False
-
-        if self._firestore_enabled:
-            if firestore_writer is not None:
-                self.firestore_writer = firestore_writer
-            else:
-                try:
-                    self.firestore_writer = build_firestore_writer()
-                except Exception:  # pragma: no cover - optional backend wiring
-                    LOGGER.exception("Firestore writer initialisation failed; continuing without Firestore fan-out")
-                    self.firestore_writer = None
-                    self._firestore_enabled = False
 
     def ingest_classified_case(
         self,
@@ -316,14 +294,12 @@ class IngestPipeline:
         # 1️⃣ Structured storage
         self.structured_store.upsert_record(record)
 
-        need_case_bundle = (self._sql_enabled and self.sql_writer is not None) or (
-            self._firestore_enabled and self.firestore_writer is not None
-        )
+        need_case_bundle = self._sql_enabled and self.sql_writer is not None
         bundle: CaseBundle | None = None
         if need_case_bundle:
             text = classification_result.get("text") or record.text
             if not text:
-                LOGGER.debug("Skipping SQL/Firestore fan-out for case_id=%s due to empty text", record.case_id)
+                LOGGER.debug("Skipping SQL fan-out for case_id=%s due to empty text", record.case_id)
             else:
                 dataset = self._resolve_dataset(classification_result)
                 try:
@@ -337,7 +313,6 @@ class IngestPipeline:
                     LOGGER.warning("Case bundle missing required fields for case_id=%s", record.case_id)
 
         sql_result = self._write_sql_case(bundle, ingestion_run_id)
-        firestore_attempt = self._write_firestore_case(bundle, sql_result, ingestion_run_id)
 
         # 2️⃣ Vector storage
         vector_written = False
@@ -354,11 +329,8 @@ class IngestPipeline:
             sql_result=sql_result,
             vector_written=vector_written,
             vertex_written=vertex_attempt.succeeded,
-            firestore_written=firestore_attempt.succeeded,
             vertex_attempted=vertex_attempt.attempted,
-            firestore_attempted=firestore_attempt.attempted,
             vertex_error=vertex_attempt.error,
-            firestore_error=firestore_attempt.error,
         )
 
     def query_similar_cases(self, text: str, top_k: int = 5) -> List[Dict[str, Any]]:
@@ -379,23 +351,6 @@ class IngestPipeline:
         except Exception:  # pragma: no cover - SQL dual-write failures shouldn't abort ingestion
             LOGGER.exception("SQL writer failed for case_id=%s", bundle.case.case_id or "unknown")
             return None
-
-    def _write_firestore_case(
-        self,
-        bundle: CaseBundle | None,
-        sql_result: SqlWriterResult | None,
-        ingestion_run_id: str | None,
-    ) -> BackendWriteAttempt:
-        if not self._firestore_enabled or self.firestore_writer is None:
-            return BackendWriteAttempt(attempted=False, succeeded=False)
-        if bundle is None or sql_result is None:
-            return BackendWriteAttempt(attempted=False, succeeded=False)
-        try:
-            self.firestore_writer.persist_case_bundle(bundle, sql_result, ingestion_run_id=ingestion_run_id)
-            return BackendWriteAttempt(attempted=True, succeeded=True)
-        except Exception as exc:  # pragma: no cover - Firestore backend failures shouldn't abort ingestion
-            LOGGER.exception("Firestore writer failed for case_id=%s", sql_result.case_id)
-            return BackendWriteAttempt(attempted=True, succeeded=False, error=str(exc))
 
     def _write_vertex_document(self, classification_result: Dict[str, Any]) -> BackendWriteAttempt:
         if not self._vertex_enabled or self.vertex_writer is None:

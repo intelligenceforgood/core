@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import Mock
 
 from openpyxl import load_workbook
 
@@ -31,8 +32,17 @@ def _build_result() -> AccountListResult:
     )
 
 
+def _mock_settings(tmp_path: Path) -> Mock:
+    settings = Mock()
+    settings.storage.reports_bucket = None
+    settings.account_list.artifact_prefix = None
+    settings.account_list.drive_folder_id = None
+    settings.data_dir = tmp_path / "data"
+    return settings
+
+
 def test_exporter_writes_csv(tmp_path):
-    exporter = AccountListExporter(base_dir=tmp_path)
+    exporter = AccountListExporter(base_dir=tmp_path, settings=_mock_settings(tmp_path))
     result, warnings = exporter.export(_build_result(), ["csv"])
 
     assert not warnings
@@ -44,7 +54,7 @@ def test_exporter_writes_csv(tmp_path):
 
 
 def test_exporter_writes_xlsx(tmp_path):
-    exporter = AccountListExporter(base_dir=tmp_path)
+    exporter = AccountListExporter(base_dir=tmp_path, settings=_mock_settings(tmp_path))
     paths, warnings = exporter.export(_build_result(), ["xlsx"])
 
     assert not warnings
@@ -57,7 +67,7 @@ def test_exporter_writes_xlsx(tmp_path):
 
 
 def test_exporter_writes_pdf(tmp_path):
-    exporter = AccountListExporter(base_dir=tmp_path)
+    exporter = AccountListExporter(base_dir=tmp_path, settings=_mock_settings(tmp_path))
     paths, warnings = exporter.export(_build_result(), ["pdf"])
 
     assert not warnings

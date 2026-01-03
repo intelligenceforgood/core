@@ -345,7 +345,23 @@ class SqlAlchemyStructuredStore:
         self._session_factory = session_factory or default_session_factory()
         # Create tables if they don't exist
         with self._session_factory() as session:
-            sql_schema.METADATA.create_all(session.get_bind())
+            # Attempt to switch to postgres role for table creation (if permissions allow)
+            # This ensures tables are owned by postgres even if created by sa-app
+            settings = get_settings()
+            conn = session.connection()
+            if settings.storage.structured_backend == "cloudsql":
+                try:
+                    conn.execute(sa.text("SET ROLE postgres"))
+                except Exception:
+                    pass  # Ignore if permission denied (e.g. local dev or missing grant)
+
+            sql_schema.METADATA.create_all(conn)
+
+            if settings.storage.structured_backend == "cloudsql":
+                try:
+                    conn.execute(sa.text("RESET ROLE"))
+                except Exception:
+                    pass
 
     def close(self) -> None:
         pass

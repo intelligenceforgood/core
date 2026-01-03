@@ -67,7 +67,6 @@ class IngestionRunTracker:
         run_id: str,
         sql_result: SqlWriterResult | None,
         *,
-        firestore_writes: int = 0,
         vertex_writes: int = 0,
     ) -> None:
         """Increment counters for a successfully processed case."""
@@ -85,7 +84,6 @@ class IngestionRunTracker:
                     entity_count=sql_schema.ingestion_runs.c.entity_count + entity_count,
                     indicator_count=sql_schema.ingestion_runs.c.indicator_count + indicator_count,
                     sql_writes=sql_schema.ingestion_runs.c.sql_writes + sql_writes,
-                    firestore_writes=sql_schema.ingestion_runs.c.firestore_writes + firestore_writes,
                     vertex_writes=sql_schema.ingestion_runs.c.vertex_writes + vertex_writes,
                     updated_at=timestamp,
                 )

@@ -79,8 +79,6 @@ def verify_ingestion_run(args: object) -> int:
         errors.append(f"case_count minimum={args.min_case_count} actual={row['case_count']}")
     if args.expect_sql_writes is not None and row["sql_writes"] != args.expect_sql_writes:
         errors.append(f"sql_writes expected={args.expect_sql_writes} actual={row['sql_writes']}")
-    if args.expect_firestore_writes is not None and row["firestore_writes"] != args.expect_firestore_writes:
-        errors.append(f"firestore_writes expected={args.expect_firestore_writes} actual={row['firestore_writes']}")
     if args.expect_vertex_writes is not None and row["vertex_writes"] != args.expect_vertex_writes:
         errors.append(f"vertex_writes expected={args.expect_vertex_writes} actual={row['vertex_writes']}")
     if args.max_retry_count is not None and row["retry_count"] > args.max_retry_count:
@@ -96,7 +94,7 @@ def verify_ingestion_run(args: object) -> int:
 
     summary = (
         f"✅ run_id={row['run_id']} dataset={row['dataset']} status={row['status']} "
-        f"cases={row['case_count']} sql={row['sql_writes']} firestore={row['firestore_writes']} "
+        f"cases={row['case_count']} sql={row['sql_writes']} "
         f"vertex={row['vertex_writes']} retries={row['retry_count']}"
     )
     print(summary)

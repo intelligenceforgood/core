@@ -42,7 +42,7 @@ class EvidenceStorage:
                 raise RuntimeError("google-cloud-storage required for GCS evidence backend")
             self._backend = "gcs"
             self._bucket_name = storage_settings.evidence_bucket
-            self._client = storage.Client(project=storage_settings.firestore_project)
+            self._client = storage.Client(project=self._settings.secrets.project)
             self._bucket = self._client.bucket(self._bucket_name)
             self._local_dir = None
         else:
