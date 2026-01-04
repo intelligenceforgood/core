@@ -23,6 +23,7 @@ from i4g.services.hybrid_search import HybridSearchQuery, HybridSearchService, Q
 from i4g.settings import get_settings
 from i4g.store.retriever import HybridRetriever
 from i4g.store.review_store import ReviewStore
+from i4g.taxonomy.models import AnalystFeedbackRequest
 
 # Import the worker task — will be scheduled in background on "accepted"
 from i4g.worker.tasks import generate_report_for_case
@@ -849,6 +850,23 @@ def annotate_review(
         payload={"annotations": payload.annotations, "notes": payload.notes},
     )
     return {"review_id": review_id, "annotated": True}
+
+
+@router.post("/{review_id}/feedback", summary="Submit analyst feedback on classification")
+def submit_feedback(
+    review_id: str,
+    payload: AnalystFeedbackRequest,
+    user=Depends(require_token),
+    store: ReviewStore = Depends(get_store),
+):
+    """Submit corrections or validations for automated classification."""
+    store.log_action(
+        review_id,
+        actor=user["username"],
+        action="analyst_feedback",
+        payload=payload.model_dump(),
+    )
+    return {"review_id": review_id, "feedback_recorded": True}
 
 
 @router.post("/{review_id}/decision", summary="Make a decision on a review")

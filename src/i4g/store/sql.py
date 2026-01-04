@@ -45,6 +45,18 @@ ingestion_runs = sa.Table(
 sa.Index("idx_ingestion_runs_started_at", ingestion_runs.c.started_at)
 sa.Index("idx_ingestion_runs_status", ingestion_runs.c.status)
 
+campaigns = sa.Table(
+    "campaigns",
+    METADATA,
+    sa.Column("campaign_id", UUID_TYPE, primary_key=True),
+    sa.Column("name", sa.Text(), nullable=False),
+    sa.Column("description", sa.Text(), nullable=True),
+    sa.Column("taxonomy_labels", JSON_TYPE, nullable=True),
+    sa.Column("status", sa.Text(), nullable=False, server_default="active"),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+
 pii_tokens = sa.Table(
     "pii_tokens",
     VAULT_METADATA,
@@ -66,12 +78,11 @@ cases = sa.Table(
     "cases",
     METADATA,
     sa.Column("case_id", sa.Text(), primary_key=True),
-    sa.Column(
-        "ingestion_run_id", UUID_TYPE, sa.ForeignKey("ingestion_runs.run_id", ondelete="SET NULL"), nullable=True
-    ),
+    sa.Column("ingestion_run_id", UUID_TYPE, sa.ForeignKey("ingestion_runs.run_id", ondelete="SET NULL"), nullable=True),
+    sa.Column("campaign_id", UUID_TYPE, sa.ForeignKey("campaigns.campaign_id", ondelete="SET NULL"), nullable=True),
     sa.Column("dataset", sa.Text(), nullable=False),
     sa.Column("source_type", sa.Text(), nullable=False),
-    sa.Column("classification", sa.Text(), nullable=False),
+    sa.Column("classification", JSON_TYPE, nullable=True),
     sa.Column("confidence", sa.Numeric(5, 4), nullable=False, server_default="0"),
     sa.Column("detected_at", TIMESTAMP, nullable=True),
     sa.Column("reported_at", TIMESTAMP, nullable=True),
