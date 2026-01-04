@@ -1,11 +1,13 @@
+import typer
 import yaml
-import os
 from pathlib import Path
 from typing import Dict, List, Any
 
+taxonomy_app = typer.Typer(help="Manage fraud taxonomy definitions and code generation.")
+
 # Paths
-# core/scripts/codegen/taxonomy.py -> core/scripts/codegen -> core/scripts -> core
-CORE_ROOT = Path(__file__).resolve().parents[2]
+# core/src/i4g/cli/taxonomy.py -> core/src/i4g/cli -> core/src/i4g -> core/src -> core
+CORE_ROOT = Path(__file__).resolve().parents[3]
 WORKSPACE_ROOT = CORE_ROOT.parent
 DEFINITIONS_PATH = CORE_ROOT / "data/taxonomy/definitions.yaml"
 PYTHON_ENUMS_PATH = CORE_ROOT / "src/i4g/taxonomy/enums.py"
@@ -48,7 +50,7 @@ def generate_python_enums(data: Dict[str, Any]):
 
     with open(PYTHON_ENUMS_PATH, "w") as f:
         f.write("\n".join(lines))
-    print(f"Generated {PYTHON_ENUMS_PATH}")
+    typer.echo(f"Generated {PYTHON_ENUMS_PATH}")
 
 def generate_typescript_enums(data: Dict[str, Any]):
     lines = [
@@ -77,7 +79,7 @@ def generate_typescript_enums(data: Dict[str, Any]):
             # Escape quotes in description just in case
             desc = item["description"].replace('"', '\\"')
             lines.append(f'  [{enum_name}.{key}]: "{desc}",')
-        lines.append('}};')
+        lines.append('};')
         lines.append('')
 
     add_enum("ScamIntent", data["intents"])
@@ -91,7 +93,7 @@ def generate_typescript_enums(data: Dict[str, Any]):
     
     with open(TS_ENUMS_PATH, "w") as f:
         f.write("\n".join(lines))
-    print(f"Generated {TS_ENUMS_PATH}")
+    typer.echo(f"Generated {TS_ENUMS_PATH}")
 
 def generate_markdown_docs(data: Dict[str, Any]):
     lines = [
@@ -123,13 +125,36 @@ def generate_markdown_docs(data: Dict[str, Any]):
 
     with open(DOCS_PATH, "w") as f:
         f.write("\n".join(lines))
-    print(f"Generated {DOCS_PATH}")
+    typer.echo(f"Generated {DOCS_PATH}")
 
-def main():
-    data = load_definitions()
-    generate_python_enums(data)
-    generate_typescript_enums(data)
-    generate_markdown_docs(data)
+import subprocess
 
-if __name__ == "__main__":
-    main()
+@taxonomy_app.command("refresh")
+def refresh_taxonomy():
+    """
+    Regenerate Python enums, TypeScript enums, and Markdown docs from definitions.yaml.
+    """
+    try:
+        data = load_definitions()
+        generate_python_enums(data)
+        generate_typescript_enums(data)
+        generate_markdown_docs(data)
+        
+        # Attempt to format the generated TypeScript file
+        ui_dir = WORKSPACE_ROOT / "ui"
+        if ui_dir.exists():
+            try:
+                subprocess.run(
+                    ["pnpm", "prettier", "--write", str(TS_ENUMS_PATH)],
+                    cwd=ui_dir,
+                    check=False, # Don't fail if pnpm/prettier is missing
+                    capture_output=True
+                )
+                typer.echo("Formatted TypeScript enums.")
+            except Exception:
+                typer.echo("Skipped formatting TypeScript enums (pnpm/prettier not found or failed).")
+
+        typer.echo("Taxonomy refresh complete.")
+    except Exception as e:
+        typer.echo(f"Error refreshing taxonomy: {e}", err=True)
+        raise typer.Exit(code=1)

@@ -22,6 +22,7 @@ from i4g.cli.reports import reports_app
 from i4g.cli.search import search_app
 from i4g.cli.settings import settings_app
 from i4g.cli.smoke import smoke_app
+from i4g.cli.taxonomy import taxonomy_app
 
 try:
     from importlib.metadata import version
@@ -48,6 +49,7 @@ app.add_typer(settings_app, name="settings")
 app.add_typer(smoke_app, name="smoke")
 app.add_typer(jobs_app, name="jobs")
 app.add_typer(ingest_app, name="ingest")
+app.add_typer(taxonomy_app, name="taxonomy")
 app.add_typer(search_app, name="search")
 app.add_typer(data_app, name="data")
 app.add_typer(reports_app, name="reports")
