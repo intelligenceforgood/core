@@ -16,6 +16,7 @@ from google.cloud import storage
 
 from i4g.ocr.tesseract import batch_extract_text
 from i4g.services.factories import (
+    build_fraud_classifier,
     build_ingestion_retry_store,
     build_ingestion_run_tracker,
     build_structured_store,
@@ -346,6 +347,8 @@ def main() -> int:
         default_dataset=dataset_name,
     )
 
+    classifier = build_fraud_classifier()
+
     run_tracker = None
     run_id = None
     retry_store = None
@@ -381,6 +384,35 @@ def main() -> int:
             if rate_limit_delay > 0:
                 time.sleep(rate_limit_delay)
             payload, diagnostics = prepare_ingest_payload(record, default_dataset=dataset_name)
+
+            # Integrate Fraud Classifier
+            if payload.get("text") and (not payload.get("fraud_type") or payload.get("fraud_type") == "unclassified"):
+                try:
+                    classification_result = classifier.classify(payload["text"])
+
+                    # Map primary intent to legacy field
+                    if classification_result.intent:
+                        # Sort by confidence desc
+                        top_intent = sorted(classification_result.intent, key=lambda x: x.confidence, reverse=True)[0]
+                        payload["fraud_type"] = top_intent.label
+                        payload["fraud_confidence"] = top_intent.confidence
+                        diagnostics["classification"] = top_intent.label
+                        diagnostics["confidence"] = top_intent.confidence
+
+                    # Store full result in metadata
+                    if not payload.get("metadata"):
+                        payload["metadata"] = {}
+                    payload["metadata"]["classification_result"] = classification_result.model_dump()
+
+                    LOGGER.info(
+                        "Classified case %s as %s (%.2f)",
+                        payload.get("case_id"),
+                        payload["fraud_type"],
+                        payload["fraud_confidence"],
+                    )
+                except Exception as e:
+                    LOGGER.warning("Failed to classify case %s: %s", payload.get("case_id"), e)
+
             if dry_run:
                 LOGGER.info(
                     "Dry run enabled; would ingest case_id=%s classification=%s confidence=%.2f text_source=%s",

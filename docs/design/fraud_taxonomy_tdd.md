@@ -36,7 +36,7 @@ channels:
 ```
 
 **Codegen Pipeline:**
-A build script (`scripts/codegen/taxonomy.py`) consumes this YAML to generate:
+A build script (`i4g taxonomy refresh`) consumes this YAML to generate:
 - `core/src/i4g/taxonomy/enums.py` (Python Enums)
 - `ui/packages/types/src/taxonomy.ts` (TypeScript Enums)
 - `docs/taxonomy_reference.md` (Auto-generated documentation)

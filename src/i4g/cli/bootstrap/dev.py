@@ -379,9 +379,24 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
             common_env["I4G_PII__CLOUDSQL__ENABLE_IAM_AUTH"] = "true"
 
             # Enable Vertex AI Search ingestion for dev
-            common_env["I4G_INGEST__ENABLE_VERTEX"] = "true"
-            # Disable ephemeral vector store (Chroma) to save time/resources
-            common_env["I4G_INGEST__ENABLE_VECTOR"] = "false"
+            # We use the VectorStore abstraction (backed by Vertex AI) to enable similarity search
+            # and avoid "Vector ingestion disabled" logs.
+            common_env["I4G_INGEST__ENABLE_VERTEX"] = "false"  # Disable direct writer to avoid double writes
+            common_env["I4G_INGEST__ENABLE_VECTOR"] = "true"
+            common_env["I4G_VECTOR__BACKEND"] = "vertex_ai"
+            
+            # Configure Vertex AI Search connection details
+            common_env["I4G_VERTEX_SEARCH_PROJECT"] = args.project
+            common_env["I4G_VERTEX_SEARCH_LOCATION"] = args.region
+            common_env["I4G_VERTEX_SEARCH_DATA_STORE"] = "retrieval-poc"
+            
+            # Force Vertex AI for LLM in dev (Cloud Run cannot reach local Ollama)
+            common_env["I4G_LLM__PROVIDER"] = "vertex_ai"
+            common_env["I4G_LLM__VERTEX_AI_PROJECT"] = args.project
+            common_env["I4G_LLM__VERTEX_AI_LOCATION"] = args.region
+            # Use generic chat model flag (consolidated)
+            common_env["I4G_LLM__CHAT_MODEL"] = "gemini-2.5-flash"
+
             # Ensure Vertex writer knows where to write (defaults to settings, but good to be explicit if needed)
             # common_env["I4G_VERTEX_SEARCH_DATA_STORE"] = "retrieval-poc" # Already in settings.default.toml
 

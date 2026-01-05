@@ -1,0 +1,118 @@
+version: "1.0"
+intents:
+  - code: INTENT.IMPOSTER
+    label: Imposter
+    description: Pretending to be a trusted entity
+  - code: INTENT.INVESTMENT
+    label: Investment
+    description: Promises of financial returns
+  - code: INTENT.ROMANCE
+    label: Romance
+    description: Emotional relationship for fraud
+  - code: INTENT.EMPLOYMENT
+    label: Employment
+    description: Fake job or task-based fraud
+  - code: INTENT.SHOPPING
+    label: Shopping
+    description: Fake goods or sellers
+  - code: INTENT.TECH_SUPPORT
+    label: Tech Support
+    description: Fake tech assistance
+  - code: INTENT.PRIZE
+    label: Prize
+    description: Fake winnings
+  - code: INTENT.EXTORTION
+    label: Extortion
+    description: Threat-based coercion
+  - code: INTENT.CHARITY
+    label: Charity
+    description: Fake disaster or cause appeals
+
+channels:
+  - code: CHANNEL.EMAIL
+    label: Email
+    description: Communication via email
+  - code: CHANNEL.SMS
+    label: SMS
+    description: Text messages or SMS
+  - code: CHANNEL.CHAT
+    label: Chat
+    description: WhatsApp, Telegram, Signal, etc.
+  - code: CHANNEL.SOCIAL
+    label: Social Media
+    description: Facebook, Instagram, Twitter, LinkedIn, etc.
+  - code: CHANNEL.PHONE
+    label: Phone
+    description: Voice calls
+  - code: CHANNEL.WEB
+    label: Web
+    description: Malicious websites or landing pages
+
+techniques:
+  - code: SE.URGENCY
+    label: Urgency
+    description: Time pressure, deadlines
+  - code: SE.AUTHORITY
+    label: Authority
+    description: Government, bank, employer tone
+  - code: SE.SCARCITY
+    label: Scarcity
+    description: Limited availability
+  - code: SE.FEAR
+    label: Fear
+    description: Threats, loss, legal trouble
+  - code: SE.RECIPROCITY
+    label: Reciprocity
+    description: Gifts, favors
+  - code: SE.TRUST_BUILDING
+    label: Trust Building
+    description: Long-term rapport
+  - code: SE.CONFUSION
+    label: Confusion
+    description: Overwhelming steps
+
+actions:
+  - code: ACTION.SEND_MONEY
+    label: Send Money
+    description: Direct money transfer
+  - code: ACTION.GIFT_CARDS
+    label: Gift Cards
+    description: Purchase and share gift card codes
+  - code: ACTION.CRYPTO
+    label: Crypto
+    description: Send crypto to a wallet address
+  - code: ACTION.CREDENTIALS
+    label: Credentials
+    description: Provide login details or passwords
+  - code: ACTION.INSTALL
+    label: Install Software
+    description: Download and install apps or remote access tools
+  - code: ACTION.CLICK_LINK
+    label: Click Link
+    description: Visit a specific URL
+  - code: ACTION.PROVIDE_PII
+    label: Provide PII
+    description: Share SSN, ID, or other sensitive info
+
+personas:
+  - code: PERSONA.GOVERNMENT
+    label: Government
+    description: IRS, FBI, Police, etc.
+  - code: PERSONA.BANK
+    label: Bank
+    description: Chase, Wells Fargo, PayPal, etc.
+  - code: PERSONA.TECH
+    label: Tech Support
+    description: Microsoft, Apple, Amazon support
+  - code: PERSONA.EMPLOYER
+    label: Employer
+    description: Recruiter, Boss, CEO
+  - code: PERSONA.ROMANTIC
+    label: Romantic Partner
+    description: Boyfriend, Girlfriend, Match
+  - code: PERSONA.MARKETPLACE
+    label: Marketplace User
+    description: Facebook Marketplace, Craigslist user
+  - code: PERSONA.CHARITY
+    label: Charity
+    description: Red Cross, GoFundMe, etc.

@@ -17,6 +17,7 @@ from i4g.reports.bundle_builder import BundleBuilder
 from i4g.reports.bundle_candidates import BundleCandidateProvider
 from i4g.reports.dossier_context import DossierContextLoader
 from i4g.services.vertex_writer import VertexDocumentWriter
+from i4g.services.classifier import FraudClassifier
 from i4g.settings import get_settings
 from i4g.storage import EvidenceStorage
 from i4g.store.dossier_queue_store import DossierQueueStore
@@ -289,7 +290,13 @@ def build_dossier_context_loader(
     return DossierContextLoader(structured_store=resolved_structured, review_store=resolved_review)
 
 
+def build_fraud_classifier() -> FraudClassifier:
+    """Return a configured FraudClassifier instance."""
+    return FraudClassifier()
+
+
 __all__ = [
+    "build_fraud_classifier",
     "build_structured_store",
     "build_entity_store",
     "build_review_store",

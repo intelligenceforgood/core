@@ -4,7 +4,8 @@ Unit tests for i4g.worker.tasks.
 
 from unittest.mock import MagicMock, patch
 
-from i4g.worker.tasks import generate_report_for_case
+from i4g.taxonomy.models import FraudClassificationResult, ScoredLabel
+from i4g.worker.tasks import classify_case, generate_report_for_case
 
 
 @patch("i4g.worker.tasks.ReviewStore")
@@ -87,3 +88,32 @@ def test_generate_report_success(mock_report_generator_cls, mock_store_cls):
         action="report_generated",
         payload={"report_path": "/path/to/report.docx"},
     )
+
+@patch("i4g.worker.tasks.build_structured_store")
+@patch("i4g.worker.tasks.build_fraud_classifier")
+def test_classify_case_success(mock_build_classifier, mock_build_store):
+    """Ensure successful classification updates the record."""
+    mock_store = MagicMock()
+    mock_record = MagicMock()
+    mock_record.text = "Invest in crypto now"
+    mock_record.metadata = {}
+    mock_store.get_by_id.return_value = mock_record
+    mock_build_store.return_value = mock_store
+
+    mock_classifier = MagicMock()
+    mock_result = FraudClassificationResult(
+        intent=[ScoredLabel(label="INTENT.INVESTMENT", confidence=0.9)],
+        taxonomy_version="1.0"
+    )
+    mock_classifier.classify.return_value = mock_result
+    mock_build_classifier.return_value = mock_classifier
+
+    result = classify_case("case-123")
+
+    assert result == "success"
+    mock_store.get_by_id.assert_called_with("case-123")
+    mock_classifier.classify.assert_called_with("Invest in crypto now")
+    assert mock_record.classification == "INTENT.INVESTMENT"
+    assert mock_record.confidence == 0.9
+    assert mock_record.metadata["classification_result"] == mock_result.model_dump()
+    mock_store.upsert_record.assert_called_with(mock_record)

@@ -82,7 +82,9 @@ cases = sa.Table(
     sa.Column("campaign_id", UUID_TYPE, sa.ForeignKey("campaigns.campaign_id", ondelete="SET NULL"), nullable=True),
     sa.Column("dataset", sa.Text(), nullable=False),
     sa.Column("source_type", sa.Text(), nullable=False),
-    sa.Column("classification", JSON_TYPE, nullable=True),
+    sa.Column("classification", sa.Text(), nullable=True),  # Changed from JSON_TYPE to Text for label
+    sa.Column("classification_result", JSON_TYPE, nullable=True),
+    sa.Column("tags", JSON_TYPE, nullable=True),
     sa.Column("confidence", sa.Numeric(5, 4), nullable=False, server_default="0"),
     sa.Column("detected_at", TIMESTAMP, nullable=True),
     sa.Column("reported_at", TIMESTAMP, nullable=True),
@@ -97,6 +99,7 @@ cases = sa.Table(
 )
 sa.Index("idx_cases_dataset_reported_at", cases.c.dataset, cases.c.reported_at)
 sa.Index("idx_cases_classification", cases.c.classification)
+sa.Index("idx_cases_tags", cases.c.tags, postgresql_using="gin")  # GIN index for tags array
 sa.Index("idx_cases_status", cases.c.status)
 
 source_documents = sa.Table(

@@ -38,6 +38,7 @@ dependencies = [
     "python-multipart",
     "google-cloud-firestore",
     "pg8000",
+    "psycopg2-binary",
     "cloud-sql-python-connector[pg8000]",
     "pyodbc",
     "azure-storage-blob",

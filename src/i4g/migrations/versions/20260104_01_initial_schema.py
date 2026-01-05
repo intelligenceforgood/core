@@ -1,4 +1,10 @@
-"""Dual extraction baseline schema."""
+"""Initial schema.
+
+Revision ID: 20260104_01
+Revises: 
+Create Date: 2026-01-04 13:15:00.000000
+
+"""
 
 from __future__ import annotations
 
@@ -8,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "20251129_01"
+revision: str = "20260104_01"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -53,7 +59,9 @@ def upgrade() -> None:
         ),
         sa.Column("dataset", sa.Text(), nullable=False),
         sa.Column("source_type", sa.Text(), nullable=False),
-        sa.Column("classification", sa.Text(), nullable=False),
+        sa.Column("classification", sa.Text(), nullable=True),
+        sa.Column("classification_result", JSON_TYPE, nullable=True),
+        sa.Column("tags", JSON_TYPE, nullable=True),
         sa.Column("confidence", sa.Numeric(5, 4), nullable=False, server_default="0"),
         sa.Column("detected_at", TIMESTAMP, nullable=True),
         sa.Column("reported_at", TIMESTAMP, nullable=True),

@@ -31,6 +31,8 @@ class ScamRecord:
     entities: Dict[str, List[str]]
     classification: str
     confidence: float
+    classification_result: Optional[Dict[str, Any]] = None
+    tags: Optional[List[str]] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
     embedding: Optional[List[float]] = None
     metadata: Optional[Dict[str, Any]] = None
@@ -66,6 +68,8 @@ class ScamRecord:
             entities=d.get("entities", {}),
             classification=d.get("classification", ""),
             confidence=float(d.get("confidence", 0.0)),
+            classification_result=d.get("classification_result"),
+            tags=d.get("tags"),
             created_at=created_at or datetime.utcnow(),
             embedding=d.get("embedding"),
             metadata=d.get("metadata"),

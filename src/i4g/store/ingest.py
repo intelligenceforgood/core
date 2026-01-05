@@ -84,6 +84,8 @@ def build_case_bundle(
         confidence=float(classification_result.get("fraud_confidence", 0.0)),
         text=text,
         metadata={k: v for k, v in case_metadata.items() if v is not None},
+        classification_result=classification_result,
+        tags=classification_result.get("tags", []),
     )
 
     document_alias = "primary"
@@ -169,6 +171,15 @@ class IngestPipeline:
         self._default_dataset = default_dataset or ingestion_settings.default_dataset
         self._sql_enabled = enable_sql if enable_sql is not None else ingestion_settings.enable_sql
         self._vertex_enabled = enable_vertex if enable_vertex is not None else ingestion_settings.enable_vertex
+        
+        # Detect potential double-write configuration
+        if self._vertex_enabled and settings.vector.backend == "vertex_ai":
+            LOGGER.warning(
+                "Vertex AI is enabled as both a vector backend and a document writer. "
+                "Disabling explicit Vertex Document Writer to prevent duplicate ingestion."
+            )
+            self._vertex_enabled = False
+
         self._tokenization_enabled = True
         self.sql_writer: Optional[SqlWriter]
         self.vertex_writer: Optional["VertexDocumentWriter"] = None

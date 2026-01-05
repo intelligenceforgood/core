@@ -1,0 +1,54 @@
+[
+  {
+    "input": "URGENT: Your Wells Fargo account has been locked due to suspicious activity. Click here to verify your identity: http://bit.ly/fake-link",
+    "output": {
+      "intent": [
+        {
+          "label": "INTENT.IMPOSTER",
+          "confidence": 0.95,
+          "explanation": "The sender is pretending to be Wells Fargo."
+        }
+      ],
+      "channel": [
+        {
+          "label": "CHANNEL.SMS",
+          "confidence": 1.0,
+          "explanation": "Short message with a link, typical of SMS phishing."
+        }
+      ],
+      "techniques": [
+        {
+          "label": "SE.URGENCY",
+          "confidence": 0.9,
+          "explanation": "Uses 'URGENT' and 'locked' to create panic."
+        },
+        {
+          "label": "SE.AUTHORITY",
+          "confidence": 0.8,
+          "explanation": "Impersonates a bank (Wells Fargo)."
+        }
+      ],
+      "actions": [
+        {
+          "label": "ACTION.CLICK_LINK",
+          "confidence": 1.0,
+          "explanation": "Explicitly asks to 'Click here'."
+        },
+        {
+          "label": "ACTION.CREDENTIALS",
+          "confidence": 0.8,
+          "explanation": "Implied goal of 'verifying identity' on a fake site."
+        }
+      ],
+      "persona": [
+        {
+          "label": "PERSONA.BANK",
+          "confidence": 1.0,
+          "explanation": "Claims to be Wells Fargo."
+        }
+      ],
+      "risk_score": 90.0,
+      "taxonomy_version": "1.0"
+    }
+  }
+]

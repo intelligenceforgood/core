@@ -77,6 +77,8 @@ class StructuredStore:
                 entities TEXT,         -- JSON
                 classification TEXT,
                 confidence REAL,
+                classification_result TEXT, -- JSON
+                tags TEXT,             -- JSON array
                 created_at TEXT,
                 embedding TEXT,        -- JSON array
                 metadata TEXT          -- JSON
@@ -86,6 +88,8 @@ class StructuredStore:
         # index for quick filtering by classification/confidence
         cur.execute("CREATE INDEX IF NOT EXISTS idx_classification ON scam_records (classification)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_confidence ON scam_records (confidence)")
+        # Index for tags (using LIKE for simple containment check in SQLite)
+        # For proper array indexing, we'd need a separate table or JSON1 extension usage
         self._conn.commit()
 
     def upsert_record(self, record: ScamRecord) -> None:
@@ -97,13 +101,15 @@ class StructuredStore:
         cur = self._conn.cursor()
         cur.execute(
             """
-            INSERT INTO scam_records (case_id, text, entities, classification, confidence, created_at, embedding, metadata)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO scam_records (case_id, text, entities, classification, confidence, classification_result, tags, created_at, embedding, metadata)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(case_id) DO UPDATE SET
                 text=excluded.text,
                 entities=excluded.entities,
                 classification=excluded.classification,
                 confidence=excluded.confidence,
+                classification_result=excluded.classification_result,
+                tags=excluded.tags,
                 created_at=excluded.created_at,
                 embedding=excluded.embedding,
                 metadata=excluded.metadata
@@ -114,6 +120,8 @@ class StructuredStore:
                 json.dumps(record.entities),
                 record.classification,
                 float(record.confidence),
+                json.dumps(record.classification_result) if record.classification_result is not None else None,
+                json.dumps(record.tags) if record.tags is not None else None,
                 record.created_at.isoformat(),
                 json.dumps(record.embedding) if record.embedding is not None else None,
                 json.dumps(record.metadata) if record.metadata is not None else None,
@@ -145,6 +153,20 @@ class StructuredStore:
         except Exception:
             entities = {}
 
+        classification_result = None
+        try:
+            if row["classification_result"]:
+                classification_result = json.loads(row["classification_result"])
+        except Exception:
+            pass
+
+        tags = None
+        try:
+            if row["tags"]:
+                tags = json.loads(row["tags"])
+        except Exception:
+            pass
+
         embedding = None
         try:
             embedding = json.loads(row["embedding"]) if row["embedding"] else None
@@ -169,6 +191,8 @@ class StructuredStore:
             entities=entities,
             classification=row["classification"],
             confidence=(float(row["confidence"]) if row["confidence"] is not None else 0.0),
+            classification_result=classification_result,
+            tags=tags,
             created_at=created_at,
             embedding=embedding,
             metadata=metadata,

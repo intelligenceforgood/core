@@ -13,130 +13,158 @@ The platform uses two distinct Cloud SQL instances per environment:
 | **PII Vault** | `dev` | `i4g-vault-dev-db` | `vault_db` | Isolated PII storage (tokens, secrets) |
 | **PII Vault** | `prod` | `i4g-vault-prod-db` | `vault_db` | Production PII storage |
 
-## Connection Methods
+---
 
-You can connect to the database using either the **Cloud SQL Auth Proxy** (recommended for long sessions) or the **gcloud beta sql connect** command (recommended for quick ad-hoc tasks).
+## 1. Connecting to the Database
+
+You can connect to the database using either the **Cloud SQL Auth Proxy** (recommended for migrations and long sessions) or the **gcloud beta sql connect** command (recommended for quick ad-hoc tasks).
 
 **Prerequisite:** For both methods, you must know the password for the user you are connecting as (usually `postgres` for admin tasks).
 
-### Method A: Cloud SQL Auth Proxy (Standard)
+### Method A: Cloud SQL Auth Proxy (Recommended for Migrations)
 
-This allows you to use standard tools (`psql`, DBeaver, Python scripts) by forwarding a local port to the remote instance.
+This allows you to use standard tools (`psql`, DBeaver, Python scripts, Alembic) by forwarding a local port to the remote instance.
 
 1.  **Start the Proxy**:
+    Open a dedicated terminal and run:
     ```bash
-    # For App Dev
-    cloud-sql-proxy i4g-dev:us-central1:i4g-dev-db
+    # Listen on port 5432 for Main DB and 5433 for Vault DB
+    cloud-sql-proxy \
+      i4g-dev:us-central1:i4g-dev-db?port=5432 \
+      i4g-pii-vault-dev:us-central1:i4g-vault-dev-db?port=5433
     ```
 
 2.  **Connect via psql**:
+    In a separate terminal:
     ```bash
-    # In a new terminal
-    export PGPASSWORD=YOUR_POSTGRES_PASSWORD
+    # Connect to Main DB
     psql "host=127.0.0.1 port=5432 sslmode=disable user=postgres dbname=i4g_db"
+
+    # Connect to Vault DB
+    psql "host=127.0.0.1 port=5433 sslmode=disable user=postgres dbname=vault_db"
     ```
 
-### Method B: gcloud beta sql connect (Quick)
+### Method B: gcloud beta sql connect (Quick Ad-hoc)
 
-This command automatically starts a temporary proxy and connects via `psql`. It handles IPv6 networks correctly (unlike the standard `gcloud sql connect`).
+This command automatically starts a temporary proxy and connects via `psql`.
 
 ```bash
-# For App Dev
+# Connect to Main DB
 gcloud beta sql connect i4g-dev-db --user=postgres --quiet --project=i4g-dev
+
+# Connect to Vault DB
+gcloud beta sql connect i4g-vault-dev-db --user=postgres --quiet --project=i4g-pii-vault-dev
 ```
 
-## User & Permission Management
+---
 
-While Terraform manages the infrastructure (instances, IAM users), **table-level permissions (GRANTS) must be applied manually** inside the database.
+## 2. Schema Management (Re-initializing the DB)
 
-### Security Model
+If you need to reset the environment to a "virgin" state (e.g., during a full bootstrap reset), follow these steps.
 
-*   **Schema Ownership**: Ideally, the `postgres` superuser (or a dedicated admin role) should own all tables.
-*   **Service Accounts**: Runtime identities (`sa-app`, `sa-ingest`, `sa-report`) should be granted specific privileges (`SELECT`, `INSERT`, `UPDATE`, `DELETE`) but should **not** own the tables.
+### Step 1: Wipe the Databases
+
+Connect to each database (using Method B is easiest here) and drop the schema/tables.
+
+**Main DB (`i4g-dev-db`):**
+```sql
+-- Connect to i4g_db first
+\c i4g_db
+
+-- Drop and recreate the public schema
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO public;
+```
+
+**Vault DB (`i4g-vault-dev-db`):**
+```sql
+-- Connect to vault_db first
+\c vault_db
+
+-- Drop tables individually (Vault doesn't use schemas as heavily)
+DROP TABLE IF EXISTS pii_tokens CASCADE;
+DROP TABLE IF EXISTS audit_log CASCADE;
+DROP TABLE IF EXISTS alembic_version;
+```
+
+### Step 2: Apply Initial Schema (Alembic)
+
+Use `alembic` locally to create the tables in the remote Cloud SQL instances. **You must have the Cloud SQL Proxy running (Method A).**
+
+Run these commands from the `core/` directory:
+
+```bash
+# 1. Migrate Main DB (Port 5432)
+ALEMBIC_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/i4g_db" \
+alembic upgrade head
+
+# 2. Migrate Vault DB (Port 5433)
+# Note: Use the correct config file (alembic_vault.ini)
+ALEMBIC_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5433/vault_db" \
+alembic -c alembic_vault.ini upgrade head
+```
+
+*(Note: Replace `postgres:postgres` with your actual DB credentials if different.)*
+
+---
+
+## 3. Permission Management
+
+After re-initializing the schema, you must ensure that the application service accounts have the correct permissions.
 
 ### Key Accounts
 
 | Role | Account Email | Permissions Needed |
 | :--- | :--- | :--- |
 | **Admins** | `jerry@intelligenceforgood.org`<br>`gcp-i4g-admin@intelligenceforgood.org` | `ALL PRIVILEGES` on tables<br>`CREATE` on schema |
-| **Analysts** | `gcp-i4g-analyst@intelligenceforgood.org` | `SELECT` (Read-only) |
 | **Service Accounts** | `sa-ingest@i4g-dev.iam`<br>`sa-app@i4g-dev.iam`<br>`sa-vault@i4g-pii-vault-dev.iam`<br>`sa-report@i4g-dev.iam` | `SELECT, INSERT, UPDATE, DELETE` |
 
-*Note: Service Account usernames in Postgres are the email **without** `.gserviceaccount.com`.*
+### Granting Permissions
 
-## Cookbook: Managing Permissions
+Run these commands as the `postgres` user (via `psql` or `gcloud sql connect`).
 
-### 1. The "Fix Permissions" Script
-
-If a service account (e.g., `sa-report`) gets "Permission Denied", run these commands as `postgres`.
-
-**Standard Procedure**
-
-All application tables **must be owned by the `postgres` user**. This ensures consistent permission management.
-
+**Main DB (`i4g_db`):**
 ```sql
 \c i4g_db
 
--- Grant Usage
+-- Grant Usage on Schema
+GRANT USAGE ON SCHEMA public TO "sa-ingest@i4g-dev.iam";
+GRANT USAGE ON SCHEMA public TO "sa-app@i4g-dev.iam";
 GRANT USAGE ON SCHEMA public TO "sa-report@i4g-dev.iam";
 
--- Grant Data Access
+-- Grant Table Access
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "sa-ingest@i4g-dev.iam";
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "sa-app@i4g-dev.iam";
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "sa-report@i4g-dev.iam";
+
+-- Grant Sequence Access (for auto-increment IDs)
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "sa-ingest@i4g-dev.iam";
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "sa-app@i4g-dev.iam";
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "sa-report@i4g-dev.iam";
 ```
 
-### 2. Automating Ownership (Recommended)
-
-To ensure tables created by applications (e.g., `sa-app`, `sa-ingest`) are automatically owned by `postgres`, these service accounts must be granted the `postgres` role. This allows them to execute `SET ROLE postgres` before creating tables.
-
-**Run the helper script:**
-
-```bash
-# From the infra/ directory
-./scripts/grant_postgres_role.sh dev
-```
-
-**Or manually:**
-
+**Vault DB (`vault_db`):**
 ```sql
-GRANT postgres TO "sa-app@i4g-dev.iam";
-GRANT postgres TO "sa-ingest@i4g-dev.iam";
-GRANT postgres TO "sa-intake@i4g-dev.iam";
+\c vault_db
+
+-- Grant Table Access to Vault SA (Native Project)
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "sa-vault@i4g-pii-vault-dev.iam";
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "sa-vault@i4g-pii-vault-dev.iam";
+
+-- Grant Table Access to App/Ingest SAs (Cross-Project Access from i4g-dev)
+-- These accounts need to tokenize/detokenize PII
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "sa-ingest@i4g-dev.iam";
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "sa-ingest@i4g-dev.iam";
+
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "sa-app@i4g-dev.iam";
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "sa-app@i4g-dev.iam";
 ```
 
-### 3. Fixing Incorrect Ownership
+---
 
-If a table was accidentally created by a service account (e.g., `sa-app`) instead of `postgres` (because the above grant was missing), you must reassign ownership to `postgres`.
-
-```sql
-\c i4g_db
-
--- 1. Allow postgres to impersonate the current owner (e.g., sa-app)
-GRANT "sa-app@i4g-dev.iam" TO postgres;
-
--- 2. Reassign ownership of all objects owned by the SA to postgres
-REASSIGN OWNED BY "sa-app@i4g-dev.iam" TO postgres;
-```
-
-### 3. Verifying Access
-
-To check if a user (e.g., `sa-report` or `jerry@intelligenceforgood.org`) is missing access to any tables:
-
-```sql
-SELECT t.tablename AS "Missing Access To"
-FROM pg_tables t
-LEFT JOIN information_schema.role_table_grants g
-  ON t.tablename = g.table_name
-  AND g.grantee = 'jerry@intelligenceforgood.org'
-  AND g.table_schema = 'public'
-WHERE t.schemaname = 'public'
-  AND g.table_name IS NULL;
-```
-
-*   **0 rows**: All good.
-*   **Rows returned**: The user cannot access these tables.
-
-## Common Queries
+## 4. Common Queries
 
 ### Check Ingestion Status
 ```sql
@@ -174,7 +202,9 @@ WHERE document_id IN (
 );
 ```
 
-## Troubleshooting
+---
+
+## 5. Troubleshooting
 
 ### "FATAL: database '...' does not exist"
 Check the **Overview** table above. You might be connecting to `postgres` instead of `i4g_db` or `vault_db`.
@@ -184,4 +214,4 @@ Check the **Overview** table above. You might be connecting to `postgres` instea
 -   **Postgres User:** Ensure you are using the password you just set.
 
 ### "Permission denied for table ..."
-Follow the **Bootstrapping Permissions** section above to grant the missing privileges.
+Follow the **Permission Management** section above to grant the missing privileges.

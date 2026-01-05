@@ -141,16 +141,23 @@ class FraudClassifier:
             elif provider == "vertex_ai":
                 if not settings.llm.vertex_ai_project:
                     raise ValueError("Vertex AI project not configured.")
+                
+                # Prefer generic chat_model, fallback to legacy vertex_ai_model
+                model_name = settings.llm.chat_model
+                if model_name == "llama3" and settings.llm.vertex_ai_model:
+                    # If chat_model is default but vertex_ai_model is set, use legacy
+                    model_name = settings.llm.vertex_ai_model
+                
                 self.llm_client = VertexAIClient(
                     project=settings.llm.vertex_ai_project,
                     location=settings.llm.vertex_ai_location or "us-central1",
-                    model_name=settings.llm.vertex_ai_model or "gemini-1.5-pro-001"
+                    model_name=model_name
                 )
             else:
                 self.llm_client = MockLLMClient()
 
-        self.definitions_path = PROJECT_ROOT / "data" / "taxonomy" / "definitions.yaml"
-        self.examples_path = PROJECT_ROOT / "data" / "taxonomy" / "golden_examples.json"
+        self.definitions_path = PROJECT_ROOT / "src" / "i4g" / "taxonomy" / "definitions.yaml"
+        self.examples_path = PROJECT_ROOT / "src" / "i4g" / "taxonomy" / "golden_examples.json"
         self.prompt_template_path = PROJECT_ROOT / "src" / "i4g" / "llm" / "prompts" / "fraud_classifier.md"
         
         self._load_resources()
@@ -312,6 +319,17 @@ class FraudClassifier:
             cleaned_response = cleaned_response.strip()
                 
             data = json.loads(cleaned_response)
+
+            # Handle case where LLM returns a list of results (common with some models)
+            if isinstance(data, list):
+                if len(data) > 0 and isinstance(data[0], dict):
+                    data = data[0]
+                else:
+                    raise ValueError(f"LLM returned a list, but it was empty or invalid: {data}")
+
+            if not isinstance(data, dict):
+                raise ValueError(f"Expected a dictionary or list of dictionaries, got {type(data)}")
+
             return FraudClassificationResult(**data)
         except (json.JSONDecodeError, ValueError) as e:
             # In a real implementation, we would implement retry logic here

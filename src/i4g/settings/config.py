@@ -354,6 +354,7 @@ class LLMSettings(BaseSettings):
     chat_model: str = Field(
         default="llama3",
         validation_alias=AliasChoices("LLM_CHAT_MODEL", "LLM__CHAT_MODEL"),
+        description="Primary model identifier (e.g. 'llama3', 'gemini-2.5-flash'). Used for all providers.",
     )
     temperature: float = Field(
         default=0.1,
@@ -366,6 +367,7 @@ class LLMSettings(BaseSettings):
     vertex_ai_model: str | None = Field(
         default=None,
         validation_alias=AliasChoices("LLM_VERTEX_AI_MODEL", "LLM__VERTEX_AI__MODEL"),
+        description="Legacy override for Vertex AI model. Prefer 'chat_model'.",
     )
     vertex_ai_project: str | None = Field(
         default=None,

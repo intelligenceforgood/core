@@ -86,6 +86,8 @@ class CasePayload:
     source_type: str
     classification: str
     confidence: float
+    classification_result: Dict[str, Any] | None = None
+    tags: List[str] | None = None
     text: str | None = None
     case_id: str | None = None
     raw_text_sha256: str | None = None
@@ -263,6 +265,8 @@ class SqlWriter:
             "dataset": payload.dataset,
             "source_type": payload.source_type,
             "classification": payload.classification,
+            "classification_result": payload.classification_result,
+            "tags": payload.tags,
             "confidence": _quantize_decimal(payload.confidence),
             "detected_at": payload.detected_at,
             "reported_at": payload.reported_at,

@@ -574,6 +574,8 @@ protobuf==5.29.5
     #   streamlit
 psutil==7.1.2
     # via aistudio-sdk
+psycopg2-binary==2.9.11
+    # via i4g (pyproject.toml)
 py-cpuinfo==9.0.0
     # via paddlex
 pyarrow==21.0.0
