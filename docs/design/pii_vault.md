@@ -1,4 +1,4 @@
-# PII Vault Design (Dec 2025)
+# PII Vault Design
 
 **Audience:** proto engineers/architects. End-user guidance will stay in the separate `docs/` repo; this file is technical.
 
