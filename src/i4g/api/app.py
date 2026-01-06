@@ -12,7 +12,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from i4g.api.account_list import router as account_list_router
 from i4g.api.analytics import router as analytics_router
 from i4g.api.cases import router as cases_router
+from i4g.api.campaigns import router as campaigns_router
 from i4g.api.dashboard import router as dashboard_router
+
 from i4g.api.discovery import router as discovery_router
 from i4g.api.intake import router as intake_router
 from i4g.api.reports import router as reports_router
@@ -88,7 +90,9 @@ def create_app() -> FastAPI:
     app.include_router(account_list_router)
     app.include_router(analytics_router)
     app.include_router(cases_router)
+    app.include_router(campaigns_router)
     app.include_router(dashboard_router)
+
     app.include_router(discovery_router)
     app.include_router(intake_router)
     app.include_router(reports_router)

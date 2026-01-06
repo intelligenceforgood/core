@@ -52,6 +52,7 @@ campaigns = sa.Table(
     sa.Column("name", sa.Text(), nullable=False),
     sa.Column("description", sa.Text(), nullable=True),
     sa.Column("taxonomy_labels", JSON_TYPE, nullable=True),
+    sa.Column("taxonomy_rollup", JSON_TYPE, server_default=sa.text("'[]'")),
     sa.Column("status", sa.Text(), nullable=False, server_default="active"),
     sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
     sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),

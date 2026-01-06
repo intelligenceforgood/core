@@ -1,12 +1,13 @@
 """Service for managing campaigns and mapping classifications to them."""
 
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from i4g.store.sql import campaigns
+from i4g.taxonomy.data import TAXONOMY_TREE_RESPONSE
 from i4g.taxonomy.models import FraudClassificationResult
 
 
@@ -79,7 +80,7 @@ class CampaignService:
 
         return True
 
-    def list_active_campaigns(self) -> list[Dict[str, Any]]:
+    def list_active_campaigns(self) -> List[Dict[str, Any]]:
         """List all active campaigns with their basic info."""
         query = sa.select(campaigns).where(campaigns.c.status == "active")
         results = self.session.execute(query).fetchall()
@@ -89,20 +90,82 @@ class CampaignService:
                 "name": row.name,
                 "description": row.description,
                 "taxonomy_labels": row.taxonomy_labels,
+                "taxonomy_rollup": row.taxonomy_rollup or [],
             }
             for row in results
         ]
 
-    def create_campaign(self, name: str, description: str, taxonomy_labels: Dict[str, Any]) -> str:
+    def create_campaign(
+        self,
+        name: str,
+        description: str,
+        taxonomy_labels: Dict[str, Any],
+        associated_taxonomy_ids: Optional[List[str]] = None,
+    ) -> str:
         """Create a new campaign."""
+        if associated_taxonomy_ids:
+            self._validate_taxonomy_ids(associated_taxonomy_ids)
+        else:
+            associated_taxonomy_ids = []
+
         campaign_id = str(uuid.uuid4())
         stmt = sa.insert(campaigns).values(
             campaign_id=campaign_id,
             name=name,
             description=description,
             taxonomy_labels=taxonomy_labels,
+            taxonomy_rollup=associated_taxonomy_ids,
             status="active",
         )
         self.session.execute(stmt)
         self.session.commit()
         return campaign_id
+
+    def update_campaign(
+        self,
+        campaign_id: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        taxonomy_labels: Optional[Dict[str, Any]] = None,
+        associated_taxonomy_ids: Optional[List[str]] = None,
+    ) -> None:
+        """Update an existing campaign."""
+        values: Dict[str, Any] = {
+            "updated_at": sa.func.now(),
+        }
+        if name is not None:
+            values["name"] = name
+        if description is not None:
+            values["description"] = description
+        if taxonomy_labels is not None:
+            values["taxonomy_labels"] = taxonomy_labels
+        if associated_taxonomy_ids is not None:
+            self._validate_taxonomy_ids(associated_taxonomy_ids)
+            values["taxonomy_rollup"] = associated_taxonomy_ids
+
+        stmt = sa.update(campaigns).where(campaigns.c.campaign_id == campaign_id).values(**values)
+        result = self.session.execute(stmt)
+        self.session.commit()
+
+        if result.rowcount == 0:
+            raise ValueError(f"Campaign {campaign_id} not found.")
+
+    def _validate_taxonomy_ids(self, taxonomy_ids: List[str]) -> None:
+        """Validate that all taxonomy IDs exist in the current taxonomy tree."""
+        valid_ids = self._get_all_taxonomy_ids()
+        invalid_ids = set(taxonomy_ids) - valid_ids
+        if invalid_ids:
+            raise ValueError(f"Invalid taxonomy IDs: {invalid_ids}")
+
+    def _get_all_taxonomy_ids(self) -> Set[str]:
+        """Traverse the taxonomy tree and collect all IDs."""
+        ids = set()
+        # TAXONOMY_TREE_RESPONSE["nodes"] is assumed to be a list of dicts
+        queue = list(TAXONOMY_TREE_RESPONSE.get("nodes", []))
+        while queue:
+            node = queue.pop()
+            if "id" in node:
+                ids.add(node["id"])
+            if "children" in node:
+                queue.extend(node["children"])
+        return ids

@@ -1,0 +1,81 @@
+"""Campaign management endpoints."""
+
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from i4g.services.campaigns import CampaignService
+from i4g.store.sql import session_factory
+
+router = APIRouter(prefix="/campaigns", tags=["campaigns"])
+
+
+def get_db_session():
+    """Yield a database session."""
+    factory = session_factory()
+    session = factory()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+def get_service(session: Session = Depends(get_db_session)) -> CampaignService:
+    return CampaignService(session)
+
+
+class CampaignResponse(BaseModel):
+    id: UUID
+    name: str
+    description: Optional[str] = None
+    taxonomy_labels: Optional[Dict[str, Any]] = None
+    taxonomy_rollup: List[str] = []
+
+
+class CreateCampaignRequest(BaseModel):
+    name: str
+    description: str
+    taxonomy_labels: Dict[str, Any]
+    associated_taxonomy_ids: Optional[List[str]] = None
+
+
+class UpdateCampaignRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    taxonomy_labels: Optional[Dict[str, Any]] = None
+    associated_taxonomy_ids: Optional[List[str]] = None
+
+
+@router.get("", response_model=List[CampaignResponse])
+def list_campaigns(service: CampaignService = Depends(get_service)):
+    return service.list_active_campaigns()
+
+
+@router.post("", response_model=str)
+def create_campaign(payload: CreateCampaignRequest, service: CampaignService = Depends(get_service)):
+    try:
+        return service.create_campaign(
+            name=payload.name,
+            description=payload.description,
+            taxonomy_labels=payload.taxonomy_labels,
+            associated_taxonomy_ids=payload.associated_taxonomy_ids,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/{campaign_id}")
+def update_campaign(campaign_id: str, payload: UpdateCampaignRequest, service: CampaignService = Depends(get_service)):
+    try:
+        service.update_campaign(
+            campaign_id=campaign_id,
+            name=payload.name,
+            description=payload.description,
+            taxonomy_labels=payload.taxonomy_labels,
+            associated_taxonomy_ids=payload.associated_taxonomy_ids,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
