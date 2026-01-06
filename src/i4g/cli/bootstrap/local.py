@@ -26,6 +26,8 @@ from i4g.cli.bootstrap.common import (
     DossierSmokeResult,
     VerificationReport,
 )
+from i4g.store.sql import session_factory as build_sql_session_factory
+from i4g.services.campaigns import CampaignService
 from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -40,6 +42,29 @@ CHROMA_DIR = DATA_DIR / "chroma_store"
 SQLITE_DB = DATA_DIR / "i4g_store.db"
 REPORTS_DIR = DATA_DIR / "reports" / "bootstrap_local"
 PILOT_CASES_PATH = MANUAL_DEMO_DIR / "dossier_pilot_cases.json"
+
+DEFAULT_CAMPAIGNS = [
+    {
+        "name": "Romance scam",
+        "description": "Relationship / affection grooming paired with money or asset requests.",
+        "taxonomy_labels": {"intent": ["romance"], "techniques": ["grooming"]},
+    },
+    {
+        "name": "Crypto investment",
+        "description": "Wallet + coin mentions or high-return investment language.",
+        "taxonomy_labels": {"intent": ["investment"]},
+    },
+    {
+        "name": "Phishing",
+        "description": "Suspicious login/reset prompts, impersonation, or short-link channels.",
+        "taxonomy_labels": {"techniques": ["phishing", "impersonation"]},
+    },
+    {
+        "name": "Potential crypto",
+        "description": "Wallets present but weak pattern match; queue for analyst confirmation.",
+        "taxonomy_labels": {"actions": ["crypto_transfer"]},
+    },
+]
 
 DEFAULT_PILOT_CASES = [
     {
@@ -293,6 +318,27 @@ def apply_migrations() -> None:
     run([sys.executable, "-m", "alembic", "upgrade", "head"], unset_env_vars=["I4G_DATABASE_URL"])
 
 
+def seed_campaigns() -> None:
+    """Populate database with default active campaigns if missing."""
+    print("🌱 Seeding default campaigns...")
+    session_factory = build_sql_session_factory()
+    with session_factory() as session:
+        service = CampaignService(session)
+        existing = service.list_active_campaigns()
+        existing_names = {c["name"] for c in existing}
+
+        count = 0
+        for campaign in DEFAULT_CAMPAIGNS:
+            if campaign["name"] not in existing_names:
+                service.create_campaign(
+                    name=campaign["name"],
+                    description=campaign["description"],
+                    taxonomy_labels=campaign["taxonomy_labels"],
+                )
+                count += 1
+        print(f"   → Created {count} new campaigns (total {len(DEFAULT_CAMPAIGNS)}).")
+
+
 def verify_sandbox(
     report_dir: Path,
     search_smoke: SearchSmokeResult | None = None,
@@ -509,6 +555,7 @@ def run_local(
         return
 
     apply_migrations()
+    seed_campaigns()
 
     # Skip building synthetic bundles; use the downloaded Azure data
     # if not BUNDLES_DIR.exists() or not any(BUNDLES_DIR.glob("*.jsonl")):
@@ -523,8 +570,7 @@ def run_local(
         run_semantic_extraction()
     else:
         print(
-            "⚠️  Tesseract not found on PATH; skipping OCR and semantic extraction. "
-            "Install it to enable OCR testing."
+            "⚠️  Tesseract not found on PATH; skipping OCR and semantic extraction. " "Install it to enable OCR testing."
         )
 
     if not skip_vector:
@@ -533,6 +579,7 @@ def run_local(
         print("⚠️  Skipping vector/structured demo rebuild; existing stores assumed valid.")
 
     ensure_pilot_cases_file()
+    seed_campaigns()
     seed_review_cases()
 
     search_smoke = run_search_smoke(args_ns)

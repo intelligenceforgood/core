@@ -16,6 +16,7 @@ from i4g.pii.tokenization import TokenizationService
 from i4g.reports.bundle_builder import BundleBuilder
 from i4g.reports.bundle_candidates import BundleCandidateProvider
 from i4g.reports.dossier_context import DossierContextLoader
+from i4g.services.campaigns import CampaignService
 from i4g.services.vertex_writer import VertexDocumentWriter
 from i4g.services.classifier import FraudClassifier
 from i4g.settings import get_settings
@@ -217,7 +218,7 @@ def build_tokenization_service() -> TokenizationService:
 
     settings = get_settings()
     backend = settings.pii.backend
-    
+
     store = None
     if backend == "sqlite":
         store = PiiTokenStore()

@@ -20,7 +20,7 @@ class CampaignService:
         """
         Attempt to map a classification result to an existing campaign.
         Returns the campaign_id if a match is found.
-        
+
         Logic:
         Iterates through active campaigns and checks if the classification
         contains ALL the labels defined in the campaign's taxonomy_labels.
@@ -34,7 +34,7 @@ class CampaignService:
         for campaign in active_campaigns:
             if self._matches_criteria(classification, campaign.taxonomy_labels):
                 return campaign.campaign_id
-        
+
         return None
 
     def _matches_criteria(self, classification: FraudClassificationResult, criteria: Dict[str, Any] | None) -> bool:
@@ -62,14 +62,14 @@ class CampaignService:
             found_actions = {item.label for item in classification.actions}
             if not required_actions.issubset(found_actions):
                 return False
-        
+
         # Check techniques
         if "techniques" in criteria:
             required_techniques = set(criteria["techniques"])
             found_techniques = {item.label for item in classification.techniques}
             if not required_techniques.issubset(found_techniques):
                 return False
-        
+
         # Check channels
         if "channel" in criteria:
             required_channels = set(criteria["channel"])
@@ -79,6 +79,20 @@ class CampaignService:
 
         return True
 
+    def list_active_campaigns(self) -> list[Dict[str, Any]]:
+        """List all active campaigns with their basic info."""
+        query = sa.select(campaigns).where(campaigns.c.status == "active")
+        results = self.session.execute(query).fetchall()
+        return [
+            {
+                "id": row.campaign_id,
+                "name": row.name,
+                "description": row.description,
+                "taxonomy_labels": row.taxonomy_labels,
+            }
+            for row in results
+        ]
+
     def create_campaign(self, name: str, description: str, taxonomy_labels: Dict[str, Any]) -> str:
         """Create a new campaign."""
         campaign_id = str(uuid.uuid4())
@@ -87,7 +101,7 @@ class CampaignService:
             name=name,
             description=description,
             taxonomy_labels=taxonomy_labels,
-            status="active"
+            status="active",
         )
         self.session.execute(stmt)
         self.session.commit()

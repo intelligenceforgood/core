@@ -19,10 +19,12 @@ from pydantic import BaseModel, Field, ValidationError
 
 from i4g.api.auth import require_token
 from i4g.services.factories import build_review_store
+from i4g.services.campaigns import CampaignService
 from i4g.services.hybrid_search import HybridSearchQuery, HybridSearchService, QueryEntityFilter, QueryTimeRange
 from i4g.settings import get_settings
 from i4g.store.retriever import HybridRetriever
 from i4g.store.review_store import ReviewStore
+from i4g.store.sql import session_factory as build_sql_session_factory
 from i4g.taxonomy.models import AnalystFeedbackRequest, ClassificationResult
 
 # Import the worker task — will be scheduled in background on "accepted"
@@ -147,6 +149,21 @@ def get_hybrid_search_service() -> HybridSearchService:
     """
 
     return HybridSearchService()
+
+
+def get_db_session():
+    """Yield a database session."""
+    factory = build_sql_session_factory()
+    session = factory()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
+def get_campaign_service(session=Depends(get_db_session)) -> CampaignService:
+    """Return a configured CampaignService."""
+    return CampaignService(session)
 
 
 # -----------------------
@@ -330,9 +347,29 @@ def search_cases_advanced(
 @router.get("/search/schema", summary="Describe hybrid search filters for clients")
 def get_search_schema(
     search_service: HybridSearchService = Depends(get_hybrid_search_service),
+    campaign_service: CampaignService = Depends(get_campaign_service),
     user=Depends(require_token),
 ):
-    return search_service.schema()
+    schema = search_service.schema()
+
+    # Enrich schema with active campaigns
+    try:
+        campaigns = campaign_service.list_active_campaigns()
+        if campaigns:
+            # We return campaign IDs as values to ensure uniqueness and stable referencing
+            # But the UI currently displays values. If we want friendly display, we might need
+            # to adjust the schema structure in the future. For now, let's use names if they are unique.
+            # Or formatted "Name (ID cut)".
+            # Let's simple return list of names for now to be compatible with List[str]
+            schema["classifications"] = sorted([c["name"] for c in campaigns])
+
+            # Optionally pass full campaign objects in a separate field if client supports it
+            schema["campaigns"] = campaigns
+    except Exception:
+        # Fallback to default schema if DB is unreachable or empty
+        pass
+
+    return schema
 
 
 @router.post("/search/saved", summary="Create or update a saved search")
