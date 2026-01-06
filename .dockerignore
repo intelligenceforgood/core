@@ -24,3 +24,4 @@ __pycache__
 /notebooks/
 /chroma_store/
 /faiss_store/
+config/settings.local.toml

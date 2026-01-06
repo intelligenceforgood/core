@@ -84,13 +84,28 @@ class CampaignService:
         """List all active campaigns with their basic info."""
         query = sa.select(campaigns).where(campaigns.c.status == "active")
         results = self.session.execute(query).fetchall()
+
+        def _sanitize_labels(val: Any) -> Optional[Dict[str, Any]]:
+            if isinstance(val, dict):
+                return val
+            # Handle case where JSON array [] is stored instead of null/dict
+            if isinstance(val, list) and not val:
+                return None
+            return None
+
+        def _sanitize_rollup(val: Any) -> List[str]:
+            if not isinstance(val, list):
+                return []
+            # Ensure all elements are strings; filter out oddities
+            return [str(x) for x in val if x is not None]
+
         return [
             {
                 "id": row.campaign_id,
                 "name": row.name,
                 "description": row.description,
-                "taxonomy_labels": row.taxonomy_labels,
-                "taxonomy_rollup": row.taxonomy_rollup or [],
+                "taxonomy_labels": _sanitize_labels(row.taxonomy_labels),
+                "taxonomy_rollup": _sanitize_rollup(row.taxonomy_rollup),
             }
             for row in results
         ]

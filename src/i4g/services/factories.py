@@ -209,7 +209,6 @@ def build_vertex_writer(*, settings: "Settings" | None = None) -> VertexDocument
 
 def build_dossier_queue_store(db_path: str | Path | None = None) -> DossierQueueStore:
     """Return a DossierQueueStore instance backed by the configured SQLite DB."""
-
     return DossierQueueStore(db_path=db_path)
 
 
