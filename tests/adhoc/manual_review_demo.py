@@ -16,6 +16,7 @@ import json
 import requests
 
 BASE_URL = "http://127.0.0.1:8000"
+HEADERS = {"X-API-KEY": "dev-analyst-token"}
 
 
 def pretty(obj):
@@ -28,7 +29,7 @@ def run_demo():
     payload = {
         "case_id": "CASE-2025-0001",
         "text": "Hi, this is Anna from TrustWallet. Please send 50 USDT to verify your wallet.",
-        "llm_result": {
+        "entities": {
             "people": ["Anna"],
             "organizations": ["TrustWallet"],
             "crypto_assets": ["USDT"],
@@ -37,25 +38,31 @@ def run_demo():
             "locations": [],
             "scam_indicators": ["verification fee", "send to verify"],
         },
-        "classification": {"label": "crypto_scam", "confidence": 0.93},
+        "classification": {
+            "intent": [{"label": "INTENT.INVESTMENT", "confidence": 0.93}],
+            "channel": [{"label": "CHANNEL.SMS", "confidence": 0.99}],
+            "explanation": "The user is asking for a fee to 'verify' a wallet, which is a common crypto scam pattern.",
+            "few_shot_examples": [],
+        },
+        "tags": ["crypto_scam", "urgent"],
     }
-    r = requests.post(f"{BASE_URL}/reviews", json=payload)
+    r = requests.post(f"{BASE_URL}/reviews", json=payload, headers=HEADERS)
     r.raise_for_status()
     pretty(r.json())
 
     print("\n=== 2. Listing all review cases ===")
-    r = requests.get(f"{BASE_URL}/reviews")
+    r = requests.get(f"{BASE_URL}/reviews/queue", headers=HEADERS)
     r.raise_for_status()
-    pretty(r.json())
+    items = r.json()
+    pretty(items)
 
-    print("\n=== 3. Updating review decision ===")
-    update = {"decision": "accept", "notes": "Classic verification scam."}
-    r = requests.patch(f"{BASE_URL}/reviews/CASE-2025-0001", json=update)
-    r.raise_for_status()
-    pretty(r.json())
+    if not items.get("items"):
+        print("No items in queue.")
+        return
 
-    print("\n=== 4. Fetching a single case ===")
-    r = requests.get(f"{BASE_URL}/reviews/CASE-2025-0001")
+    review_id = items["items"][-1]["review_id"]
+    print(f"\n=== 3. Getting details for {review_id} ===")
+    r = requests.get(f"{BASE_URL}/reviews/{review_id}", headers=HEADERS)
     r.raise_for_status()
     pretty(r.json())
 

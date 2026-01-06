@@ -82,7 +82,9 @@ class ReviewStore:
                 status TEXT DEFAULT 'queued',
                 assigned_to TEXT,
                 notes TEXT,
-                last_updated TEXT
+                last_updated TEXT,
+                classification_result TEXT,
+                tags TEXT
             )
             """
         )
@@ -207,22 +209,51 @@ class ReviewStore:
             # json_extract is unavailable on some SQLite builds; degrade gracefully.
             pass
 
+    def _parse_row(self, row: sqlite3.Row) -> Dict[str, Any]:
+        """Convert a SQLite row to a dict, parsing JSON fields."""
+        d = dict(row)
+        for field in ["classification_result", "tags"]:
+            if d.get(field):
+                try:
+                    d[field] = json.loads(d[field])
+                except (json.JSONDecodeError, TypeError):
+                    d[field] = None
+        return d
+
     # -------------------------------------------------------------------------
     # Queue management
     # -------------------------------------------------------------------------
-    def enqueue_case(self, case_id: str, priority: str = "medium") -> str:
+    def enqueue_case(
+        self,
+        case_id: str,
+        priority: str = "medium",
+        classification_result: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+    ) -> str:
         """Insert a new review queue item and return its review_id."""
         review_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
+
+        classification_json = json.dumps(classification_result) if classification_result else None
+        tags_json = json.dumps(tags) if tags else None
 
         with self._connect() as conn:
             conn.execute(
                 """
                 INSERT INTO review_queue
-                    (review_id, case_id, queued_at, priority, status, last_updated)
-                VALUES (?, ?, ?, ?, ?, ?)
+                    (review_id, case_id, queued_at, priority, status, last_updated, classification_result, tags)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (review_id, case_id, now, priority, "queued", now),
+                (
+                    review_id,
+                    case_id,
+                    now,
+                    priority,
+                    "queued",
+                    now,
+                    classification_json,
+                    tags_json,
+                ),
             )
         return review_id
 
@@ -233,13 +264,13 @@ class ReviewStore:
                 "SELECT * FROM review_queue WHERE status = ? ORDER BY queued_at ASC LIMIT ?",
                 (status, limit),
             ).fetchall()
-        return [dict(r) for r in rows]
+        return [self._parse_row(r) for r in rows]
 
     def get_review(self, review_id: str) -> Optional[Dict[str, Any]]:
         """Return a single review entry by ID."""
         with self._connect() as conn:
             row = conn.execute("SELECT * FROM review_queue WHERE review_id = ?", (review_id,)).fetchone()
-        return dict(row) if row else None
+        return self._parse_row(row) if row else None
 
     def get_cases(self, case_ids: Iterable[str]) -> Dict[str, Dict[str, Any]]:
         """Return review queue rows keyed by ``case_id`` for the provided identifiers."""
@@ -262,7 +293,7 @@ class ReviewStore:
         query = f"SELECT * FROM review_queue WHERE case_id IN ({placeholders})"
         with self._connect() as conn:
             rows = conn.execute(query, tuple(normalized)).fetchall()
-        return {str(row["case_id"]): dict(row) for row in rows}
+        return {str(row["case_id"]): self._parse_row(row) for row in rows}
 
     def update_status(self, review_id: str, status: str, notes: Optional[str] = None) -> None:
         """Update the status (accepted/rejected/etc.) and optional notes."""
@@ -414,7 +445,7 @@ class ReviewStore:
                 """,
                 (case_id, limit),
             ).fetchall()
-        return [dict(r) for r in rows]
+        return [self._parse_row(r) for r in rows]
 
     def get_recent_actions(self, action: Optional[str] = None, limit: int = 20) -> List[Dict[str, Any]]:
         """Return most recent actions, optionally filtered by action name."""
@@ -740,7 +771,13 @@ class SqlAlchemyReviewStore:
     def __init__(self, session_factory: sessionmaker | None = None) -> None:
         self._session_factory = session_factory or default_session_factory()
 
-    def enqueue_case(self, case_id: str, priority: str = "medium") -> str:
+    def enqueue_case(
+        self,
+        case_id: str,
+        priority: str = "medium",
+        classification_result: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+    ) -> str:
         review_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         with self._session_factory() as session:
@@ -751,6 +788,8 @@ class SqlAlchemyReviewStore:
                 priority=priority,
                 status="queued",
                 last_updated=now,
+                classification_result=classification_result,
+                tags=tags,
             )
             session.execute(stmt)
             session.commit()

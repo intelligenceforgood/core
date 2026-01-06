@@ -23,7 +23,7 @@ from i4g.services.hybrid_search import HybridSearchQuery, HybridSearchService, Q
 from i4g.settings import get_settings
 from i4g.store.retriever import HybridRetriever
 from i4g.store.review_store import ReviewStore
-from i4g.taxonomy.models import AnalystFeedbackRequest
+from i4g.taxonomy.models import AnalystFeedbackRequest, ClassificationResult
 
 # Import the worker task — will be scheduled in background on "accepted"
 from i4g.worker.tasks import generate_report_for_case
@@ -41,7 +41,8 @@ class EnqueueRequest(BaseModel):
     priority: Optional[str] = "medium"
     # Optional preview fields for the UI
     text: Optional[str] = None
-    classification: Optional[Dict[str, Any]] = None
+    classification: Optional[ClassificationResult] = None
+    tags: Optional[List[str]] = None
     entities: Optional[Dict[str, Any]] = None
 
 
@@ -169,7 +170,12 @@ def enqueue_case(
     Returns:
         A dictionary containing the new review ID and the case ID.
     """
-    review_id = store.enqueue_case(case_id=payload.case_id, priority=payload.priority)
+    review_id = store.enqueue_case(
+        case_id=payload.case_id,
+        priority=payload.priority,
+        classification_result=payload.classification.model_dump() if payload.classification else None,
+        tags=payload.tags,
+    )
     # Optionally log that user enqueued it
     store.log_action(
         review_id,

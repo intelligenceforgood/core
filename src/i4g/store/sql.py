@@ -78,7 +78,9 @@ cases = sa.Table(
     "cases",
     METADATA,
     sa.Column("case_id", sa.Text(), primary_key=True),
-    sa.Column("ingestion_run_id", UUID_TYPE, sa.ForeignKey("ingestion_runs.run_id", ondelete="SET NULL"), nullable=True),
+    sa.Column(
+        "ingestion_run_id", UUID_TYPE, sa.ForeignKey("ingestion_runs.run_id", ondelete="SET NULL"), nullable=True
+    ),
     sa.Column("campaign_id", UUID_TYPE, sa.ForeignKey("campaigns.campaign_id", ondelete="SET NULL"), nullable=True),
     sa.Column("dataset", sa.Text(), nullable=False),
     sa.Column("source_type", sa.Text(), nullable=False),
@@ -219,6 +221,8 @@ scam_records = sa.Table(
     sa.Column("entities", JSON_TYPE, nullable=True),
     sa.Column("classification", sa.Text(), nullable=True),
     sa.Column("confidence", sa.Float(), nullable=True),
+    sa.Column("classification_result", JSON_TYPE, nullable=True),
+    sa.Column("tags", JSON_TYPE, nullable=True),
     sa.Column("created_at", TIMESTAMP, nullable=True),
     sa.Column("embedding", JSON_TYPE, nullable=True),
     sa.Column("metadata", JSON_TYPE, nullable=True),
@@ -235,6 +239,8 @@ review_queue = sa.Table(
     sa.Column("assigned_to", sa.Text(), nullable=True),
     sa.Column("notes", sa.Text(), nullable=True),
     sa.Column("last_updated", TIMESTAMP, nullable=True),
+    sa.Column("classification_result", JSON_TYPE, nullable=True),
+    sa.Column("tags", JSON_TYPE, nullable=True),
 )
 
 review_actions = sa.Table(
