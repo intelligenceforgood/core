@@ -4,6 +4,7 @@ Purpose: long-lived architectural references—system topology, IAM/security, an
 
 ## Contents
 - System architecture: [architecture.md](architecture.md)
+- Data Model & ERD: [data_model.md](data_model.md)
 - IAM strategy: [iam.md](iam.md)
 - PII vault model: [pii_vault.md](pii_vault.md)
 
