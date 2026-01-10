@@ -52,6 +52,8 @@ i4g/
 
 For detailed environment bootstrapping instructions, see [Bootstrap Environments](bootstrap_environments.md).
 
+For detailed instructions on managing the Fraud Taxonomy, see [Taxonomy Management](taxonomy_management.md).
+
 ---
 
 ## Local Datastore

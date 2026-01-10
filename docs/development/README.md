@@ -4,6 +4,7 @@ Purpose: build- and implementation-focused guides that evolve with the codebase.
 
 ## Contents
 - Developer guide: [dev_guide.md](dev_guide.md)
+- Taxonomy management: [taxonomy_management.md](taxonomy_management.md)
 - Technical design (API/contracts): [tdd.md](tdd.md)
 - Coverage and bundles: [bundle_sources_and_coverage.md](bundle_sources_and_coverage.md)
 - Retrieval on GCP: [retrieval_gcp_guide.md](retrieval_gcp_guide.md)

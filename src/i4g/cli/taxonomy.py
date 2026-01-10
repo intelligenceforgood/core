@@ -12,6 +12,7 @@ CORE_ROOT = Path(__file__).resolve().parents[3]
 WORKSPACE_ROOT = CORE_ROOT.parent
 DEFINITIONS_PATH = CORE_ROOT / "src/i4g/taxonomy/definitions.yaml"
 PYTHON_ENUMS_PATH = CORE_ROOT / "src/i4g/taxonomy/enums.py"
+PYTHON_DATA_PATH = CORE_ROOT / "src/i4g/taxonomy/data.py"
 TS_ENUMS_PATH = WORKSPACE_ROOT / "ui/packages/types/src/taxonomy.ts"
 DOCS_PATH = WORKSPACE_ROOT / "docs/book/api/taxonomy_reference.md"
 
@@ -22,6 +23,10 @@ def load_definitions() -> Dict[str, Any]:
 
 
 def generate_python_enums(data: Dict[str, Any]):
+    """
+    Generate Python Enums for backend type safety.
+    NOTE: These are still used by i4g.taxonomy.models for validation, even if the frontend fetches data dynamically.
+    """
     lines = [
         '"""',
         "Fraud Taxonomy Enums",
@@ -56,60 +61,90 @@ def generate_python_enums(data: Dict[str, Any]):
     typer.echo(f"Generated {PYTHON_ENUMS_PATH}")
 
 
-def generate_typescript_enums(data: Dict[str, Any]):
+def generate_taxonomy_data(data: Dict[str, Any]):
+    """
+    Generates the static data.py file which powers the API.
+    Transforms the flat definitions.yaml lists into the axes-based structure.
+    """
+    import datetime
+
+    # Axis metadata map
+    axis_meta = {
+        "intents": {"label": "Scam Intents", "description": "The primary goal or nature of the fraud."},
+        "channels": {"label": "Delivery Channels", "description": "The method or platform used to contact the victim."},
+        "techniques": {
+            "label": "Social Engineering Techniques",
+            "description": "The psychological manipulation methods used.",
+        },
+        "actions": {"label": "Requested Actions", "description": "What the fraudster asks the victim to do."},
+        "personas": {"label": "Claimed Personas", "description": "Who the fraudster claims to be."},
+    }
+
+    axes = []
+    for key, meta in axis_meta.items():
+        if key in data:
+            axes.append({"id": key, "label": meta["label"], "description": meta["description"], "items": data[key]})
+
+    # Construct the final dictionary
+    output_data = {
+        "version": data.get("version", "1.0"),
+        "steward": "Policy & Standards Team",
+        "updatedAt": datetime.datetime.utcnow().isoformat() + "Z",
+        "axes": axes,
+    }
+
+    lines = [
+        '"""Static taxonomy data."""',
+        "",
+        "from typing import Any, Dict",
+        "",
+        f"TAXONOMY_DEFINITIONS: Dict[str, Any] = {json.dumps(output_data, indent=4)}",
+        "",
+    ]
+
+    with open(PYTHON_DATA_PATH, "w") as f:
+        f.write("\n".join(lines))
+    typer.echo(f"Generated {PYTHON_DATA_PATH}")
+
+
+def generate_typescript_interfaces(data: Dict[str, Any]):
     lines = [
         "/**",
-        " * Fraud Taxonomy Enums",
+        " * Fraud Taxonomy Interfaces",
         f' * Version: fraud-taxonomy.v{data["version"]}',
         " *",
         " * Auto-generated from definitions.yaml. DO NOT EDIT.",
         " */",
         "",
+        "export interface TaxonomyItem {",
+        "  code: string;",
+        "  label: string;",
+        "  description: string;",
+        "  examples: string[];",
+        "}",
+        "",
+        "export interface TaxonomyAxis {",
+        "  id: string;",
+        "  label: string;",
+        "  description: string;",
+        "  items: TaxonomyItem[];",
+        "}",
+        "",
+        "export interface TaxonomyDefinitions {",
+        "  version: string;",
+        "  steward: string;",
+        "  updatedAt: string;",
+        "  axes: TaxonomyAxis[];",
+        "}",
+        "",
     ]
 
-    def add_enum(enum_name: str, items: List[Dict[str, Any]]):
-        lines.append(f"export enum {enum_name} {{")
-        for item in items:
-            key = item["code"].split(".")[-1]
-            lines.append(f'  /** {item["description"]} */')
-            lines.append(f'  {key} = "{item["code"]}",')
-        lines.append("}")
-        lines.append("")
-
-        # Generate description map
-        lines.append(f"export const {enum_name}Descriptions: Record<{enum_name}, string> = {{")
-        for item in items:
-            key = item["code"].split(".")[-1]
-            # Escape quotes in description just in case
-            desc = item["description"].replace('"', '\\"')
-            lines.append(f'  [{enum_name}.{key}]: "{desc}",')
-        lines.append("};")
-        lines.append("")
-
-        # Generate Label map
-        lines.append(f"export const {enum_name}Labels: Record<{enum_name}, string> = {{")
-        for item in items:
-            key = item["code"].split(".")[-1]
-            label = item.get("label", key).replace('"', '\\"')
-            lines.append(f'  [{enum_name}.{key}]: "{label}",')
-        lines.append("};")
-        lines.append("")
-
-        # Generate Examples map
-        lines.append(f"export const {enum_name}Examples: Record<{enum_name}, string[]> = {{")
-        for item in items:
-            key = item["code"].split(".")[-1]
-            examples = item.get("examples", [])
-            ex_str = json.dumps(examples)
-            lines.append(f"  [{enum_name}.{key}]: {ex_str},")
-        lines.append("};")
-        lines.append("")
-
-    add_enum("ScamIntent", data["intents"])
-    add_enum("DeliveryChannel", data["channels"])
-    add_enum("SocialEngineeringTechnique", data["techniques"])
-    add_enum("RequestedAction", data["actions"])
-    add_enum("ClaimedPersona", data["personas"])
+    # Check if we still need these for backward compatibility in the short term,
+    # but based on the request "removing the frontend code", we should probably NOT generate values.
+    # However, to avoid instant compilation errors for `ScamIntent.IMPOSTER`, we might want to generate
+    # const objects that map to the strings, OR we accept the breakage and fix it.
+    # The user asked to "help me do this refactor", implying I should fix the code.
+    # I will generate the interfaces ONLY, and then I will go fix the frontend code to use strings.
 
     # Ensure directory exists
     TS_ENUMS_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -158,12 +193,15 @@ import subprocess
 @taxonomy_app.command("refresh")
 def refresh_taxonomy():
     """
-    Regenerate Python enums, TypeScript enums, and Markdown docs from definitions.yaml.
+    Regenerate static data.py, TypeScript interfaces (types), and Markdown docs from definitions.yaml.
     """
     try:
         data = load_definitions()
+        # generate_python_enums(data) # backend models usually need this, but we are moving to dynamic.
+        # Keeping generate_python_enums for now as models.py depends on it, but updating docstring to reflect primary artifacts.
         generate_python_enums(data)
-        generate_typescript_enums(data)
+        generate_taxonomy_data(data)
+        generate_typescript_interfaces(data)
         generate_markdown_docs(data)
 
         # Attempt to format the generated TypeScript file

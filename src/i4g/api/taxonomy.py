@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from i4g.taxonomy.data import TAXONOMY_TREE_RESPONSE
+from i4g.taxonomy.data import TAXONOMY_DEFINITIONS
 
 router = APIRouter(prefix="/taxonomy", tags=["taxonomy"])
 
@@ -11,4 +11,4 @@ router = APIRouter(prefix="/taxonomy", tags=["taxonomy"])
 def get_taxonomy() -> dict[str, object]:
     """Serve the taxonomy hierarchy that backs the UI filters."""
 
-    return TAXONOMY_TREE_RESPONSE
+    return TAXONOMY_DEFINITIONS

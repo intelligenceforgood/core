@@ -35,11 +35,17 @@ channels:
     ...
 ```
 
-**Codegen Pipeline:**
+**Generation Pipeline:**
 A build script (`i4g taxonomy refresh`) consumes this YAML to generate:
-- `core/src/i4g/taxonomy/enums.py` (Python Enums)
-- `ui/packages/types/src/taxonomy.ts` (TypeScript Enums)
-- `docs/taxonomy_reference.md` (Auto-generated documentation)
+- **Backend Data:** `core/src/i4g/taxonomy/data.py` containing the full taxonomy tree as a Python dictionary (`TAXONOMY_DEFINITIONS`).
+- **Frontend Types:** `ui/packages/types/src/taxonomy.ts` containing TypeScript **Interfaces** only (`TaxonomyAxis`, `TaxonomyItem`).
+- **Documentation:** `docs/taxonomy_reference.md` (Auto-generated documentation).
+
+**Dynamic Loading Architecture:**
+Unlike traditional builds that compile enumerations into the frontend bundle, this system uses a **runtime fetch model**:
+1. **Backend:** The API loads `TAXONOMY_DEFINITIONS` from `data.py` and serves it via `GET /taxonomy`.
+2. **Frontend:** The UI fetches this endpoint on load to populate tooltips, search filters, and badges.
+3. **Benefits:** Descriptions, labels, and even new categories can be updated in the backend (or via OTA updates) without requiring a UI rebuild.
 
 ## 3. Data Model & Schema
 

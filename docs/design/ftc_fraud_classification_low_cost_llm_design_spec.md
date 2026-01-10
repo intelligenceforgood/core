@@ -56,28 +56,23 @@ Post-Processing & Storage
 
 ### 5.1 Canonical Taxonomy Definition
 
-Maintain a **static, versioned FTC taxonomy file** (YAML or JSON):
+The system utilizes the shared workspace taxonomy as the **Canonical Source of Truth**. This is defined in `core/data/taxonomy/definitions.yaml` and loaded into the Python runtime as a dictionary (`TAXONOMY_DEFINITIONS`).
 
 ```yaml
-- category: Imposter Scams
-  description: Scams where the fraudster pretends to be someone else.
-  subcategories:
-    - Government Imposter
-    - Business Imposter
-    - Tech Support Imposter
-
-- category: Investment Scams
-  description: Scams promising high or guaranteed returns.
-  subcategories:
-    - Cryptocurrency
-    - Real Estate
-    - Stocks & Bonds
+# From core/data/taxonomy/definitions.yaml
+intents:
+  - code: "INTENT.IMPOSTER"
+    label: "Imposter Scams"
+    description: "Scams where the fraudster pretends to be someone else."
+    children:
+      - "Government Imposter"
+      - "Business Imposter"
 ```
 
-This file is:
-- Loaded into prompt context
-- Cached in application memory
-- Easy to update without code changes
+This data structure is:
+- **Loaded into prompt context** dynamically during inference.
+- **Cached in application memory** (via `i4g.taxonomy.data`).
+- **Unified** with the Frontend and API, ensuring the LLM classifies using the exact same definitions that users see in the UI.
 
 ---
 

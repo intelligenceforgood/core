@@ -22,7 +22,7 @@ def db_session():
 def test_create_campaign_success(db_session):
     """Test creating a campaign with valid taxonomy linkage."""
     service = CampaignService(db_session)
-    valid_id = "tax-trafficking"  # Known ID from taxonomy/data.py
+    valid_id = "INTENT.IMPOSTER"  # Known ID from taxonomy/data.py
 
     campaign_id = service.create_campaign(
         name="Test Campaign",
@@ -58,7 +58,7 @@ def test_list_active_campaigns(db_session):
     service = CampaignService(db_session)
 
     # Create two campaigns
-    c1 = service.create_campaign("C1", "D1", {}, ["tax-financial"])
+    c1 = service.create_campaign("C1", "D1", {}, ["INTENT.INVESTMENT"])
     c2 = service.create_campaign("C2", "D2", {}, [])
 
     results = service.list_active_campaigns()
@@ -66,7 +66,7 @@ def test_list_active_campaigns(db_session):
     assert len(results) == 2
 
     r1 = next(r for r in results if r["id"] == c1)
-    assert r1["taxonomy_rollup"] == ["tax-financial"]
+    assert r1["taxonomy_rollup"] == ["INTENT.INVESTMENT"]
 
     r2 = next(r for r in results if r["id"] == c2)
     assert r2["taxonomy_rollup"] == []
@@ -78,11 +78,11 @@ def test_update_campaign(db_session):
     c_id = service.create_campaign("Update Me", "Original", {}, [])
 
     # Update with valid ID
-    service.update_campaign(c_id, associated_taxonomy_ids=["tax-intake"])
+    service.update_campaign(c_id, associated_taxonomy_ids=["INTENT.IMPOSTER"])
 
     stmt = sa.select(campaigns).where(campaigns.c.campaign_id == c_id)
     row = db_session.execute(stmt).fetchone()
-    assert row.taxonomy_rollup == ["tax-intake"]
+    assert row.taxonomy_rollup == ["INTENT.IMPOSTER"]
 
     # Update with Invalid ID should fail
     with pytest.raises(ValueError, match="Invalid taxonomy IDs"):

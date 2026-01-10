@@ -17,7 +17,7 @@ This document outlines the **Integration Layer** (the "Golden Thread") that conn
 
 | Layer | Speed | Owner | Purpose | Example |
 |-------|-------|-------|---------|---------|
-| **Governance Taxonomy** | Slow (Annual) | Policy / Execs | Strategic Reporting, Regulatory Compliance | "Financial Facilitation" |
+| **Governance Taxonomy** | Slow (Annual) | Policy / Execs | Strategic Reporting, Regulatory Compliance | "Investment Fraud" |
 | **Active Campaigns** | Fast (Weekly) | Analysts / Ops | Tactical Detection, Immediate Response | "Crypto Investment Scam 2025" |
 
 This separation protects long-term reporting metrics from the volatility of daily fraud patterns.
@@ -37,7 +37,7 @@ This mapping acts as the translation layer between "What is happening now" and "
 
 1.  **Ingestion & Classification:** The system observes a case with raw technical signals (e.g., specific pig-butchering script text).
 2.  **Tactical Matching:** The `CampaignService` identifies this as part of the "Crypto Pig Butchering" Campaign.
-3.  **Strategic Rollup:** Because the Analyst has explicitly linked this Campaign to the `tax-financial` (Financial Facilitation) node, the system immediately understands the strategic impact. 
+3.  **Strategic Rollup:** Because the Analyst has explicitly linked this Campaign to the `INTENT.INVESTMENT` (Investment) node, the system immediately understands the strategic impact. 
 4.  **Result:** Operational teams work the "Pig Butchering" queue, while Executive dashboards automatically reflect an increase in "Financial Facilitation" risk.
 
 ## 3. Implementation Design
@@ -53,7 +53,7 @@ A dedicated `taxonomy_rollup` column ensures this relationship is a first-class 
 {
   "name": "Romance Scam Winter 2025",
   "filters": { "intent": ["romance"], "techniques": ["grooming"] },
-  "reporting_categories": ["tax-trafficking-sex", "tax-financial"]
+  "reporting_categories": ["INTENT.ROMANCE", "INTENT.INVESTMENT"]
 }
 ```
 

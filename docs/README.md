@@ -10,6 +10,7 @@ This page routes contributors, operators, and reviewers to the right guides.
 
 ## Start here
 - Developer guides: [development/dev_guide.md](development/dev_guide.md)
+- Taxonomy management: [development/taxonomy_management.md](development/taxonomy_management.md)
 - Architecture: [design/architecture.md](design/architecture.md)
 - Technical design (API/contracts): [development/tdd.md](development/tdd.md)
 - Cookbooks (how-tos): [cookbooks/README.md](cookbooks/README.md)

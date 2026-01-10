@@ -7,7 +7,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from i4g.store.sql import campaigns
-from i4g.taxonomy.data import TAXONOMY_TREE_RESPONSE
+from i4g.taxonomy.data import TAXONOMY_DEFINITIONS
 from i4g.taxonomy.models import FraudClassificationResult
 
 
@@ -173,14 +173,9 @@ class CampaignService:
             raise ValueError(f"Invalid taxonomy IDs: {invalid_ids}")
 
     def _get_all_taxonomy_ids(self) -> Set[str]:
-        """Traverse the taxonomy tree and collect all IDs."""
+        """Traverse the taxonomy axes and collect all item codes."""
         ids = set()
-        # TAXONOMY_TREE_RESPONSE["nodes"] is assumed to be a list of dicts
-        queue = list(TAXONOMY_TREE_RESPONSE.get("nodes", []))
-        while queue:
-            node = queue.pop()
-            if "id" in node:
-                ids.add(node["id"])
-            if "children" in node:
-                queue.extend(node["children"])
+        for axis in TAXONOMY_DEFINITIONS.get("axes", []):
+            for item in axis.get("items", []):
+                ids.add(item["code"])
         return ids
