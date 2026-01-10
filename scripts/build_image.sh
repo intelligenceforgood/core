@@ -29,6 +29,7 @@ DOCKERFILE=""
 IMAGE_TAG=""
 REGISTRY_PREFIX="us-central1-docker.pkg.dev/i4g-dev/applications"
 SMOKER="false"
+NO_CACHE="false"
 EXTRA_BUILD_ARGS=()
 POSITIONAL=()
 TEMP_SMOKE_DIR=""
@@ -38,6 +39,10 @@ while [[ $# -gt 0 ]]; do
         -f|--dockerfile)
             DOCKERFILE="$2"
             shift 2
+            ;;
+        --no-cache)
+            NO_CACHE="true"
+            shift
             ;;
         -i|--image)
             IMAGE_TAG="$2"
@@ -112,6 +117,10 @@ cleanup() {
 trap cleanup EXIT
 
 BUILD_CMD=(docker buildx build --platform linux/amd64 -f "$DOCKERFILE" -t "$IMAGE_TAG" --build-arg "SMOKER=$SMOKER" --build-context "smoke_data=$SMOKE_CONTEXT_PATH")
+
+if [[ "$NO_CACHE" == "true" ]]; then
+    BUILD_CMD+=(--no-cache)
+fi
 
 if ((${#EXTRA_BUILD_ARGS[@]})); then
     for arg in "${EXTRA_BUILD_ARGS[@]}"; do

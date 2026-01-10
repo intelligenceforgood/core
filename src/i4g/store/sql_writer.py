@@ -86,6 +86,7 @@ class CasePayload:
     source_type: str
     classification: str
     confidence: float
+    classification_status: str = "pending"
     classification_result: Dict[str, Any] | None = None
     tags: List[str] | None = None
     text: str | None = None
@@ -265,6 +266,7 @@ class SqlWriter:
             "dataset": payload.dataset,
             "source_type": payload.source_type,
             "classification": payload.classification,
+            "classification_status": payload.classification_status,
             "classification_result": payload.classification_result,
             "tags": payload.tags,
             "confidence": _quantize_decimal(payload.confidence),

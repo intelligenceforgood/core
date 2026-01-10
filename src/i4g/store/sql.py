@@ -86,6 +86,7 @@ cases = sa.Table(
     sa.Column("dataset", sa.Text(), nullable=False),
     sa.Column("source_type", sa.Text(), nullable=False),
     sa.Column("classification", sa.Text(), nullable=True),  # Changed from JSON_TYPE to Text for label
+    sa.Column("classification_status", sa.Text(), nullable=False, server_default="pending"),
     sa.Column("classification_result", JSON_TYPE, nullable=True),
     sa.Column("tags", JSON_TYPE, nullable=True),
     sa.Column("confidence", sa.Numeric(5, 4), nullable=False, server_default="0"),
@@ -101,6 +102,7 @@ cases = sa.Table(
     sa.UniqueConstraint("dataset", "raw_text_sha256", name="uq_cases_dataset_rawsha"),
 )
 sa.Index("idx_cases_dataset_reported_at", cases.c.dataset, cases.c.reported_at)
+sa.Index("idx_cases_classification_status", cases.c.classification_status)
 sa.Index("idx_cases_classification", cases.c.classification)
 sa.Index("idx_cases_tags", cases.c.tags, postgresql_using="gin")  # GIN index for tags array
 sa.Index("idx_cases_status", cases.c.status)

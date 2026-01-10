@@ -67,3 +67,10 @@ def jobs_dossier() -> None:
     from i4g.worker.jobs import dossier_queue
 
     _exit_from_return(dossier_queue.main())
+
+
+@jobs_app.command("sweeper", help="Run classification sweeper job.")
+def jobs_sweeper() -> None:
+    from i4g.worker.jobs import classification_sweeper
+
+    classification_sweeper.run()
