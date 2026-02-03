@@ -1,7 +1,6 @@
 """Campaign management endpoints."""
 
 from typing import Any, Dict, List, Optional
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -28,7 +27,7 @@ def get_service(session: Session = Depends(get_db_session)) -> CampaignService:
 
 
 class CampaignResponse(BaseModel):
-    id: UUID
+    id: str
     name: str
     description: Optional[str] = None
     taxonomy_labels: Optional[Dict[str, Any]] = None

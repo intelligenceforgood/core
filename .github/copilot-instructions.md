@@ -15,11 +15,11 @@
 
 4. **Core Architecture** – `src/i4g/api/app.py` wires FastAPI routers, middleware (rate limit + TASK_STATUS), and the report-generation lock. `src/i4g/api/review.py` orchestrates search + queue actions backed by `ReviewStore`, `HybridRetriever`, and audit logging via `store.log_action`. Background work executes through `src/i4g/worker/jobs/*` and `src/i4g/worker/tasks.py` (e.g., `generate_report_for_case`).
 
-5. **Developer Loop** – Install editable (`pip install -e .`) so CLI entry points (`i4g`, `i4g-azure`) resolve. Typical cycle: `uvicorn i4g.api.app:app --reload`, `pytest tests/unit`, and targeted demos in `tests/adhoc/` for OCR/extraction/report validation. Regenerate the sandbox with `i4g bootstrap local reset --report-dir data/reports/bootstrap_local` (use `--skip-*` flags for partial rebuilds). Call out if tests were skipped.
+5. **Developer Loop** – Install editable (`pip install -e .`) so CLI entry points (`i4g`) resolve. Typical cycle: `uvicorn i4g.api.app:app --reload`, `pytest tests/unit`, and targeted demos in `tests/adhoc/` for OCR/extraction/report validation. Regenerate the sandbox with `i4g bootstrap local reset --report-dir data/reports/bootstrap_local` (use `--skip-*` flags for partial rebuilds). Call out if tests were skipped.
 
-6. **Environment Profiles** – `I4G_ENV=local` enforces mock identity + SQLite/Chroma; cloud targets (`i4g-dev`, `i4g-prod`) expect Firestore, Secret Manager, Artifact Registry, and Cloud Run. `Settings._resolve_paths` normalizes relative paths—pass project-relative references instead of manual `Path` math.
+6. **Environment Profiles** – `I4G_ENV=local` enforces mock identity + SQLite/Chroma; cloud targets (`i4g-dev`, `i4g-prod`) expect PostgreSQL, Secret Manager, Artifact Registry, and Cloud Run. `Settings._resolve_paths` normalizes relative paths—pass project-relative references instead of manual `Path` math.
 
-7. **Data & Secrets** – Runtime artifacts live in `data/` (SQLite DB, Chroma store, OCR outputs, reports). Delete/refresh them via the bootstrap script rather than custom helpers. Store non-`NEXT_PUBLIC_*` secrets in `.env.local` or platform secret managers.
+7. **Data & Secrets** – Runtime artifacts live in `data/` (SQLite DB, Chroma store, OCR outputs, reports). Delete/refresh them via the bootstrap script rather than custom helpers. Store non-`NEXT_PUBLIC_*` secrets in `.env.local` or platform secret managers. Refer to `docs/design/storage.md` for data flow and retention policies in both local and dev environments.
 
 8. **Docker Build Reference** – Use `scripts/build_image.sh` (requires `gcloud` auth).
    - UI: `cd ui/ && scripts/build_image.sh i4g-console dev`
