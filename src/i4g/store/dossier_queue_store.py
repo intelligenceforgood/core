@@ -8,7 +8,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
+import sqlalchemy as sa
+from sqlalchemy.orm import sessionmaker
+
 from i4g.settings import get_settings
+from i4g.store import sql as sql_schema
+from i4g.store.sql import session_factory as default_session_factory
 
 if TYPE_CHECKING:  # pragma: no cover - import used only for type hints
     from i4g.reports.bundle_builder import DossierPlan
@@ -231,4 +236,212 @@ class DossierQueueStore:
             result["status"] = record.get("status")
         if "error" in record:
             result["error"] = record.get("error")
+        return result
+
+
+class SqlAlchemyDossierQueueStore:
+    """SQLAlchemy-backed queue for dossier bundle plans."""
+
+    def __init__(self, session_factory: sessionmaker | None = None) -> None:
+        self._session_factory = session_factory or default_session_factory()
+        # Ensure tables exist (best effort for dev flows)
+        with self._session_factory() as session:
+            settings = get_settings()
+            conn = session.connection()
+            if settings.storage.structured_backend == "cloudsql":
+                try:
+                    # Force creation if not exists, though migrations should handle this
+                    if not sa.inspect(conn).has_table("dossier_queue"):
+                        sql_schema.dossier_queue.create(conn)
+                except Exception:
+                    pass
+
+    def enqueue_plan(self, plan: "DossierPlan", *, priority: str = "normal") -> str:
+        """Insert or replace a dossier plan in the queue."""
+
+        now = datetime.now(timezone.utc)
+        payload = json.dumps(plan.to_dict(), sort_keys=True)
+
+        stmt = sa.pool.base._CommonRequest()  # Just a dummy to hold logic
+
+        # Postgres UPSERT using ON CONFLICT since plan_id is PK
+        from sqlalchemy.dialects.postgresql import insert
+
+        insert_stmt = insert(sql_schema.dossier_queue).values(
+            plan_id=plan.plan_id,
+            status="pending",
+            priority=priority,
+            payload=payload,
+            queued_at=now,
+            updated_at=now,
+            warnings=None,
+            error=None,
+        )
+
+        do_update_stmt = insert_stmt.on_conflict_do_update(
+            index_elements=["plan_id"],
+            set_={
+                "status": "pending",
+                "priority": insert_stmt.excluded.priority,
+                "payload": insert_stmt.excluded.payload,
+                "queued_at": insert_stmt.excluded.queued_at,
+                "updated_at": insert_stmt.excluded.updated_at,
+                "warnings": None,
+                "error": None,
+            },
+        )
+
+        with self._session_factory() as session:
+            session.execute(do_update_stmt)
+            session.commit()
+
+        return plan.plan_id
+
+    def list_pending(self, *, limit: int = 25) -> List[Dict[str, Any]]:
+        """Return pending queue entries along with their serialized plans."""
+
+        stmt = (
+            sa.select(sql_schema.dossier_queue)
+            .where(sql_schema.dossier_queue.c.status == "pending")
+            .order_by(sql_schema.dossier_queue.c.queued_at.asc())
+            .limit(limit)
+        )
+
+        with self._session_factory() as session:
+            rows = session.execute(stmt).fetchall()
+
+        return [self._row_to_dict(row) for row in rows]
+
+    def list_plans(self, *, status: str | None = None, limit: int = 50) -> List[Dict[str, Any]]:
+        """Return queue entries filtered by ``status``."""
+
+        stmt = sa.select(sql_schema.dossier_queue).limit(limit).order_by(sql_schema.dossier_queue.c.updated_at.desc())
+
+        if status:
+            stmt = stmt.where(sql_schema.dossier_queue.c.status == status)
+
+        with self._session_factory() as session:
+            rows = session.execute(stmt).fetchall()
+
+        return [self._row_to_dict(row) for row in rows]
+
+    def get_plan(self, plan_id: str) -> Optional[Dict[str, Any]]:
+        """Return a single queue entry regardless of status."""
+
+        stmt = sa.select(sql_schema.dossier_queue).where(sql_schema.dossier_queue.c.plan_id == plan_id)
+
+        with self._session_factory() as session:
+            row = session.execute(stmt).fetchone()
+
+        if not row:
+            return None
+        return self._row_to_dict(row)
+
+    def mark_complete(self, plan_id: str, *, warnings: Optional[Sequence[str]] = None) -> None:
+        """Mark a queued plan as completed and persist optional warnings."""
+        self._update_status(plan_id, status="completed", warnings=warnings)
+
+    def mark_failed(self, plan_id: str, error: str) -> None:
+        """Mark a queued plan as failed with an error message."""
+        self._update_status(plan_id, status="failed", error=error)
+
+    def reset(self, plan_id: str) -> None:
+        """Return a leased plan to the pending state (used for dry runs)."""
+        self._update_status(plan_id, status="pending", warnings=None)
+
+    def lease_next(self) -> Optional[Dict[str, Any]]:
+        """Atomically lease the next pending entry for processing."""
+
+        now = datetime.now(timezone.utc)
+
+        # Postgres: UPDATE ... RETURNING with subquery logic is tricky in standard SQL
+        # Use CTE or subquery with FOR UPDATE SKIP LOCKED
+
+        with self._session_factory() as session:
+            # Subquery to identify the row to lock
+            subq = (
+                sa.select(sql_schema.dossier_queue.c.plan_id)
+                .where(sql_schema.dossier_queue.c.status == "pending")
+                .order_by(sql_schema.dossier_queue.c.queued_at.asc())
+                .limit(1)
+                .with_for_update(skip_locked=True)
+                .scalar_subquery()
+            )
+
+            stmt = (
+                sa.update(sql_schema.dossier_queue)
+                .where(sql_schema.dossier_queue.c.plan_id == subq)
+                .values(status="leased", updated_at=now)
+                .returning(sql_schema.dossier_queue)
+            )
+
+            row = session.execute(stmt).fetchone()
+            session.commit()
+
+        if not row:
+            return None
+        return self._row_to_dict(row)
+
+    def _update_status(
+        self,
+        plan_id: str,
+        *,
+        status: str,
+        error: Optional[str] = None,
+        warnings: Optional[Sequence[str]] = None,
+    ) -> None:
+
+        now = datetime.now(timezone.utc)
+        warnings_payload = json.dumps(list(warnings)) if warnings is not None else None
+
+        values = {
+            "status": status,
+            "updated_at": now,
+        }
+        # Only update error/warnings if explicitly passed (or None to clear)
+        # But here valid args are passed so we can set them
+        if error is not None:
+            values["error"] = error
+        elif status == "pending":  # Clear error on reset
+            values["error"] = None
+
+        if warnings is not None:
+            values["warnings"] = warnings_payload
+        elif status == "pending":
+            values["warnings"] = None
+
+        stmt = sa.update(sql_schema.dossier_queue).where(sql_schema.dossier_queue.c.plan_id == plan_id).values(**values)
+
+        with self._session_factory() as session:
+            session.execute(stmt)
+            session.commit()
+
+    def _row_to_dict(self, row: Any) -> Dict[str, Any]:
+        # SQLAlchemy Row acts like KeyedTuple
+        # We need to access columns by name or index
+        # Assuming row is a `Row` object from sqlalchemy
+
+        # Helper to safely get value from row
+        def get_val(key):
+            try:
+                return getattr(row, key)
+            except AttributeError:
+                # Fallback if indices are needed or mapping used?
+                # For `select(Table)`, `row` is a Row object with attributes matching columns
+                return row._mapping[key]
+
+        payload_raw = get_val("payload")
+        payload = json.loads(payload_raw) if payload_raw else {}
+        warnings_raw = get_val("warnings")
+
+        result = {
+            "plan_id": get_val("plan_id"),
+            "status": get_val("status"),
+            "priority": get_val("priority"),
+            "payload": payload,
+            "queued_at": get_val("queued_at").isoformat() if get_val("queued_at") else None,
+            "updated_at": get_val("updated_at").isoformat() if get_val("updated_at") else None,
+            "warnings": json.loads(warnings_raw) if warnings_raw else [],
+            "error": get_val("error"),
+        }
         return result

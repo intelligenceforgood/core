@@ -185,6 +185,20 @@ sa.Index("idx_indicators_category_number", indicators.c.category, indicators.c.n
 sa.Index("idx_indicators_case_id", indicators.c.case_id)
 sa.Index("idx_indicators_last_seen_at", indicators.c.last_seen_at)
 
+dossier_queue = sa.Table(
+    "dossier_queue",
+    METADATA,
+    sa.Column("plan_id", sa.Text(), primary_key=True),
+    sa.Column("status", sa.Text(), nullable=False),
+    sa.Column("priority", sa.Text(), nullable=False),
+    sa.Column("payload", sa.Text(), nullable=False),
+    sa.Column("queued_at", TIMESTAMP, nullable=False),
+    sa.Column("updated_at", TIMESTAMP, nullable=False),
+    sa.Column("error", sa.Text(), nullable=True),
+    sa.Column("warnings", sa.Text(), nullable=True),
+)
+sa.Index("idx_dossier_queue_status", dossier_queue.c.status)
+
 indicator_sources = sa.Table(
     "indicator_sources",
     METADATA,

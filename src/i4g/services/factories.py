@@ -21,7 +21,7 @@ from i4g.services.vertex_writer import VertexDocumentWriter
 from i4g.services.classifier import FraudClassifier
 from i4g.settings import get_settings
 from i4g.storage import EvidenceStorage
-from i4g.store.dossier_queue_store import DossierQueueStore
+from i4g.store.dossier_queue_store import DossierQueueStore, SqlAlchemyDossierQueueStore
 from i4g.store.entity_store import EntityStore
 from i4g.store.ingestion_retry_store import IngestionRetryStore
 from i4g.store.ingestion_run_tracker import IngestionRunTracker
@@ -208,8 +208,18 @@ def build_vertex_writer(*, settings: "Settings" | None = None) -> VertexDocument
 
 
 def build_dossier_queue_store(db_path: str | Path | None = None) -> DossierQueueStore:
-    """Return a DossierQueueStore instance backed by the configured SQLite DB."""
-    return DossierQueueStore(db_path=db_path)
+    """Return a DossierQueueStore instance backed by the configured backend."""
+
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "sqlite":
+        return DossierQueueStore(db_path=db_path)
+
+    if backend == "cloudsql":
+        session_factory = build_sql_session_factory()
+        return SqlAlchemyDossierQueueStore(session_factory=session_factory)
+
+    raise NotImplementedError(f"Unsupported dossier queue backend '{backend}'")
 
 
 def build_tokenization_service() -> TokenizationService:
