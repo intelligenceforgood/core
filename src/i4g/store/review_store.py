@@ -295,6 +295,206 @@ class ReviewStore:
             rows = conn.execute(query, tuple(normalized)).fetchall()
         return {str(row["case_id"]): self._parse_row(row) for row in rows}
 
+    def get_extended_case(self, case_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch full case details joined with scam_records and actions."""
+        # Query supporting fields from both review_queue (workflow) and scam_records (content)
+        query = """
+            SELECT
+                rq.review_id,
+                rq.case_id,
+                rq.status,
+                rq.priority,
+                rq.assigned_to,
+                rq.tags,
+                rq.queued_at,
+                rq.last_updated,
+                rq.notes,
+                rq.classification_result,
+                sr.text,
+                sr.entities,
+                sr.classification,
+                sr.confidence,
+                sr.metadata
+            FROM review_queue rq
+            LEFT JOIN scam_records sr ON sr.case_id = rq.case_id
+            WHERE rq.case_id = ?
+        """
+
+        with self._connect() as conn:
+            row = conn.execute(query, (case_id,)).fetchone()
+            if not row:
+                return None
+
+            data = self._parse_row(row)
+
+            # Fetch Timeline
+            actions = conn.execute(
+                """
+                SELECT action_id, actor, action, payload, created_at
+                FROM review_actions
+                WHERE review_id = ?
+                ORDER BY created_at DESC
+                """,
+                (data["review_id"],),
+            ).fetchall()
+
+            data["timeline"] = [self._parse_row(a) for a in actions]
+            return data
+
+    def get_dashboard_summary(
+        self,
+        limit: int = 50,
+        status: Optional[str] = None,
+        priority: Optional[str] = None,
+        queue: Optional[str] = None,
+        due_date: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Aggregate summary statistics and recent cases for the dashboard."""
+        summary = {
+            "active": 0,
+            "dueToday": 0,
+            "pendingReview": 0,
+            "escalations": 0,
+        }
+        cases_list = []
+
+        # Fetch all items to aggregate counts correctly regardless of filters
+        query = """
+            SELECT
+                rq.case_id,
+                rq.status,
+                rq.priority,
+                rq.assigned_to,
+                rq.tags,
+                rq.last_updated,
+                rq.queued_at,
+                sr.metadata
+            FROM review_queue rq
+            LEFT JOIN scam_records sr ON sr.case_id = rq.case_id
+            WHERE rq.status != 'closed'
+            ORDER BY rq.last_updated DESC
+        """
+
+        with self._connect() as conn:
+            rows = conn.execute(query).fetchall()
+
+        today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+        # Queues Map for counting
+        queues_map = {
+            "Rapid Response": 0,
+            "Policy Review": 0,
+            "Financial Intelligence": 0,
+            "NGO Coordination": 0,
+        }
+
+        for r in rows:
+            row = dict(r)
+            meta = {}
+            if row["metadata"]:
+                try:
+                    meta = json.loads(row["metadata"])
+                except Exception:
+                    pass
+
+            row_queue = meta.get("queue")
+
+            # Filter out invalid system/audit entries before counting
+            ui_status = row["status"]
+            if ui_status == "queued":
+                ui_status = "new"  # Map 'queued' backend state to 'new' for UI
+
+            if row["priority"] not in ("critical", "high", "medium", "low"):
+                continue
+
+            # 1. Update Counts
+            summary["active"] += 1
+
+            if row["status"] == "queued":
+                summary["pendingReview"] += 1
+
+            if row["priority"] in ("high", "critical"):
+                summary["escalations"] += 1
+
+            due_at = meta.get("dueAt")
+            # Count if due today OR overdue (due_at <= today_str)
+            if due_at and due_at[:10] <= today_str:
+                summary["dueToday"] += 1
+
+            # Update Queue Counts
+            if row_queue and row_queue in queues_map:
+                queues_map[row_queue] += 1
+
+            # 2. Build Case List (Apply Filters)
+            if status:
+                statuses = status.split(",")
+                if ui_status not in statuses:
+                    continue
+            if priority:
+                priorities = priority.split(",")
+                if row["priority"] not in priorities:
+                    continue
+            if queue and row_queue != queue:
+                continue
+
+            if due_date == "today":
+                # Include cases due today or overdue
+                d_at = meta.get("dueAt")
+                if not (d_at and d_at[:10] <= today_str):
+                    continue
+
+            if len(cases_list) < limit:
+                tags = []
+                if row["tags"]:
+                    try:
+                        tags = json.loads(row["tags"])
+                    except:
+                        tags = []
+
+                cases_list.append(
+                    {
+                        "id": row["case_id"],
+                        "title": meta.get("title", f"Case {row['case_id']}"),
+                        "priority": row["priority"],
+                        "status": ui_status,
+                        "updatedAt": row["last_updated"] or row["queued_at"],
+                        "assignee": row["assigned_to"],
+                        "queue": row_queue or "General",
+                        "tags": tags,
+                        "progress": meta.get("progress", 0),
+                        "dueAt": due_at,
+                    }
+                )
+
+        queues_list = [
+            {
+                "id": "queue-rapid",
+                "name": "Rapid Response",
+                "description": "Emergent escalations",
+                "count": queues_map["Rapid Response"],
+            },
+            {
+                "id": "queue-policy",
+                "name": "Policy Review",
+                "description": "Policy adjudication",
+                "count": queues_map["Policy Review"],
+            },
+            {
+                "id": "queue-fin",
+                "name": "Financial Intelligence",
+                "description": "Payment analysis",
+                "count": queues_map["Financial Intelligence"],
+            },
+            {
+                "id": "queue-ngo",
+                "name": "NGO Coordination",
+                "description": "Partner intake",
+                "count": queues_map["NGO Coordination"],
+            },
+        ]
+
+        return {"summary": summary, "cases": cases_list, "queues": queues_list}
+
     def update_status(self, review_id: str, status: str, notes: Optional[str] = None) -> None:
         """Update the status (accepted/rejected/etc.) and optional notes."""
         now = datetime.now(timezone.utc).isoformat()

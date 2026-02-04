@@ -13,6 +13,7 @@ from i4g.store.sql import (
     review_queue,
     review_actions,
     ingestion_runs,
+    scam_records,
 )
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -56,7 +57,10 @@ def _get_new_leads(session: Session) -> Dict[str, str]:
     now = datetime.now(timezone.utc)
     start_dt = now - timedelta(days=7)
 
-    count = session.scalar(select(func.count(cases.c.case_id)).where(cases.c.created_at >= start_dt)) or 0
+    # Use review_queue as proxy for cases in local mode if 'cases' table missing or mapped
+    # The 'cases' table exists in SQL metadata but might not be in SQLite if relying on ReviewStore init.
+    # We switch to review_queue here for consistency in the simple stack.
+    count = session.scalar(select(func.count(review_queue.c.case_id)).where(review_queue.c.queued_at >= start_dt)) or 0
 
     return {"label": "New leads this week", "value": str(count), "change": f"+{count} sourced automatically"}
 
@@ -116,10 +120,11 @@ def _get_recent_activity(session: Session) -> List[Dict[str, str]]:
 
 def _get_alerts(session: Session) -> List[Dict[str, str]]:
     """Get alerts based on high priority cases created recently."""
+    # Use scam_records instead of cases since 'cases' table is missing in local mode
     rows = session.execute(
-        select(cases.c.case_id, cases.c.classification, cases.c.created_at)
-        .where(cases.c.classification.in_(["scam", "fraud", "phishing"]))  # Example filters
-        .order_by(desc(cases.c.created_at))
+        select(scam_records.c.case_id, scam_records.c.classification, scam_records.c.created_at)
+        .where(scam_records.c.classification.in_(["scam", "fraud", "phishing"]))  # Example filters
+        .order_by(desc(scam_records.c.created_at))
         .limit(3)
     ).all()
 

@@ -1,10 +1,13 @@
 """Case summaries that hydrate the console while analytics services remain stubbed."""
 
 from typing import Any, List, Optional, Dict
+import json
 from datetime import datetime
 from pydantic import BaseModel, Field
 
 from fastapi import APIRouter, HTTPException
+
+from i4g.services.factories import build_review_store
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 
@@ -151,33 +154,124 @@ CASES_RESPONSE: dict[str, Any] = {
 
 
 @router.get("", summary="List active cases")
-def list_cases() -> dict[str, Any]:
-    """Return canned summaries for the Cases console view."""
-
-    return CASES_RESPONSE
+def list_cases(
+    limit: int = 50,
+    status: Optional[str] = None,
+    priority: Optional[str] = None,
+    queue: Optional[str] = None,
+    due_date: Optional[str] = None,
+) -> dict[str, Any]:
+    """Return summaries for the Cases console view (from Live DB)."""
+    store = build_review_store()
+    return store.get_dashboard_summary(limit=limit, status=status, priority=priority, queue=queue, due_date=due_date)
 
 
 @router.get("/{case_id}", response_model=CaseDetail, summary="Get case details")
 async def get_case(case_id: str) -> CaseDetail:
-    """Get full details for a specific case (Mocked)."""
-    # 1. Try to find basic info in the static list
-    case_basics = next((c for c in CASES_RESPONSE["cases"] if c["id"] == case_id), None)
+    """Get full details for a specific case (Live DB)."""
+    store = build_review_store()
+    data = store.get_extended_case(case_id)
 
-    if not case_basics:
-        # Fallback for ANY case- id to support testing
-        if case_id.startswith("case-"):
-            case_basics = {
-                "id": case_id,
-                "title": f"Investigation for {case_id}",
-                "priority": "medium",
-                "status": "active",
-                "assignee": "analyst@example.com",
-                "updatedAt": datetime.utcnow().isoformat(),
-            }
-        else:
-            raise HTTPException(status_code=404, detail="Case not found")
+    if not data:
+        # Fallback to canned response if not in DB (during migration phase)
+        # This preserves behavior for existing "cases" in the mock list if they haven't been seeded yet.
+        case_basics = next((c for c in CASES_RESPONSE["cases"] if c["id"] == case_id), None)
+        if case_basics:
+            return _build_mock_case(case_basics)
 
-    # 2. Enrich with detailed mock data
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # DB Mapping
+    props = data.get("metadata") or {}
+    if isinstance(props, str):
+        try:
+            props = json.loads(props)
+        except json.JSONDecodeError:
+            props = {}
+
+    # Timeline
+    timeline_events = []
+    for action in data.get("timeline", []):
+        ts_str = action.get("created_at")
+        ts = datetime.fromisoformat(ts_str) if ts_str else datetime.utcnow()
+        timeline_events.append(
+            CaseTimelineEvent(
+                id=action["action_id"],
+                timestamp=ts,
+                description=f"{action['action']}: {action.get('payload') or ''}",
+                actor=action["actor"],
+                type=action["action"],
+            )
+        )
+
+    # Graph
+    nodes = []
+    links = []
+    entities = data.get("entities")
+    if entities:
+        if isinstance(entities, str):
+            try:
+                entities = json.loads(entities)
+            except json.JSONDecodeError:
+                entities = {}
+
+        if isinstance(entities, dict):
+            unique_ids = set()
+            for k, vals in entities.items():
+                if isinstance(vals, list):
+                    for v in vals:
+                        nid = f"{k}:{v}"
+                        if nid not in unique_ids:
+                            nodes.append(CaseGraphNode(id=nid, label=str(v), type=k))
+                            unique_ids.add(nid)
+
+    # Tags
+    tags = data.get("rq_tags")
+    if isinstance(tags, str):
+        try:
+            tags = json.loads(tags)
+        except json.JSONDecodeError:
+            tags = []
+    elif not tags:
+        tags = []
+
+    # Artifacts (Files)
+    artifacts = []
+    files_list = props.get("files")
+    if isinstance(files_list, list):
+        for idx, f in enumerate(files_list):
+            if isinstance(f, dict):
+                artifacts.append(
+                    CaseArtifact(
+                        id=f"art-{idx}",
+                        type=f.get("type", "document"),
+                        name=f.get("name", "Unknown File"),
+                        url=f.get("url"),
+                        metadata={"size": f.get("size")},
+                    )
+                )
+
+    return CaseDetail(
+        id=data["case_id"],
+        title=props.get("title", f"Investigation {data['case_id']}"),
+        status=data["status"],
+        priority=data["priority"],
+        assignee=data["assigned_to"],
+        updatedAt=data["last_updated"] or data["queued_at"],
+        queue="General",
+        tags=tags,
+        progress=props.get("progress"),
+        dueAt=props.get("dueAt"),
+        description=data.get("text", "")[:1000] if data.get("text") else "No description available.",
+        artifacts=artifacts,
+        timeline=timeline_events,
+        graph_nodes=nodes,
+        graph_links=links,
+    )
+
+
+def _build_mock_case(case_basics: Dict[str, Any]) -> CaseDetail:
+    """Helper to reconstruct the mock response for legacy/unseeded cases."""
     return CaseDetail(
         id=case_basics["id"],
         title=case_basics["title"],
@@ -189,7 +283,7 @@ async def get_case(case_id: str) -> CaseDetail:
         tags=case_basics.get("tags", []),
         progress=case_basics.get("progress"),
         dueAt=case_basics.get("dueAt"),
-        description="[Backend Served] This is a detailed view of the investigation case. It includes artifacts, a timeline of events, and a relationship graph.",
+        description="[Backend Served - Mock Fallback] This case was not found in the DB, so we are serving the static mock.",
         artifacts=[
             CaseArtifact(
                 id="art-1",
@@ -198,36 +292,20 @@ async def get_case(case_id: str) -> CaseDetail:
                 url="/api/artifacts/docs/1",
                 metadata={"file_size": "1.2MB"},
             ),
-            CaseArtifact(
-                id="art-2",
-                type="image",
-                name="Check Screenshot",
-                url="/api/artifacts/images/2",
-                metadata={"dimensions": "1024x768"},
-            ),
         ],
         timeline=[
             CaseTimelineEvent(
                 id="evt-1",
                 timestamp=datetime.utcnow(),
-                description="Case created automatically by alert system",
+                description="Case created automatically (Mock)",
                 type="system",
-            ),
-            CaseTimelineEvent(
-                id="evt-2",
-                timestamp=datetime.utcnow(),
-                description="Analyst started review",
-                actor="analyst@example.com",
-                type="status_change",
             ),
         ],
         graph_nodes=[
             CaseGraphNode(id="n1", label="Subject A", type="person"),
             CaseGraphNode(id="n2", label="Account 123", type="account"),
-            CaseGraphNode(id="n3", label="Transaction 999", type="transaction"),
         ],
         graph_links=[
             CaseGraphLink(source="n1", target="n2", relation="owns"),
-            CaseGraphLink(source="n2", target="n3", relation="originates"),
         ],
     )
