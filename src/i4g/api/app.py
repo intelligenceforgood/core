@@ -8,6 +8,8 @@ from typing import Dict
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from i4g.api.account_list import router as account_list_router
 from i4g.api.analytics import router as analytics_router
@@ -99,6 +101,12 @@ def create_app() -> FastAPI:
     app.include_router(taxonomy_router)
     app.include_router(tokenization_router)
     app.include_router(task_router)
+
+    # Serve artifacts
+    settings = get_settings()
+    artifacts_dir = Path(settings.data_dir) / "artifacts"
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/artifacts", StaticFiles(directory=str(artifacts_dir)), name="artifacts")
 
     return app
 

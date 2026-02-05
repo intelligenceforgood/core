@@ -26,6 +26,7 @@ from i4g.cli.bootstrap.common import (
     DossierSmokeResult,
     VerificationReport,
 )
+from i4g.cli.bootstrap.seed import seed_static_review_cases
 from i4g.store.sql import session_factory as build_sql_session_factory
 from i4g.services.campaigns import CampaignService
 from datetime import datetime, timezone
@@ -294,6 +295,8 @@ def ensure_pilot_cases_file() -> None:
 
 
 def seed_review_cases() -> None:
+    # 1. Synthetic cases (randomized volume)
+    # Note: This script runs with --reset, so it clears the review_queue table.
     run(
         [
             sys.executable,
@@ -309,6 +312,11 @@ def seed_review_cases() -> None:
             "1",
         ]
     )
+
+    # 2. Static cases (parity with UI hardcoded expectations)
+    # These are appended after the table is reset/seeded by the synthetic script.
+    print("🌱 Seeding static review cases...")
+    seed_static_review_cases()
 
 
 def apply_migrations() -> None:

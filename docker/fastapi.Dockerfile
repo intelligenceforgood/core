@@ -11,14 +11,14 @@ WORKDIR /app
 # System deps required by scientific Python stack and paddleocr runtime
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        build-essential \
-        libgl1 \
-        libglib2.0-0 \
-        libsm6 \
-        libxext6 \
-        libxrender1 \
-        tesseract-ocr \
-        libtesseract-dev \
+    build-essential \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    tesseract-ocr \
+    libtesseract-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy project metadata and source
@@ -28,6 +28,9 @@ COPY src ./src
 # Install python dependencies and package
 RUN python -m pip install --upgrade pip \
     && python -m pip install --no-cache-dir .
+
+# Copy mock artifacts
+COPY docker/fixtures/mock /app/data/artifacts/mock
 
 # Cloud Run defaults to non-root user 65532; ensure writable artifact dirs
 RUN mkdir -p /app/data \
