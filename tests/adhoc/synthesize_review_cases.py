@@ -17,7 +17,11 @@ import random
 from typing import Dict, Iterable, List, Tuple
 from uuid import uuid4
 
+from sqlalchemy import text
+
+from i4g.settings import get_settings
 from i4g.store.review_store import ReviewStore
+from i4g.store.sql import session_factory
 
 CASE_TEMPLATES: List[Dict[str, str]] = [
     {
@@ -63,10 +67,10 @@ STATUS_NOTES: Dict[str, List[str]] = {
 
 
 def _reset_store(store: ReviewStore) -> None:
-    with store._connect() as conn:
-        conn.execute("DELETE FROM review_actions")
-        conn.execute("DELETE FROM review_queue")
-        conn.commit()
+    with store._session_factory() as session:
+        session.execute(text("DELETE FROM review_actions"))
+        session.execute(text("DELETE FROM review_queue"))
+        session.commit()
 
 
 def _status_plan(args: argparse.Namespace) -> List[str]:
@@ -137,7 +141,13 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    store = ReviewStore(db_path=args.db_path)
+
+    # Configure storage to point to the requested DB path
+    settings = get_settings()
+    settings.storage.sqlite_path = args.db_path
+
+    factory = session_factory(settings=settings)
+    store = ReviewStore(session_factory=factory)
 
     if args.reset:
         _reset_store(store)

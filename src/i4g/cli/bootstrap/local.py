@@ -211,7 +211,7 @@ def build_bundles() -> None:
     )
 
 
-def ingest_bundles(skip_vector: bool) -> None:
+def ingest_bundles(skip_vector: bool, limit: Optional[int] = None) -> None:
     # Look for JSONL files in the BUNDLES_DIR recursively
     bundles = sorted(BUNDLES_DIR.glob("**/*.jsonl"))
 
@@ -229,6 +229,8 @@ def ingest_bundles(skip_vector: bool) -> None:
             "I4G_STORAGE__SQLITE_PATH": str(SQLITE_DB),
             "I4G_INGEST__MAX_RETRIES": "0",
         }
+        if limit is not None:
+            env["I4G_INGEST__BATCH_LIMIT"] = str(limit)
         run([sys.executable, "-m", "i4g.worker.jobs.ingest"], env_overrides=env, unset_env_vars=["I4G_DATABASE_URL"])
 
 
@@ -510,6 +512,8 @@ def run_local(
     smoke_dossier_limit: int,
     smoke_dossier_plan_id: Optional[str],
     force: bool,
+    skip_ingest: bool = False,
+    limit: Optional[int] = None,
 ) -> None:
     """Execute the local sandbox bootstrap flow."""
 
@@ -569,7 +573,10 @@ def run_local(
     # if not BUNDLES_DIR.exists() or not any(BUNDLES_DIR.glob("*.jsonl")):
     #    build_bundles()
 
-    ingest_bundles(skip_vector=skip_vector)
+    if not skip_ingest:
+        ingest_bundles(skip_vector=skip_vector, limit=limit)
+    else:
+        print("⚠️  Skipping bundle ingestion as requested.")
 
     tesseract_available = shutil.which("tesseract") is not None
     if tesseract_available:
@@ -646,6 +653,8 @@ def bootstrap_local_reset(
     smoke_dossier_plan_id: Optional[str] = typer.Option(
         None, "--smoke-dossier-plan-id", help="Specific dossier plan_id to verify during smoke."
     ),
+    skip_ingest: bool = typer.Option(False, "--skip-ingest", help="Skip the potentially long bundle ingestion phase."),
+    limit: Optional[int] = typer.Option(None, "--limit", help="Limit number of records ingested per bundle."),
     force: bool = typer.Option(False, "--force", help="Allow running when I4G_ENV is not local."),
 ) -> None:
     """Reset local sandbox then reload sample data."""
@@ -672,6 +681,8 @@ def bootstrap_local_reset(
             smoke_dossier_limit=smoke_dossier_limit,
             smoke_dossier_plan_id=smoke_dossier_plan_id,
             force=force,
+            skip_ingest=skip_ingest,
+            limit=limit,
         )
     )
 

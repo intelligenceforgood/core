@@ -74,7 +74,7 @@ def seed_static_review_cases() -> None:
     struct_store = build_structured_store()
     settings = get_settings()
 
-    print(f"Seeding static cases into ReviewStore: {review_store.db_path}...")
+    print(f"Seeding static cases into ReviewStore...")
 
     # Ensure artifacts directory for mocks
     root_dir = (
