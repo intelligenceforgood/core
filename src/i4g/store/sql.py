@@ -356,6 +356,9 @@ def _resolve_database_url(settings: Settings | None = None) -> str:
     raise NotImplementedError(f"Unsupported structured backend '{backend}' for SQL engine creation")
 
 
+_ENGINE_CACHE: dict[tuple, Engine] = {}
+
+
 def build_engine(
     *,
     echo: bool = False,
@@ -375,6 +378,24 @@ def build_engine(
     resolved = settings or get_settings()
     backend = backend_override or resolved.storage.structured_backend
 
+    # Create cache key based on relevant connection parameters
+    # Note: Settings object itself is not hashable, we assume if it's passed it might be different
+    # but for the default case (None), we rely on the global get_settings() which we assume is stable per-env.
+    # We include backend and connection details in the key.
+    cache_key = (
+        backend,
+        echo,
+        tuple(sorted(connection_details.items())) if connection_details else None,
+        # We don't cache on settings object identity as it changes, but we assume
+        # for a given process the effective config is stable for the default case.
+        # If settings IS provided explicitly, we skip caching to be safe, or we'd need to hash it.
+        # For now, we only cache when settings is None to fix the per-request overhead in the main app.
+        settings is None,
+    )
+
+    if settings is None and cache_key in _ENGINE_CACHE:
+        return _ENGINE_CACHE[cache_key]
+
     if backend == "cloudsql":
         from google.cloud.sql.connector import Connector, IPTypes
 
@@ -390,6 +411,7 @@ def build_engine(
             raise ValueError("Missing Cloud SQL configuration (instance, user, [password], database)")
 
         # Initialize Connector object
+        # Note: Connector must be long-lived to avoid excessive API calls and thread creation
         connector = Connector()
 
         def getconn():
@@ -404,7 +426,7 @@ def build_engine(
             )
             return conn
 
-        return sa.create_engine(
+        engine = sa.create_engine(
             "postgresql+pg8000://",
             creator=getconn,
             echo=echo,
@@ -412,11 +434,20 @@ def build_engine(
             pool_pre_ping=True,
         )
 
+        if settings is None:
+            _ENGINE_CACHE[cache_key] = engine
+        return engine
+
     url = _resolve_database_url(resolved)
     connect_args: dict[str, Any] = {}
     if url.startswith("sqlite:///"):
         connect_args["check_same_thread"] = False
-    return sa.create_engine(url, echo=echo, future=True, pool_pre_ping=True, connect_args=connect_args)
+
+    engine = sa.create_engine(url, echo=echo, future=True, pool_pre_ping=True, connect_args=connect_args)
+
+    if settings is None:
+        _ENGINE_CACHE[cache_key] = engine
+    return engine
 
 
 def session_factory(

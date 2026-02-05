@@ -54,7 +54,7 @@ DEFAULT_JOBS = {
     "gcs_assets": "",  # Skipped (not deployed)
     "reports": "generate-reports",  # Correct job name
     "saved_searches": "",  # Skipped (not deployed)
-    "seed_reviews": "generate-reports",  # Reuse report-job image for seeding
+    "seed_reviews": "ingest-bootstrap",  # Reuse ingest-job image for seeding
 }
 
 
@@ -64,7 +64,6 @@ class JobSpec:
     job_name: str
     args: list[str]
     env: dict[str, str] | None = None
-    command: list[str] | None = None
 
 
 @dataclass
@@ -384,12 +383,12 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
             common_env["I4G_INGEST__ENABLE_VERTEX"] = "false"  # Disable direct writer to avoid double writes
             common_env["I4G_INGEST__ENABLE_VECTOR"] = "true"
             common_env["I4G_VECTOR__BACKEND"] = "vertex_ai"
-            
+
             # Configure Vertex AI Search connection details
             common_env["I4G_VERTEX_SEARCH_PROJECT"] = args.project
             common_env["I4G_VERTEX_SEARCH_LOCATION"] = args.region
             common_env["I4G_VERTEX_SEARCH_DATA_STORE"] = "retrieval-poc"
-            
+
             # Force Vertex AI for LLM in dev (Cloud Run cannot reach local Ollama)
             common_env["I4G_LLM__PROVIDER"] = "vertex_ai"
             common_env["I4G_LLM__VERTEX_AI_PROJECT"] = args.project
@@ -434,7 +433,9 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
         if not args.skip_sql and args.sql_job:
             specs.append(JobSpec(label=f"sql-{bundle_name}", job_name=args.sql_job, args=job_args, env=common_env))
         if not args.skip_bigquery and args.bigquery_job:
-            specs.append(JobSpec(label=f"bigquery-{bundle_name}", job_name=args.bigquery_job, args=job_args, env=common_env))
+            specs.append(
+                JobSpec(label=f"bigquery-{bundle_name}", job_name=args.bigquery_job, args=job_args, env=common_env)
+            )
 
     # One-time jobs (run once)
     common_args: list[str] = []
@@ -462,14 +463,15 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
             JobSpec(
                 label="seed_reviews",
                 job_name=args.seed_reviews_job,
-                args=[],
+                args=["admin", "seed-reviews"],
                 env=seed_env,
-                command=["i4g", "admin", "seed-reviews"],
             )
         )
 
     if not args.skip_saved_searches and args.saved_searches_job:
-        specs.append(JobSpec(label="saved_searches", job_name=args.saved_searches_job, args=common_args, env=common_env))
+        specs.append(
+            JobSpec(label="saved_searches", job_name=args.saved_searches_job, args=common_args, env=common_env)
+        )
 
     return specs
 
@@ -707,6 +709,7 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
     if not settings.storage.cloudsql_instance:
         try:
             import tomllib
+
             local_conf = Path("config/settings.local.toml")
             if local_conf.exists():
                 with open(local_conf, "rb") as f:
@@ -809,7 +812,9 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
                 if not verify_settings.storage.cloudsql_database and "dev" in args.project:
                     verify_settings.storage.cloudsql_database = "i4g_db"
 
-            logging.info(f"Cloud SQL Verify: instance={verify_settings.storage.cloudsql_instance}, user={verify_settings.storage.cloudsql_user}, db={verify_settings.storage.cloudsql_database}")
+            logging.info(
+                f"Cloud SQL Verify: instance={verify_settings.storage.cloudsql_instance}, user={verify_settings.storage.cloudsql_user}, db={verify_settings.storage.cloudsql_database}"
+            )
 
             # If we still lack connection details, skip the check instead of failing
             if not all(
@@ -828,7 +833,7 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
                         text("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
                     )
                     tables = [row[0] for row in tables_result]
-                    
+
                     for table in tables:
                         try:
                             if table == "alembic_version":
@@ -851,12 +856,13 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
         try:
             # Clone settings for PII connection
             pii_settings = settings.model_copy(deep=True)
-            
+
             # Apply PII-specific overrides
             # Similar workaround for PII settings if missing
             if not pii_settings.pii.cloudsql_instance:
                 try:
                     import tomllib
+
                     local_conf = Path("config/settings.local.toml")
                     if local_conf.exists():
                         with open(local_conf, "rb") as f:
@@ -869,11 +875,13 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
                                 if secrets_conf.get("project") == "i4g-pii-vault-dev":
                                     # Hardcoded fallback for dev environment parity if not explicitly set
                                     # Correct instance name for dev PII vault
-                                    pii_settings.pii.cloudsql_instance = "i4g-pii-vault-dev:us-central1:i4g-vault-dev-db"
+                                    pii_settings.pii.cloudsql_instance = (
+                                        "i4g-pii-vault-dev:us-central1:i4g-vault-dev-db"
+                                    )
                                     pii_settings.pii.cloudsql_database = "vault_db"
                                     pii_settings.pii.cloudsql_user = "jerry@intelligenceforgood.org"
                                     pii_settings.pii.cloudsql_enable_iam_auth = True
-                            
+
                             if "cloudsql_instance" in pii_conf:
                                 pii_settings.pii.cloudsql_instance = pii_conf["cloudsql_instance"]
                             if "cloudsql_database" in pii_conf:
@@ -894,19 +902,23 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
             # Fallback: If PII settings are empty, try using the primary DB settings but switch DB name if needed
             # Often PII is in the same instance but different DB, or same DB different table (but here we assume different DB/Instance if configured)
             if not pii_settings.storage.cloudsql_instance:
-                 # If no specific PII instance is set, assume it might be the same as primary for dev, 
-                 # or check if we should default to a known PII DB name.
-                 # For now, we'll just log if it's missing.
-                 pass
+                # If no specific PII instance is set, assume it might be the same as primary for dev,
+                # or check if we should default to a known PII DB name.
+                # For now, we'll just log if it's missing.
+                pass
 
-            logging.info(f"PII DB Verify: instance={pii_settings.storage.cloudsql_instance}, user={pii_settings.storage.cloudsql_user}, db={pii_settings.storage.cloudsql_database}")
+            logging.info(
+                f"PII DB Verify: instance={pii_settings.storage.cloudsql_instance}, user={pii_settings.storage.cloudsql_user}, db={pii_settings.storage.cloudsql_database}"
+            )
 
-            if not all([
-                pii_settings.storage.cloudsql_instance,
-                pii_settings.storage.cloudsql_database,
-                pii_settings.storage.cloudsql_user
-            ]):
-                 pii_stats["status"] = "skipped (missing PII connection details)"
+            if not all(
+                [
+                    pii_settings.storage.cloudsql_instance,
+                    pii_settings.storage.cloudsql_database,
+                    pii_settings.storage.cloudsql_user,
+                ]
+            ):
+                pii_stats["status"] = "skipped (missing PII connection details)"
             else:
                 pii_engine = build_engine(settings=pii_settings)
                 with pii_engine.connect() as conn:
@@ -923,10 +935,10 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
                         pii_stats["pii_tokens"] = count_result.scalar()
                     except Exception:
                         pii_stats["pii_tokens"] = "table not found"
-                        
+
         except Exception as exc:
             pii_stats["error"] = str(exc)
-            
+
     storage_stats["pii_db"] = pii_stats
 
     # 4. Vector Store (Vertex AI Search)
@@ -1264,16 +1276,22 @@ def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
         try:
             if args.dry_run:
                 logging.info("[dry-run] Would run: %s", command_str)
-                results.append(JobResult("seed_reviews", "local-seed-reviews", command_str, "skipped", "<dry-run>", "", None))
+                results.append(
+                    JobResult("seed_reviews", "local-seed-reviews", command_str, "skipped", "<dry-run>", "", None)
+                )
             else:
                 proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=True)
                 results.append(
-                    JobResult("seed_reviews", "local-seed-reviews", command_str, "success", proc.stdout, proc.stderr, None)
+                    JobResult(
+                        "seed_reviews", "local-seed-reviews", command_str, "success", proc.stdout, proc.stderr, None
+                    )
                 )
         except subprocess.CalledProcessError as exc:
             logging.error("Local seed reviews failed: %s", exc.stderr)
             results.append(
-                JobResult("seed_reviews", "local-seed-reviews", command_str, "failure", exc.stdout, exc.stderr, str(exc))
+                JobResult(
+                    "seed_reviews", "local-seed-reviews", command_str, "failure", exc.stdout, exc.stderr, str(exc)
+                )
             )
 
     return results
@@ -1867,9 +1885,7 @@ def bootstrap_dev_verify(
     saved_searches_job: str = typer.Option(
         DEFAULT_JOBS["saved_searches"], "--saved-searches-job", help="Saved searches/tag presets job."
     ),
-    seed_reviews_job: str = typer.Option(
-        DEFAULT_JOBS["seed_reviews"], "--seed-reviews-job", help="Seed reviews job."
-    ),
+    seed_reviews_job: str = typer.Option(DEFAULT_JOBS["seed_reviews"], "--seed-reviews-job", help="Seed reviews job."),
     run_smoke: bool = typer.Option(True, "--run-smoke/--no-run-smoke", help="Run Cloud Run intake smoke."),
     run_dossier_smoke: bool = typer.Option(
         True, "--run-dossier-smoke/--no-run-dossier-smoke", help="Run dossier verification smoke."

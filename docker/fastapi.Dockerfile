@@ -4,7 +4,8 @@ FROM python:3.11-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    I4G_RUNTIME__PROJECT_ROOT=/app
 
 WORKDIR /app
 
@@ -21,13 +22,25 @@ RUN apt-get update \
     libtesseract-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy project metadata and source
+# Copy project metadata
 COPY pyproject.toml README.md VERSION.txt LICENSE ./
-COPY src ./src
 
-# Install python dependencies and package
+# Pre-install heavy dependencies to leverage Docker cache
+# This layer will be cached unless pyproject.toml changes
 RUN python -m pip install --upgrade pip \
-    && python -m pip install --no-cache-dir .
+    && python -m pip install --no-cache-dir \
+    "paddlepaddle" \
+    "paddleocr>=2.7" \
+    "faiss-cpu" \
+    "langchain" \
+    "google-cloud-aiplatform"
+
+# Copy source code (invalidates cache only if source changes)
+COPY src ./src
+COPY docker/fixtures/mock ./data/artifacts/mock
+
+# Install the local package and remaining dependencies
+RUN python -m pip install --no-cache-dir .
 
 # Copy mock artifacts
 COPY docker/fixtures/mock /app/data/artifacts/mock

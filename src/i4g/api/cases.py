@@ -91,7 +91,7 @@ CASES_RESPONSE: dict[str, Any] = {
             "id": "case-417",
             "title": "Crypto Investment Scheme",
             "priority": "high",
-            "status": "awaiting-input",
+            "status": "new",
             "updatedAt": "2026-01-08T15:20:00Z",
             "assignee": "A. Chen",
             "queue": "Policy Review",

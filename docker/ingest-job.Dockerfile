@@ -11,18 +11,19 @@ WORKDIR /app
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        build-essential \
-        libgl1 \
-        libglib2.0-0 \
-        libsm6 \
-        libxext6 \
-        libxrender1 \
-        tesseract-ocr \
-        libtesseract-dev \
+    build-essential \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    tesseract-ocr \
+    libtesseract-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml README.md VERSION.txt LICENSE alembic.ini alembic_vault.ini ./
 COPY src ./src
+COPY docker/fixtures/mock ./docker/fixtures/mock
 
 RUN python -m pip install --upgrade pip \
     && python -m pip install --no-cache-dir .
@@ -35,5 +36,5 @@ USER 65532:65532
 ENV I4G_ENV=dev \
     I4G_INGEST__JSONL_PATH=gs://i4g-dev-data-bundles/2025-12-17/synthetic_coverage/retrieval_poc/cases.jsonl
 
-ENTRYPOINT ["i4g", "jobs"]
-CMD ["ingest"]
+ENTRYPOINT ["i4g"]
+CMD ["jobs", "ingest"]

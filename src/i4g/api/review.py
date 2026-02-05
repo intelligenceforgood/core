@@ -205,14 +205,14 @@ def enqueue_case(
 
 @router.get("/queue", summary="List queued cases")
 def list_queue(
-    status: str = Query("queued"),
+    status: str = Query("new"),
     limit: int = Query(25),
     store: ReviewStore = Depends(get_store),
 ) -> Dict[str, Any]:
     """List queued cases by status.
 
     Args:
-        status: The status to filter by (default: "queued").
+        status: The status to filter by (default: "new").
         limit: The maximum number of items to return.
         store: The review store instance.
 

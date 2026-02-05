@@ -28,7 +28,8 @@ from i4g.store.ingestion_run_tracker import IngestionRunTracker
 from i4g.store.intake_store import IntakeStore, SqlAlchemyIntakeStore
 from i4g.store.pii_token_store import PiiTokenStore
 from i4g.store.pii_token_store_sql import SqlAlchemyPiiTokenStore
-from i4g.store.review_store import ReviewStore, SqlAlchemyReviewStore
+from i4g.store.review_store import ReviewStore
+from i4g.store.sql import METADATA
 from i4g.store.sql import session_factory as build_sql_session_factory
 from i4g.store.sql_writer import SqlWriter
 from i4g.store.structured import StructuredStore, SqlAlchemyStructuredStore
@@ -74,18 +75,24 @@ def build_entity_store() -> EntityStore:
 
 
 def build_review_store(db_path: str | Path | None = None) -> ReviewStore:
-    """Return a :class:`ReviewStore` honoring the structured backend settings."""
+    """Return a :class:`ReviewStore` honoring the structured backend settings.
+
+    Note:
+        We now use ReviewStore (formerly SqlAlchemyReviewStore) for both SQLite
+        and Cloud SQL to ensure logic parity between environments.
+    """
 
     settings = get_settings()
     backend = settings.storage.structured_backend
+    session_factory = build_sql_session_factory()
+
     if backend == "sqlite":
-        return ReviewStore(db_path=db_path)
+        # Ensure tables exist for local development, mimicking the legacy store's behavior
+        # where it auto-initialized the schema.
+        engine = session_factory.kw["bind"]
+        METADATA.create_all(engine)
 
-    if backend == "cloudsql":
-        session_factory = build_sql_session_factory()
-        return SqlAlchemyReviewStore(session_factory=session_factory)
-
-    raise NotImplementedError(f"Unsupported review backend '{backend}'")
+    return ReviewStore(session_factory=session_factory)
 
 
 def build_vector_store(
