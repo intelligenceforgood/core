@@ -77,7 +77,9 @@ def seed_static_review_cases() -> None:
     print(f"Seeding static cases into ReviewStore: {review_store.db_path}...")
 
     # Ensure artifacts directory for mocks
-    root_dir = Path(__file__).resolve().parents[4]  # Adjust based on file location: src/i4g/cli/bootstrap/seed.py -> core root
+    root_dir = (
+        Path(__file__).resolve().parents[4]
+    )  # Adjust based on file location: src/i4g/cli/bootstrap/seed.py -> core root
     fixtures_dir = root_dir / "docker" / "fixtures" / "mock"
     mock_artifacts_dir = Path(settings.data_dir) / "artifacts" / "mock"
     mock_artifacts_dir.mkdir(parents=True, exist_ok=True)
@@ -85,6 +87,7 @@ def seed_static_review_cases() -> None:
     # Copy files from fixtures if present
     if fixtures_dir.exists():
         import shutil
+
         for fixture in fixtures_dir.glob("*"):
             shutil.copy(fixture, mock_artifacts_dir / fixture.name)
     else:
