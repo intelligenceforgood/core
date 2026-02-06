@@ -299,6 +299,9 @@ def main() -> int:
     else:
         enable_vertex = False if is_local else settings.ingestion.enable_vertex
 
+    classification_override = _env_flag("I4G_INGEST__SKIP_CLASSIFICATION")
+    skip_classification = classification_override if classification_override is not None else False
+
     dataset_name = (
         os.getenv("I4G_INGEST__DATASET_NAME")
         or (dataset_path.stem if isinstance(dataset_path, Path) else "gcs_dataset")
@@ -386,7 +389,11 @@ def main() -> int:
             payload, diagnostics = prepare_ingest_payload(record, default_dataset=dataset_name)
 
             # Integrate Fraud Classifier
-            if payload.get("text") and (not payload.get("fraud_type") or payload.get("fraud_type") == "unclassified"):
+            if (
+                not skip_classification
+                and payload.get("text")
+                and (not payload.get("fraud_type") or payload.get("fraud_type") == "unclassified")
+            ):
                 try:
                     classification_result = classifier.classify(payload["text"])
 

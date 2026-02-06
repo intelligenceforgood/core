@@ -176,5 +176,5 @@ def seed_static_review_cases() -> None:
 
         # Update status if present
         target_status = case_data.get("status")
-        if target_status and target_status != "queued":
+        if target_status:
             review_store.update_status(review_id, status=target_status, notes="Seeded static mock case")

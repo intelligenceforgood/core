@@ -21,6 +21,7 @@ def admin_seed_reviews(
     accepted: int = typer.Option(1, help="Number of accepted cases."),
     rejected: int = typer.Option(1, help="Number of rejected cases."),
     reset: bool = typer.Option(False, help="Clear existing data before seeding."),
+    include_static: bool = typer.Option(False, help="Include static pilot cases."),
 ) -> None:
     seed.seed_reviews(
         queued=queued,
@@ -28,7 +29,13 @@ def admin_seed_reviews(
         accepted=accepted,
         rejected=rejected,
         reset=reset,
+        include_static=include_static,
     )
+
+
+@admin_app.command("seed-campaigns", help="Seed default fraud campaigns.")
+def admin_seed_campaigns() -> None:
+    seed.seed_campaigns()
 
 
 @admin_app.command("query", help="Run scam-detection RAG query using the configured vector backend.")

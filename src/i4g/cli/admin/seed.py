@@ -8,9 +8,36 @@ from typing import Dict, List, Tuple
 from uuid import uuid4
 
 from i4g.services.factories import build_review_store
-from i4g.store.review_store import ReviewStore, SqlAlchemyReviewStore
+from i4g.store.review_store import ReviewStore
+from i4g.store import sql as sql_schema
+from i4g.store.sql import session_factory
+from i4g.services.campaigns import CampaignService
+from sqlalchemy import delete
 
 LOGGER = logging.getLogger(__name__)
+
+DEFAULT_CAMPAIGNS = [
+    {
+        "name": "Romance scam",
+        "description": "Relationship / affection grooming paired with money or asset requests.",
+        "taxonomy_labels": {"intent": ["romance"], "techniques": ["grooming"]},
+    },
+    {
+        "name": "Crypto investment",
+        "description": "Wallet + coin mentions or high-return investment language.",
+        "taxonomy_labels": {"intent": ["investment"]},
+    },
+    {
+        "name": "Phishing",
+        "description": "Suspicious login/reset prompts, impersonation, or short-link channels.",
+        "taxonomy_labels": {"techniques": ["phishing", "impersonation"]},
+    },
+    {
+        "name": "Potential crypto",
+        "description": "Wallets present but weak pattern match; queue for analyst confirmation.",
+        "taxonomy_labels": {"actions": ["crypto_transfer"]},
+    },
+]
 
 CASE_TEMPLATES: List[Dict[str, str]] = [
     {
@@ -36,45 +63,32 @@ CASE_TEMPLATES: List[Dict[str, str]] = [
 ]
 
 STATUS_NOTES: Dict[str, List[str]] = {
-    "queued": [
+    "new": [
         "Auto-triage pending analyst assignment.",
         "Classifier confidence above threshold; needs verification.",
     ],
-    "in_review": [
+    "active": [
         "Analyst assigned; reviewing blockchain transfers.",
         "Review in progress; awaiting user callback.",
     ],
-    "accepted": [
+    "closed": [
         "Validated as active scam. Prepare evidence package.",
         "Confirmed scam; escalate to coordination team.",
-    ],
-    "rejected": [
         "Duplicate of existing case. Closing out.",
         "False positive triggered by mislabeled keywords.",
     ],
 }
 
 
-def _reset_store(store: ReviewStore | SqlAlchemyReviewStore) -> None:
+def _reset_store(store: ReviewStore) -> None:
     """Clear all data from the review store."""
-    if isinstance(store, ReviewStore):
-        with store._connect() as conn:
-            conn.execute("DELETE FROM review_actions")
-            conn.execute("DELETE FROM review_queue")
-            conn.commit()
-    elif isinstance(store, SqlAlchemyReviewStore):
-        import sqlalchemy as sa
-        from i4g.store import sql as sql_schema
-
-        with store._session_factory() as session:
-            session.execute(sa.delete(sql_schema.review_actions))
-            session.execute(sa.delete(sql_schema.review_queue))
-            session.commit()
-    else:
-        LOGGER.warning("Unknown store type %s; skipping reset.", type(store))
+    with store._session_factory() as session:
+        session.execute(delete(sql_schema.review_actions))
+        session.execute(delete(sql_schema.review_queue))
+        session.commit()
 
 
-def _seed_case(store: ReviewStore | SqlAlchemyReviewStore, target_status: str) -> None:
+def _seed_case(store: ReviewStore, target_status: str) -> None:
     template = random.choice(CASE_TEMPLATES)
     case_id = f"{template['code']}-{uuid4().hex[:8].upper()}"
     review_id = store.enqueue_case(case_id=case_id, priority=template["priority"])
@@ -98,8 +112,11 @@ def seed_reviews(
     accepted: int = 1,
     rejected: int = 1,
     reset: bool = False,
+    include_static: bool = False,
 ) -> None:
     """Populate the review store with synthetic queue entries."""
+    from i4g.cli.bootstrap.seed import seed_static_review_cases
+
     store = build_review_store()
 
     if reset:
@@ -107,11 +124,14 @@ def seed_reviews(
         _reset_store(store)
 
     plan: List[str] = []
+    # Map legacy counts to new statuses
+    # queued -> new
+    # in_review -> active
+    # accepted/rejected -> closed
     for status, count in [
-        ("queued", queued),
-        ("in_review", in_review),
-        ("accepted", accepted),
-        ("rejected", rejected),
+        ("new", queued),
+        ("active", in_review),
+        ("closed", accepted + rejected),
     ]:
         plan.extend([status] * max(count, 0))
     random.shuffle(plan)
@@ -119,4 +139,30 @@ def seed_reviews(
     LOGGER.info("Seeding %d cases...", len(plan))
     for status in plan:
         _seed_case(store, status)
+
+    if include_static:
+        LOGGER.info("Seeding static review cases...")
+        seed_static_review_cases()
+
     LOGGER.info("Done.")
+
+
+def seed_campaigns() -> None:
+    """Populate database with default active campaigns if missing."""
+    LOGGER.info("Seeding default campaigns...")
+    make_session = session_factory()
+    with make_session() as session:
+        service = CampaignService(session)
+        existing = service.list_active_campaigns()
+        existing_names = {c["name"] for c in existing}
+
+        count = 0
+        for campaign in DEFAULT_CAMPAIGNS:
+            if campaign["name"] not in existing_names:
+                service.create_campaign(
+                    name=campaign["name"],
+                    description=campaign["description"],
+                    taxonomy_labels=campaign["taxonomy_labels"],
+                )
+                count += 1
+        LOGGER.info("Created %d new campaigns (total %d).", count, len(DEFAULT_CAMPAIGNS))

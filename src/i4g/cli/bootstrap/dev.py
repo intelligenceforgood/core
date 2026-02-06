@@ -415,8 +415,11 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
         if args.ingest_dry_run:
             ingest_env["I4G_INGEST__DRY_RUN"] = "1"
 
-        # Standard ingestion uses 'ingest' subcommand
-        job_args: list[str] = ["ingest"]
+        # Skip classification during bootstrap/bulk ingestion (handled by async job)
+        ingest_env["I4G_INGEST__SKIP_CLASSIFICATION"] = "1"
+
+        # Standard ingestion uses 'jobs ingest' subcommand
+        job_args: list[str] = ["jobs", "ingest"]
         job_args.append(f"--bundle-uri={bundle_uri}")
         if args.dataset:
             job_args.append(f"--dataset={args.dataset}")
@@ -456,14 +459,25 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
 
     if args.seed_reviews_job and not args.skip_seed_reviews:
         seed_env = common_env.copy()
-        if "dev" in args.project:
-            seed_env["I4G_APP__CLOUDSQL__USER"] = f"sa-report@{args.project}.iam"
-            seed_env["I4G_PII__CLOUDSQL__USER"] = f"sa-report@{args.project}.iam"
+        # Do not override DB user; let the job run as its own identity (e.g. sa-ingest)
+        # to avoid auth_failed errors.
+
+        # 4a. Seed Campaigns (always run if seeding reviews)
+        specs.append(
+            JobSpec(
+                label="seed_campaigns",
+                job_name=args.seed_reviews_job,
+                args=["admin", "seed-campaigns"],
+                env=seed_env,
+            )
+        )
+
+        # 4b. Seed Reviews
         specs.append(
             JobSpec(
                 label="seed_reviews",
                 job_name=args.seed_reviews_job,
-                args=["admin", "seed-reviews"],
+                args=["admin", "seed-reviews", "--include-static", "--reset"],
                 env=seed_env,
             )
         )
@@ -545,10 +559,6 @@ def execute_job(spec: JobSpec, args: argparse.Namespace) -> JobResult:
             container_override["args"] = spec.args
         if spec.env:
             container_override["env"] = [{"name": k, "value": v} for k, v in spec.env.items()]
-        if spec.command:
-            logging.warning(
-                "Ignoring command override for job %s as it is not supported by Cloud Run Jobs API.", spec.job_name
-            )
 
         if container_override:
             overrides["containerOverrides"] = [container_override]
