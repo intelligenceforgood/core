@@ -58,7 +58,7 @@ This document details the storage backends used by the i4g platform across diffe
 - **Schema**: Defined in `src/i4g/store/dossier_queue_store.py`.
 - **Table**: `dossier_queue`
     - `plan_id`: Unique identifier for the dossier generation task.
-    - `status`: `queued`, `processing`, `completed`, `failed`.
+    - `status`: `new`, `in_review`, `awaiting_input`, `accepted`, `rejected`, `closed`.
     - `payload`: JSON blob containing the initial case context and instructions.
 - **Access**: Accessed via `DossierQueueStore`.
 - **Infrastructure**: Shares the same SQLite/Cloud SQL instance as the Entity and Review stores.

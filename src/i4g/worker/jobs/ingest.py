@@ -100,7 +100,38 @@ def _process_images_and_yield(
         results = batch_extract_text(str(tmp_path))
 
         for result in results:
-            yield result
+            filename = result["file"]
+            raw_text = result["text"]
+
+            # Find original reference to construct URL
+            original_ref = None
+            for p in image_paths:
+                if Path(str(p)).name == filename:
+                    original_ref = p
+                    break
+
+            enrichment = {}
+            if original_ref:
+                url = str(original_ref)
+                if is_gcs and bucket:
+                    url = f"https://storage.cloud.google.com/{bucket.name}/{original_ref}"
+
+                enrichment = {
+                    "source_url": url,
+                    "document_title": filename,
+                    "metadata": {
+                        "files": [
+                            {
+                                "name": filename,
+                                "type": "document" if filename.lower().endswith(".pdf") else "image",
+                                "url": url,
+                            }
+                        ]
+                    },
+                }
+
+            record = {**result, **enrichment}
+            yield record
 
 
 def _load_data(path: Union[Path, str]) -> Iterator[Dict[str, Any]]:

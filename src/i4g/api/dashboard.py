@@ -23,7 +23,9 @@ def _get_active_investigations(session: Session) -> Dict[str, str]:
     """Count open cases in the review queue."""
     count = (
         session.scalar(
-            select(func.count(review_queue.c.review_id)).where(review_queue.c.status.not_in(["closed", "resolved"]))
+            select(func.count(review_queue.c.review_id)).where(
+                review_queue.c.status.not_in(["closed", "accepted", "rejected"])
+            )
         )
         or 0
     )

@@ -179,7 +179,7 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 ```json
 {
   "case_id": "uuid-v4",
-  "status": "resolved",
+  "status": "closed",
   "report_url": "https://storage.googleapis.com/i4g-reports/2025/10/30/case_uuid.pdf",
   "report_generated_at": "2025-10-30T16:00:00Z"
 }
@@ -192,7 +192,7 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 4. Generate PDF report with real PII
 5. Upload PDF to Cloud Storage
 6. Email user with secure download link
-7. Update case status to `resolved`
+7. Update case status to `closed`
 
 ---
 
@@ -412,7 +412,7 @@ interface Case {
   };
 
   // Status
-  status: "pending_review" | "in_progress" | "resolved" | "archived";
+  status: "new" | "in_review" | "awaiting_input" | "accepted" | "rejected" | "closed";
   assigned_to: string | null;  // analyst UID
 
   // Evidence

@@ -285,6 +285,17 @@ class IngestPipeline:
                 LOGGER.exception("Tokenization failed for case_id=%s", case_id)
         classification_result = payload
 
+        # Merge existing metadata with derived fields to preserve artifact URLs and other upstream data
+        base_metadata = classification_result.get("metadata") or {}
+        if not isinstance(base_metadata, dict):
+            base_metadata = {}
+
+        final_metadata = base_metadata.copy()
+        final_metadata.update({
+            "explanation": classification_result.get("explanation"),
+            "reasons": classification_result.get("reasons"),
+        })
+
         record = ScamRecord(
             case_id=case_id,
             text=classification_result.get("text", ""),
@@ -296,10 +307,7 @@ class IngestPipeline:
             classification=classification_result.get("fraud_type", ""),
             confidence=float(classification_result.get("fraud_confidence", 0.0)),
             created_at=datetime.utcnow(),
-            metadata={
-                "explanation": classification_result.get("explanation"),
-                "reasons": classification_result.get("reasons"),
-            },
+            metadata=final_metadata,
         )
 
         # 1️⃣ Structured storage

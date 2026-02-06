@@ -36,7 +36,7 @@ class TaskStatusReporter:
         """Publish a task-status update.
 
         Args:
-            status: Short status string (e.g., ``in_progress``).
+            status: Short status string (e.g., ``processing``).
             message: Human-readable description of the update.
             **payload: Additional JSON-serializable fields.
         """

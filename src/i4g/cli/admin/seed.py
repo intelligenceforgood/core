@@ -67,15 +67,22 @@ STATUS_NOTES: Dict[str, List[str]] = {
         "Auto-triage pending analyst assignment.",
         "Classifier confidence above threshold; needs verification.",
     ],
-    "active": [
+    "in_review": [
         "Analyst assigned; reviewing blockchain transfers.",
         "Review in progress; awaiting user callback.",
     ],
-    "closed": [
+    "awaiting_input": [
+        "Blocked on external response from exchange.",
+        "Waiting for victim to provide additional screenshots.",
+    ],
+    "accepted": [
         "Validated as active scam. Prepare evidence package.",
         "Confirmed scam; escalate to coordination team.",
-        "Duplicate of existing case. Closing out.",
+        "Duplicate of existing case. Merged into primary.",
+    ],
+    "rejected": [
         "False positive triggered by mislabeled keywords.",
+        "User confirmed legitimate transaction.",
     ],
 }
 
@@ -124,14 +131,12 @@ def seed_reviews(
         _reset_store(store)
 
     plan: List[str] = []
-    # Map legacy counts to new statuses
-    # queued -> new
-    # in_review -> active
-    # accepted/rejected -> closed
+    # Map counts to new statuses
     for status, count in [
         ("new", queued),
-        ("active", in_review),
-        ("closed", accepted + rejected),
+        ("in_review", in_review),  # Replaces 'active'
+        ("accepted", accepted),  # Replaces 'closed'
+        ("rejected", rejected),  # Replaces 'closed'
     ]:
         plan.extend([status] * max(count, 0))
     random.shuffle(plan)

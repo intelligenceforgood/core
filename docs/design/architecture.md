@@ -418,7 +418,7 @@ Note: The `POST /api/cases` endpoint above is listed as a planned user-facing in
       ├─ title: string
       ├─ description: string (tokenized: <PII:SSN:7a8f2e>)
       ├─ classification: {type, confidence}
-      ├─ status: "pending_review" | "in_progress" | "resolved"
+      ├─ status: "new" | "in_review" | "awaiting_input" | "accepted" | "rejected" | "closed"
       ├─ assigned_to: analyst_uid
       ├─ evidence_files: [gs://urls]
       └─ notes: [{author, text, timestamp}]

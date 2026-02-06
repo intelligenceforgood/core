@@ -278,7 +278,7 @@ class ReviewStore:
                 sr.c.metadata,
             )
             .select_from(rq.join(sr, rq.c.case_id == sr.c.case_id, isouter=True))
-            .where(rq.c.status != "closed")
+            .where(sa.not_(rq.c.status.in_(["closed", "accepted", "rejected"])))
             .order_by(rq.c.last_updated.desc())
         )
 
