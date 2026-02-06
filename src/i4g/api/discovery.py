@@ -15,87 +15,55 @@ router = APIRouter(prefix="/discovery", tags=["discovery"])
 SETTINGS = get_settings()
 
 
-def _mock_discovery_response(query: str) -> Dict[str, Any]:
-    """Return a lightweight mock payload to keep the UI working locally."""
+def _local_discovery_search(query: str, limit: int, offset: int = 0) -> Dict[str, Any]:
+    """Use local HybridSearchService to simulate Discovery results."""
+    # Raise errors directly if local search fails
+    service = HybridSearchService()
+    search_query = HybridSearchQuery(text=query, limit=limit, offset=offset)
+    result = service.search(search_query)
 
-    base_summary = f'Mock hit for "{query}"' if query else "Mock Discovery result"
-    template = {
-        "summary": base_summary,
-        "label": "demo",
-        "tags": ["demo", "vertex"],
-        "source": "mock",
-        "index_type": "demo-index",
-        "struct": {"summary": base_summary},
-        "rank_signals": {"semanticSimilarityScore": 0.91},
-        "raw": {"message": "Mock result"},
-    }
-    results: List[Dict[str, Any]] = []
-    for offset in range(3):
-        results.append(
+    mapped_results = []
+    for i, item in enumerate(result["results"]):
+        doc_id = item.get("case_id") or f"doc-{i}"
+        metadata = item.get("metadata") or {}
+        vector = item.get("vector") or {}
+        record = item.get("record") or {}
+
+        # Try to find a title/summary
+        title = metadata.get("title") or metadata.get("case_id") or f"Result {doc_id}"
+
+        # Resolve snippet from various possible locations
+        snippet = (
+            metadata.get("summary")
+            or metadata.get("text")
+            or record.get("text")
+            or vector.get("text")
+            or vector.get("document")
+            or "No snippet available"
+        )
+
+        mapped_results.append(
             {
-                **template,
-                "document_id": f"mock-{offset + 1}",
-                "document_name": f"mock-document-{offset + 1}",
-                "tags": ["demo", "vertex", f"sample-{offset + 1}"],
-                "rank": offset + 1,
+                "document_id": doc_id,
+                "document_name": title,
+                "struct": {"title": title, "summary": snippet, **metadata},
+                "rank_signals": {"semanticSimilarityScore": item.get("merged_score", 0.0)},
+                "rank": offset + i + 1,
             }
         )
 
-    return {"results": results, "total_size": len(results), "next_page_token": None}
+    # Generate next page token if we have a full page
+    next_page_token = None
+    if len(mapped_results) >= limit:
+        next_offset = offset + limit
+        next_page_token = base64.urlsafe_b64encode(str(next_offset).encode()).decode()
 
+    # Estimate total size to be at least the next page if we have a token
+    total_size = result["total"]
+    if next_page_token and total_size <= (offset + limit):
+        total_size = offset + limit + 1
 
-def _local_discovery_search(query: str, limit: int, offset: int = 0) -> Dict[str, Any]:
-    """Use local HybridSearchService to simulate Discovery results."""
-    try:
-        service = HybridSearchService()
-        search_query = HybridSearchQuery(text=query, limit=limit, offset=offset)
-        result = service.search(search_query)
-
-        mapped_results = []
-        for i, item in enumerate(result["results"]):
-            doc_id = item.get("case_id") or f"doc-{i}"
-            metadata = item.get("metadata") or {}
-            vector = item.get("vector") or {}
-            record = item.get("record") or {}
-
-            # Try to find a title/summary
-            title = metadata.get("title") or metadata.get("case_id") or f"Result {doc_id}"
-
-            # Resolve snippet from various possible locations
-            snippet = (
-                metadata.get("summary")
-                or metadata.get("text")
-                or record.get("text")
-                or vector.get("text")
-                or vector.get("document")
-                or "No snippet available"
-            )
-
-            mapped_results.append(
-                {
-                    "document_id": doc_id,
-                    "document_name": title,
-                    "struct": {"title": title, "summary": snippet, **metadata},
-                    "rank_signals": {"semanticSimilarityScore": item.get("merged_score", 0.0)},
-                    "rank": offset + i + 1,
-                }
-            )
-
-        # Generate next page token if we have a full page
-        next_page_token = None
-        if len(mapped_results) >= limit:
-            next_offset = offset + limit
-            next_page_token = base64.urlsafe_b64encode(str(next_offset).encode()).decode()
-
-        # Estimate total size to be at least the next page if we have a token
-        total_size = result["total"]
-        if next_page_token and total_size <= (offset + limit):
-            total_size = offset + limit + 1
-
-        return {"results": mapped_results, "total_size": total_size, "next_page_token": next_page_token}
-    except Exception:
-        # Fallback to static mock if local search fails
-        return _mock_discovery_response(query)
+    return {"results": mapped_results, "total_size": total_size, "next_page_token": next_page_token}
 
 
 @router.get("/search")
