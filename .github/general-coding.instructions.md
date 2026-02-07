@@ -12,6 +12,7 @@ These are the shared coding standards referenced by `.github/copilot-instruction
 - Use full type hints on new or modified Python code.
 - Write Google-style docstrings and concise explanatory comments when logic is non-obvious.
 - Format with Black and manage imports with isort; both use a shared 120-character line limit.
+- **Naming Convention:** Use singular nouns for constants, file names, database tables, and configuration keys (e.g., `REPORT_BUCKET`, not `REPORTS_BUCKET`). Avoid plurals unless representing a collection (like a list or array).
 
 ## Collaboration & Review
 - Treat collaboration as a two-person team (you + Copilot); you own prioritization and approvals.

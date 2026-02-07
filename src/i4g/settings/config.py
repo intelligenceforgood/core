@@ -249,9 +249,9 @@ class StorageSettings(BaseSettings):
         default=PROJECT_ROOT / "data" / "evidence",
         validation_alias=AliasChoices("STORAGE_EVIDENCE_LOCAL_DIR", "STORAGE__EVIDENCE__LOCAL_DIR"),
     )
-    reports_bucket: str | None = Field(
+    report_bucket: str | None = Field(
         default=None,
-        # validation_alias=AliasChoices("STORAGE_REPORTS_BUCKET", "STORAGE__REPORTS_BUCKET"),
+        validation_alias=AliasChoices("STORAGE_REPORT_BUCKET", "STORAGE__REPORT_BUCKET", "I4G_STORAGE__REPORT_BUCKET"),
     )
     cloudsql_instance: str | None = Field(
         default=None,
@@ -836,15 +836,23 @@ class Settings(BaseSettings):
         dotenv_settings,
         file_secret_settings,
     ):
-        """Extend settings sources with TOML-based config files."""
+        """Extend settings sources with TOML-based config files.
+
+        Priority (Last wins):
+        1. Config Files (defaults -> local -> env overrides)
+        2. .env files
+        3. Environment Variables (I4G_*)
+        4. Secrets
+        5. Init args
+        """
 
         config_sources = [TomlConfigSettingsSource(settings_cls, path) for path in _config_file_priority()]
         return (
-            init_settings,
-            env_settings,
-            dotenv_settings,
             *config_sources,
+            dotenv_settings,
+            env_settings,
             file_secret_settings,
+            init_settings,
         )
 
     @model_validator(mode="after")

@@ -3,14 +3,22 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+
+try:
+    from google.cloud import storage as gcs_storage
+except ImportError:
+    gcs_storage = None
 
 from i4g.api.auth import is_valid_api_token
 from i4g.services.account_list import AccountListRequest, AccountListResult, AccountListService, log_account_list_run
+from i4g.services.account_list.exporters import AccountListExporter
 from i4g.settings import Settings, get_settings
 from i4g.store.review_store import ReviewStore
 
@@ -64,6 +72,8 @@ def require_account_list_key(
     settings: Settings = Depends(get_settings),
 ) -> None:
     """Validate the account-list API key header, leveraging nested settings."""
+    if settings.identity.disable_auth:
+        return
 
     config = settings.account_list
     if not config.enabled:
@@ -77,6 +87,11 @@ def require_account_list_key(
     provided_key = request.headers.get(header_name)
     if not provided_key and header_name.lower() != "x-api-key":
         provided_key = request.headers.get("X-API-KEY")
+
+    # Also support query parameter for direct browser downloads
+    if not provided_key:
+        provided_key = request.query_params.get("key")
+
     if provided_key != expected_key:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid account list API key")
 
@@ -86,9 +101,9 @@ def require_account_list_access(
     settings: Settings = Depends(get_settings),
 ) -> None:
     """Allow either analyst console tokens or the dedicated account list API key."""
-
-    if is_valid_api_token(request.headers.get("X-API-KEY")):
+    if settings.identity.disable_auth:
         return
+
     require_account_list_key(request=request, settings=settings)
 
 
@@ -104,6 +119,57 @@ def _resolve_actor(request: Request) -> str:
     if client_host:
         return f"accounts_api:{client_host}"
     return "accounts_api"
+
+
+def _transform_artifacts(artifacts: Dict[str, str], request: Request) -> Dict[str, str]:
+    """Convert local filesystem paths to download URLs for the client."""
+    transformed = {}
+
+    # Try to grab the current API key from the request header to embed in the link
+    # This allows direct browser clicks to work without complex client-side blob handling.
+    # Note: We check the default header name explicitly here since we don't have access to settings.
+    current_key = (
+        request.headers.get("X-ACCOUNTLIST-KEY") or request.headers.get("X-API-KEY") or request.query_params.get("key")
+    )
+
+    for key, path_or_url in artifacts.items():
+        if path_or_url.startswith("gs://"):
+            # Generate a signed URL for GCS artifacts
+            if gcs_storage:
+                try:
+                    parts = path_or_url.replace("gs://", "").split("/", 1)
+                    if len(parts) == 2:
+                        bucket_name, blob_name = parts
+                        # Reuse default credentials
+                        client = gcs_storage.Client()
+                        bucket = client.bucket(bucket_name)
+                        blob = bucket.blob(blob_name)
+                        transformed[key] = blob.generate_signed_url(
+                            version="v4", expiration=timedelta(minutes=15), method="GET"
+                        )
+                    else:
+                        transformed[key] = path_or_url
+                except Exception as exc:
+                    LOGGER.warning("Failed to sign GCS URL: %s. Error: %s", path_or_url, exc)
+                    # Fallback to an authenticated browser download link.
+                    # This relies on the user being logged into Google and having permission to view the object in the bucket.
+                    parts = path_or_url.replace("gs://", "").split("/", 1)
+                    if len(parts) == 2:
+                        transformed[key] = f"https://storage.cloud.google.com/{parts[0]}/{parts[1]}"
+                    else:
+                        transformed[key] = path_or_url
+            else:
+                transformed[key] = path_or_url
+        elif path_or_url.startswith("http"):
+            transformed[key] = path_or_url
+        else:
+            # Assume local path; extract filename and build URL
+            filename = Path(path_or_url).name
+            url = str(request.url_for("download_account_list_artifact", filename=filename))
+            if current_key:
+                url = f"{url}?key={current_key}"
+            transformed[key] = url
+    return transformed
 
 
 @router.post(
@@ -134,7 +200,7 @@ def extract_account_list(
         actor,
         len(result.indicators),
         len(result.warnings),
-        list(result.artifacts.values()),
+        list(result.artifacts.values()) if result.artifacts else [],
     )
 
     try:
@@ -142,7 +208,41 @@ def extract_account_list(
     except Exception:  # pragma: no cover - defensive path
         LOGGER.exception("Failed to write account list audit entry", extra={"request_id": result.request_id})
 
+    # Transform local artifact paths to download URLs
+    if result.artifacts:
+        result = result.model_copy(update={"artifacts": _transform_artifacts(result.artifacts, request)})
+
     return result
+
+
+@router.get(
+    "/artifacts/{filename}",
+    summary="Download an account list extraction artifact",
+    operation_id="download_account_list_artifact",
+)
+def download_account_list_artifact(
+    filename: str,
+    _: None = Depends(require_account_list_access),
+    settings: Settings = Depends(get_settings),
+) -> FileResponse:
+    """Stream a generated report artifact from local storage."""
+    # Re-instantiate exporter logic to resolve base path safely
+    # (Checking against configured directory prevents traversal)
+    base_dir = settings.data_dir / "reports" / "account_list"
+    target_path = (base_dir / filename).resolve()
+
+    if not target_path.exists():
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    # Ensure the resolved path is within the base directory
+    if not str(target_path).startswith(str(base_dir.resolve())):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return FileResponse(
+        path=target_path,
+        media_type="application/octet-stream",
+        filename=filename,
+    )
 
 
 def _parse_datetime(value: Any) -> datetime | None:
@@ -159,7 +259,7 @@ def _parse_datetime(value: Any) -> datetime | None:
     return None
 
 
-def _parse_run_action(record: Dict[str, Any]) -> AccountListRunSummary | None:
+def _parse_run_action(record: Dict[str, Any], request: Request) -> AccountListRunSummary | None:
     payload = record.get("payload")
     if not isinstance(payload, dict):
         return None
@@ -186,6 +286,9 @@ def _parse_run_action(record: Dict[str, Any]) -> AccountListRunSummary | None:
     raw_metadata = payload.get("metadata")
     metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
 
+    # Transform artifacts
+    transformed_artifacts = _transform_artifacts(dict(artifacts), request)
+
     return AccountListRunSummary(
         request_id=request_id,
         actor=actor,
@@ -194,7 +297,7 @@ def _parse_run_action(record: Dict[str, Any]) -> AccountListRunSummary | None:
         indicator_count=indicator_count,
         source_count=source_count,
         warnings=list(warnings),
-        artifacts=dict(artifacts),
+        artifacts=transformed_artifacts,
         categories=list(categories),
         metadata=dict(metadata),
     )
@@ -206,6 +309,7 @@ def _parse_run_action(record: Dict[str, Any]) -> AccountListRunSummary | None:
     summary="List recent account list runs",
 )
 def list_account_list_runs(
+    request: Request,
     limit: int = Query(20, ge=1, le=100),
     _: None = Depends(require_account_list_access),
     store: ReviewStore = Depends(get_review_store),
@@ -215,7 +319,7 @@ def list_account_list_runs(
     actions = store.get_recent_actions(action=_AUDIT_ACTION, limit=limit)
     runs = []
     for action in actions:
-        summary = _parse_run_action(action)
+        summary = _parse_run_action(action, request)
         if summary:
             runs.append(summary)
     return AccountListRunResponse(runs=runs, count=len(runs))

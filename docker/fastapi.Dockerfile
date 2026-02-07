@@ -33,7 +33,8 @@ RUN python -m pip install --upgrade pip \
     "paddleocr>=2.7" \
     "faiss-cpu" \
     "langchain" \
-    "google-cloud-aiplatform"
+    "google-cloud-aiplatform" \
+    "google-cloud-storage"
 
 # Copy source code (invalidates cache only if source changes)
 COPY src ./src

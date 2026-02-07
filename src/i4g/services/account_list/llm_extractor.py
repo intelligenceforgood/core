@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import re
-from typing import Iterable, List
+from typing import Any, Iterable, List
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -57,8 +57,76 @@ class AccountEntityExtractor:
                 base_url=self.settings.llm.ollama_base_url,
                 temperature=self.settings.llm.temperature,
             )
+
+        if self.provider == "vertex_ai":
+            return self._build_vertex_client()
+
         raise RuntimeError(
-            "AccountEntityExtractor currently supports the 'ollama' provider. Configure Ollama locally or extend the extractor."
+            f"AccountEntityExtractor: Unsupported provider '{self.provider}'. "
+            "Configure 'ollama' or 'vertex_ai' via I4G_LLM__PROVIDER."
+        )
+
+    def _build_vertex_client(self) -> Any:
+        """Build a Vertex AI client adapter matching the LangChain Runnable interface."""
+        try:
+            import vertexai
+            from vertexai.generative_models import GenerationConfig, GenerativeModel
+        except ImportError as e:
+            raise ImportError("Create a Vertex AI client requires 'google-cloud-aiplatform'.") from e
+
+        project = self.settings.llm.vertex_ai_project or self.settings.secrets.project
+        location = self.settings.llm.vertex_ai_location or "us-central1"
+
+        # Choose model: prefer explicit chat_model, fall back to vertex specific, then gemini default
+        model_name = self.settings.llm.chat_model or self.settings.llm.vertex_ai_model or "gemini-1.5-flash-001"
+
+        # Initialize global vertexai context
+        vertexai.init(project=project, location=location)
+
+        LOGGER.info(
+            "Initialized Vertex AI client", extra={"project": project, "location": location, "model": model_name}
+        )
+
+        class VertexAdapter:
+            def __init__(self, model: GenerativeModel, temperature: float):
+                self._model = model
+                self._temperature = temperature
+
+            def invoke(self, messages: Any) -> Any:
+                # Convert LangChain messages to a single prompt string for Vertex
+                # This handles the specific list format used in extract_indicators
+                full_prompt = ""
+                if isinstance(messages, list):
+                    for msg in messages:
+                        if hasattr(msg, "content"):
+                            # Simple concatenation strategy
+                            # Note: Gemini supports "system instructions" in model init,
+                            # but simple concatenation works for many cases if formatted well.
+                            role = "System" if "System" in msg.__class__.__name__ else "User"
+                            full_prompt += f"{role}: {msg.content}\n\n"
+                        else:
+                            full_prompt += str(msg) + "\n\n"
+                else:
+                    full_prompt = str(messages)
+
+                # Simple mock of AIMessage with .content attribute
+                config = GenerationConfig(temperature=self._temperature, response_mime_type="application/json")
+                try:
+                    create_resp = self._model.generate_content(full_prompt, generation_config=config)
+
+                    # Helper class to mimic AIMessage
+                    class MessageResponse:
+                        def __init__(self, text: str):
+                            self.content = text
+
+                    return MessageResponse(create_resp.text)
+                except Exception as exc:
+                    LOGGER.error("Vertex AI generation failed", extra={"error": str(exc)})
+                    raise
+
+        return VertexAdapter(
+            model=GenerativeModel(model_name),
+            temperature=self.settings.llm.temperature,
         )
 
     def extract_indicators(
@@ -85,12 +153,19 @@ class AccountEntityExtractor:
             )
         except Exception:  # pragma: no cover - LLM availability
             LOGGER.exception("LLM invocation failed for query %s", query.slug)
-            return []
+            raise
+
         content = getattr(response, "content", "")
         if not content:
+            LOGGER.error("LLM returned empty content for query %s", query.slug)
             return []
+
         payload = _strip_code_fence(content)
         indicators = self._parse_payload(payload, query)
+        if not indicators:
+            # If LLM returns empty/garbage, try mock as a safety net?
+            # Maybe not, might duplicate. But here we trust LLM if it returned valid JSON but empty list.
+            pass
         return indicators
 
     def _mock_extract(self, *, query: IndicatorQuery, documents: List[SourceDocument]) -> List[FinancialIndicator]:
@@ -99,6 +174,12 @@ class AccountEntityExtractor:
         seen: set[tuple[str, str, str]] = set()
 
         def _add(item: str, indicator_type: str, number: str) -> None:
+            # Clean up inputs
+            item = item.strip()
+            number = number.strip()
+            if not item or not number:
+                return
+
             key = (indicator_type.lower(), item.lower(), number.lower())
             if key in seen:
                 return
@@ -115,9 +196,18 @@ class AccountEntityExtractor:
 
         lowered = text.lower()
         if query.slug == "bank":
+            # Match "Bank Name: <Name> ... Account number : <Num>" patterns
+            simple_bank = re.search(r"bank name\s*[:]\s*([^:]+?)\s+account", lowered)
+            simple_acct = re.search(r"account number\s*[:]\s*(\d+)", lowered)
+
+            if simple_bank and simple_acct:
+                _add(simple_bank.group(1).title(), "bank_account", simple_acct.group(1))
+
+            # Original stringent regex
             bank_match = re.search(r'"([^"\\]+)"\s+checking', text, re.IGNORECASE)
             account_match = re.search(r"account ending (\d{2,})", lowered)
-            routing_match = re.search(r"routing number (\d{5,})", lowered)
+            routing_match = re.search(r"routing number\s*[:]?\s*(\d{5,})", lowered)
+
             if bank_match and account_match:
                 suffix = account_match.group(1)[-4:]
                 _add(bank_match.group(1), "bank_account", f"****{suffix}")
@@ -125,13 +215,16 @@ class AccountEntityExtractor:
                 _add("Routing Number", "routing_number", routing_match.group(1))
 
         elif query.slug == "crypto":
-            for match in re.findall(r"\bbc1[a-z0-9]{10,}\b", lowered):
+            # Bitcoin (legacy & bech32)
+            for match in re.findall(r"\b(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}\b", text):
                 _add("Bitcoin Wallet", "crypto_wallet", match)
-            for match in re.findall(r"\b0x[a-f0-9]{20,}\b", lowered):
+            # Ethereum
+            for match in re.findall(r"\b0x[a-fA-F0-9]{40}\b", text):
                 _add("Ethereum Wallet", "crypto_wallet", match)
 
         elif query.slug == "payments":
             for email in re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text):
+                # Filter out likely false positives if needed
                 label = "PayPal" if "paypal" in email.lower() else "Payment Handle"
                 _add(label, "payment_service", email)
             for handle in re.findall(r"\$[A-Za-z0-9]+", text):

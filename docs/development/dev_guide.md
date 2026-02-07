@@ -92,7 +92,7 @@ Then configure your local settings to point to `127.0.0.1:5432`.
 - macOS or Linux (Apple Silicon M3 tested)
 - Python ≥ 3.11
 - Tesseract OCR installed (`brew install tesseract`)
-- Ollama running locally (`ollama serve`)
+- Ollama running locally (`ollama serve`) OR use **Mock Mode** (see below) to bypass LLM requirements
 - FAISS (for vector store)
 - Optional: Google Cloud SDK (for GDoc export)
 
@@ -110,6 +110,20 @@ pip install pre-commit
 # Optional: install the shared pre-commit hook for formatting + unit tests
 ln -sf ../../scripts/git-hooks/pre-commit .git/hooks/pre-commit
 pre-commit run --all-files  # prime caches on first install
+```
+
+### Mock Mode (LLM Bypass)
+
+If you do not have a robust GPU or simply want to test the plumbing without running a local LLM, you can force the system to use "mock" providers. This uses regex-based extraction and static responses instead of calling Ollama or Vertex AI.
+
+```bash
+# Run the account extractor job with the mock provider
+I4G_LLM__PROVIDER=mock i4g jobs account ...
+```
+
+To make this permanent for your local environment, add it to your `.env.local`:
+```bash
+echo "I4G_LLM__PROVIDER=mock" >> .env.local
 ```
 
 To test your setup:

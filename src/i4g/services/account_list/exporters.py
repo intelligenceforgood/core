@@ -51,11 +51,17 @@ class AccountListExporter:
         # install path (for example `/usr/local/lib/data`) which is often
         # not writable in container runtimes.
         storage_settings = self.settings.storage
-        self._reports_bucket = storage_settings.reports_bucket
+        self._report_bucket = storage_settings.report_bucket
+
+        LOGGER.info(
+            "AccountListExporter init: report_bucket='%s', project='%s'",
+            self._report_bucket,
+            self.settings.secrets.project,
+        )
 
         if base_dir is not None:
             self.base_dir = base_dir
-        elif self._reports_bucket:
+        elif self._report_bucket:
             # When a remote reports bucket is configured, write artifacts to
             # a writable temporary directory and upload them to GCS.
             import tempfile
@@ -67,12 +73,12 @@ class AccountListExporter:
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self._artifact_prefix = self.settings.account_list.artifact_prefix or "account_list"
         self._drive_folder_id = self.settings.account_list.drive_folder_id
-        if self._reports_bucket:
+        if self._report_bucket:
             if storage is None:
-                raise RuntimeError("google-cloud-storage required for reports bucket uploads")
+                raise RuntimeError("google-cloud-storage required for report bucket uploads")
             project = self.settings.secrets.project
             client = storage.Client(project=project)  # type: ignore[attr-defined]
-            self._bucket = client.bucket(self._reports_bucket)
+            self._bucket = client.bucket(self._report_bucket)
         else:
             self._bucket = None
         self._content_types = {
@@ -232,6 +238,12 @@ class AccountListExporter:
         content_type = self._content_types.get(local_path.suffix.lstrip(".").lower())
         content_type = content_type or mimetypes.guess_type(local_path.name)[0] or "application/octet-stream"
 
+        LOGGER.info(
+            "Finalizing artifact %s. Bucket configured: %s",
+            local_path,
+            self._report_bucket,
+        )
+
         if self._drive_folder_id and self._drive_service:
             try:
                 return self._upload_to_drive(local_path, content_type)
@@ -255,7 +267,7 @@ class AccountListExporter:
         blob = self._bucket.blob(blob_path)  # type: ignore[union-attr]
         with local_path.open("rb") as handle:
             blob.upload_from_file(handle, rewind=True, content_type=content_type)
-        return f"gs://{self._reports_bucket}/{blob_path}"
+        return f"gs://{self._report_bucket}/{blob_path}"
 
     def _build_drive_client(self):
         if not self._drive_folder_id:
