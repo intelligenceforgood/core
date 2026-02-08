@@ -34,10 +34,9 @@ This document is the single source of truth for how we authenticate users, autho
 | Service | Purpose | URL (dev) | IAM Owner | Notes |
 | --- | --- | --- | --- | --- |
 | FastAPI Gateway | API for intake, review, reports | `https://fastapi-gateway-y5jge5w2cq-uc.a.run.app/` | `sa-app` runtime | Protected by Identity-Aware Proxy (IAP). 404 at `/` is expected. |
-| Streamlit Operations Console | Internal dashboards & queues | `https://streamlit-analyst-ui-y5jge5w2cq-uc.a.run.app/` | `sa-app` runtime | Protected by IAP; analysts/admins only. |
-| Next.js Analyst Console | External portal | `https://i4g-console-y5jge5w2cq-uc.a.run.app/` | `sa-app` runtime | Protected by IAP; uses FastAPI APIs under the hood. |
+| Next.js Analyst Console | Analyst portal | `https://i4g-console-y5jge5w2cq-uc.a.run.app/` | `sa-app` runtime | Protected by IAP; uses FastAPI APIs under the hood. |
 
-All three application services currently reuse the shared runtime service account (`sa-app`). Terraform now owns both the Cloud Run `roles/run.invoker` binding (runtime + IAP service agent) and the IAP `roles/iap.httpsResourceAccessor` policy via the `i4g_analyst_members` input, which now points at the Workspace group `group:gcp-i4g-analyst@intelligenceforgood.org`. Project-level `roles/owner` grants flow through the sister variable `i4g_admin_members`, mapped to `group:gcp-i4g-admin@intelligenceforgood.org`.
+All application services currently reuse the shared runtime service account (`sa-app`). Terraform now owns both the Cloud Run `roles/run.invoker` binding (runtime + IAP service agent) and the IAP `roles/iap.httpsResourceAccessor` policy via the `i4g_analyst_members` input, which now points at the Workspace group `group:gcp-i4g-analyst@intelligenceforgood.org`. Project-level `roles/owner` grants flow through the sister variable `i4g_admin_members`, mapped to `group:gcp-i4g-admin@intelligenceforgood.org`.
 
 ---
 
@@ -65,7 +64,7 @@ All three application services currently reuse the shared runtime service accoun
 ## 5. Authorization & Service Accounts
 
 1. **Runtime Service Accounts**
-   - `sa-app`: shared by FastAPI, Streamlit, and the Next.js analyst console. Roles: `roles/datastore.user`, `roles/storage.objectViewer`, `roles/secretmanager.secretAccessor`, `roles/run.invoker` (self), `roles/logging.logWriter`, plus Discovery search role.
+   - `sa-app`: shared by FastAPI and the Next.js analyst console. Roles: `roles/datastore.user`, `roles/storage.objectViewer`, `roles/secretmanager.secretAccessor`, `roles/run.invoker` (self), `roles/logging.logWriter`, plus Discovery search role.
    - `sa-ingest`, `sa-report`, `sa-vault`, `sa-infra`: keep existing least-privilege grants (see Terraform modules).
 
 2. **Workspace Groups & Human Roles**
@@ -127,7 +126,7 @@ Terraform is the source of truth, but if we need an emergency change before a pl
          --member=group:gcp-i4g-analyst@intelligenceforgood.org \
          --role=roles/iap.httpsResourceAccessor
       ```
-3. **Repeat for FastAPI and Streamlit** as needed; Terraform will reconcile the bindings on the next apply.
+3. **Repeat for FastAPI** as needed; Terraform will reconcile the bindings on the next apply.
 
 ### 6.3 Consuming identity inside the app
 - FastAPI can trust IAP headers (`X-Goog-Authenticated-User-Email`) for lightweight auditing, but authorization decisions should still use database roles. If you need cryptographic verification, enable signed headers in IAP and verify the JWT using the documented audience.
@@ -140,7 +139,7 @@ Terraform is the source of truth, but if we need an emergency change before a pl
 | Phase | Timeline (est.) | Deliverables |
 | --- | --- | --- |
 | **Phase 0 (Now)** | Dec 2025 | Publish this IAM strategy, remove the Quick Auth helper, gate every Cloud Run service behind Terraform-managed IAP, document troubleshooting. |
-| **Phase 1** | Q1 2026 | Integrate GIS + Authorization headers directly into Next.js and Streamlit UIs; remove reliance on GAIA cookies; add low-risk law-enforcement read-only views. |
+| **Phase 1** | Q1 2026 | Integrate GIS + Authorization headers directly into the Next.js UI; remove reliance on GAIA cookies; add low-risk law-enforcement read-only views. |
 | **Phase 2** | Q2 2026 | Introduce role-specific Cloud Run services (victim intake, analyst tools, LEO portal). Enforce analyst access through VPN/Zero-Trust access, log device posture, and expand auditing. |
 | **Phase 3** | Q3 2026 | Evaluate non-Google identity options (passkeys, Auth0 for Nonprofits), finalize automation for IAM drift detection, and implement signed report attestations for legal workflows. |
 

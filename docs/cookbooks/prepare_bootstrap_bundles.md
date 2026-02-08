@@ -78,11 +78,6 @@ Review the [Azure legacy data primer](azure_legacy_data.md) for the environment 
   ./scripts/migration/run_migration.sh
   ```
 
-  **Alternative: Manual Execution**
-  > **Deprecated**: The `azure-sql-to-firestore` command has been removed.
-  > Cases are now imported directly into Cloud SQL. See updated ingestion
-  > workflows in the smoke test cookbook.
-
   **Troubleshooting: Password Authentication**
   If you must use SQL authentication and encounter "Login failed" or password policy errors, use the reset tool to force a clean state for the `migration_user`:
   ```bash

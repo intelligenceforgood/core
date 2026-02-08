@@ -346,7 +346,6 @@ printed to STDOUT so you can verify Drive/`gs://` uploads or inspect the local f
 
 ### 4. Optional Local Checks
 
-- **Streamlit Analyst Dashboard:** Once the FastAPI smoke test succeeds, launch the dashboard (`conda run -n i4g streamlit run src/i4g/ui/analyst_dashboard.py`) and verify that intakes and queue actions render.
 - **Vertex Retrieval Smoke:** If you have GCP credentials for Discovery, run `conda run -n i4g python scripts/smoke_vertex_retrieval.py --project <project> --data-store-id <data_store>` to validate the managed search stack. This requires access to the Artifact Registry dataset and may be skipped locally.
 
 Document successful runs (or failures) in `planning/change_log.md` when they drive code or infrastructure updates.

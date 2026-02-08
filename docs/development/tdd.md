@@ -36,7 +36,6 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 ## 3) Core Components
 - **FastAPI backend** (`src/i4g/api/*`): REST endpoints for ingestion, search, reviews, tasks, and reports.
 - **Next.js portal** (ui/apps/web): primary analyst/victim/LEO UI; consumes the same API contracts documented here.
-- **Streamlit ops console**: retained for internal dashboards; shares backend contracts.
 - **Background jobs** (`src/i4g/worker/jobs/*`, `src/i4g/worker/tasks.py`): ingestion, report generation, dossier queue.
 - **Ingestion pipeline** (`src/i4g/store/ingest.py`): structured store write + SQL dual-write + optional vector/Vertex fan-out; tokenization on/off via settings.
 - **Retrieval** (Hybrid): merges vector results and SQL entity filters; uses structured entities + embeddings.
@@ -343,8 +342,6 @@ sequenceDiagram
   API-->>Portal: JWT (expires 1 hour)
   Portal->>Portal: Store JWT in session state
 ```
-
-Internal developers and sys-admins sign into the Streamlit operations console through the same Google OAuth client. Streamlit reuses the FastAPI-issued JWTs, but Cloud Run IAM and group-based approvals limit access to on-call personnel only.
 
 ### FastAPI Implementation
 

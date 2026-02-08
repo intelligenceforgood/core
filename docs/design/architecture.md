@@ -10,7 +10,7 @@
 
 **i4g** is a cloud-native, AI-powered platform that helps scam users document fraud and generate law enforcement reports. The system uses a **privacy-by-design** architecture where personally identifiable information (PII) is tokenized immediately upon upload and stored separately from case data.
 
-You now run two first-party consoles. The **Next.js portal** on Cloud Run serves victims, volunteer analysts, and law enforcement officers through server-side proxy routes that preserve the privacy guarantees described below. The **Streamlit operations console** stays online for internal developers and sys-admins who need dashboards, data analytics, and live ingestion telemetry without exposing those tools to external users.
+The **Next.js analyst console** on Cloud Run serves victims, volunteer analysts, and law enforcement officers through server-side proxy routes that preserve the privacy guarantees described below.
 
 **Key Design Principles**:
 1. **Zero Trust**: No analyst ever sees raw PII
@@ -32,7 +32,7 @@ You now run two first-party consoles. The **Next.js portal** on Cloud Run serves
 |---|---|---|---|
 | Identity | Google Cloud Identity Platform (OIDC) | Local mock OIDC provider or stub JWT signer for development | `settings.identity.provider` (`google_identity` vs `dev_stub`); toggle via `I4G_ENV` + `.env.local`. |
 | API Gateway / FastAPI | Cloud Run service with Workload Identity | Docker container running FastAPI with `.env` config | `settings.runtime.mode` (`managed` / `local`); `make run-fastapi` uses local profile. |
-| Analyst UI | Streamlit on Cloud Run (authenticated) | Streamlit app run locally with dev auth toggles | `settings.ui.base_url` + `settings.auth.mock_tokens`; `make run-analyst-ui`. |
+| Analyst UI | Next.js on Cloud Run (authenticated via IAP) | Next.js console run locally with dev auth toggles | `pnpm --filter web dev`; configure `I4G_API_URL` + `I4G_API_KEY`. |
 | Retrieval & Vector Store | Vertex AI Search (default) | Dockerized Postgres + pgvector or local Chroma | `settings.vector.backend` (`vertex_ai`, `pgvector`, `chroma`); hot-swappable through `VectorClient`. |
 | LLM Inference | Vertex AI Gemini 1.5 Pro | Ollama running locally or mock responses | `settings.llm.provider` (`vertex_ai`, `ollama`, `dummy`); pluggable LangChain `LLMFactory`. |
 | Storage | Cloud SQL + Cloud Storage buckets | Local SQLite/JSON stores + filesystem folders | `settings.storage.mode` (`cloudsql`, `sqlite_fs`); mounts via `.env.local` paths. |
@@ -74,7 +74,7 @@ flowchart TB
 
   subgraph CloudRun["Cloud Run Services (us-central1)"]
     FastAPI["FastAPI API Gateway<br>(RAG, Intake, Reports)"]
-    Streamlit["Streamlit Analyst Portal<br>(OAuth/OIDC)"]
+    NextJS["Next.js Analyst Console<br>(OAuth/OIDC via IAP)"]
   end
 
   subgraph DataLayer["Data & Intelligence Layer"]
@@ -93,8 +93,8 @@ flowchart TB
   end
 
   Victim -- HTTPS --> FastAPI
-  Analyst -- HTTPS --> Streamlit
-  LEO -- HTTPS --> Streamlit
+  Analyst -- HTTPS --> NextJS
+  LEO -- HTTPS --> NextJS
 
   FastAPI -- REST/gRPC --> CloudSQL
   FastAPI -- REST/gRPC --> Vector
@@ -102,8 +102,7 @@ flowchart TB
   FastAPI -- Tokenization Calls --> TokenVault
   FastAPI -- Invoke Chains --> RAG
 
-  Streamlit -- API Calls --> FastAPI
-  Streamlit -- Signed URLs --> Storage
+  NextJS -- API Calls --> FastAPI
 
   IngestionPipelines -- Structured Writes --> CloudSQL
   IngestionPipelines -- Artifact Uploads --> Storage
@@ -111,10 +110,10 @@ flowchart TB
 
   Scheduler -- Triggers --> IngestionPipelines
   Secrets -- Credentials --> FastAPI
-  Secrets -- Credentials --> Streamlit
+  Secrets -- Credentials --> NextJS
   Secrets -- Credentials --> IngestionPipelines
   Telemetry -- Metrics/Logs --> FastAPI
-  Telemetry -- Metrics/Logs --> Streamlit
+  Telemetry -- Metrics/Logs --> NextJS
   Telemetry -- Metrics/Logs --> IngestionPipelines
 ```
 
@@ -138,7 +137,7 @@ flowchart LR
 
   subgraph RunServices["Cloud Run Services"]
     FastAPI[FastAPI Gateway]
-    Streamlit[Streamlit UI]
+    NextJS[Next.js Console]
     JobIngest[Cloud Run Jobs - Ingestion]
     JobReport[Cloud Run Jobs - Report Generator]
     VaultService[Tokenization Microservice]
@@ -165,9 +164,9 @@ flowchart LR
   LEOUI --> IAP
 
   IAP --> FastAPI
-  IAP --> Streamlit
+  IAP --> NextJS
 
-  Streamlit -->|Authenticated API| FastAPI
+  NextJS -->|Authenticated API| FastAPI
   FastAPI -->|REST| CloudSQL
   FastAPI -->|Signed URLs| Storage
   FastAPI -->|Vector Queries| Vector
@@ -183,7 +182,7 @@ flowchart LR
   VaultService -->|Detokenized Reads| CloudSQL
 
   Secrets -.-> FastAPI
-  Secrets -.-> Streamlit
+  Secrets -.-> NextJS
   Secrets -.-> JobIngest
   Secrets -.-> JobReport
   Secrets -.-> VaultService
@@ -198,14 +197,14 @@ flowchart LR
   VPCConn -->|Private Access| KMS
 
   Logging -.-> FastAPI
-  Logging -.-> Streamlit
+  Logging -.-> NextJS
   Logging -.-> JobIngest
   Logging -.-> JobReport
   Logging -.-> VaultService
 ```
 
 The swimlanes emphasize the Cloud Run deployment boundary: Identity-Aware Proxy fronts the stateless FastAPI and
-Streamlit services, while background Cloud Run jobs handle ingestion and reporting. Workload Identity supplies secrets
+Next.js services, while background Cloud Run jobs handle ingestion and reporting. Workload Identity supplies secrets
 from Secret Manager, and the shared VPC connector enables private access to the vector store or KMS when those
 resources require it. Observability remains centralized through Cloud Logging and Monitoring across all containers.
 
@@ -281,7 +280,7 @@ flowchart LR
   D --> E[DossierExporter<br/>PDF/HTML/Markdown]
   E --> F[DossierUploader<br/>Shared Drive]
   E --> G[Signature Manifest<br/>SHA-256]
-  F --> H[Next.js Portal / Streamlit]
+  F --> H[Next.js Portal]
   G --> H
   B --> I[DossierVisuals<br/>Timeline chart, GeoJSON]
   I --> C
@@ -342,29 +341,12 @@ Note: The `POST /api/cases` endpoint above is listed as a planned user-facing in
 - API route proxy that injects server-only secrets for FastAPI calls
 - Configurable mock mode for demos without backend dependencies
 
-#### Streamlit Operations Console
-
-**Responsibilities**:
-- Give internal developers and sys-admins a fast path to query cases, review ingestion telemetry, and validate Discovery relevance tuning
-- Host privileged dashboards (PII handling audit trails, queue depth monitors, weekly migration metrics) without impacting the hardened external portal
-- Surface ad-hoc data science notebooks and quick visualizations that do not belong in the production-facing UI
-
-**Technology Stack**:
-- Python 3.11 with Streamlit 1.28+
-- Shared component library (`i4g.ui.widgets`) to reuse FastAPI schemas directly in widgets
-- OAuth session reuse via the same FastAPI-issued JWTs consumed by Next.js
-
-**Key Features**:
-- Runs behind Cloud Run IAM so only on-call engineers and sys-admins can launch it
-- Ships with environment toggles (`I4G_ENV`, `I4G_ANALYTICS_MODE`) to switch between local SQLite/Chroma and GCP services
-- Imports `i4g.services.discovery` directly so Discovery experiments stay consistent with the backend
-
 ### 3a. **Account List Extraction Service**
 
 **Responsibilities**:
 - Expose `POST /accounts/extract` for on-demand analyst runs with API-key enforcement (`X-ACCOUNTLIST-KEY`).
 - Coordinate retrieval (`FinancialEntityRetriever`), LLM extraction (`AccountEntityExtractor`), and artifact generation (`AccountListExporter`).
-- Publish CSV/JSON/XLSX/PDF outputs to the local reports directory, Cloud Storage, or Google Drive (when configured) and return signed links to the caller and the Streamlit console.
+- Publish CSV/JSON/XLSX/PDF outputs to the local reports directory, Cloud Storage, or Google Drive (when configured) and return signed links to the caller.
 - Power the Cloud Run job `account-list` (scheduled via Cloud Scheduler) so recurring exports share the exact same code path as the interactive API.
 
 **Technology Stack**:
@@ -375,7 +357,7 @@ Note: The `POST /api/cases` endpoint above is listed as a planned user-facing in
 
 **Key Features**:
 - Category catalog (bank, crypto, payments today; IP/ASN/browser planned) driven by configuration so new indicators only need prompt/query definitions.
-- Deduplication + metadata summary stored alongside artifacts, surfaced in the Streamlit dashboard via a summary/status table.
+- Deduplication + metadata summary stored alongside artifacts, surfaced in the analyst console via a summary/status table.
 - Manual smoke harness (`tests/adhoc/account_list_export_smoke.py`) to verify exporter plumbing without hitting the LLM stack.
 - FastAPI also exposes `/accounts/runs`, enabling the analyst console’s new `/accounts` page to trigger manual runs, refresh audit history via server-side API routes, and expose artifact links / warnings inline without leaking service credentials to the browser.
 
@@ -487,7 +469,7 @@ curl http://localhost:11434/api/chat -d '{
   checksum, MIME type, and retention tags.
 
 ### Retrieval-Augmented Chat & Search
-1. Analyst initiates a chat session in Streamlit; the frontend calls FastAPI (`/api/chat`) with question, filters, and
+1. Analyst initiates a search session in the Next.js console; the frontend calls FastAPI (`/api/chat`) with question, filters, and
   auth context.
 2. FastAPI fetches structured context (case ownership, tags, status) from Cloud SQL based on analyst permissions.
 3. LangChain pipeline embeds the question (Vertex AI Embeddings or environment-specified model) and queries the
@@ -507,7 +489,7 @@ curl http://localhost:11434/api/chat -d '{
 4. `TemplateEngine` renders Markdown → DOCX/PDF; exporter writes artifacts to Cloud Storage (`i4g-reports-*`) with
   signature manifest updates.
 5. Notifications (email/SMS) can be dispatched by a Cloud Run job using Secret Manager credentials; signed URLs are
-  returned to Streamlit and logged for audit.
+  returned to the console and logged for audit.
 6. Audit trail in Cloud SQL captures status, actor, detokenization justification, and checksums for compliance review.
 
 ### PII Vault Architecture (developer reference)
@@ -591,7 +573,7 @@ truth.
 ### Identity & Access Control
 - Primary option: Google Cloud Identity Platform (OIDC) with role claims for `victim`, `analyst`, `admin`, and `leo`.
 - Fallback / future option: authentik or Keycloak on Cloud Run or GKE if self-hosted control becomes necessary.
-- Streamlit and FastAPI share a lightweight auth service for token verification and role enforcement; all user entry
+- The Next.js console and FastAPI share a lightweight auth service for token verification and role enforcement; all user entry
   points are fronted by Identity-Aware Proxy.
 - Service-to-service authentication relies on service account identities and Workload Identity Federation; no
   long-lived API keys.
@@ -602,7 +584,7 @@ truth.
 | Component | Service Account | Key Roles |
 |---|---|---|
 | FastAPI Cloud Run service | `sa-app@{project}` | `roles/run.invoker`, `roles/datastore.user`, `roles/storage.objectViewer`, custom `roles/vertex.searchUser` or AlloyDB client role, Secret Manager accessor |
-| Streamlit Cloud Run service | `sa-app@{project}` | `roles/run.invoker`, `roles/datastore.viewer`, `roles/storage.objectViewer`, `roles/logging.logWriter`, custom Discovery search role, Secret Manager accessor |
+| Next.js analyst console | `sa-app@{project}` | `roles/run.invoker`, `roles/datastore.viewer`, `roles/storage.objectViewer`, `roles/logging.logWriter`, custom Discovery search role, Secret Manager accessor |
 | Ingestion jobs / schedulers | `sa-ingest@{project}` | `roles/run.invoker`, `roles/storage.objectAdmin`, `roles/datastore.user`, Pub/Sub publisher when workflows emit events, Secret Manager accessor for source credentials |
 | Report worker (Cloud Run job or scheduler) | `sa-report@{project}` | `roles/storage.objectAdmin`, `roles/datastore.user`, Secret Manager accessor |
 | PII vault micro-service | `sa-vault@{project}` | `roles/datastore.user`, Cloud KMS encrypter/decrypter when KMS is enabled, no Cloud Storage access |
@@ -638,9 +620,9 @@ truth.
 | Role | Entry Path | Primary Data Access | Actions Allowed | Notes |
 |---|---|---|---|---|
 | Victim | FastAPI intake endpoints via Google Identity | Own submissions (Cloud SQL rows scoped to UID), upload bucket objects via signed URL | Create/update intake records, upload evidence, read status of submitted cases | Read-only access enforced through database RBAC; no direct Storage listing |
-| Analyst | Streamlit portal (Cloud Run) | Case queues, evidence metadata, vector query results, read-only Cloud SQL PII tokens (detokenized via FastAPI on demand) | Claim/release cases, run chat/RAG searches, trigger report generation, annotate cases | Detokenization requires explicit action and logs actor/justification |
-| Admin | Streamlit admin views + FastAPI admin APIs | All case data, configuration collections, audit logs | Manage users/roles, adjust configuration, approve report publishing, initiate rotations | Access gated by admin-only OAuth claim and Cloud Run IAM |
-| Law Enforcement (LEO) | Streamlit read-only report portal | Published reports, supporting evidence with signed URLs | View/download reports, acknowledge receipt | Accounts provisioned manually; multi-factor auth enforced |
+| Analyst | Next.js analyst console (Cloud Run) | Case queues, evidence metadata, vector query results, read-only Cloud SQL PII tokens (detokenized via FastAPI on demand) | Claim/release cases, run chat/RAG searches, trigger report generation, annotate cases | Detokenization requires explicit action and logs actor/justification |
+| Admin | Next.js admin views + FastAPI admin APIs | All case data, configuration collections, audit logs | Manage users/roles, adjust configuration, approve report publishing, initiate rotations | Access gated by admin-only OAuth claim and Cloud Run IAM |
+| Law Enforcement (LEO) | Next.js read-only report portal | Published reports, supporting evidence with signed URLs | View/download reports, acknowledge receipt | Accounts provisioned manually; multi-factor auth enforced |
 | Automation (ingest/report jobs) | Cloud Run jobs / Scheduler | Cloud SQL ingestion tables, Storage evidence buckets, vector store | Normalize raw feeds, enqueue cases, seed vector index, emit alerts | Operate under dedicated service accounts with least privilege |
 
 ### PII Isolation
@@ -827,7 +809,6 @@ gcloud run services update i4g-api --traffic
 
 ### Frontend
 - **External portal**: Next.js 15 (victim, analyst, and law enforcement UI)
-- **Operations console**: Streamlit 1.28+ (internal dashboards for developers and sys-admins)
 - **Shared styling**: Tailwind CSS design tokens + focused CSS for PII redaction and responsive layouts
 
 ### Cloud Infrastructure

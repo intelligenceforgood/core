@@ -120,18 +120,6 @@ Add `--raw` to print the full protobuf response as JSON. This is useful for debu
 
 ---
 
-## Analyst Dashboard Integration
-
-Run the Streamlit dashboard with `streamlit run src/i4g/ui/analyst_dashboard.py` to let analysts exercise the hosted search without touching the CLI. A new *Discovery (Vertex AI) search* panel sits near the top of the main view and accepts the same parameters as the CLI helper:
-
-- Project, location, data store ID, and serving config (defaults pull from environment variables when available).
-- Free-text query, optional filter expression, and optional BoostSpec JSON payload for ranking experiments.
-- Page size picker plus a toggle to expose the raw JSON response for each hit.
-
-Results show the summary, tags, structured payload, and rank signals, and you can download the raw response blob for sharing in Slack or attaching to tickets.
-
----
-
 ## Schema & Filter Reference
 
 The data store currently uses the auto-generated `default_schema`. You can inspect it with:

@@ -12,11 +12,6 @@ This directory contains Dockerfiles for the various services and background jobs
 **Description:** The main REST API service providing endpoints for reviews, search, and system management.
 **Key Dependencies:** `tesseract-ocr` (for on-the-fly extraction), `fastapi`, `uvicorn`.
 
-### `streamlit.Dockerfile`
-**Service:** Analyst Dashboard
-**Entrypoint:** `streamlit run src/i4g/ui/analyst_dashboard.py`
-**Description:** A Streamlit-based internal UI for analysts to visualize data, run ad-hoc queries, and inspect system state.
-
 ## Worker Job Images
 
 These images are designed to run as Cloud Run Jobs (batch or triggered tasks).

@@ -4,7 +4,7 @@
       <root>
         <mxCell id="0"/>
         <mxCell id="1" parent="0"/>
-        <mxCell id="cases" value="Case Queue&#10;(SQL / Firestore)" style="shape=process;rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12" vertex="1" parent="1">
+        <mxCell id="cases" value="Case Queue&#10;(SQL)" style="shape=process;rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12" vertex="1" parent="1">
           <mxGeometry x="40" y="220" width="200" height="70" as="geometry"/>
         </mxCell>
         <mxCell id="bundler" value="Bundle Builder&#10;(queues dossiers)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12" vertex="1" parent="1">

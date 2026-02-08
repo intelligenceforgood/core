@@ -145,7 +145,7 @@ Values are resolved in the following order:
 5. Secret files (when `SECRETS_*` points to a directory of files).
 
 The active environment is selected via `I4G_ENV` (defaults to `local`). All
-services—including Streamlit, FastAPI, and CLI tools—should read configuration
+services—including FastAPI and CLI tools—should read configuration
 via `get_settings()` instead of accessing environment variables directly.
 
 ### Sample local override
@@ -158,27 +158,25 @@ I4G_API_KEY=dev-analyst-token
 I4G_VECTOR_BACKEND=chroma
 ```
 
-### Local sandbox env vars (FastAPI, Streamlit, Next.js)
+### Local sandbox env vars (FastAPI, Next.js)
 
-When the sandbox services cannot find the expected API base/key, they usually crash with cryptic errors (Streamlit shows
-`ConnectionError: Failed to reach API`, the Next.js console surfaces `fetch failed`, and FastAPI background workers log
+When the sandbox services cannot find the expected API base/key, they usually crash with cryptic errors (the Next.js console surfaces `fetch failed`, and FastAPI background workers log
 `NoneType` attribute errors). Avoid that loop by defining the following variables before starting any of the local apps.
 Use a `.env.local` file or export them in the same shell session:
 
 | Service | Launch command | Required env vars |
 | --- | --- | --- |
 | **FastAPI** | `conda run -n i4g uvicorn i4g.api.app:app --reload` | `I4G_ENV=local`, `I4G_API_URL=http://127.0.0.1:8000`, `I4G_API_KEY=dev-analyst-token` |
-| **Streamlit dashboard** | `conda run -n i4g streamlit run src/i4g/ui/analyst_dashboard.py` | All FastAPI vars **plus** `I4G_API_KIND=proto` so the dashboard uses the proto search contract |
 | **Next.js analyst console** | `pnpm --filter web dev` | Same API vars as above, `I4G_API_KIND=proto`, and set `NEXT_PUBLIC_USE_MOCK_DATA=false` so the console skips the mock client |
 
 Additional tips:
 
 - Keep `I4G_ENV=local` for all sandbox runs; it forces SQLite/Chroma backends and mock identity.
-- If you need to point the console or Streamlit at `i4g-dev`, override `I4G_ENV=dev` **and** supply the matching
-    `I4G_API_KEY` (for example from Secret Manager). Missing keys produce `401 Unauthorized` loops in both UIs.
+- If you need to point the console at `i4g-dev`, override `I4G_ENV=dev` **and** supply the matching
+    `I4G_API_KEY` (for example from Secret Manager). Missing keys produce `401 Unauthorized` loops in the UI.
 - Add these exports to `.env.local` (core repo) and `.env.local` inside `ui/apps/web/` if you frequently switch between
     services; both repos load the files automatically via `python-dotenv` / Next.js env loaders.
-- Whenever you see Playwright/Vitest failures about `fetch` or Streamlit reports "API unavailable", re-check that
+- Whenever you see Playwright/Vitest failures about `fetch`, re-check that
     `I4G_API_URL` and `I4G_API_KEY` are present in the environment running that command (VS Code tasks do not inherit
     shell profiles by default).
 
@@ -281,7 +279,7 @@ python -c "from i4g.settings import get_settings; print(get_settings())"
 | `settings.storage` | Structured store backend and Cloud Storage buckets | `I4G_STORAGE__STRUCTURED_BACKEND`, `I4G_STORAGE__SQLITE_PATH`, `I4G_STORAGE__EVIDENCE_BUCKET` |
 | `settings.vector` | Vector index backend and embedding model | `I4G_VECTOR__BACKEND`, `I4G_VECTOR__CHROMA_DIR`, `I4G_VECTOR__PGVECTOR__DSN` |
 | `settings.llm` | Chat/RAG model provider selection | `I4G_LLM__PROVIDER`, `I4G_LLM__OLLAMA_BASE_URL`, `I4G_LLM__VERTEX_AI__MODEL` |
-| `settings.identity` | Auth provider wiring for Streamlit + APIs | `I4G_IDENTITY__PROVIDER`, `I4G_IDENTITY__AUDIENCE` |
+| `settings.identity` | Auth provider wiring for APIs | `I4G_IDENTITY__PROVIDER`, `I4G_IDENTITY__AUDIENCE` |
 | `settings.ingestion` | Scheduler + Cloud Run job defaults | `I4G_INGESTION__ENABLE_SCHEDULED_JOBS`, `I4G_INGESTION__SERVICE_ACCOUNT` |
 | `settings.report` | Dossier/report thresholds + Google Drive uploads | `I4G_REPORT__DRIVE_PARENT_ID`, `I4G_REPORT__MIN_LOSS_USD`, `I4G_REPORT__RECENCY_DAYS` |
 
@@ -359,7 +357,7 @@ Prefer a manual walkthrough or need to re-run a single stage? Use the individual
     python tests/adhoc/synthesize_review_cases.py --reset --queued 5 --in-review 2 --accepted 1 --rejected 1
     ```
 
-    Populates `data/i4g_store.db` with synthetic review items so the Streamlit dashboard has cases ready to demonstrate claim/accept/reject flows.
+    Populates `data/i4g_store.db` with synthetic review items so the analyst console has cases ready to demonstrate claim/accept/reject flows.
 
 Once these assets exist, the downstream scripts referenced below will find usable inputs without manual data hunting.
 
@@ -418,40 +416,9 @@ Check endpoint:
 http://localhost:8000/docs
 ```
 
-### Streamlit Analyst Dashboard
+### Next.js Analyst Console
 
-```bash
-streamlit run tests/adhoc/analyst_dashboard_demo.py
-```
-
-Note: If Streamlit fails to import protobuf with an error like "Descriptors cannot be created directly", pin protobuf to a 4.x release before launching Streamlit. For example:
-
-```bash
-pip install 'protobuf>=4.21.0,<5.0'
-```
-
-For full dashboard functionality (API-backed), you can run the main UI:
-
-```bash
-streamlit run src/i4g/ui/analyst_dashboard.py
-```
-
-Developer note: dependency resolution
-
-`requirements.txt` is generated with
-```
-pip-compile --extra=test pyproject.toml
-```
-
-Thanks to the `protobuf>=5,<6` pin, the resolver should converge without manual edits. Run the command inside the `i4g` conda environment so the right interpreter is on PATH, and commit both `pyproject.toml` and `requirements.txt` when you intentionally update dependencies.
-
-**Streamlit Analyst Dashboard**
-
-- **Seed data first:** `python tests/adhoc/synthesize_review_cases.py --reset --queued 5` so the queue has items to triage.
-- **Launch UI:** `streamlit run tests/adhoc/analyst_dashboard_demo.py` (full workflow for claiming, accepting, and rejecting cases).
-- **Search faster:** blend vector + structured lookups, adjust result counts, and paginate without re-running queries; hits tally shows total coverage.
-- **Saved search controls:** tag-based grouping, quick presets, CSV export, rename/share/delete, and bulk tag edits directly in the sidebar.
-- **Audit trail:** every run lands in `/reviews/search/history`; preview previous runs or replay them from the recent history panel.
+See the [Analyst Console](#analyst-console-nextjs-ui) section below for setup instructions.
 
 ---
 
@@ -469,7 +436,7 @@ python tests/adhoc/manual_report_demo.py
 python tests/adhoc/manual_report_export_demo.py
 ```
 
-Generated `.docx` files are written to `data/reports/` whether you trigger them from the demos, the Streamlit dashboard, or the API.
+Generated `.docx` files are written to `data/reports/` whether you trigger them from the demos or the API.
 
 ---
 
@@ -527,33 +494,6 @@ Grant the Cloud Run runtime account (and any local service account key) `roles/d
 then share the `I4G_REPORT__DRIVE_PARENT_ID` folder with that identity so uploads can succeed during dossier generation.
 
 Set these in `.env.local`, TOML configs, or Cloud Run job definitions so both the CLI and worker entrypoint share the same behavior.
-
-### Streamlit dossier viewer + regression checklist
-
-Once the queue contains `completed` dossier plans, the Streamlit analyst dashboard exposes an **Evidence dossiers**
-panel that calls `/reports/dossiers` and surfaces manifest/signature metadata side-by-side. Use it to preview what LEA
-users will see before we mirror the data into the Next.js console. Recommended smoke flow:
-
-1. **Generate artifacts** – run `i4g admin pilot-dossiers --case-count 3` (for demo data) followed by
-    `i4g admin process-dossiers --batch-size 3` to populate `data/reports/dossiers/*.json` locally. In cloud
-    environments, kick the Cloud Run job and confirm `status=completed` rows exist in `dossier_queue`.
-2. **Boot API + UI** – `conda run -n i4g uvicorn i4g.api.app:app --reload` in one terminal and
-    `conda run -n i4g streamlit run src/i4g/ui/analyst_dashboard.py` in another. Point the sidebar connection fields
-    at the FastAPI base URL / key you just launched.
-3. **Inspect the panel** – scroll to **📁 Evidence dossiers**, choose a status filter (`completed` for happy-path), adjust
-    the row limit, and click **Refresh dossiers**. Toggle **Include manifest payloads** when you need the inline JSON preview;
-    leave it off for faster summaries.
-4. **Verify artifacts** – each expander surfaces queue warnings, manifest/signature paths, and exposes both a manifest
-    download button and a **Verify signatures** action. The verification button hashes every artifact listed in
-    `{plan_id}.signatures.json`, reports missing/mismatched entries inline, and shows a drill-down table with path/size
-    metadata for investigators.
-5. **Optional manual hash check** – for double-blind validation, copy the SHA + path from the signature manifest, then run
-    `shasum -a 256 <path>` (or `python -m hashlib`) to confirm the command-line result matches the Streamlit verification
-    output. For bulk checks, use `conda run -n i4g i4g reports verify-hashes --path data/reports/dossiers`
-    (add `--fail-on-warn` to treat manifest warnings as failures).
-
-Record the outcomes (especially any warnings/errors) as part of the Milestone 4 regression log so we maintain a reproducible
-manual test until the automated LEA portal ships.
 
 ---
 
@@ -625,36 +565,7 @@ Manual workflow (run from the repo root unless noted):
 
 2. Create the Artifact Registry repo if it does not already exist.
 
-### Rapid Streamlit Redeploy (dev)
-
-When you need to re-test Streamlit changes quickly, you can reuse the `streamlit:dev` tag standing in Terraform:
-
-1. Rebuild and push the image:
-
-        ```bash
-        docker buildx build \
-            --platform linux/amd64 \
-            -f docker/streamlit.Dockerfile \
-            -t us-central1-docker.pkg.dev/i4g-dev/applications/streamlit:dev \
-            --push .
-        ```
-
-2. Force Cloud Run to pull the new digest, keeping existing env vars and supplying the Discovery defaults:
-
-    ```bash
-        gcloud run services update streamlit-analyst-ui \
-            --project i4g-dev \
-            --region us-central1 \
-            --image us-central1-docker.pkg.dev/i4g-dev/applications/streamlit:dev \
-            --update-env-vars I4G_VERTEX_SEARCH_PROJECT=i4g-dev,\
-                I4G_VERTEX_SEARCH_LOCATION=global,\
-                I4G_VERTEX_SEARCH_DATA_STORE=retrieval-poc,\
-                I4G_VERTEX_SEARCH_SERVING_CONFIG=default_search
-    ```
-
-    `--update-env-vars` patches Cloud Run’s configuration without wiping values that Terraform applied earlier. Cloud Run reuses the same `:dev` tag but pulls the new digest.
-
-Terraform keeps pointing at the same tag, so it will not trigger a deployment on its own. Once you finish iterating, bump the tag (and mirror the env vars) in `infra/environments/dev/terraform.tfvars` so infrastructure runs remain declarative.
+    gcloud artifacts repositories create applications \
 
     gcloud artifacts repositories create applications \
       --repository-format docker \
@@ -682,18 +593,12 @@ docker tag fastapi:dev us-central1-docker.pkg.dev/i4g-dev/applications/fastapi:d
 docker push us-central1-docker.pkg.dev/i4g-dev/applications/fastapi:dev
 ```
 
-Swap `docker/fastapi.Dockerfile` with `docker/streamlit.Dockerfile` and adjust the tag (e.g. `streamlit:dev`) to publish the Streamlit UI container using the same flow.
-
 4. Reference the pushed URI in Terraform (for example `infra/environments/dev/terraform.tfvars`).
 
     project_id    = "i4g-dev"
     fastapi_image = "us-central1-docker.pkg.dev/i4g-dev/applications/fastapi:dev"
 
 5. If you rebuild an image but keep the same tag (for example `:dev`), force Cloud Run to pull the new digest:
-
-                gcloud run services update streamlit-analyst-ui \
-                    --region=us-central1 \
-                    --image=us-central1-docker.pkg.dev/i4g-dev/applications/streamlit:dev
 
                 gcloud run services update fastapi-gateway \
                     --region=us-central1 \

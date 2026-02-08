@@ -7,7 +7,6 @@ absolutely necessary.
 ## Prerequisites
 - Confirm you can access the Next.js analyst console (`/reports/dossiers`) and the Shared Drive parent configured via
   `I4G_REPORT__DRIVE_PARENT_ID`.
-- Keep the Streamlit dashboard available as a fallback, but prioritize the console workflow documented below.
 - Ensure you have write access to the subpoena log (`docs/compliance.md` or the equivalent ticket system) so the handoff
   is traceable.
 

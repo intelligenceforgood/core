@@ -39,7 +39,7 @@ TASK_STATUS: Dict[str, Dict[str, str]] = {}
 def get_task_status(task_id: str) -> Dict[str, str]:
     """Retrieve the current status of a background task.
 
-    This endpoint is used by Streamlit or external clients to monitor report
+    This endpoint is used by the analyst console or external clients to monitor report
     generation, ingestion, or review actions.
 
     Args:

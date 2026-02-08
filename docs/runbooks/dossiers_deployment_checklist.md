@@ -74,7 +74,7 @@ manifest stored in `docs/config/`.
 5. Restore Terraform parity (`terraform apply`) once the job finishes successfully.
 
 ## 4. Observability and verification
-- **Task_STATUS:** Visit `/tasks/{execution_id}` (or watch the Streamlit Task_STATUS widget) to confirm the job emitted
+- **Task_STATUS:** Visit `/tasks/{execution_id}` to confirm the job emitted
   `started` and `finished` events with processed/completed counts.
 - **Cloud Logging:**
   ```bash

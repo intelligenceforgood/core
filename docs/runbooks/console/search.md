@@ -96,7 +96,7 @@ The script boots `next dev`, opens `/search`, submits a canned hybrid query, and
 `docs/cookbooks/smoke_test.md` for the extended checklist.
 
 ## 4. Saved-search migration playbook
-1. Set `[search.saved_search]` defaults in `config/settings.*.toml`. The CLI, Streamlit UI, and Next.js app all read from
+1. Set `[search.saved_search]` defaults in `config/settings.*.toml`. The CLI and Next.js app both read from
    this section, so edit it before exporting or importing searches.
 2. Export existing searches per owner or shared scope:
    ```bash

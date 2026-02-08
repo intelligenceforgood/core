@@ -77,14 +77,10 @@ uvicorn i4g.api.app:app --reload
 # API runs at http://localhost:8000
 ```
 
-**Start Dashboard**:
+**Start Next.js Console**:
 ```bash
-# Official dashboard (API-backed)
-streamlit run src/i4g/ui/analyst_dashboard.py
-
-# Alternative: run the lightweight demo dashboard used in tests and demos
-# streamlit run tests/adhoc/analyst_dashboard_demo.py
-# Dashboard runs at http://localhost:8501
+cd ui/ && pnpm install && pnpm --filter web dev
+# Console runs at http://localhost:3000
 ```
 
 ---
