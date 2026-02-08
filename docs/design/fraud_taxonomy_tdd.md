@@ -1,6 +1,6 @@
 # Technical Design: Fraud Taxonomy & Classification System
 
-**Status:** Draft
+**Status:** Active (v1.1)
 **Owner:** IntelligenceForGood
 **Related PRD:** [planning/fraud_taxonomy_prd.md](../../../../planning/fraud_taxonomy_prd.md)
 
@@ -20,7 +20,7 @@ The system uses a multi-axis classification model. Each submission is scored ind
 ### 2.2 Single Source of Truth (SSOT)
 To ensure consistency across Python (Backend), TypeScript (Frontend), and Documentation, the taxonomy is defined in a language-agnostic YAML file.
 
-**File Location:** `core/data/taxonomy/definitions.yaml`
+**File Location:** `core/src/i4g/taxonomy/definitions.yaml`
 
 **Schema:**
 ```yaml

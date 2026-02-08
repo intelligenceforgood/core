@@ -1,7 +1,7 @@
 # Background Jobs & Worker Architecture
 
-> **Status**: Active
-> **Last Updated**: December 28, 2025
+> **Status**: Active (v1.1)
+> **Last Updated**: February 8, 2026
 
 This document serves as the authoritative inventory of background jobs and worker processes in the I4G Core platform. It maps business logic (Python modules) to deployment artifacts (Docker images) and execution triggers.
 
@@ -11,10 +11,12 @@ This document serves as the authoritative inventory of background jobs and worke
 | :--- | :--- | :--- | :--- | :--- |
 | **Ingestion Worker** | Batch processing of data bundles (JSONL). Handles embedding generation and store population. | `src/i4g/worker/jobs/ingest.py` | `ingest-job.Dockerfile` | `i4g jobs ingest` |
 | **Intake Worker** | Processes continuous intake streams and new data arrivals. | `src/i4g/worker/jobs/intake.py` | `intake-job.Dockerfile` | `i4g jobs intake` |
-| **Report Generator** | Generates PDF/Markdown reports for accepted cases. | `src/i4g/worker/jobs/report.py` | `report-job.Dockerfile` | `python -m i4g.worker.jobs.report` |
+| **Report Generator** | Generates PDF/Markdown reports for accepted cases. | `src/i4g/worker/jobs/report.py` | `report-job.Dockerfile` | `i4g jobs report` |
 | **Dossier Processor** | Assembles and enriches evidence dossiers from the queue. | `src/i4g/worker/jobs/dossier_queue.py` | `dossier-job.Dockerfile` | `i4g jobs dossier` |
 | **Account Manager** | Syncs account watchlists and manages external provider data. | `src/i4g/worker/jobs/account_list.py` | `account-job.Dockerfile` | `/app/scripts/run_account_job.sh` |
 | **Ingest Retry** | Retries failed ingestion batches. (Runs within Ingest context or standalone). | `src/i4g/worker/jobs/ingest_retry.py` | *Shared with Ingest* | `i4g jobs ingest-retry` |
+| **Classification Sweeper** | Batch fraud classification of pending cases using taxonomy + LLM. | `src/i4g/worker/jobs/classification_sweeper.py` | *Shared with Ingest* | `i4g jobs classify` |
+| **PII Backfill** | Tokenizes existing PII in the StructuredStore (backfill utility). | `src/i4g/worker/jobs/pii_backfill.py` | *Shared with Ingest* | `i4g jobs pii-backfill` |
 
 ## Detailed Job Descriptions
 

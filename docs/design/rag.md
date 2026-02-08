@@ -1,7 +1,7 @@
 # RAG Pipeline Architecture
 
-> **Status**: Active
-> **Last Updated**: December 28, 2025
+> **Status**: Active (v1.1)
+> **Last Updated**: February 8, 2026
 
 This document describes the Retrieval-Augmented Generation (RAG) pipeline used for scam detection and analysis within the I4G platform.
 
@@ -30,9 +30,9 @@ flowchart LR
     *   **Source**: `source_documents` chunks stored in Vertex AI Search (Cloud) or Chroma (Local).
 
 2.  **LLM (Reasoning Engine)**:
-    *   **Cloud**: Vertex AI Gemini 1.5 Pro.
+    *   **Cloud**: Vertex AI Gemini 2.5 Flash (also used by `classification_sweeper`).
     *   **Local**: Ollama (running `llama3.1` or similar).
-    *   **Configuration**: Controlled via `settings.llm.provider`.
+    *   **Configuration**: Controlled via `settings.llm.provider`. Note: `pipeline.py` currently hardcodes Ollama (`ChatOllama`). The multi-provider switch is fully implemented in `classifier.py` (Vertex AI, Ollama, mock) but not yet wired into the RAG pipeline.
 
 3.  **Prompt Engineering**:
     *   The system uses a focused prompt template designed to detect crypto and romance scams targeting seniors.

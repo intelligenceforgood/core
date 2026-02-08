@@ -1,7 +1,7 @@
 # i4g System Architecture
 
-> **Document Version**: 1.3
-> **Last Updated**: December 14, 2025
+> **Document Version**: 2.0
+> **Last Updated**: February 8, 2026
 > **Audience**: Engineers, technical stakeholders, university partners
 
 ---
@@ -30,12 +30,12 @@ The **Next.js analyst console** on Cloud Run serves victims, volunteer analysts,
 
 | Capability / Service | Managed (Cloud Run / GCP) | Local / Laptop Profile | Swap Mechanism |
 |---|---|---|---|
-| Identity | Google Cloud Identity Platform (OIDC) | Local mock OIDC provider or stub JWT signer for development | `settings.identity.provider` (`google_identity` vs `dev_stub`); toggle via `I4G_ENV` + `.env.local`. |
+| Identity | Google Cloud Identity Platform (OIDC) | Local mock OIDC provider or stub JWT signer for development | `settings.identity.provider` (`google_identity`, `authentik`, `firebase`, `dev_stub`); toggle via `I4G_ENV` + `.env.local`. |
 | API Gateway / FastAPI | Cloud Run service with Workload Identity | Docker container running FastAPI with `.env` config | `settings.runtime.mode` (`managed` / `local`); `make run-fastapi` uses local profile. |
 | Analyst UI | Next.js on Cloud Run (authenticated via IAP) | Next.js console run locally with dev auth toggles | `pnpm --filter web dev`; configure `I4G_API_URL` + `I4G_API_KEY`. |
-| Retrieval & Vector Store | Vertex AI Search (default) | Dockerized Postgres + pgvector or local Chroma | `settings.vector.backend` (`vertex_ai`, `pgvector`, `chroma`); hot-swappable through `VectorClient`. |
-| LLM Inference | Vertex AI Gemini 1.5 Pro | Ollama running locally or mock responses | `settings.llm.provider` (`vertex_ai`, `ollama`, `dummy`); pluggable LangChain `LLMFactory`. |
-| Storage | Cloud SQL + Cloud Storage buckets | Local SQLite/JSON stores + filesystem folders | `settings.storage.mode` (`cloudsql`, `sqlite_fs`); mounts via `.env.local` paths. |
+| Retrieval & Vector Store | Vertex AI Search (default) | Dockerized Postgres + pgvector or local Chroma / FAISS | `settings.vector.backend` (`vertex_ai`, `pgvector`, `chroma`, `faiss`); hot-swappable through `VectorStore` (`i4g.store.vector`). |
+| LLM Inference | Vertex AI Gemini 2.5 Flash | Ollama running locally or mock responses | `settings.llm.provider` (`vertex_ai`, `ollama`, `mock`); pluggable via `build_fraud_classifier()` in `factories.py`. |
+| Storage | Cloud SQL + Cloud Storage buckets | Local SQLite + filesystem folders | `settings.storage.structured_backend` (`sqlite`, `cloudsql`); mounts via `.env.local` paths. |
 | Ingestion Jobs | Cloud Run Jobs + Scheduler | Local scripts invoked via `make ingest-*` with stub schedules | `scripts/ingest/*` honour `settings.jobs.enabled`; local cron disabled by default. |
 | Observability | Cloud Logging/Monitoring with OpenTelemetry exporters | Console logs + optional local OTLP collector (Docker) | `settings.telemetry.otlp_endpoint`; default empty routes to stdout. |
 | Secrets | Secret Manager, Workload Identity | `.env.local` (gitignored) + Pydantic overrides | `settings.secrets.provider` (`secret_manager`, `env`); helper resolves per environment. |
@@ -307,15 +307,23 @@ flowchart LR
 - google-cloud-storage (file uploads)
 - cryptography (AES-256-GCM encryption)
 
-**Key Endpoints**:
-- `POST /api/cases` - Submit new case
-- `GET /api/cases` - List assigned cases
-- `GET /api/cases/{id}` - Get case details (PII masked)
-- `PATCH /api/cases/{id}` - Update case status
-- `POST /api/cases/{id}/approve` - Generate LEO report
-- `GET /api/health` - Health check
+**Key Endpoints (FastAPI Routers)**:
 
-Note: The `POST /api/cases` endpoint above is listed as a planned user-facing intake route in the architecture. In the current implementation this exact endpoint is not present — case intake is handled via the review queue and review-related routes (see `src/i4g/api/review.py` and the `/reviews` router). Consider this endpoint "planned" until a dedicated intake route is added.
+| Prefix | Router | Description |
+|--------|--------|-------------|
+| `/reviews` | `review.py` | Search, queue ops, saved-search CRUD, review actions |
+| `/cases` | `cases.py` | Case detail view (GET /cases/{id}) |
+| `/intakes` | `intake.py` | Victim submission pipeline |
+| `/reports` | `reports.py` | Dossier listing, artifacts, signature verification |
+| `/accounts` | `account_list.py` | Account list extraction runs and artifacts |
+| `/analytics` | `analytics.py` | Overview metrics, trends, intake stats |
+| `/dashboard` | `dashboard.py` | Overview stats (active investigations, recent actions) |
+| `/campaigns` | `campaigns.py` | Fraud campaign CRUD |
+| `/discovery` | `discovery.py` | Vertex AI Discovery search |
+| `/taxonomy` | `taxonomy.py` | Fraud taxonomy hierarchy tree |
+| `/tokenization` | `tokenization.py` | PII tokenize/detokenize endpoints |
+| `/tasks/{task_id}` | `app.py` | Background task status polling |
+| `POST /reports/generate` | `app.py` | Guarded report generation trigger |
 
 ---
 
@@ -389,38 +397,16 @@ Note: The `POST /api/cases` endpoint above is listed as a planned user-facing in
 
 ### 3. **Cloud SQL Database**
 
-**Tables**:
+The relational schema is defined in SQLAlchemy models at `src/i4g/store/sql.py` and managed via Alembic migrations (`alembic/` directory). Key tables:
 
-```
-cases
-  └─ {case_id}
-      ├─ created_at: timestamp
-      ├─ user_email: varchar
-      ├─ title: varchar
-      ├─ description: text (tokenized: <PII:SSN:7a8f2e>)
-      ├─ classification: jsonb {type, confidence}
-      ├─ status: "new" | "in_review" | "awaiting_input" | "accepted" | "rejected" | "closed"
-      ├─ assigned_to: analyst_uid
-      ├─ evidence_files: [gs://urls]
-      └─ notes: [{author, text, timestamp}]
-
-/pii_vault
-  └─ {token_id}
-      ├─ case_id: string
-      ├─ pii_type: "ssn" | "email" | "phone" | "credit_card"
-      ├─ encrypted_value: bytes (AES-256-GCM)
-      ├─ encryption_key_version: string
-      └─ created_at: timestamp
-
-/analysts
-  └─ {uid}
-      ├─ email: string
-      ├─ full_name: string
-      ├─ role: "analyst" | "admin"
-      ├─ approved: boolean
-      ├─ ferpa_certified: boolean
-      └─ last_login: timestamp
-```
+| Table Group | Tables | Notes |
+|-------------|--------|-------|
+| Core case data | `cases`, `scam_records`, `entities` | Normalized case + extracted entity storage |
+| Review workflow | `review_queue`, `review_actions` | Analyst queue assignments and audit trail |
+| Intake pipeline | `intake_records`, `ingestion_runs`, `ingestion_retry` | Victim submissions and batch ingestion tracking |
+| Classification | `classifications`, `campaigns`, `campaign_classifications` | Fraud taxonomy and campaign linkage |
+| PII isolation | `pii_token_store` | **Isolated PII Vault database** — separate Cloud SQL instance in production |
+| Evidence | `source_documents`, `evidence_files` | Document metadata and artifact references |
 
 **Access Control**:
 
@@ -431,29 +417,22 @@ Row-level security and role-based access are enforced at the application layer v
 
 ---
 
-### 4. **Ollama LLM Server**
+### 4. **LLM Inference**
+
+The platform supports three LLM providers, selectable via `settings.llm.provider`:
+
+| Provider | Setting Value | Model | Use Case |
+|----------|---------------|-------|----------|
+| Vertex AI Gemini | `vertex_ai` | `gemini-2.5-flash` via `google-cloud-aiplatform` | Cloud / production inference |
+| Ollama | `ollama` | `llama3` (default, configurable) | Local development on developer laptops |
+| Mock | `mock` | Deterministic canned responses | Unit tests and CI pipelines |
 
 **Responsibilities**:
-- Local LLM inference (no API costs)
 - Scam classification (romance, crypto, phishing, other)
 - PII extraction from unstructured text
+- Summarization and report narrative generation
 
-**Model**: llama3.1 (8B parameters, 4-bit quantization)
-
-**Inference API**:
-```bash
-curl http://localhost:11434/api/chat -d '{
-  "model": "llama3.1",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Classify this scam: I met someone on Tinder..."
-    }
-  ]
-}'
-```
-
-**Deployment**: Cloud Run with GPU (T4) for faster inference
+Provider selection and model construction are handled by `build_fraud_classifier()` in `src/i4g/services/factories.py`.
 
 ---
 
@@ -469,7 +448,7 @@ curl http://localhost:11434/api/chat -d '{
   checksum, MIME type, and retention tags.
 
 ### Retrieval-Augmented Chat & Search
-1. Analyst initiates a search session in the Next.js console; the frontend calls FastAPI (`/api/chat`) with question, filters, and
+1. Analyst initiates a search session in the Next.js console; the frontend calls FastAPI (`/reviews/search` or `/discovery`) with question, filters, and
   auth context.
 2. FastAPI fetches structured context (case ownership, tags, status) from Cloud SQL based on analyst permissions.
 3. LangChain pipeline embeds the question (Vertex AI Embeddings or environment-specified model) and queries the
@@ -531,7 +510,7 @@ API deployment (Python FastAPI):
 
 ```bash
 gcloud run deploy i4g-api \
-  --image gcr.io/i4g-prod/api:latest \
+  --image us-central1-docker.pkg.dev/i4g-dev/applications/fastapi:dev \
   --region us-central1 \
   --platform managed \
   --allow-unauthenticated \
@@ -726,10 +705,11 @@ gcloud secrets versions add TOKEN_ENCRYPTION_KEY --data-file=new_key.txt
 
 ### Response Times (p95)
 
-- `POST /api/cases` (with LLM classification): 3.5 seconds
-- `GET /api/cases`: 150 ms
-- `GET /api/cases/{id}`: 200 ms
-- `POST /api/cases/{id}/approve` (generate report): 2.2 seconds
+> TBD — benchmark against production endpoints. Key routes to measure:
+> - `POST /reviews/search` (hybrid retrieval)
+> - `GET /cases/{id}` (case detail with entity resolution)
+> - `POST /reports/generate` (guarded report generation)
+> - `POST /intakes` (victim submission with PII tokenization)
 
 ### Throughput
 
@@ -803,9 +783,11 @@ gcloud run services update i4g-api --traffic
 ### Backend
 - **Language**: Python 3.11
 - **Framework**: FastAPI 0.104+ (async, type hints)
+- **ORM**: SQLAlchemy 2.0 + Alembic (migrations)
 - **RAG Pipeline**: LangChain 0.2+ (LCEL composition)
-- **LLM**: Ollama (llama3.1 8B model, 4-bit quantization)
-- **Vector DB**: ChromaDB (local embeddings via nomic-embed-text)
+- **LLM**: Vertex AI Gemini (cloud) / Ollama (local) / Mock (tests) — via `build_fraud_classifier()`
+- **Vector DB**: Vertex AI Search (cloud) / ChromaDB or FAISS (local) — via `VectorStore`
+- **OCR**: Tesseract + pytesseract for document text extraction
 
 ### Frontend
 - **External portal**: Next.js 15 (victim, analyst, and law enforcement UI)
@@ -832,14 +814,17 @@ gcloud run services update i4g-api --traffic
 
 ## Future Architecture Improvements
 
-### Phase 2 (Post-MVP)
-- [ ] Add Redis caching layer (reduce database queries)
-- [ ] Implement async task queue (Celery + Cloud Tasks)
-- [ ] Multi-region deployment (us-central1 + europe-west1)
+### Completed (formerly Phase 2)
+- [x] Background task execution via `TASK_STATUS` dict + `asyncio` threads (interim until Redis)
+- [x] Cloud Run Jobs for async work (ingestion, report generation, account list extraction)
+- [x] Multi-provider LLM support (Vertex AI, Ollama, Mock)
+
+### Phase 2 (In Progress)
+- [ ] Replace in-memory `TASK_STATUS` with Redis for multi-instance consistency
 - [ ] CDN for static assets (Cloud CDN)
+- [ ] Multi-region deployment (us-central1 + europe-west1)
 
 ### Phase 3 (Scale)
-- [ ] Microservices split (auth, classification, report generation)
 - [ ] Event-driven architecture (Pub/Sub)
 - [ ] Real-time analytics dashboard (BigQuery + Data Studio)
 - [ ] Mobile app (React Native)
@@ -854,5 +839,5 @@ gcloud run services update i4g-api --traffic
 
 ---
 
-**Last Updated**: 2025-10-30<br/>
-**Next Review**: 2026-01-30
+**Last Updated**: 2026-02-08<br/>
+**Next Review**: 2026-05-08

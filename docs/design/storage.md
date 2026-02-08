@@ -1,7 +1,7 @@
 # Storage Architecture
 
-> **Status**: Active
-> **Last Updated**: December 20, 2025
+> **Status**: Active (v1.1)
+> **Last Updated**: February 8, 2026
 
 This document details the storage backends used by the i4g platform across different environments (Local Sandbox vs. Cloud Dev/Prod). The system employs a **polyglot persistence** strategy, using the best tool for each data type (relational, document, vector, blob).
 
@@ -22,13 +22,27 @@ This document details the storage backends used by the i4g platform across diffe
 ### 1. Relational Store (SQL)
 **Purpose**: The "source of truth" for high-volume structured data generated during ingestion and analyst queue state.
 - **Schema**: Defined in `src/i4g/store/sql.py`.
-- **Tables**:
+- **Tables** (17 tables in `METADATA`, 1 in `VAULT_METADATA`):
     - `ingestion_runs`: Audit log of batch processing jobs.
+    - `campaigns`: Investigation campaign groupings with taxonomy rollups.
     - `cases`: Core case metadata (deduplicated by dataset + hash).
-    - `entities`: Extracted indicators (crypto addresses, emails, phones) linked to cases.
     - `source_documents`: Chunked text from evidence files.
-    - `reviews`: Analyst review queue items and status.
-- **Access**: Accessed via `EntityStore`, `ReviewStore`, and SQLAlchemy sessions.
+    - `entities`: Extracted entities (person, phone, email, etc.) linked to cases.
+    - `entity_mentions`: Join table linking entities to document text spans.
+    - `indicators`: Fraud indicators (crypto addresses, emails, phones) with status and confidence.
+    - `indicator_sources`: Join table linking indicators to source evidence.
+    - `review_queue`: Analyst review work queue (priority, status, assignment).
+    - `review_actions`: Audit log of analyst actions on reviews.
+    - `saved_searches`: Persisted search queries with owner, params, favorites.
+    - `dossier_queue`: Report generation task queue.
+    - `intake_records`: Victim-submitted incident reports.
+    - `intake_attachments`: Files attached to intake records.
+    - `intake_jobs`: Async processing jobs for intake records.
+    - `scam_records`: Legacy flat view used by RAG pipeline.
+    - `ingestion_retry_queue`: Failed writes queued for retry.
+    - `pii_tokens` (vault): HMAC-based PII tokens (isolated database).
+- **Access**: Accessed via `EntityStore`, `ReviewStore`, `IntakeStore`, and SQLAlchemy sessions.
+- **Full schema reference**: See [data_model.md](data_model.md) for the complete table inventory.
 - **Infrastructure**:
     - **Instance**: `i4g-dev-db` (Cloud SQL Postgres 15)
     - **Database**: `i4g_db`
@@ -58,7 +72,7 @@ This document details the storage backends used by the i4g platform across diffe
 - **Schema**: Defined in `src/i4g/store/dossier_queue_store.py`.
 - **Table**: `dossier_queue`
     - `plan_id`: Unique identifier for the dossier generation task.
-    - `status`: `new`, `in_review`, `awaiting_input`, `accepted`, `rejected`, `closed`.
+    - `status`: `pending`, `leased`, `completed`, `failed`.
     - `payload`: JSON blob containing the initial case context and instructions.
 - **Access**: Accessed via `DossierQueueStore`.
 - **Infrastructure**: Shares the same SQLite/Cloud SQL instance as the Entity and Review stores.

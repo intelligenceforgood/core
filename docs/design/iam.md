@@ -1,6 +1,6 @@
 # Identity & Access Management Strategy
 
-**Status:** Draft (v0.1) — November 21, 2025
+**Status:** Active (v1.1) — February 8, 2026
 **Audience:** Engineering, security reviewers, product stakeholders across `core`, `planning`, and `ui`
 
 This document is the single source of truth for how we authenticate users, authorize workloads, and evolve IAM across the i4g platform. It consolidates IAM content from `architecture.md`, planning artifacts, and the UI books so every repository references one canonical strategy. Updates to IAM MUST originate here.
@@ -42,12 +42,22 @@ All application services currently reuse the shared runtime service account (`sa
 
 ## 4. Authentication Strategy
 
-### 4.1 Current State — IAP via Load Balancer
+### 4.1 Current State — Two-Layer Authentication
+
+Authentication operates at two distinct layers:
+
+**Infrastructure layer — IAP via Load Balancer (production)**
 - **Global External Load Balancer (ALB)**: We use a Global ALB as the single ingress point for `app.intelligenceforgood.org` and `api.intelligenceforgood.org`.
 - **Identity-Aware Proxy (IAP)**: Enabled on the ALB's backend services. This enforces authentication *before* traffic reaches Cloud Run.
 - **Cloud Run Configuration**: Services are deployed with `--allow-unauthenticated` (to accept traffic from the LB), but the LB is the only path that users can traverse. (Future hardening: use "Ingress: Internal and Cloud Load Balancing" to strictly block direct access).
 - **Browser experience**: Users hit `https://app.intelligenceforgood.org`, are redirected to Google Sign-In by the LB/IAP, and upon success, the request is forwarded to Cloud Run with `X-Goog-Authenticated-User-Email`.
 - **Access Control**: Terraform manages the `roles/iap.httpsResourceAccessor` binding on the *Backend Service*, granting access to `group:gcp-i4g-analyst@intelligenceforgood.org`.
+
+**Application layer — API-key tokens (prototype)**
+- The FastAPI application currently uses a lightweight `X-API-KEY` header-based mechanism defined in `src/i4g/api/auth.py`. This is an **MVP stub** — two hardcoded tokens (`dev-analyst-token`, `dev-admin-token`) map to roles (`analyst`, `admin`).
+- Protected endpoints use the `require_token` or `require_role("analyst")` FastAPI dependencies.
+- **This layer does NOT verify IAP headers or Google identity.** It exists to enable local development and testing without requiring IAP. In production, IAP provides the real perimeter authentication; the API-key layer is defense-in-depth until it is replaced with IAP header verification (Phase 1 roadmap item).
+- **Action item:** Replace the hardcoded token map with IAP JWT verification and map `X-Goog-Authenticated-User-Email` to application-level roles.
 
 ### 4.2 Medium-Term Enhancements (in parallel)
 - Replace per-user bindings with Google Group bindings (`group:gcp-i4g-analyst@intelligenceforgood.org`, `group:gcp-i4g-leo@intelligenceforgood.org`) so onboarding/offboarding requires only Workspace group membership changes.
@@ -129,7 +139,8 @@ Terraform is the source of truth, but if we need an emergency change before a pl
 3. **Repeat for FastAPI** as needed; Terraform will reconcile the bindings on the next apply.
 
 ### 6.3 Consuming identity inside the app
-- FastAPI can trust IAP headers (`X-Goog-Authenticated-User-Email`) for lightweight auditing, but authorization decisions should still use database roles. If you need cryptographic verification, enable signed headers in IAP and verify the JWT using the documented audience.
+- **Current state (MVP):** The FastAPI application uses `X-API-KEY` header tokens validated by `src/i4g/api/auth.py`. This provides role-based access control (`analyst`, `admin`) via the `require_token` and `require_role()` dependencies. See §4.1 for details.
+- **Target state:** FastAPI should trust IAP headers (`X-Goog-Authenticated-User-Email`) for lightweight auditing and map the authenticated email to application roles. If cryptographic verification is needed, enable signed headers in IAP and verify the JWT using the documented audience.
 - Command-line scripts can continue to call Cloud Run directly with `gcloud auth print-identity-token` as long as the caller account is part of the IAP policy.
 
 ---
