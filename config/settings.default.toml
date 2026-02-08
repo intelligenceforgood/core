@@ -56,7 +56,6 @@
 
 [storage]
 # sqlite_path = "data/i4g_store.db"
-# firestore_project = "i4g-dev"
 # reports_bucket = "i4g-reports-dev"
 # evidence_bucket = "i4g-evidence-dev"
 # evidence_local_dir = "data/evidence"
@@ -101,7 +100,6 @@ vertex_ai_data_store = "retrieval-poc"
 # dataset_path = "data/retrieval_poc/cases.jsonl"
 # default_dataset = "retrieval_poc_dev"
 # batch_limit = 0
-# enable_firestore = true
 # enable_vertex = true
 # enable_vector_store = true
 # enable_sql = true

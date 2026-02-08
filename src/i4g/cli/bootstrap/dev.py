@@ -91,7 +91,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--ingest-job", default=DEFAULT_JOBS["ingest"], help="Ingestion job name.")
     parser.add_argument("--vertex-job", default=DEFAULT_JOBS["vertex"], help="Vertex import job name.")
-    parser.add_argument("--sql-job", default=DEFAULT_JOBS["sql"], help="SQL/Firestore sync job name.")
+    parser.add_argument("--sql-job", default=DEFAULT_JOBS["sql"], help="Cloud SQL sync job name.")
     parser.add_argument("--bigquery-job", default=DEFAULT_JOBS["bigquery"], help="BigQuery refresh job name.")
     parser.add_argument("--gcs-assets-job", default=DEFAULT_JOBS["gcs_assets"], help="GCS asset sync job name.")
     parser.add_argument("--reports-job", default=DEFAULT_JOBS["reports"], help="Reports/dossiers job name.")
@@ -109,7 +109,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--skip-ingest", action="store_true", help="Skip ingestion job.")
     parser.add_argument("--skip-ocr", action="store_true", help="Skip OCR test images bundle.")
     parser.add_argument("--skip-vertex", action="store_true", help="Skip Vertex import job.")
-    parser.add_argument("--skip-sql", action="store_true", help="Skip SQL/Firestore sync job.")
+    parser.add_argument("--skip-sql", action="store_true", help="Skip Cloud SQL sync job.")
     parser.add_argument("--skip-bigquery", action="store_true", help="Skip BigQuery refresh job.")
     parser.add_argument("--skip-gcs-assets", action="store_true", help="Skip GCS asset sync job.")
     parser.add_argument("--skip-reports", action="store_true", help="Skip reports/dossiers job.")
@@ -710,7 +710,7 @@ def run_smoke(args: argparse.Namespace) -> SmokeResult:
 
 
 def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
-    """Verify state of cloud resources (Firestore, Cloud SQL, Vertex, GCS)."""
+    """Verify state of cloud resources (Cloud SQL, Vertex, GCS)."""
 
     settings = get_settings()
 
@@ -1575,7 +1575,7 @@ def bootstrap_dev_reset(
     ),
     ingest_job: str = typer.Option(DEFAULT_JOBS["ingest"], "--ingest-job", help="Ingestion job name."),
     vertex_job: str = typer.Option(DEFAULT_JOBS["vertex"], "--vertex-job", help="Vertex import job.", hidden=True),
-    sql_job: str = typer.Option(DEFAULT_JOBS["sql"], "--sql-job", help="SQL/Firestore sync job.", hidden=True),
+    sql_job: str = typer.Option(DEFAULT_JOBS["sql"], "--sql-job", help="Cloud SQL sync job.", hidden=True),
     bigquery_job: str = typer.Option(
         DEFAULT_JOBS["bigquery"], "--bigquery-job", help="BigQuery refresh job.", hidden=True
     ),
@@ -1594,7 +1594,7 @@ def bootstrap_dev_reset(
     skip_ingest: bool = typer.Option(False, "--skip-ingest", help="Skip ingestion job."),
     skip_vertex: bool = typer.Option(False, "--skip-vertex", help="Skip Vertex import job."),
     skip_vector: bool = typer.Option(False, "--skip-vector", help="Alias for --skip-vertex (for local parity)."),
-    skip_sql: bool = typer.Option(False, "--skip-sql", help="Skip SQL/Firestore sync job."),
+    skip_sql: bool = typer.Option(False, "--skip-sql", help="Skip Cloud SQL sync job."),
     skip_bigquery: bool = typer.Option(False, "--skip-bigquery", help="Skip BigQuery refresh job."),
     skip_gcs_assets: bool = typer.Option(False, "--skip-gcs-assets", help="Skip GCS asset sync job."),
     skip_reports: bool = typer.Option(False, "--skip-reports", help="Skip reports/dossiers job."),
@@ -1734,7 +1734,7 @@ def bootstrap_dev_load(
     ),
     ingest_job: str = typer.Option(DEFAULT_JOBS["ingest"], "--ingest-job", help="Ingestion job name."),
     vertex_job: str = typer.Option(DEFAULT_JOBS["vertex"], "--vertex-job", help="Vertex import job.", hidden=True),
-    sql_job: str = typer.Option(DEFAULT_JOBS["sql"], "--sql-job", help="SQL/Firestore sync job.", hidden=True),
+    sql_job: str = typer.Option(DEFAULT_JOBS["sql"], "--sql-job", help="Cloud SQL sync job.", hidden=True),
     bigquery_job: str = typer.Option(
         DEFAULT_JOBS["bigquery"], "--bigquery-job", help="BigQuery refresh job.", hidden=True
     ),
@@ -1753,7 +1753,7 @@ def bootstrap_dev_load(
     skip_ingest: bool = typer.Option(False, "--skip-ingest", help="Skip ingestion job."),
     skip_vertex: bool = typer.Option(False, "--skip-vertex", help="Skip Vertex import job."),
     skip_vector: bool = typer.Option(False, "--skip-vector", help="Alias for --skip-vertex (for local parity)."),
-    skip_sql: bool = typer.Option(False, "--skip-sql", help="Skip SQL/Firestore sync job."),
+    skip_sql: bool = typer.Option(False, "--skip-sql", help="Skip Cloud SQL sync job."),
     skip_bigquery: bool = typer.Option(False, "--skip-bigquery", help="Skip BigQuery refresh job."),
     skip_gcs_assets: bool = typer.Option(False, "--skip-gcs-assets", help="Skip GCS asset sync job."),
     skip_reports: bool = typer.Option(False, "--skip-reports", help="Skip reports/dossiers job."),
@@ -1888,7 +1888,7 @@ def bootstrap_dev_verify(
         help="Service account to impersonate via WIF.",
     ),
     vertex_job: str = typer.Option(DEFAULT_JOBS["vertex"], "--vertex-job", help="Vertex import job."),
-    sql_job: str = typer.Option(DEFAULT_JOBS["sql"], "--sql-job", help="SQL/Firestore sync job."),
+    sql_job: str = typer.Option(DEFAULT_JOBS["sql"], "--sql-job", help="Cloud SQL sync job."),
     bigquery_job: str = typer.Option(DEFAULT_JOBS["bigquery"], "--bigquery-job", help="BigQuery refresh job."),
     gcs_assets_job: str = typer.Option(DEFAULT_JOBS["gcs_assets"], "--gcs-assets-job", help="GCS asset sync job."),
     reports_job: str = typer.Option(DEFAULT_JOBS["reports"], "--reports-job", help="Reports/dossiers job."),

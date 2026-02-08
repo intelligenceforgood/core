@@ -258,7 +258,6 @@ def rebuild_manual_demo() -> None:
         ],
         env_overrides={
             "I4G_INGESTION__ENABLE_VERTEX": "false",
-            "I4G_INGESTION__ENABLE_FIRESTORE": "false",
             "I4G_INGESTION__ENABLE_SQL": "true",
         },
         unset_env_vars=["I4G_DATABASE_URL"],

@@ -78,7 +78,7 @@ All three application services currently reuse the shared runtime service accoun
    - Requirement: maintain this list via tfvars or Google Groups; avoid manual IAM edits so Terraform remains authoritative.
 
 4. **Data Plane Permissions**
-   - Firestore: analysts read only assigned cases; PII vault locked to backend service account.
+   - Cloud SQL: analysts read only assigned cases; PII vault locked to backend service account.
    - Cloud Storage: uniform bucket-level access; signed URLs for user downloads/uploads.
    - Vertex AI Search / future vector stores: custom roles bound to runtime SAs.
    - Secret Manager: versioned secrets per service account; rotate quarterly.
@@ -130,7 +130,7 @@ Terraform is the source of truth, but if we need an emergency change before a pl
 3. **Repeat for FastAPI and Streamlit** as needed; Terraform will reconcile the bindings on the next apply.
 
 ### 6.3 Consuming identity inside the app
-- FastAPI can trust IAP headers (`X-Goog-Authenticated-User-Email`) for lightweight auditing, but authorization decisions should still use Firestore roles. If you need cryptographic verification, enable signed headers in IAP and verify the JWT using the documented audience.
+- FastAPI can trust IAP headers (`X-Goog-Authenticated-User-Email`) for lightweight auditing, but authorization decisions should still use database roles. If you need cryptographic verification, enable signed headers in IAP and verify the JWT using the documented audience.
 - Command-line scripts can continue to call Cloud Run directly with `gcloud auth print-identity-token` as long as the caller account is part of the IAP policy.
 
 ---

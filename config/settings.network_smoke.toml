@@ -7,14 +7,13 @@ env = "local"
 log_level = "INFO"
 
 [ingestion]
+batch_limit = 1
 dataset_path = "data/manual_demo/network_entities.jsonl"
 default_dataset = "network_smoke"
-batch_limit = 1
-enable_sql = true
-enable_firestore = false
-enable_vertex = false
-enable_vector_store = false
 dry_run = false
+enable_sql = true
+enable_vector_store = false
+enable_vertex = false
 reset_vector = false
 
 [llm]

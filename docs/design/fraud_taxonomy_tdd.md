@@ -83,10 +83,10 @@ class ClassificationResult(BaseModel):
 ## 4. Storage Strategy
 
 ### 4.1 Database Schema
-Results are stored in the primary database (e.g., Firestore/Postgres) attached to the `Review` or `Case` object.
+Results are stored in the primary database (PostgreSQL) attached to the `Review` or `Case` object.
 
 - **Field:** `classification_result`
-- **Type:** `JSONB` (Postgres) or `Map` (Firestore)
+- **Type:** `JSONB` (PostgreSQL)
 - **Versioning:** The `taxonomy_version` field is mandatory to support future migrations.
 
 ### 4.2 Indexing

@@ -38,7 +38,7 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 - **Next.js portal** (ui/apps/web): primary analyst/victim/LEO UI; consumes the same API contracts documented here.
 - **Streamlit ops console**: retained for internal dashboards; shares backend contracts.
 - **Background jobs** (`src/i4g/worker/jobs/*`, `src/i4g/worker/tasks.py`): ingestion, report generation, dossier queue.
-- **Ingestion pipeline** (`src/i4g/store/ingest.py`): structured store write + SQL dual-write + optional vector/Vertex + optional Firestore fan-out; tokenization on/off via settings.
+- **Ingestion pipeline** (`src/i4g/store/ingest.py`): structured store write + SQL dual-write + optional vector/Vertex fan-out; tokenization on/off via settings.
 - **Retrieval** (Hybrid): merges vector results and SQL entity filters; uses structured entities + embeddings.
 - **Reports/Dossiers** (`src/i4g/reports/*`): manifest generation, signatures, and packaging for LEA handoff.
 
@@ -52,7 +52,7 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
   - `source_documents(document_id, case_id, title, source_url, mime_type, text, chunk_index)`
   - `indicators` for structured filters; `ingestion_runs` for metrics; `ingestion_retry_queue` for fan-out retries.
 - **Vector store**: default Chroma (`vector.backend=chroma`, `vector.chroma_dir=data/chroma_store`); Vertex AI or pgvector planned via factories. Stores chunked text embeddings keyed by `case_id`/document.
-- **Document Store**: Firestore (Cloud) or SQLite (Local) for case metadata and flexible schema documents.
+- **Structured Store**: Cloud SQL (Cloud) or SQLite (Local) for case metadata and flexible schema documents.
 - **Tokenization/PII vault** (`src/i4g/pii/tokenization.py`, `src/i4g/store/pii_token_store.py`): deterministic tokens with pepper + optional encryption key; stored in SQLite; prefixes per entity type (IPA, ASN, BFP, etc.).
 - **Artifacts**: reports and evidence in `data/` locally; Cloud Storage buckets in managed profiles.
 
@@ -62,7 +62,6 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
   - `ingestion.enable_sql` (dual-write tables)
   - `ingestion.enable_vector_store`
   - `ingestion.enable_vertex`
-  - `ingestion.enable_firestore`
   - `ingestion.default_dataset`
 - Paths: `storage.sqlite_path`, `vector.chroma_dir`, `ingestion.dataset_path`, `data/` assets seeded via `i4g bootstrap local reset --report-dir data/reports/local_bootstrap`.
 - Secrets: prefer Secret Manager in managed envs; local `.env.local` for pepper/key (`I4G_TOKENIZATION__PEPPER`, `I4G_CRYPTO__PII_KEY`).
@@ -74,7 +73,7 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 4. **Case bundle build**: `build_case_bundle()` assembles `CasePayload`, `SourceDocumentPayload`, `EntityPayload` from classification result and metadata.
 5. **SQL dual-write**: `SqlWriter.persist_case_bundle()` writes cases/entities/documents; controlled by `enable_sql`.
 6. **Vector write**: `vector_store.add_records()` writes embeddings when vector enabled; Vertex writer optional.
-7. **Optional fan-out**: Firestore/Vertex fan-out gated by settings and env (and builder availability).
+7. **Optional fan-out**: Vertex fan-out gated by settings and env (and builder availability).
 8. **Retry**: ingestion retry queue (SQL table) for downstream fan-out errors.
 
 ## 7) APIs and Contracts (current surface)
@@ -109,7 +108,7 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 - **Handoff**: runbooks in `docs/runbooks/console/reports.md` and `docs/runbooks/dossiers_subpoena_handoff.md`.
 
 ## 10) Deployment Profiles
-- **Managed (Cloud Run/GCP)**: Firestore/Cloud Storage, Secret Manager, Vertex optional; Workload Identity; IAP for portals.
+- **Managed (Cloud Run/GCP)**: Cloud SQL/Cloud Storage, Secret Manager, Vertex optional; Workload Identity; IAP for portals.
 - **Local**: SQLite + Chroma, mock identity, `.env.local` secrets, scheduled jobs off; run via `uvicorn i4g.api.app:app --reload` and cookbooks in `docs/cookbooks/`.
 - Settings remain identical across profiles; swapping is env + config only.
 
@@ -228,8 +227,8 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 **Response** (204 No Content)
 
 **Implementation Steps**:
-1. Delete from Firestore `/cases` collection
-2. Delete all PII from `/pii_vault` where `case_id` matches
+1. Delete from `cases` table
+2. Delete all PII from `pii_vault` where `case_id` matches
 3. Delete evidence files from Cloud Storage
 4. Delete vector embeddings from ChromaDB
 5. Log deletion in audit trail
@@ -338,8 +337,8 @@ sequenceDiagram
     API->>Google: Exchange code for tokens
     Google-->>API: Access token + ID token
     API->>API: Verify JWT signature
-    API->>Firestore: Check if approved analyst
-    Firestore-->>API: Return user role
+    API->>CloudSQL: Check if approved analyst
+    CloudSQL-->>API: Return user role
     API->>API: Generate session token
   API-->>Portal: JWT (expires 1 hour)
   Portal->>Portal: Store JWT in session state
@@ -389,13 +388,13 @@ async def list_cases(user: dict = Depends(get_current_user)):
 
 ---
 
-## Firestore Schema
+## Database Schema
 
-### Collection: `/cases`
+### Table: `cases`
 
 ```typescript
 interface Case {
-  case_id: string;  // Firestore document ID
+  case_id: string;
   created_at: Timestamp;
   updated_at: Timestamp;
 
@@ -437,21 +436,13 @@ interface Case {
 }
 ```
 
-**Indexes**:
-```bash
-gcloud firestore indexes create \
-  --collection-group=cases \
-  --field-config field-path=assigned_to,order=ascending \
-  --field-config field-path=created_at,order=descending
-```
-
 ---
 
-### Collection: `/pii_vault`
+### Table: `pii_vault`
 
 ```typescript
 interface PIIVaultEntry {
-  token: string;  // e.g., "7a8f2e" (Firestore document ID)
+  token: string;  // e.g., "7a8f2e"
   case_id: string;
   pii_type: "ssn" | "email" | "phone" | "credit_card" | "address" | "dob";
   encrypted_value: Uint8Array;  // AES-256-GCM ciphertext
@@ -460,26 +451,13 @@ interface PIIVaultEntry {
 }
 ```
 
-**Security Rules**:
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Only backend service account can access PII vault
-    match /pii_vault/{token} {
-      allow read, write: if request.auth.token.email == 'i4g-backend@i4g-prod.iam.gserviceaccount.com';
-    }
-  }
-}
-```
-
 ---
 
-### Collection: `/analysts`
+### Table: `analysts`
 
 ```typescript
 interface Analyst {
-  uid: string;  // Google OAuth UID (Firestore document ID)
+  uid: string;  // Google OAuth UID
   email: string;
   full_name: string;
   role: "analyst" | "admin";
@@ -499,51 +477,18 @@ interface Analyst {
 | Threat | Mitigation |
 |--------|------------|
 | **Spoofing** | OAuth 2.0 (Google trusted provider), JWT signatures |
-| **Tampering** | Firestore rules, TLS 1.3, read-only API for users |
+| **Tampering** | Database access controls, TLS 1.3, read-only API for users |
 | **Repudiation** | Audit logs (all `/pii_vault` access logged) |
 | **Information Disclosure** | PII tokenization, encryption at rest, HTTPS |
 | **Denial of Service** | Cloud Armor (DDoS protection), rate limiting |
-| **Elevation of Privilege** | Firestore rules, role-based access control |
-
----
-
-### Firestore Security Rules
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Analysts can only read assigned cases
-    match /cases/{case_id} {
-      allow read: if request.auth != null &&
-                     (resource.data.assigned_to == request.auth.uid ||
-                      get(/databases/$(database)/documents/analysts/$(request.auth.uid)).data.role == 'admin');
-
-      allow update: if request.auth != null &&
-                       resource.data.assigned_to == request.auth.uid;
-    }
-
-    // Analysts collection is read-only for analysts
-    match /analysts/{uid} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null &&
-                      get(/databases/$(database)/documents/analysts/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // PII vault is locked to backend service account
-    match /pii_vault/{token} {
-      allow read, write: if request.auth.token.email == 'i4g-backend@i4g-prod.iam.gserviceaccount.com';
-    }
-  }
-}
-```
+| **Elevation of Privilege** | Database access controls, role-based access control |
 
 ---
 
 ### Encryption
 
 **At Rest**:
-- Firestore: Automatic encryption (AES-256)
+- Cloud SQL: Encryption at rest (AES-256)
 - Cloud Storage: Customer-managed encryption keys (CMEK)
 - PII Vault: Additional AES-256-GCM layer
 
@@ -726,31 +671,28 @@ gcloud projects create i4g-prod --name="i4g Production"
 # 2. Enable APIs
 gcloud services enable \
   run.googleapis.com \
-  firestore.googleapis.com \
+  sqladmin.googleapis.com \
   storage.googleapis.com \
   secretmanager.googleapis.com \
   logging.googleapis.com \
   monitoring.googleapis.com
 
-# 3. Create Firestore database
-gcloud firestore databases create --region=us-central1
-
-# 4. Create Cloud Storage bucket
+# 3. Create Cloud Storage bucket
 gsutil mb -l us-central1 gs://i4g-evidence
 gsutil mb -l us-central1 gs://i4g-reports
 
-# 5. Create encryption key in Secret Manager
+# 4. Create encryption key in Secret Manager
 echo -n "$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')" | \
   gcloud secrets create TOKEN_ENCRYPTION_KEY --data-file=-
 
-# 6. Create service account
+# 5. Create service account
 gcloud iam service-accounts create i4g-backend \
   --display-name="i4g Backend Service Account"
 
-# 7. Grant Firestore permissions
+# 6. Grant Cloud SQL permissions
 gcloud projects add-iam-policy-binding i4g-prod \
   --member="serviceAccount:i4g-backend@i4g-prod.iam.gserviceaccount.com" \
-  --role="roles/datastore.user"
+  --role="roles/cloudsql.client"
 ```
 
 ---
@@ -774,7 +716,7 @@ gcloud run deploy i4g-api \
   --max-instances 10 \
   --memory 1Gi \
   --timeout 300 \
-  --set-env-vars "FIRESTORE_PROJECT_ID=i4g-prod,ENVIRONMENT=production" \
+  --set-env-vars "ENVIRONMENT=production" \
   --set-secrets "TOKEN_ENCRYPTION_KEY=TOKEN_ENCRYPTION_KEY:latest"
 
 # 4. Get deployed URL
@@ -899,9 +841,9 @@ class I4GUser(HttpUser):
 ### Backup Strategy
 
 ```bash
-# Daily Firestore export (Cloud Scheduler cron job)
-gcloud firestore export gs://i4g-backups/$(date +%Y%m%d) \
-  --collection-ids=cases,analysts,pii_vault
+# Daily Cloud SQL backup (Cloud Scheduler cron job)
+gcloud sql backups create --instance=i4g-prod \
+  --description="daily-$(date +%Y%m%d)"
 
 # Retention: 7 days
 gsutil lifecycle set lifecycle.json gs://i4g-backups
@@ -931,8 +873,8 @@ gsutil lifecycle set lifecycle.json gs://i4g-backups
 # 1. Find latest backup
 gsutil ls gs://i4g-backups/
 
-# 2. Import backup
-gcloud firestore import gs://i4g-backups/20251030/
+# 2. Restore from backup
+gcloud sql backups restore BACKUP_ID --restore-instance=i4g-prod
 ```
 
 **Scenario 2: PII vault corruption**
@@ -942,7 +884,7 @@ gcloud firestore import gs://i4g-backups/20251030/
 gcloud run services update i4g-api --no-traffic
 
 # 2. Restore from backup
-gcloud firestore import gs://i4g-backups/20251030/ --collection-ids=pii_vault
+gcloud sql backups restore BACKUP_ID --restore-instance=i4g-prod
 
 # 3. Validate restoration
 python scripts/validate_pii_vault.py
@@ -959,7 +901,6 @@ gcloud run services update i4g-api --traffic
 # Production (.env)
 ENVIRONMENT=production
 GCP_PROJECT_ID=i4g-prod
-FIRESTORE_PROJECT_ID=i4g-prod
 GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=xxx  # Stored in Secret Manager
 TOKEN_ENCRYPTION_KEY=xxx  # Stored in Secret Manager

@@ -80,7 +80,7 @@ az rest --method post \
 - Hits the management API to fetch the current admin keys for the search service when you don’t want to store them locally. Combine with `jq` or store the result in an env var before running search export.
 
 ## References from the migration flow
-1. `AZURE_SQL_CONNECTION_STRING` is consumed by `azure_sql_to_firestore`.
+1. `AZURE_SQL_CONNECTION_STRING` is consumed by `azure_sql_import`.
 2. Storage/search vars feed `azure-blob-to-gcs` and `azure-search-export` / `azure-search-to-vertex`.
 3. `SQLCMDPASSWORD` is useful when you need to run `sqlcmd` interactively for troubleshooting (the script doesn’t use it directly).
 

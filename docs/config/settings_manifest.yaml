@@ -1,4 +1,4 @@
-generated_at: '2025-12-14T18:15:17.153001+00:00'
+generated_at: '2026-02-07T20:48:30.275585+00:00'
 source: src/i4g/settings/config.py
 env_prefix: I4G_
 fields:
@@ -101,6 +101,15 @@ fields:
   - API_KEY
   - API__KEY
   description: API endpoint configuration shared by CLI + dashboards.
+- path: api.rate_limit_per_minute
+  section: api
+  type: int
+  default: 60
+  env_vars:
+  - I4G_API__RATE_LIMIT_PER_MINUTE
+  - API_RATE_LIMIT
+  - API__RATE_LIMIT_PER_MINUTE
+  description: API endpoint configuration shared by CLI + dashboards.
 - path: crypto.pii_key
   section: crypto
   type: str | NoneType
@@ -109,8 +118,6 @@ fields:
   - I4G_CRYPTO__PII_KEY
   - CRYPTO_PII_KEY
   - CRYPTO__PII_KEY
-  - TOKENIZATION_PII_KEY
-  - TOKENIZATION__PII_KEY
   description: Application-level cryptographic material used by vault/tokenization
     flows.
 - path: data_dir
@@ -237,17 +244,6 @@ fields:
   - INGESTION_DRY_RUN
   - INGESTION__DRY_RUN
   description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.enable_firestore
-  section: ingestion
-  type: bool
-  default: false
-  env_vars:
-  - I4G_INGESTION__ENABLE_FIRESTORE
-  - INGEST_ENABLE_FIRESTORE
-  - INGEST__ENABLE_FIRESTORE
-  - INGESTION_ENABLE_FIRESTORE
-  - INGESTION__ENABLE_FIRESTORE
-  description: Scheduler + job configuration for ingestion workflows.
 - path: ingestion.enable_scheduled_jobs
   section: ingestion
   type: bool
@@ -351,7 +347,8 @@ fields:
   - I4G_LLM__CHAT_MODEL
   - LLM_CHAT_MODEL
   - LLM__CHAT_MODEL
-  description: Large language model provider settings.
+  description: Primary model identifier (e.g. 'llama3', 'gemini-2.5-flash'). Used
+    for all providers.
 - path: llm.ollama_base_url
   section: llm
   type: str
@@ -396,7 +393,7 @@ fields:
   - I4G_LLM__VERTEX_AI_MODEL
   - LLM_VERTEX_AI_MODEL
   - LLM__VERTEX_AI__MODEL
-  description: Large language model provider settings.
+  description: Legacy override for Vertex AI model. Prefer 'chat_model'.
 - path: llm.vertex_ai_project
   section: llm
   type: str | NoneType
@@ -469,6 +466,87 @@ fields:
   - OBS_TRACE_SAMPLE_RATE
   - OBSERVABILITY__TRACE_SAMPLE_RATE
   description: Logging, tracing, and metrics configuration.
+- path: pii.backend
+  section: pii
+  type: Literal['sqlite', 'cloudsql']
+  default: sqlite
+  env_vars:
+  - I4G_PII__BACKEND
+  - PII_BACKEND
+  - PII__BACKEND
+  description: Deterministic tokenization controls for PII vault integration.
+- path: pii.cloudsql_database
+  section: pii
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_PII__CLOUDSQL_DATABASE
+  - PII__CLOUDSQL__DATABASE
+  - I4G_PII__CLOUDSQL__DATABASE
+  description: Deterministic tokenization controls for PII vault integration.
+- path: pii.cloudsql_enable_iam_auth
+  section: pii
+  type: bool
+  default: false
+  env_vars:
+  - I4G_PII__CLOUDSQL_ENABLE_IAM_AUTH
+  - PII__CLOUDSQL__ENABLE_IAM_AUTH
+  - I4G_PII__CLOUDSQL__ENABLE_IAM_AUTH
+  description: Deterministic tokenization controls for PII vault integration.
+- path: pii.cloudsql_instance
+  section: pii
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_PII__CLOUDSQL_INSTANCE
+  - PII__CLOUDSQL__INSTANCE
+  - I4G_PII__CLOUDSQL__INSTANCE
+  description: Deterministic tokenization controls for PII vault integration.
+- path: pii.cloudsql_password
+  section: pii
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_PII__CLOUDSQL_PASSWORD
+  - PII__CLOUDSQL__PASSWORD
+  - I4G_PII__CLOUDSQL__PASSWORD
+  description: Deterministic tokenization controls for PII vault integration.
+- path: pii.cloudsql_user
+  section: pii
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_PII__CLOUDSQL_USER
+  - PII__CLOUDSQL__USER
+  - I4G_PII__CLOUDSQL__USER
+  description: Deterministic tokenization controls for PII vault integration.
+- path: pii.pepper
+  section: pii
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_PII__PEPPER
+  - PII_PEPPER
+  - PII__PEPPER
+  description: Deterministic tokenization controls for PII vault integration.
+- path: pii.pepper_version
+  section: pii
+  type: str
+  default: v1
+  env_vars:
+  - I4G_PII__PEPPER_VERSION
+  - PII_PEPPER_VERSION
+  - PII__PEPPER_VERSION
+  description: Deterministic tokenization controls for PII vault integration.
+- path: pii.require_pepper
+  section: pii
+  type: bool
+  default: true
+  env_vars:
+  - I4G_PII__REQUIRE_PEPPER
+  - PII_REQUIRE_PEPPER
+  - PII__REQUIRE_PEPPER
+  description: Deterministic tokenization controls for PII vault integration.
 - path: project_root
   section: project_root
   type: Path
@@ -708,18 +786,45 @@ fields:
   type: str | NoneType
   default: null
   env_vars:
-  - I4G_APP__CLOUDSQL__DATABASE
-  - CLOUDSQL_DATABASE
+  - I4G_STORAGE__CLOUDSQL_DATABASE
   - APP__CLOUDSQL__DATABASE
+  - I4G_APP__CLOUDSQL__DATABASE
+  description: Structured + blob storage configuration.
+- path: storage.cloudsql_enable_iam_auth
+  section: storage
+  type: bool
+  default: false
+  env_vars:
+  - I4G_STORAGE__CLOUDSQL_ENABLE_IAM_AUTH
+  - APP__CLOUDSQL__ENABLE_IAM_AUTH
+  - I4G_APP__CLOUDSQL__ENABLE_IAM_AUTH
   description: Structured + blob storage configuration.
 - path: storage.cloudsql_instance
   section: storage
   type: str | NoneType
   default: null
   env_vars:
-  - I4G_APP__CLOUDSQL__INSTANCE
-  - CLOUDSQL_INSTANCE
+  - I4G_STORAGE__CLOUDSQL_INSTANCE
   - APP__CLOUDSQL__INSTANCE
+  - I4G_APP__CLOUDSQL__INSTANCE
+  description: Structured + blob storage configuration.
+- path: storage.cloudsql_password
+  section: storage
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_STORAGE__CLOUDSQL_PASSWORD
+  - APP__CLOUDSQL__PASSWORD
+  - I4G_APP__CLOUDSQL__PASSWORD
+  description: Structured + blob storage configuration.
+- path: storage.cloudsql_user
+  section: storage
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_STORAGE__CLOUDSQL_USER
+  - APP__CLOUDSQL__USER
+  - I4G_APP__CLOUDSQL__USER
   description: Structured + blob storage configuration.
 - path: storage.evidence_bucket
   section: storage
@@ -739,30 +844,14 @@ fields:
   - STORAGE_EVIDENCE_LOCAL_DIR
   - STORAGE__EVIDENCE__LOCAL_DIR
   description: Structured + blob storage configuration.
-- path: storage.firestore_collection
-  section: storage
-  type: str
-  default: cases
-  env_vars:
-  - I4G_STORAGE__FIRESTORE_COLLECTION
-  - FIRESTORE_COLLECTION
-  - STORAGE__FIRESTORE__COLLECTION
-  description: Structured + blob storage configuration.
-- path: storage.firestore_project
+- path: storage.report_bucket
   section: storage
   type: str | NoneType
   default: null
   env_vars:
-  - I4G_STORAGE__FIRESTORE_PROJECT
-  - FIRESTORE_PROJECT
-  - STORAGE__FIRESTORE__PROJECT
-  description: Structured + blob storage configuration.
-- path: storage.reports_bucket
-  section: storage
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_STORAGE__REPORTS_BUCKET
+  - I4G_STORAGE__REPORT_BUCKET
+  - STORAGE_REPORT_BUCKET
+  - STORAGE__REPORT_BUCKET
   description: Structured + blob storage configuration.
 - path: storage.sqlite_path
   section: storage
@@ -773,40 +862,13 @@ fields:
   description: Structured + blob storage configuration.
 - path: storage.structured_backend
   section: storage
-  type: Literal['sqlite', 'firestore', 'cloudsql']
+  type: Literal['sqlite', 'cloudsql']
   default: sqlite
   env_vars:
   - I4G_STORAGE__STRUCTURED_BACKEND
   - STRUCTURED_BACKEND
   - STORAGE__STRUCTURED_BACKEND
   description: Structured + blob storage configuration.
-- path: tokenization.pepper
-  section: tokenization
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_TOKENIZATION__PEPPER
-  - TOKENIZATION_PEPPER
-  - TOKENIZATION__PEPPER
-  description: Deterministic tokenization controls for PII vault integration.
-- path: tokenization.pepper_version
-  section: tokenization
-  type: str
-  default: v1
-  env_vars:
-  - I4G_TOKENIZATION__PEPPER_VERSION
-  - TOKENIZATION_PEPPER_VERSION
-  - TOKENIZATION__PEPPER_VERSION
-  description: Deterministic tokenization controls for PII vault integration.
-- path: tokenization.require_pepper
-  section: tokenization
-  type: bool
-  default: true
-  env_vars:
-  - I4G_TOKENIZATION__REQUIRE_PEPPER
-  - TOKENIZATION_REQUIRE_PEPPER
-  - TOKENIZATION__REQUIRE_PEPPER
-  description: Deterministic tokenization controls for PII vault integration.
 - path: vector.backend
   section: vector
   type: Literal['chroma', 'faiss', 'pgvector', 'vertex_ai']

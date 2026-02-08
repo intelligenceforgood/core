@@ -66,7 +66,7 @@ Review the [Azure legacy data primer](azure_legacy_data.md) for the environment 
   gsutil -m rsync -r gs://i4g-dev-data-bundles/legacy_azure/$RUN_DATE/groupsio data/bundles/legacy_azure/$RUN_DATE/groupsio
   ```
 
-4) Export Azure SQL intake tables to Firestore staging.
+4) Export Azure SQL intake tables to Cloud SQL staging.
 
   **Recommended: Use the helper script (Azure AD Auth)**
   This method uses your active `az login` session and avoids password complexity issues.
@@ -79,10 +79,9 @@ Review the [Azure legacy data primer](azure_legacy_data.md) for the environment 
   ```
 
   **Alternative: Manual Execution**
-  ```bash
-  # Ensure AZURE_SQL_CONNECTION_STRING is set (via env_template.sh)
-  i4g azure azure-sql-to-firestore -- --firestore-project i4g-dev --use-aad
-  ```
+  > **Deprecated**: The `azure-sql-to-firestore` command has been removed.
+  > Cases are now imported directly into Cloud SQL. See updated ingestion
+  > workflows in the smoke test cookbook.
 
   **Troubleshooting: Password Authentication**
   If you must use SQL authentication and encounter "Login failed" or password policy errors, use the reset tool to force a clean state for the `migration_user`:

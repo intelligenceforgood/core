@@ -115,7 +115,7 @@ The script boots `next dev`, opens `/search`, submits a canned hybrid query, and
        --dedupe
     ```
     `--tag` and `--schema-version` fall back to `[search.saved_search]` unless overridden; `--dedupe` cleans duplicate tags.
-4. Import back into SQLite/Firestore:
+4. Import back into SQLite/Cloud SQL:
    ```bash
    conda run -n i4g i4g-admin import-saved-searches \
      --shared \

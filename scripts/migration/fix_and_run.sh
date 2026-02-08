@@ -1,4 +1,8 @@
 #!/bin/bash
+# DEPRECATED: Firestore is no longer used. This script was part of the
+# Azure SQL -> Firestore migration which has been superseded by direct
+# Cloud SQL imports. Kept for historical reference only.
+echo "ERROR: This migration script is deprecated. Firestore has been removed." && exit 1
 set -e
 
 # 1. Check for password

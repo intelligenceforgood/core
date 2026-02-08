@@ -2,7 +2,7 @@
 
 Common terms and abbreviations across the project. Keep entries short and link to the authoritative doc or schema.
 
-- **Ingestion pipeline** — End-to-end flow from classified payload to structured store, SQL dual-write, and optional vector/Vertex/Firestore fan-out. See [tdd.md](tdd.md#6-ingestion-flow-canonical) and [architecture.md](../design/architecture.md).
+- **Ingestion pipeline** — End-to-end flow from classified payload to structured store, SQL dual-write, and optional vector/Vertex fan-out. See [tdd.md](tdd.md#6-ingestion-flow-canonical) and [architecture.md](../design/architecture.md).
 - **Structured store** — SQLite-backed record store used for analyst console reads and worker jobs. See [src/i4g/store/structured.py](src/i4g/store/structured.py).
 - **Dual-write (SQL)** — Persistence of cases/entities/documents to SQL tables alongside structured store for hybrid search. See [src/i4g/store/sql.py](src/i4g/store/sql.py).
 - **Hybrid search** — Combines vector retrieval with structured filters from SQL entities; powered by `HybridRetriever`. See [tdd.md](tdd.md#7-apis-and-contracts-current-surface) and [architecture.md](../design/architecture.md).

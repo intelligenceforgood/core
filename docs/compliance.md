@@ -90,7 +90,7 @@ This document outlines **i4g's** commitment to protecting personally identifiabl
 | Data Type | Retention Period | Rationale | Deletion Method |
 |-----------|------------------|-----------|-----------------|
 | **Active Cases** | Until resolution + 30 days | Ongoing investigation | Soft delete (archive flag) |
-| **Resolved Cases** | 90 days post-resolution | Follow-up questions | Hard delete from Firestore |
+| **Resolved Cases** | 90 days post-resolution | Follow-up questions | Hard delete from Cloud SQL |
 | **PII Vault** | Matches case retention (active +30d; resolved +90d) unless legal hold requires longer | Compliance | `delete()` + crypto shred key (see [pii_vault.md](pii_vault.md#retention-purge-and-re-key)) |
 | **Audit Logs** | 1 year | Security investigations | Cloud Logging TTL |
 | **Analytics (anonymized)** | Indefinite | Research | No PII present |
@@ -150,7 +150,7 @@ roles:
 1. Page on-call admin (Jerry)
 2. Review Cloud Logging for correlation IDs
 3. Check \`/api/health\` endpoint status
-4. Review Firestore audit logs
+4. Review database audit logs
 
 ---
 
@@ -169,7 +169,7 @@ roles:
 
 3. **Preserve evidence**:
    - Export Cloud Logging: \`gcloud logging read "timestamp>=2025-10-30T00:00:00Z" --format=json > incident.log\`
-   - Snapshot Firestore: Automated daily backups
+   - Snapshot Cloud SQL: Automated daily backups
    - Download Docker image: \`gcloud container images describe gcr.io/i4g-prod/api:latest\`
 
 4. **Notify stakeholders**:
@@ -188,7 +188,7 @@ roles:
 
 **Tools**:
 - **Cloud Logging**: Search by \`severity>=ERROR\`
-- **Firestore Audits**: \`gcloud firestore operations list\`
+- **Cloud SQL Audits**: Check `pgaudit` logs in Cloud Logging
 - **Network Logs**: VPC flow logs (if applicable)
 
 ---
@@ -302,7 +302,7 @@ i4g Project Lead
 
 **Certification**:
 - Sign acknowledgment form: "I have read and understand the i4g Data Compliance Guide"
-- Certificate stored in Firestore: \`/analysts/{uid}/certifications\`
+- Certificate stored in Cloud SQL: `analysts.certifications` table
 
 ---
 

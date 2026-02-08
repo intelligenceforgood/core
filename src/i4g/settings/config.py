@@ -925,7 +925,6 @@ class Settings(BaseSettings):
 
             storage_update = {
                 "structured_backend": "sqlite",
-                "firestore_project": None,
                 "cloudsql_instance": None,
                 "cloudsql_database": None,
                 "evidence_bucket": None,
@@ -1018,13 +1017,6 @@ class Settings(BaseSettings):
             "INGESTION_ENABLE_SQL",
             "INGEST__ENABLE_SQL",
             "INGEST_ENABLE_SQL",
-        )
-        _ingestion_bool(
-            "enable_firestore",
-            "INGESTION__ENABLE_FIRESTORE",
-            "INGESTION_ENABLE_FIRESTORE",
-            "INGEST__ENABLE_FIRESTORE",
-            "INGEST_ENABLE_FIRESTORE",
         )
         _ingestion_bool(
             "enable_vertex",

@@ -16,7 +16,7 @@ You now run two first-party consoles. The **Next.js portal** on Cloud Run serves
 1. **Zero Trust**: No analyst ever sees raw PII
 2. **Serverless**: Zero budget constraint drives Cloud Run deployment
 3. **Scalability**: Handles 20 concurrent users on GCP free tier
-4. **Security**: AES-256-GCM encryption, OAuth 2.0, Firestore rules
+4. **Security**: AES-256-GCM encryption, OAuth 2.0, database RBAC
 
 ## Guiding Objectives
 
@@ -35,7 +35,7 @@ You now run two first-party consoles. The **Next.js portal** on Cloud Run serves
 | Analyst UI | Streamlit on Cloud Run (authenticated) | Streamlit app run locally with dev auth toggles | `settings.ui.base_url` + `settings.auth.mock_tokens`; `make run-analyst-ui`. |
 | Retrieval & Vector Store | Vertex AI Search (default) | Dockerized Postgres + pgvector or local Chroma | `settings.vector.backend` (`vertex_ai`, `pgvector`, `chroma`); hot-swappable through `VectorClient`. |
 | LLM Inference | Vertex AI Gemini 1.5 Pro | Ollama running locally or mock responses | `settings.llm.provider` (`vertex_ai`, `ollama`, `dummy`); pluggable LangChain `LLMFactory`. |
-| Storage | Firestore + Cloud Storage buckets | Local SQLite/JSON stores + filesystem folders | `settings.storage.mode` (`firestore`, `sqlite_fs`); mounts via `.env.local` paths. |
+| Storage | Cloud SQL + Cloud Storage buckets | Local SQLite/JSON stores + filesystem folders | `settings.storage.mode` (`cloudsql`, `sqlite_fs`); mounts via `.env.local` paths. |
 | Ingestion Jobs | Cloud Run Jobs + Scheduler | Local scripts invoked via `make ingest-*` with stub schedules | `scripts/ingest/*` honour `settings.jobs.enabled`; local cron disabled by default. |
 | Observability | Cloud Logging/Monitoring with OpenTelemetry exporters | Console logs + optional local OTLP collector (Docker) | `settings.telemetry.otlp_endpoint`; default empty routes to stdout. |
 | Secrets | Secret Manager, Workload Identity | `.env.local` (gitignored) + Pydantic overrides | `settings.secrets.provider` (`secret_manager`, `env`); helper resolves per environment. |
@@ -78,7 +78,7 @@ flowchart TB
   end
 
   subgraph DataLayer["Data & Intelligence Layer"]
-    Firestore["Firestore<br>(Cases, Config, PII Tokens)"]
+    CloudSQL["Cloud SQL<br>(Cases, Config, PII Tokens)"]
     Storage["Cloud Storage<br>(Evidence, Reports)"]
     Vector[Vertex AI Search<br>/ AlloyDB + pgvector]
     TokenVault[PII Vault / Tokenization]
@@ -96,7 +96,7 @@ flowchart TB
   Analyst -- HTTPS --> Streamlit
   LEO -- HTTPS --> Streamlit
 
-  FastAPI -- REST/gRPC --> Firestore
+  FastAPI -- REST/gRPC --> CloudSQL
   FastAPI -- REST/gRPC --> Vector
   FastAPI -- Signed URLs --> Storage
   FastAPI -- Tokenization Calls --> TokenVault
@@ -105,7 +105,7 @@ flowchart TB
   Streamlit -- API Calls --> FastAPI
   Streamlit -- Signed URLs --> Storage
 
-  IngestionPipelines -- Structured Writes --> Firestore
+  IngestionPipelines -- Structured Writes --> CloudSQL
   IngestionPipelines -- Artifact Uploads --> Storage
   IngestionPipelines -- Embed Jobs --> Vector
 
@@ -149,7 +149,7 @@ flowchart LR
   end
 
   subgraph DataPlane["Data Plane & Private Services"]
-    Firestore[Firestore]
+    CloudSQL[Cloud SQL]
     Storage[Cloud Storage]
     Vector["Vector Store (Vertex AI Search / AlloyDB)"]
     KMS[Cloud KMS]
@@ -168,19 +168,19 @@ flowchart LR
   IAP --> Streamlit
 
   Streamlit -->|Authenticated API| FastAPI
-  FastAPI -->|REST| Firestore
+  FastAPI -->|REST| CloudSQL
   FastAPI -->|Signed URLs| Storage
   FastAPI -->|Vector Queries| Vector
   FastAPI --> VaultService
 
-  JobIngest -->|Writes| Firestore
+  JobIngest -->|Writes| CloudSQL
   JobIngest -->|Artifacts| Storage
   JobIngest -->|Embeddings| Vector
 
-  JobReport -->|Reads| Firestore
+  JobReport -->|Reads| CloudSQL
   JobReport -->|Publishes| Storage
 
-  VaultService -->|Detokenized Reads| Firestore
+  VaultService -->|Detokenized Reads| CloudSQL
 
   Secrets -.-> FastAPI
   Secrets -.-> Streamlit
@@ -234,13 +234,13 @@ resources require it. Observability remains centralized through Cloud Logging an
 │  └──┬─────────┘      └────┬──────────┘                   │
 └─────┼─────────────────────┼──────────────────────────────┘
       │                     │
-      │   Firestore API     │
+      │   Cloud SQL API    │
       │                     │
 ┌─────▼─────────────────────▼──────────────────────────────┐
 │                  Data Layer (GCP)                        │
 │  ┌──────────────┐  ┌────────────┐  ┌───────────┐  ┌────────────┐
-│  │  Firestore   │  │   Cloud    │  │  Secret   │  │ Vertex AI  │
-│  │   (NoSQL)    │  │  Storage   │  │  Manager  │  │  Search    │
+│  │  Cloud SQL   │  │   Cloud    │  │  Secret   │  │ Vertex AI  │
+│  │ (PostgreSQL) │  │  Storage   │  │  Manager  │  │  Search    │
 │  └──────┬───────┘  └────────────┘  └───────────┘  └────────────┘
 └─────────┼────────────────────────────────────────────────┘
           │
@@ -299,13 +299,12 @@ flowchart LR
 - PII tokenization and encryption
 - LLM-powered scam classification
 - Authentication (OAuth 2.0 JWT validation)
-- Firestore CRUD operations
+- Cloud SQL CRUD operations
 
 **Technology Stack**:
 - Python 3.11
 - FastAPI 0.104+ (async/await support)
 - LangChain 0.2+ (RAG pipeline)
-- google-cloud-firestore (database client)
 - google-cloud-storage (file uploads)
 - cryptography (AES-256-GCM encryption)
 
@@ -386,38 +385,38 @@ Note: The `POST /api/cases` endpoint above is listed as a planned user-facing in
 
 **Responsibilities**:
 - Normalize Discovery bundles into structured case/entity payloads (`ingest_payloads.prepare_ingest_payload`).
-- Execute `i4g.worker.jobs.ingest`, which orchestrates entity extraction, SQL writes (`SqlWriter`), Firestore fan-out (`FirestoreWriter`), and Vertex AI Search document imports (`VertexWriter`).
-- Persist ingestion run metrics plus retry payloads so operators can audit progress (`IngestionRunTracker`) and replay failed Firestore/Vertex batches via `i4g.worker.jobs.ingest_retry`.
+- Execute `i4g.worker.jobs.ingest`, which orchestrates entity extraction, SQL writes (`SqlWriter`), and Vertex AI Search document imports (`VertexWriter`).
+- Persist ingestion run metrics plus retry payloads so operators can audit progress (`IngestionRunTracker`) and replay failed Vertex batches via `i4g.worker.jobs.ingest_retry`.
 
 **Technology Stack**:
 - Python workers launched locally or via Cloud Run jobs using `conda run -n i4g python -m i4g.worker.jobs.{ingest,ingest_retry}`.
-- Cloud SQL / SQLite for `cases`, `entities`, and `ingestion_runs`; Firestore for analyst-facing case documents; Vertex AI Search (`retrieval-poc`) for semantic retrieval.
-- Settings-driven toggles (`I4G_STORAGE__FIRESTORE_PROJECT`, `I4G_VERTEX_SEARCH_*`, `I4G_INGEST_RETRY__BATCH_LIMIT`) resolved by `i4g.settings.get_settings()` so environment overrides stay declarative.
+- Cloud SQL / SQLite for `cases`, `entities`, and `ingestion_runs`; Vertex AI Search (`retrieval-poc`) for semantic retrieval.
+- Settings-driven toggles (`I4G_VERTEX_SEARCH_*`, `I4G_INGEST_RETRY__BATCH_LIMIT`) resolved by `i4g.settings.get_settings()` so environment overrides stay declarative.
 
 **Key Features**:
 - Run tracking (`scripts/verify_ingestion_run.py`) records case/entity counts plus backend-specific write totals, enabling reproducible smokes across local/dev/prod.
-- `_maybe_enqueue_retry` serializes the SQL result + payload + error, allowing the retry worker to rehydrate the exact Firestore/Vertex writes without repeating entity extraction.
+- `_maybe_enqueue_retry` serializes the SQL result + payload + error, allowing the retry worker to rehydrate the exact Vertex writes without repeating entity extraction.
 - Retry worker operates in dry-run or live mode, reporting successes/failures per backend; batches can be tuned to stay under rate limits.
 
 **Operational Status (Nov 30, 2025)**:
-- Dev ingestion run `01993af5-09ab-4ecf-b0c8-cd86702b8edd` processed 200 `retrieval_poc_dev` cases with SQL/Firestore reaching 200 writes each; Vertex imported 155 documents before hitting the "Document batch requests/min" quota (HTTP 429 ResourceExhausted).
+- Dev ingestion run `01993af5-09ab-4ecf-b0c8-cd86702b8edd` processed 200 `retrieval_poc_dev` cases with SQL reaching 200 writes; Vertex imported 155 documents before hitting the "Document batch requests/min" quota (HTTP 429 ResourceExhausted).
 - `python -m i4g.worker.jobs.ingest_retry` (batch size 10) drained the 45 queued Vertex payloads once quota recovered, so the corpus is eventually consistent even when the live run throttles.
 - Until the Vertex quota is raised, operators should stagger ingestion batches (e.g., lower ingestion job batch sizes) or schedule retry workers immediately after large ingests to finish the semantic index.
 
 ---
 
-### 3. **Firestore Database**
+### 3. **Cloud SQL Database**
 
-**Collections**:
+**Tables**:
 
 ```
-/cases
+cases
   └─ {case_id}
       ├─ created_at: timestamp
-      ├─ user_email: string
-      ├─ title: string
-      ├─ description: string (tokenized: <PII:SSN:7a8f2e>)
-      ├─ classification: {type, confidence}
+      ├─ user_email: varchar
+      ├─ title: varchar
+      ├─ description: text (tokenized: <PII:SSN:7a8f2e>)
+      ├─ classification: jsonb {type, confidence}
       ├─ status: "new" | "in_review" | "awaiting_input" | "accepted" | "rejected" | "closed"
       ├─ assigned_to: analyst_uid
       ├─ evidence_files: [gs://urls]
@@ -441,23 +440,11 @@ Note: The `POST /api/cases` endpoint above is listed as a planned user-facing in
       └─ last_login: timestamp
 ```
 
-**Security Rules**:
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    // Analysts can only read assigned cases
-    match /cases/{case_id} {
-      allow read: if request.auth != null &&
-                     resource.data.assigned_to == request.auth.uid;
-    }
+**Access Control**:
 
-    // PII vault locked to backend service account
-    match /pii_vault/{token} {
-      allow read, write: if request.auth.token.email == 'i4g-backend@i4g-prod.iam.gserviceaccount.com';
-    }
-  }
-}
+Row-level security and role-based access are enforced at the application layer via Cloud SQL IAM database authentication and PostgreSQL roles:
+- Analysts can only read cases assigned to them (filtered by `assigned_to` column matching authenticated user).
+- PII vault table is restricted to the backend service account (`i4g-backend@i4g-prod.iam.gserviceaccount.com`).
 ```
 
 ---
@@ -493,26 +480,26 @@ curl http://localhost:11434/api/chat -d '{
 ### Victim Intake → Structured Storage
 1. Victim submits a report via FastAPI intake (optionally authenticated through Google Identity or other OIDC provider).
 2. FastAPI orchestrates PII tokenization: identifiable fields go to the vault service, are swapped for tokens, and the
-  mapping persists in Firestore’s secure collection.
+  mapping persists in Cloud SQL's secure tables.
 3. LLM classification annotates the case with scam type/confidence while redacting PII placeholders in returned payloads.
-4. Normalized case metadata writes to Firestore collections (`cases`, `case_events`, `attachments`).
-5. Evidence artifacts upload to Cloud Storage using pre-signed URLs; completion webhooks update Firestore metadata with
+4. Normalized case metadata writes to Cloud SQL tables (`cases`, `case_events`, `attachments`).
+5. Evidence artifacts upload to Cloud Storage using pre-signed URLs; completion webhooks update Cloud SQL metadata with
   checksum, MIME type, and retention tags.
 
 ### Retrieval-Augmented Chat & Search
 1. Analyst initiates a chat session in Streamlit; the frontend calls FastAPI (`/api/chat`) with question, filters, and
   auth context.
-2. FastAPI fetches structured context (case ownership, tags, status) from Firestore based on analyst permissions.
+2. FastAPI fetches structured context (case ownership, tags, status) from Cloud SQL based on analyst permissions.
 3. LangChain pipeline embeds the question (Vertex AI Embeddings or environment-specified model) and queries the
   configured vector backend.
 4. Vector backend (Vertex AI Search or AlloyDB + pgvector) returns top-k documents; pipeline de-duplicates, scores, and
   enriches with structured fields.
 5. Prompt assembly blends structured metadata, vector hits, and policy disclaimers before invoking the configured LLM.
-6. Responses persist to Firestore audit collections; optional feedback flows back into the vector store for continual
+6. Responses persist to Cloud SQL audit tables; optional feedback flows back into the vector store for continual
   improvement.
 
 ### Accepted Review → Report Generation
-1. Review status transition to `accepted` emits an event (Firestore trigger or manual CLI) that queues a report task.
+1. Review status transition to `accepted` emits an event (database trigger or manual CLI) that queues a report task.
 2. Worker resolves the review via `ReviewStore`, gathering entities, transcripts, evidence references, and analyst notes
   using the settings-backed store factories.
 3. `ReportGenerator` fetches related cases via the vector store, detokenizes PII through the vault micro-service when
@@ -521,7 +508,7 @@ curl http://localhost:11434/api/chat -d '{
   signature manifest updates.
 5. Notifications (email/SMS) can be dispatched by a Cloud Run job using Secret Manager credentials; signed URLs are
   returned to Streamlit and logged for audit.
-6. Audit trail in Firestore captures status, actor, detokenization justification, and checksums for compliance review.
+6. Audit trail in Cloud SQL captures status, actor, detokenization justification, and checksums for compliance review.
 
 ### PII Vault Architecture (developer reference)
 
@@ -542,7 +529,7 @@ See `docs/pii_vault.md` for the full design. Highlights:
 | Service | Free Tier | Estimated Usage | Cost |
 |---------|-----------|-----------------|------|
 | Cloud Run | 2M requests/month | 100K requests/month | $0 |
-| Firestore | 50K reads/day | 1K reads/day | $0 |
+| Cloud SQL | Free-tier eligible | Shared instance | $0 |
 | Cloud Storage | 5 GB | 2 GB (evidence files) | $0 |
 | Cloud Logging | 50 GB/month | 10 GB/month | $0 |
 | Secret Manager | 6 active secrets | 3 secrets | $0 |
@@ -570,7 +557,7 @@ gcloud run deploy i4g-api \
   --max-instances 10 \
   --memory 1Gi \
   --timeout 300 \
-  --set-env-vars "FIRESTORE_PROJECT_ID=i4g-prod,ENVIRONMENT=production" \
+  --set-env-vars "ENVIRONMENT=production" \
   --set-secrets "TOKEN_ENCRYPTION_KEY=TOKEN_ENCRYPTION_KEY:latest"
 ```
 
@@ -636,25 +623,25 @@ truth.
 - VPC Access connectors back Cloud Run services for outbound calls to private resources (Cloud SQL, AlloyDB, KMS).
 - Cloud Storage buckets enforce uniform bucket-level access with IAM conditions; signed URLs have short TTLs and carry
   user identity in audit logs.
-- Firestore security rules mirror server-side checks for per-document ownership and role-based access.
+- Database RBAC mirrors server-side checks for per-row ownership and role-based access.
 - Artifact Registry images are signed (Sigstore) and verified by Cloud Deploy prior to promotion.
 
 ### Monitoring & Compliance
 - Cloud Audit Logs retained for ≥400 days; exports land in BigQuery or Cloud Storage coldline when costs allow.
 - Security Command Center (Standard) feeds vulnerability findings on Cloud Run images and IAM misconfigurations.
 - Daily job reconciles IAM policy drift against Terraform state and alerts via Cloud Monitoring.
-- Incident response playbook covers token revocation, Secret Manager rotation, and Firestore PII vault audits; access
+- Incident response playbook covers token revocation, Secret Manager rotation, and PII vault database audits; access
   transparency reports are stored alongside audit exports.
 
 ### Role-to-Capability Matrix
 
 | Role | Entry Path | Primary Data Access | Actions Allowed | Notes |
 |---|---|---|---|---|
-| Victim | FastAPI intake endpoints via Google Identity | Own submissions (Firestore docs scoped to UID), upload bucket objects via signed URL | Create/update intake records, upload evidence, read status of submitted cases | Read-only access enforced through Firestore security rules; no direct Storage listing |
-| Analyst | Streamlit portal (Cloud Run) | Case queues, evidence metadata, vector query results, read-only Firestore PII tokens (detokenized via FastAPI on demand) | Claim/release cases, run chat/RAG searches, trigger report generation, annotate cases | Detokenization requires explicit action and logs actor/justification |
+| Victim | FastAPI intake endpoints via Google Identity | Own submissions (Cloud SQL rows scoped to UID), upload bucket objects via signed URL | Create/update intake records, upload evidence, read status of submitted cases | Read-only access enforced through database RBAC; no direct Storage listing |
+| Analyst | Streamlit portal (Cloud Run) | Case queues, evidence metadata, vector query results, read-only Cloud SQL PII tokens (detokenized via FastAPI on demand) | Claim/release cases, run chat/RAG searches, trigger report generation, annotate cases | Detokenization requires explicit action and logs actor/justification |
 | Admin | Streamlit admin views + FastAPI admin APIs | All case data, configuration collections, audit logs | Manage users/roles, adjust configuration, approve report publishing, initiate rotations | Access gated by admin-only OAuth claim and Cloud Run IAM |
 | Law Enforcement (LEO) | Streamlit read-only report portal | Published reports, supporting evidence with signed URLs | View/download reports, acknowledge receipt | Accounts provisioned manually; multi-factor auth enforced |
-| Automation (ingest/report jobs) | Cloud Run jobs / Scheduler | Firestore ingestion collections, Storage evidence buckets, vector store | Normalize raw feeds, enqueue cases, seed vector index, emit alerts | Operate under dedicated service accounts with least privilege |
+| Automation (ingest/report jobs) | Cloud Run jobs / Scheduler | Cloud SQL ingestion tables, Storage evidence buckets, vector store | Normalize raw feeds, enqueue cases, seed vector index, emit alerts | Operate under dedicated service accounts with least privilege |
 
 ### PII Isolation
 
@@ -676,8 +663,8 @@ truth.
     ┌─────────▼────────┐               ┌────────────▼────────┐
     │   PII Vault      │               │   Cases DB          │
     │  (Encrypted)     │               │  (Tokenized)        │
-    │  Firestore       │               │  Firestore          │
-    │  /pii_vault      │               │  /cases             │
+    │  Cloud SQL       │               │  Cloud SQL          │
+    │  pii_vault       │               │  cases              │
     └──────────────────┘               └──────────┬──────────┘
          ⚠️ RESTRICTED                            │
     (Backend SA only)                             │
@@ -693,7 +680,7 @@ truth.
 ### 3. **Encryption**
 
 **At Rest**:
-- **Firestore**: Automatic AES-256 encryption (Google-managed keys)
+- **Cloud SQL**: Encryption at rest (Google-managed keys)
 - **Cloud Storage**: Customer-Managed Encryption Keys (CMEK)
 - **PII Vault**: Additional AES-256-GCM layer (app-level encryption)
 
@@ -775,9 +762,9 @@ gcloud secrets versions add TOKEN_ENCRYPTION_KEY --data-file=new_key.txt
 ### Backup Strategy
 
 ```bash
-# Daily Firestore export (Cloud Scheduler cron job)
-gcloud firestore export gs://i4g-backups/$(date +%Y%m%d) \
-  --collection-ids=cases,analysts,pii_vault
+# Daily Cloud SQL backup (Cloud Scheduler cron job)
+gcloud sql backups create --instance=i4g-prod-db \
+  --description="daily-$(date +%Y%m%d)"
 
 # Retention: 7 days
 gsutil lifecycle set lifecycle.json gs://i4g-backups
@@ -807,8 +794,8 @@ gsutil lifecycle set lifecycle.json gs://i4g-backups
 # 1. Find latest backup
 gsutil ls gs://i4g-backups/
 
-# 2. Import backup
-gcloud firestore import gs://i4g-backups/20251030/
+# 2. Restore from backup
+gcloud sql backups restore BACKUP_ID --restore-instance=i4g-prod-db
 ```
 
 **Scenario 2: PII vault corruption**
@@ -818,7 +805,7 @@ gcloud firestore import gs://i4g-backups/20251030/
 gcloud run services update i4g-api --no-traffic
 
 # 2. Restore from backup
-gcloud firestore import gs://i4g-backups/20251030/ --collection-ids=pii_vault
+gcloud sql backups restore BACKUP_ID --restore-instance=i4g-prod-db
 
 # 3. Validate restoration
 python scripts/validate_pii_vault.py
@@ -846,7 +833,7 @@ gcloud run services update i4g-api --traffic
 ### Cloud Infrastructure
 - **Hosting**: Google Cloud Platform
   - Cloud Run (API + dashboard)
-  - Firestore (NoSQL database)
+  - Cloud SQL (PostgreSQL)
   - Cloud Storage (file uploads)
   - Secret Manager (API keys, encryption keys)
   - Cloud Logging (structured logs)
@@ -865,7 +852,7 @@ gcloud run services update i4g-api --traffic
 ## Future Architecture Improvements
 
 ### Phase 2 (Post-MVP)
-- [ ] Add Redis caching layer (reduce Firestore reads)
+- [ ] Add Redis caching layer (reduce database queries)
 - [ ] Implement async task queue (Celery + Cloud Tasks)
 - [ ] Multi-region deployment (us-central1 + europe-west1)
 - [ ] CDN for static assets (Cloud CDN)

@@ -20,15 +20,15 @@ def _build_store(tmp_path):
 def test_enqueue_updates_existing_and_fetch_ready(tmp_path):
     store, engine = _build_store(tmp_path)
     try:
-        retry_id = store.enqueue(case_id="case-1", backend="firestore", payload={"case_id": "case-1"})
+        retry_id = store.enqueue(case_id="case-1", backend="cloudsql", payload={"case_id": "case-1"})
         assert retry_id
 
         ready = store.fetch_ready(limit=10)
         assert len(ready) == 1
         assert ready[0].case_id == "case-1"
-        assert ready[0].backend == "firestore"
+        assert ready[0].backend == "cloudsql"
 
-        updated = store.enqueue(case_id="case-1", backend="firestore", payload={"case_id": "case-1", "n": 2})
+        updated = store.enqueue(case_id="case-1", backend="cloudsql", payload={"case_id": "case-1", "n": 2})
         assert updated == retry_id
 
         ready = store.fetch_ready(limit=10)

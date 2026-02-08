@@ -251,16 +251,12 @@ common dev ingestion profile:
 # config/settings.local.toml
 env = "dev"
 
-[storage]
-firestore_project = "i4g-dev"
-
 [vector]
 vertex_ai_project = "i4g-dev"
 vertex_ai_data_store = "retrieval-poc"
 
 [ingestion]
 default_dataset = "retrieval_poc_dev"
-enable_firestore = true
 enable_vertex = true
 ```
 

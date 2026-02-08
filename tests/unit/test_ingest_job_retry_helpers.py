@@ -42,7 +42,7 @@ def test_maybe_enqueue_retry_skips_when_not_attempted() -> None:
     store = Mock()
     result = ingest._maybe_enqueue_retry(
         store,
-        backend="firestore",
+        backend="cloudsql",
         attempted=False,
         succeeded=False,
         payload={"case_id": "case-skip"},
@@ -115,7 +115,7 @@ def test_maybe_enqueue_retry_respects_max_retries() -> None:
     payload = {"case_id": "case-skip"}
     result = ingest._maybe_enqueue_retry(
         store,
-        backend="firestore",
+        backend="cloudsql",
         attempted=True,
         succeeded=False,
         payload=payload,

@@ -36,7 +36,7 @@ INTRO_TEXT = (
     "docs checkout is available) before committing.\n"
     "3. Store credentials in `.env.local` or Secret Manager rather than committing secrets here; laptop runs can source "
     "the file via `direnv` or the built-in dotenv loader.\n"
-    "4. Keep `I4G_ENV=local` for sandbox testing; other values assume GCP services (Firestore, Cloud Storage, Vertex AI) "
+    "4. Keep `I4G_ENV=local` for sandbox testing; other values assume GCP services (Cloud SQL, Cloud Storage, Vertex AI) "
     "are reachable.\n"
     "5. Machine-readable manifests live next to this page (`docs/config/settings_manifest.{json,yaml}` in core, "
     "`config/settings.yaml` in the docs site) for automation and CI validation.\n\n"

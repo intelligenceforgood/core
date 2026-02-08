@@ -11,12 +11,12 @@ Documenting every knob keeps contributors from accidentally pointing laptop jobs
 Usage guidance for developers and sysadmins:
 
 1. Prefer the `I4G_*` env vars when exporting values; legacy aliases exist only for backwards compatibility.
-2. When adding or changing a setting, update `src/i4g/settings/config.py`, extend `tests/unit/settings/`, and rerun `python scripts/export_settings_manifest.py` (pass `--docs-repo ../docs` when the docs checkout is available) before committing.
+2. When adding or changing a setting, update `src/i4g/settings/config.py`, extend `tests/unit/settings/`, and rerun `i4g settings export-manifest` (pass `--docs-repo ../docs` when the docs checkout is available) before committing.
 3. Store credentials in `.env.local` or Secret Manager rather than committing secrets here; laptop runs can source the file via `direnv` or the built-in dotenv loader.
-4. Keep `I4G_ENV=local` for sandbox testing; other values assume GCP services (Firestore, Cloud Storage, Vertex AI) are reachable.
+4. Keep `I4G_ENV=local` for sandbox testing; other values assume GCP services (Cloud SQL, Cloud Storage, Vertex AI) are reachable.
 5. Machine-readable manifests live next to this page (`docs/config/settings_manifest.{json,yaml}` in core, `config/settings.yaml` in the docs site) for automation and CI validation.
 
-This catalog is assembled by `core/scripts/export_settings_manifest.py` directly from `src/i4g/settings/config.py`. The descriptions below are automatically generated—do not hand-edit them; change the implementation defaults and rerun the exporter instead.
+This catalog is assembled by `i4g settings export-manifest` directly from `src/i4g/settings/config.py`. The descriptions below are automatically generated—do not hand-edit them; change the implementation defaults and rerun the exporter instead.
 
 | Section | Setting | Env Vars | Type | Default | Description |
 | --- | --- | --- | --- | --- | --- |
@@ -31,7 +31,8 @@ This catalog is assembled by `core/scripts/export_settings_manifest.py` directly
 | account_list | `account_list.require_api_key` | `I4G_ACCOUNT_LIST__REQUIRE_API_KEY`<br />`ACCOUNT_LIST_REQUIRE_API_KEY`<br />`ACCOUNT_LIST__REQUIRE_API_KEY` | `bool` | `True` | Account list extraction configuration. |
 | api | `api.base_url` | `I4G_API__BASE_URL`<br />`API_URL`<br />`API__BASE_URL` | `str` | `http://127.0.0.1:8000` | API endpoint configuration shared by CLI + dashboards. |
 | api | `api.key` | `I4G_API__KEY`<br />`API_KEY`<br />`API__KEY` | `str` | `dev-analyst-token` | API endpoint configuration shared by CLI + dashboards. |
-| crypto | `crypto.pii_key` | `I4G_CRYPTO__PII_KEY`<br />`CRYPTO_PII_KEY`<br />`CRYPTO__PII_KEY`<br />`TOKENIZATION_PII_KEY`<br />`TOKENIZATION__PII_KEY` | `str &#124; NoneType` | `None` | Application-level cryptographic material used by vault/tokenization flows. |
+| api | `api.rate_limit_per_minute` | `I4G_API__RATE_LIMIT_PER_MINUTE`<br />`API_RATE_LIMIT`<br />`API__RATE_LIMIT_PER_MINUTE` | `int` | `60` | API endpoint configuration shared by CLI + dashboards. |
+| crypto | `crypto.pii_key` | `I4G_CRYPTO__PII_KEY`<br />`CRYPTO_PII_KEY`<br />`CRYPTO__PII_KEY` | `str &#124; NoneType` | `None` | Application-level cryptographic material used by vault/tokenization flows. |
 | data_dir | `data_dir` | `I4G_DATA_DIR` | `Path` | `/Users/jerry/Work/project/i4g/core/data` | Top-level configuration model with nested sections for each subsystem. |
 | env | `env` | `I4G_ENV`<br />`ENV`<br />`ENVIRONMENT`<br />`RUNTIME__ENV` | `str` | `local` | Top-level configuration model with nested sections for each subsystem. |
 | identity | `identity.audience` | `I4G_IDENTITY__AUDIENCE`<br />`IDENTITY_AUDIENCE`<br />`IDENTITY__AUDIENCE` | `str &#124; NoneType` | `None` | Identity provider wiring for auth-enabled services. |
@@ -45,7 +46,6 @@ This catalog is assembled by `core/scripts/export_settings_manifest.py` directly
 | ingestion | `ingestion.default_region` | `I4G_INGESTION__DEFAULT_REGION`<br />`INGESTION_DEFAULT_REGION`<br />`INGESTION__DEFAULT_REGION` | `str` | `us-central1` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.default_service_account` | `I4G_INGESTION__DEFAULT_SERVICE_ACCOUNT`<br />`INGESTION_SERVICE_ACCOUNT`<br />`INGESTION__SERVICE_ACCOUNT` | `str &#124; NoneType` | `None` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.dry_run` | `I4G_INGESTION__DRY_RUN`<br />`INGEST_DRY_RUN`<br />`INGEST__DRY_RUN`<br />`INGESTION_DRY_RUN`<br />`INGESTION__DRY_RUN` | `bool` | `False` | Scheduler + job configuration for ingestion workflows. |
-| ingestion | `ingestion.enable_firestore` | `I4G_INGESTION__ENABLE_FIRESTORE`<br />`INGEST_ENABLE_FIRESTORE`<br />`INGEST__ENABLE_FIRESTORE`<br />`INGESTION_ENABLE_FIRESTORE`<br />`INGESTION__ENABLE_FIRESTORE` | `bool` | `False` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.enable_scheduled_jobs` | `I4G_INGESTION__ENABLE_SCHEDULED_JOBS`<br />`INGESTION_ENABLE_SCHEDULED_JOBS`<br />`INGESTION__ENABLE_SCHEDULED_JOBS` | `bool` | `False` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.enable_sql` | `I4G_INGESTION__ENABLE_SQL`<br />`INGEST_ENABLE_SQL`<br />`INGEST__ENABLE_SQL`<br />`INGESTION_ENABLE_SQL`<br />`INGESTION__ENABLE_SQL` | `bool` | `True` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.enable_vector_store` | `I4G_INGESTION__ENABLE_VECTOR_STORE`<br />`INGEST_ENABLE_VECTOR`<br />`INGEST__ENABLE_VECTOR`<br />`INGESTION_ENABLE_VECTOR`<br />`INGESTION__ENABLE_VECTOR` | `bool` | `True` | Scheduler + job configuration for ingestion workflows. |
@@ -55,12 +55,12 @@ This catalog is assembled by `core/scripts/export_settings_manifest.py` directly
 | ingestion | `ingestion.reset_vector` | `I4G_INGESTION__RESET_VECTOR`<br />`INGEST_RESET_VECTOR`<br />`INGEST__RESET_VECTOR`<br />`INGESTION_RESET_VECTOR`<br />`INGESTION__RESET_VECTOR` | `bool` | `False` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.retry_delay_seconds` | `I4G_INGESTION__RETRY_DELAY_SECONDS`<br />`INGEST_RETRY_DELAY_SECONDS`<br />`INGEST__RETRY_DELAY_SECONDS`<br />`INGESTION_RETRY_DELAY_SECONDS`<br />`INGESTION__RETRY_DELAY_SECONDS` | `int` | `60` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.scheduler_project` | `I4G_INGESTION__SCHEDULER_PROJECT`<br />`INGESTION_SCHEDULER_PROJECT`<br />`INGESTION__SCHEDULER_PROJECT` | `str &#124; NoneType` | `None` | Scheduler + job configuration for ingestion workflows. |
-| llm | `llm.chat_model` | `I4G_LLM__CHAT_MODEL`<br />`LLM_CHAT_MODEL`<br />`LLM__CHAT_MODEL` | `str` | `llama3` | Large language model provider settings. |
+| llm | `llm.chat_model` | `I4G_LLM__CHAT_MODEL`<br />`LLM_CHAT_MODEL`<br />`LLM__CHAT_MODEL` | `str` | `llama3` | Primary model identifier (e.g. 'llama3', 'gemini-2.5-flash'). Used for all providers. |
 | llm | `llm.ollama_base_url` | `I4G_LLM__OLLAMA_BASE_URL`<br />`OLLAMA_BASE_URL`<br />`LLM__OLLAMA_BASE_URL` | `str` | `http://127.0.0.1:11434` | Large language model provider settings. |
 | llm | `llm.provider` | `I4G_LLM__PROVIDER`<br />`LLM_PROVIDER`<br />`LLM__PROVIDER` | `Literal['ollama', 'vertex_ai', 'mock']` | `ollama` | Large language model provider settings. |
 | llm | `llm.temperature` | `I4G_LLM__TEMPERATURE`<br />`LLM_TEMPERATURE`<br />`LLM__TEMPERATURE` | `float` | `0.1` | Large language model provider settings. |
 | llm | `llm.vertex_ai_location` | `I4G_LLM__VERTEX_AI_LOCATION`<br />`LLM_VERTEX_AI_LOCATION`<br />`LLM__VERTEX_AI__LOCATION` | `str &#124; NoneType` | `us-central1` | Large language model provider settings. |
-| llm | `llm.vertex_ai_model` | `I4G_LLM__VERTEX_AI_MODEL`<br />`LLM_VERTEX_AI_MODEL`<br />`LLM__VERTEX_AI__MODEL` | `str &#124; NoneType` | `None` | Large language model provider settings. |
+| llm | `llm.vertex_ai_model` | `I4G_LLM__VERTEX_AI_MODEL`<br />`LLM_VERTEX_AI_MODEL`<br />`LLM__VERTEX_AI__MODEL` | `str &#124; NoneType` | `None` | Legacy override for Vertex AI model. Prefer 'chat_model'. |
 | llm | `llm.vertex_ai_project` | `I4G_LLM__VERTEX_AI_PROJECT`<br />`LLM_VERTEX_AI_PROJECT`<br />`LLM__VERTEX_AI__PROJECT` | `str &#124; NoneType` | `None` | Large language model provider settings. |
 | observability | `observability.otlp_endpoint` | `I4G_OBSERVABILITY__OTLP_ENDPOINT`<br />`OBS_OTLP_ENDPOINT`<br />`OBSERVABILITY__OTLP_ENDPOINT` | `str &#124; NoneType` | `None` | Logging, tracing, and metrics configuration. |
 | observability | `observability.service_name` | `I4G_OBSERVABILITY__SERVICE_NAME`<br />`OBS_SERVICE_NAME`<br />`OBSERVABILITY__SERVICE_NAME` | `str` | `i4g-backend` | Logging, tracing, and metrics configuration. |
@@ -69,6 +69,15 @@ This catalog is assembled by `core/scripts/export_settings_manifest.py` directly
 | observability | `observability.statsd_prefix` | `I4G_OBSERVABILITY__STATSD_PREFIX`<br />`OBS_STATSD_PREFIX`<br />`OBSERVABILITY__STATSD_PREFIX` | `str` | `i4g` | Logging, tracing, and metrics configuration. |
 | observability | `observability.structured_logging` | `I4G_OBSERVABILITY__STRUCTURED_LOGGING`<br />`OBS_STRUCTURED_LOGGING`<br />`OBSERVABILITY__STRUCTURED_LOGGING` | `bool` | `True` | Logging, tracing, and metrics configuration. |
 | observability | `observability.trace_sample_rate` | `I4G_OBSERVABILITY__TRACE_SAMPLE_RATE`<br />`OBS_TRACE_SAMPLE_RATE`<br />`OBSERVABILITY__TRACE_SAMPLE_RATE` | `float` | `0.0` | Logging, tracing, and metrics configuration. |
+| pii | `pii.backend` | `I4G_PII__BACKEND`<br />`PII_BACKEND`<br />`PII__BACKEND` | `Literal['sqlite', 'cloudsql']` | `sqlite` | Deterministic tokenization controls for PII vault integration. |
+| pii | `pii.cloudsql_database` | `I4G_PII__CLOUDSQL_DATABASE`<br />`PII__CLOUDSQL__DATABASE`<br />`I4G_PII__CLOUDSQL__DATABASE` | `str &#124; NoneType` | `None` | Deterministic tokenization controls for PII vault integration. |
+| pii | `pii.cloudsql_enable_iam_auth` | `I4G_PII__CLOUDSQL_ENABLE_IAM_AUTH`<br />`PII__CLOUDSQL__ENABLE_IAM_AUTH`<br />`I4G_PII__CLOUDSQL__ENABLE_IAM_AUTH` | `bool` | `False` | Deterministic tokenization controls for PII vault integration. |
+| pii | `pii.cloudsql_instance` | `I4G_PII__CLOUDSQL_INSTANCE`<br />`PII__CLOUDSQL__INSTANCE`<br />`I4G_PII__CLOUDSQL__INSTANCE` | `str &#124; NoneType` | `None` | Deterministic tokenization controls for PII vault integration. |
+| pii | `pii.cloudsql_password` | `I4G_PII__CLOUDSQL_PASSWORD`<br />`PII__CLOUDSQL__PASSWORD`<br />`I4G_PII__CLOUDSQL__PASSWORD` | `str &#124; NoneType` | `None` | Deterministic tokenization controls for PII vault integration. |
+| pii | `pii.cloudsql_user` | `I4G_PII__CLOUDSQL_USER`<br />`PII__CLOUDSQL__USER`<br />`I4G_PII__CLOUDSQL__USER` | `str &#124; NoneType` | `None` | Deterministic tokenization controls for PII vault integration. |
+| pii | `pii.pepper` | `I4G_PII__PEPPER`<br />`PII_PEPPER`<br />`PII__PEPPER` | `str &#124; NoneType` | `None` | Deterministic tokenization controls for PII vault integration. |
+| pii | `pii.pepper_version` | `I4G_PII__PEPPER_VERSION`<br />`PII_PEPPER_VERSION`<br />`PII__PEPPER_VERSION` | `str` | `v1` | Deterministic tokenization controls for PII vault integration. |
+| pii | `pii.require_pepper` | `I4G_PII__REQUIRE_PEPPER`<br />`PII_REQUIRE_PEPPER`<br />`PII__REQUIRE_PEPPER` | `bool` | `True` | Deterministic tokenization controls for PII vault integration. |
 | project_root | `project_root` | `I4G_PROJECT_ROOT`<br />`PROJECT_ROOT`<br />`RUNTIME__PROJECT_ROOT`<br />`I4G_RUNTIME__PROJECT_ROOT` | `Path` | `/Users/jerry/Work/project/i4g/core` | Top-level configuration model with nested sections for each subsystem. |
 | report | `report.drive_parent_id` | `I4G_REPORT__DRIVE_PARENT_ID`<br />`REPORT_DRIVE_PARENT_ID`<br />`REPORT__DRIVE_PARENT_ID` | `str &#124; NoneType` | `None` | Agentic dossier/report configuration. |
 | report | `report.hash_algorithm` | `I4G_REPORT__HASH_ALGORITHM`<br />`REPORT_HASH_ALGORITHM`<br />`REPORT__HASH_ALGORITHM` | `str` | `sha256` | Agentic dossier/report configuration. |
@@ -93,18 +102,16 @@ This catalog is assembled by `core/scripts/export_settings_manifest.py` directly
 | secrets | `secrets.local_env_file` | `I4G_SECRETS__LOCAL_ENV_FILE`<br />`SECRETS_LOCAL_ENV_FILE`<br />`SECRETS__LOCAL_ENV_FILE` | `Path &#124; NoneType` | `None` | Secret resolution strategy (local vs Secret Manager). |
 | secrets | `secrets.project` | `I4G_SECRETS__PROJECT`<br />`SECRETS_PROJECT`<br />`SECRETS__PROJECT` | `str &#124; NoneType` | `None` | Secret resolution strategy (local vs Secret Manager). |
 | secrets | `secrets.use_secret_manager` | `I4G_SECRETS__USE_SECRET_MANAGER`<br />`SECRETS_USE_SECRET_MANAGER`<br />`SECRETS__USE_SECRET_MANAGER` | `bool` | `False` | Secret resolution strategy (local vs Secret Manager). |
-| storage | `storage.cloudsql_database` | `I4G_APP__CLOUDSQL__DATABASE`<br />`CLOUDSQL_DATABASE`<br />`APP__CLOUDSQL__DATABASE` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
-| storage | `storage.cloudsql_instance` | `I4G_APP__CLOUDSQL__INSTANCE`<br />`CLOUDSQL_INSTANCE`<br />`APP__CLOUDSQL__INSTANCE` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
+| storage | `storage.cloudsql_database` | `I4G_STORAGE__CLOUDSQL_DATABASE`<br />`APP__CLOUDSQL__DATABASE`<br />`I4G_APP__CLOUDSQL__DATABASE` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
+| storage | `storage.cloudsql_enable_iam_auth` | `I4G_STORAGE__CLOUDSQL_ENABLE_IAM_AUTH`<br />`APP__CLOUDSQL__ENABLE_IAM_AUTH`<br />`I4G_APP__CLOUDSQL__ENABLE_IAM_AUTH` | `bool` | `False` | Structured + blob storage configuration. |
+| storage | `storage.cloudsql_instance` | `I4G_STORAGE__CLOUDSQL_INSTANCE`<br />`APP__CLOUDSQL__INSTANCE`<br />`I4G_APP__CLOUDSQL__INSTANCE` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
+| storage | `storage.cloudsql_password` | `I4G_STORAGE__CLOUDSQL_PASSWORD`<br />`APP__CLOUDSQL__PASSWORD`<br />`I4G_APP__CLOUDSQL__PASSWORD` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
+| storage | `storage.cloudsql_user` | `I4G_STORAGE__CLOUDSQL_USER`<br />`APP__CLOUDSQL__USER`<br />`I4G_APP__CLOUDSQL__USER` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
 | storage | `storage.evidence_bucket` | `I4G_STORAGE__EVIDENCE_BUCKET`<br />`STORAGE_EVIDENCE_BUCKET`<br />`STORAGE__EVIDENCE_BUCKET` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
 | storage | `storage.evidence_local_dir` | `I4G_STORAGE__EVIDENCE_LOCAL_DIR`<br />`STORAGE_EVIDENCE_LOCAL_DIR`<br />`STORAGE__EVIDENCE__LOCAL_DIR` | `Path` | `/Users/jerry/Work/project/i4g/core/data/evidence` | Structured + blob storage configuration. |
-| storage | `storage.firestore_collection` | `I4G_STORAGE__FIRESTORE_COLLECTION`<br />`FIRESTORE_COLLECTION`<br />`STORAGE__FIRESTORE__COLLECTION` | `str` | `cases` | Structured + blob storage configuration. |
-| storage | `storage.firestore_project` | `I4G_STORAGE__FIRESTORE_PROJECT`<br />`FIRESTORE_PROJECT`<br />`STORAGE__FIRESTORE__PROJECT` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
-| storage | `storage.reports_bucket` | `I4G_STORAGE__REPORTS_BUCKET` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
+| storage | `storage.report_bucket` | `I4G_STORAGE__REPORT_BUCKET`<br />`STORAGE_REPORT_BUCKET`<br />`STORAGE__REPORT_BUCKET` | `str &#124; NoneType` | `None` | Structured + blob storage configuration. |
 | storage | `storage.sqlite_path` | `I4G_STORAGE__SQLITE_PATH` | `Path` | `/Users/jerry/Work/project/i4g/core/data/i4g_store.db` | Structured + blob storage configuration. |
-| storage | `storage.structured_backend` | `I4G_STORAGE__STRUCTURED_BACKEND`<br />`STRUCTURED_BACKEND`<br />`STORAGE__STRUCTURED_BACKEND` | `Literal['sqlite', 'firestore', 'cloudsql']` | `sqlite` | Structured + blob storage configuration. |
-| pii | `pii.pepper` | `I4G_PII__PEPPER`<br />`PII_PEPPER`<br />`PII__PEPPER` | `str &#124; NoneType` | `None` | Deterministic tokenization controls for PII vault integration. |
-| pii | `pii.pepper_version` | `I4G_PII__PEPPER_VERSION`<br />`PII_PEPPER_VERSION`<br />`PII__PEPPER_VERSION` | `str` | `v1` | Deterministic tokenization controls for PII vault integration. |
-| pii | `pii.require_pepper` | `I4G_PII__REQUIRE_PEPPER`<br />`PII_REQUIRE_PEPPER`<br />`PII__REQUIRE_PEPPER` | `bool` | `True` | Deterministic tokenization controls for PII vault integration. |
+| storage | `storage.structured_backend` | `I4G_STORAGE__STRUCTURED_BACKEND`<br />`STRUCTURED_BACKEND`<br />`STORAGE__STRUCTURED_BACKEND` | `Literal['sqlite', 'cloudsql']` | `sqlite` | Structured + blob storage configuration. |
 | vector | `vector.backend` | `I4G_VECTOR__BACKEND`<br />`VECTOR_BACKEND`<br />`VECTOR__BACKEND` | `Literal['chroma', 'faiss', 'pgvector', 'vertex_ai']` | `chroma` | Vector store configuration supporting multiple backends. |
 | vector | `vector.chroma_dir` | `I4G_VECTOR__CHROMA_DIR` | `Path` | `/Users/jerry/Work/project/i4g/core/data/chroma_store` | Vector store configuration supporting multiple backends. |
 | vector | `vector.collection` | `I4G_VECTOR__COLLECTION`<br />`VECTOR_COLLECTION`<br />`VECTOR__COLLECTION` | `str` | `i4g_vectors` | Vector store configuration supporting multiple backends. |

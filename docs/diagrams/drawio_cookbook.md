@@ -39,7 +39,7 @@ We want diagrams to look consistent and professional, not like default engineeri
 ### Styling Rules
 1.  **Replace Generic Shapes**:
     *   Delete the generic square boxes from the import.
-    *   Drag in official icons from the **Google Cloud Platform** library on the left (e.g., search for "Cloud Run", "Firestore", "Pub/Sub").
+    *   Drag in official icons from the **Google Cloud Platform** library on the left (e.g., search for "Cloud Run", "Cloud SQL", "Pub/Sub").
 2.  **Connectors (Arrows)**:
     *   Select an arrow. In the right-hand **Style** panel:
         *   **Waypoints**: Choose **Orthogonal** (right-angle bends) or **Curved**. Avoid the default "Straight" lines if they cut through other shapes.
