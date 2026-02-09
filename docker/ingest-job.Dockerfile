@@ -34,7 +34,7 @@ RUN mkdir -p /app/data/chroma_store /app/data/reports \
 USER 65532:65532
 
 ENV I4G_ENV=dev \
-    I4G_INGEST__JSONL_PATH=gs://i4g-dev-data-bundles/2025-12-17/synthetic_coverage/retrieval_poc/cases.jsonl
+    I4G_INGEST__JSONL_PATH=""
 
 ENTRYPOINT ["i4g"]
 CMD ["jobs", "ingest"]

@@ -43,9 +43,6 @@ COPY docker/fixtures/mock ./data/artifacts/mock
 # Install the local package and remaining dependencies
 RUN python -m pip install --no-cache-dir .
 
-# Copy mock artifacts
-COPY docker/fixtures/mock /app/data/artifacts/mock
-
 # Cloud Run defaults to non-root user 65532; ensure writable artifact dirs
 RUN mkdir -p /app/data \
     && chown -R 65532:65532 /app/data
