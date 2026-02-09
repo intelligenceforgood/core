@@ -109,7 +109,24 @@ def test_extract_accounts_rejects_large_top_k():
 
 
 def test_extract_accounts_requires_api_key():
+    """Without a valid API key, extract should return 403.
+
+    Local env forces disable_auth=True, so we override get_settings
+    via FastAPI dependency overrides to enable auth for this test.
+    """
+    from i4g.settings import get_settings
+
+    real_settings = get_settings()
+    patched_identity = real_settings.identity.model_copy(update={"disable_auth": False})
+    patched_account_list = real_settings.account_list.model_copy(
+        update={"require_api_key": True, "api_key": "secret-key-123"}
+    )
+    patched_settings = real_settings.model_copy(
+        update={"identity": patched_identity, "account_list": patched_account_list}
+    )
+
     app = create_app()
+    app.dependency_overrides[get_settings] = lambda: patched_settings
     app.dependency_overrides[get_account_list_service] = lambda: _StubAccountListService(
         AccountListResult(
             request_id="unused",

@@ -1,15 +1,25 @@
 import pytest
+import sqlalchemy as sa
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker
+
 from i4g.api.app import app
 from i4g.api.review import get_store
 from i4g.store.review_store import ReviewStore
+from i4g.store.sql import METADATA
 from i4g.api.auth import require_token
 
 
 @pytest.fixture
 def temp_store(tmp_path):
     db_path = tmp_path / "test_review.db"
-    store = ReviewStore(db_path=db_path)
+    engine = sa.create_engine(
+        f"sqlite:///{db_path}",
+        connect_args={"check_same_thread": False},
+    )
+    METADATA.create_all(engine)
+    sf = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    store = ReviewStore(session_factory=sf)
     return store
 
 

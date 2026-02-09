@@ -34,7 +34,7 @@ def _build_result() -> AccountListResult:
 
 def _mock_settings(tmp_path: Path) -> Mock:
     settings = Mock()
-    settings.storage.reports_bucket = None
+    settings.storage.report_bucket = None
     settings.account_list.artifact_prefix = None
     settings.account_list.drive_folder_id = None
     settings.data_dir = tmp_path / "data"

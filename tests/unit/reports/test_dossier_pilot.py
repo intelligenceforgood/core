@@ -3,17 +3,36 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from pathlib import Path
+
+import sqlalchemy as sa
+from sqlalchemy.orm import sessionmaker
 
 from i4g.reports.bundle_builder import BundleBuilder, BundleCriteria
 from i4g.reports.bundle_candidates import BundleCandidateProvider
 from i4g.reports.dossier_pilot import PilotCaseSpec, load_pilot_case_specs, schedule_pilot_plans, seed_pilot_cases
 from i4g.store.dossier_queue_store import DossierQueueStore
 from i4g.store.review_store import ReviewStore
+from i4g.store.sql import METADATA
 from i4g.store.structured import StructuredStore
 
 
+def _make_review_store(db_path: Path) -> ReviewStore:
+    """Build a ReviewStore backed by a temporary SQLite file."""
+    engine = sa.create_engine(
+        f"sqlite:///{db_path}",
+        connect_args={"check_same_thread": False},
+    )
+    METADATA.create_all(engine)
+    sf = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    return ReviewStore(session_factory=sf)
+
+
 def _pilot_payload(case_id: str = "case-pilot-test") -> dict:
+    # Use a recent timestamp so the candidate passes the recency filter.
+    recent_ts = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
     return {
         "case_id": case_id,
         "text": "Victim moved funds into suspect wallet after staged romance.",
@@ -23,7 +42,7 @@ def _pilot_payload(case_id: str = "case-pilot-test") -> dict:
         "jurisdiction": "US-CA",
         "victim_country": "US",
         "offender_country": "NG",
-        "accepted_at": "2025-11-18T12:00:00Z",
+        "accepted_at": recent_ts,
         "entities": {"emails": ["pilot@example.com"]},
     }
 
@@ -43,7 +62,7 @@ def test_load_pilot_case_specs(tmp_path) -> None:
 
 def test_seed_pilot_cases_creates_structured_and_queue_entries(tmp_path) -> None:
     db_path = tmp_path / "pilot.db"
-    review_store = ReviewStore(str(db_path))
+    review_store = _make_review_store(db_path)
     structured_store = StructuredStore(db_path=db_path)
     spec = PilotCaseSpec.from_dict(_pilot_payload())
 
@@ -63,7 +82,7 @@ def test_seed_pilot_cases_creates_structured_and_queue_entries(tmp_path) -> None
 
 def test_schedule_pilot_plans_enqueues_queue(tmp_path) -> None:
     db_path = tmp_path / "pilot.db"
-    review_store = ReviewStore(str(db_path))
+    review_store = _make_review_store(db_path)
     structured_store = StructuredStore(db_path=db_path)
     spec = PilotCaseSpec.from_dict(_pilot_payload())
     seed_pilot_cases([spec], review_store=review_store, structured_store=structured_store)

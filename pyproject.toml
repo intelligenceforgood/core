@@ -4,26 +4,21 @@ requires = ["hatchling"]
 
 [project]
 dependencies = [
-  "altair",
-  "datasets",
   "faiss-cpu",
   "fastapi",
   "uvicorn[standard]",
   "google-api-python-client",
-  "google-auth-httplib2",
   "azure-identity",
   "azure-search-documents>=11.6.0,<12",
-  "google-auth-oauthlib",
   "google-cloud-discoveryengine>=0.15.0,<1.0",
   "google-cloud-aiplatform>=1.70.0,<3.0",
   "google-cloud-storage",
   "google-cloud-secret-manager",
-  "huggingface-hub>=0.34.0,<1.0",
+  "jinja2",
   "langchain",
   "langchain-chroma",
   "langchain-community",
   "langchain-ollama",
-  "ollama",
   "httpx",
   "paddleocr[all]",
   "Pillow",
@@ -31,7 +26,6 @@ dependencies = [
   "pydantic-settings>=2.1,<3",
   "python-multipart",
   "pg8000",
-  "psycopg2-binary",
   "cloud-sql-python-connector[pg8000]",
   "pyodbc",
   "azure-storage-blob",
@@ -40,12 +34,12 @@ dependencies = [
   "pypdfium2",
   "python-docx",
   "openpyxl",
+  "pyyaml",
   "reportlab",
-  "regex",
   "requests",
   "rich",
+  "sqlalchemy>=2.0,<3",
   "tqdm",
-  "trio",
   "typer[all]>=0.12.3",
   "alembic>=1.13,<2",
 ]
@@ -67,8 +61,6 @@ test = [
 
 [project.scripts]
 i4g = "i4g.cli.app:app"
-i4g-admin = "i4g.cli.app:app"
-run-dataflow = "prefect_gcp.beam.pipeline:main"
 
 [tool.hatch.version]
 path = "VERSION.txt"

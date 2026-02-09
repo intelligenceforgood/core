@@ -928,7 +928,7 @@ class Settings(BaseSettings):
                 "cloudsql_instance": None,
                 "cloudsql_database": None,
                 "evidence_bucket": None,
-                "reports_bucket": None,
+                "report_bucket": None,
             }
             object.__setattr__(self, "storage", self.storage.model_copy(update=storage_update))
 
