@@ -8,6 +8,7 @@ from typing import Any, Dict, Protocol
 
 from i4g.services.ingest_payloads import prepare_ingest_payload
 from i4g.store.ingest import IngestPipeline
+from i4g.utils.coerce import coerce_bool
 
 
 @dataclass
@@ -28,15 +29,8 @@ class IntakeJobRunner(Protocol):
         ...
 
 
-def _coerce_bool(value: str | None) -> bool | None:
-    if value is None:
-        return None
-    normalized = value.strip().lower()
-    if normalized in {"1", "true", "yes", "on"}:
-        return True
-    if normalized in {"0", "false", "no", "off"}:
-        return False
-    return None
+def _coerce_bool(value: str | None) -> bool | None:  # noqa: D103 — re-export of coerce_bool
+    return coerce_bool(value)
 
 
 class LocalPipelineIntakeJobRunner:

@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from langchain_ollama import OllamaLLM
@@ -205,7 +205,7 @@ class ReportGenerator:
         # Context for the template
         context = {
             "report_id": str(uuid.uuid4()),
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "anchor_case_id": case_id,
             "query": text_query,
             "summary": summary,

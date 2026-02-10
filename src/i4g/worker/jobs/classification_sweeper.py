@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 from typing import List, Optional
 
 import sqlalchemy as sa
@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from i4g.services.factories import build_fraud_classifier
 from i4g.store import sql as sql_schema
 from i4g.store.sql import session_factory as default_session_factory
+from i4g.task_status import TaskStatusReporter
 from i4g.taxonomy.models import FraudClassificationResult
 
 LOGGER = logging.getLogger("i4g.worker.jobs.classification_sweeper")
@@ -38,6 +39,14 @@ def run() -> None:
 
     LOGGER.info(f"Starting classification sweeper (batch_size={batch_size}, timeout={max_runtime_seconds}s)")
 
+    reporter = TaskStatusReporter()
+    if reporter.is_enabled():
+        reporter.update(
+            status="started",
+            message=f"Classification sweeper started (batch_size={batch_size})",
+            batch_size=batch_size,
+        )
+
     session_factory = default_session_factory()
     classifier = build_fraud_classifier()
 
@@ -52,12 +61,6 @@ def run() -> None:
                 break
 
             with session_factory() as session:
-                # Fetch pending cases
-                # Postgres supports SKIP LOCKED which is ideal for queue processing
-                # But we default to simple select for broad compatibility if sqlite is mistakenly used in dev
-                # For Cloud SQL (Postgres), we can optimize later if concurrency is high.
-                # Since we enforce parallelism=1 in Cloud Run config, simple LIMIT is safe enough.
-
                 query = (
                     sa.select(sql_schema.cases.c.case_id, sql_schema.source_documents.c.text)
                     .join(
@@ -65,13 +68,8 @@ def run() -> None:
                     )
                     .where(sql_schema.cases.c.classification_status == "pending")
                     .where(sql_schema.cases.c.is_deleted.is_(False))
-                    # Prefer cases with non-empty text
                     .where(sql_schema.source_documents.c.text.is_not(None))
                     .where(sql_schema.source_documents.c.text != "")
-                    # Prefer cases with text; join ensures we have the document text
-                    # We might need to aggregate text if multiple docs exist,
-                    # but typically first doc is the main one for simple classification.
-                    # Or we can select cases and join text.
                     .limit(batch_size)
                 )
 
@@ -96,17 +94,37 @@ def run() -> None:
                 total_processed += len(rows)
                 LOGGER.info(f"Processed batch. Total so far: {total_processed}")
 
+                if reporter.is_enabled():
+                    reporter.update(
+                        status="processing",
+                        message=f"Classified {total_processed} cases so far",
+                        processed=total_processed,
+                    )
+
     except Exception as e:
         LOGGER.exception("Job failed unexpectedly")
-        # In a real job, we might not want to exit with non-zero if we processed some items,
-        # but failing hard ensures the scheduler/monitoring knows something is wrong.
+        if reporter.is_enabled():
+            reporter.update(
+                status="failed",
+                message=f"Sweeper failed after {total_processed} cases: {e}",
+                processed=total_processed,
+            )
         raise
+
+    status = "finished" if total_processed > 0 else "no_work"
+    LOGGER.info("Classification sweeper complete. Total processed: %d", total_processed)
+    if reporter.is_enabled():
+        reporter.update(
+            status=status,
+            message=f"Sweeper complete: {total_processed} cases classified",
+            processed=total_processed,
+        )
 
 
 def _update_batch(session: Session, case_ids: List[str], results: List[Optional[FraudClassificationResult]]) -> None:
     """Update classification status and results for the batch."""
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # We can do this in a loop or bulk update. Loop is clearer for mixed results.
     for i, case_id in enumerate(case_ids):

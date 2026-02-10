@@ -4,7 +4,7 @@ import hashlib
 import json
 import random
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional, Sequence
 
@@ -558,7 +558,7 @@ def write_manifest(
     ocr_files = sorted(ocr_dir.glob("*.txt"))
     manifest = {
         "bundle": DATASET_ID,
-        "generated_at": datetime.utcnow().strftime(ISO_FORMAT),
+        "generated_at": datetime.now(timezone.utc).strftime(ISO_FORMAT),
         "seed": seed,
         "smoke": smoke,
         "case_count": case_count,

@@ -289,11 +289,35 @@ def build_dossier_context_loader(
 
 def build_fraud_classifier() -> FraudClassifier:
     """Return a configured FraudClassifier instance."""
-    return FraudClassifier()
+    from i4g.llm.client import build_llm_client
+
+    return FraudClassifier(llm_client=build_llm_client())
+
+
+def build_llm_client(*, settings: "Settings | None" = None):
+    """Return a simple LLM client (``generate(prompt) -> str``).
+
+    Delegates to :func:`i4g.llm.client.build_llm_client`.
+    """
+    from i4g.llm.client import build_llm_client as _build
+
+    return _build(settings=settings)
+
+
+def build_langchain_llm(*, settings: "Settings | None" = None):
+    """Return a LangChain-compatible LLM (``invoke(messages)``).
+
+    Delegates to :func:`i4g.llm.client.build_langchain_llm`.
+    """
+    from i4g.llm.client import build_langchain_llm as _build
+
+    return _build(settings=settings)
 
 
 __all__ = [
     "build_fraud_classifier",
+    "build_llm_client",
+    "build_langchain_llm",
     "build_structured_store",
     "build_entity_store",
     "build_review_store",

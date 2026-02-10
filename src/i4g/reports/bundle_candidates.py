@@ -10,6 +10,7 @@ from i4g.reports.bundle_builder import DossierCandidate
 from i4g.reports.bundle_metrics import compute_bundle_metrics
 from i4g.store.review_store import ReviewStore
 from i4g.store.structured import StructuredStore
+from i4g.utils.datetime_parse import parse_datetime as _shared_parse_datetime
 
 
 class BundleCandidateProvider:
@@ -93,15 +94,8 @@ class BundleCandidateProvider:
 
 
 def _parse_datetime(value: object | None) -> datetime:
-    if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-    if isinstance(value, str) and value.strip():
-        try:
-            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
-        except ValueError:
-            pass
-    return datetime.now(timezone.utc)
+    """Parse datetime with fallback to now(utc)."""
+    return _shared_parse_datetime(value, on_error="now")
 
 
 def _loss_amount_from_value(value: object | None) -> Decimal:

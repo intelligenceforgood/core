@@ -247,17 +247,9 @@ def download_account_list_artifact(
 
 
 def _parse_datetime(value: Any) -> datetime | None:
-    if not value:
-        return None
-    if isinstance(value, datetime):
-        return value
-    if isinstance(value, str):
-        normalized = value.replace("Z", "+00:00") if value.endswith("Z") else value
-        try:
-            return datetime.fromisoformat(normalized)
-        except ValueError:
-            return None
-    return None
+    from i4g.utils.datetime_parse import parse_datetime
+
+    return parse_datetime(value, on_error="none")
 
 
 def _parse_run_action(record: Dict[str, Any], request: Request) -> AccountListRunSummary | None:

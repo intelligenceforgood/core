@@ -9,9 +9,10 @@ from datetime import datetime, timedelta, timezone
 
 from i4g.services.account_list import AccountListRequest, AccountListResult, AccountListService, log_account_list_run
 from i4g.settings import Settings, get_settings
+from i4g.utils.coerce import env_bool, env_int, env_list
+from i4g.utils.datetime_parse import parse_datetime
 
 LOGGER = logging.getLogger("i4g.worker.jobs.account_list")
-_BOOL_TRUE = {"1", "true", "yes", "on"}
 _DEFAULT_FORMATS = ["xlsx", "pdf"]
 
 
@@ -21,38 +22,21 @@ def _configure_logging() -> None:
     logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 
-def _parse_datetime(value: str) -> datetime:
-    cleaned = value.strip()
-    if cleaned.endswith("Z"):
-        cleaned = f"{cleaned[:-1]}+00:00"
-    timestamp = datetime.fromisoformat(cleaned)
-    if timestamp.tzinfo is None:
-        return timestamp.replace(tzinfo=timezone.utc)
-    return timestamp.astimezone(timezone.utc)
+def _parse_datetime(value: str) -> datetime:  # noqa: D103 — thin wrapper around shared parse_datetime
+    result = parse_datetime(value, on_error="raise")
+    return result.astimezone(timezone.utc)
 
 
-def _env_bool(name: str, default: bool) -> bool:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    return raw.strip().lower() in _BOOL_TRUE
+def _env_bool(name: str, default: bool) -> bool:  # noqa: D103 — re-export of shared env_bool
+    return env_bool(name, default)
 
 
-def _env_int(name: str, default: int) -> int:
-    raw = os.getenv(name)
-    if raw is None or not raw.strip():
-        return default
-    try:
-        return int(raw)
-    except ValueError as exc:  # pragma: no cover - invalid envs are handled by caller
-        raise ValueError(f"{name} must be an integer") from exc
+def _env_int(name: str, default: int) -> int:  # noqa: D103 — re-export of shared env_int
+    return env_int(name, default)
 
 
-def _env_list(name: str) -> list[str]:
-    raw = os.getenv(name)
-    if not raw:
-        return []
-    return [item.strip().lower() for item in raw.split(",") if item.strip()]
+def _env_list(name: str) -> list[str]:  # noqa: D103 — re-export of shared env_list
+    return env_list(name)
 
 
 def _resolve_formats(settings: Settings) -> list[str]:

@@ -46,88 +46,12 @@ class AccountEntityExtractor:
         self._client = self._build_client()
 
     def _build_client(self):
+        from i4g.llm.client import build_langchain_llm
+
         if self.provider == "mock":
             return None
 
-        if self.provider == "ollama":
-            from langchain_ollama import ChatOllama
-
-            return ChatOllama(
-                model=self.settings.llm.chat_model,
-                base_url=self.settings.llm.ollama_base_url,
-                temperature=self.settings.llm.temperature,
-            )
-
-        if self.provider == "vertex_ai":
-            return self._build_vertex_client()
-
-        raise RuntimeError(
-            f"AccountEntityExtractor: Unsupported provider '{self.provider}'. "
-            "Configure 'ollama' or 'vertex_ai' via I4G_LLM__PROVIDER."
-        )
-
-    def _build_vertex_client(self) -> Any:
-        """Build a Vertex AI client adapter matching the LangChain Runnable interface."""
-        try:
-            import vertexai
-            from vertexai.generative_models import GenerationConfig, GenerativeModel
-        except ImportError as e:
-            raise ImportError("Create a Vertex AI client requires 'google-cloud-aiplatform'.") from e
-
-        project = self.settings.llm.vertex_ai_project or self.settings.secrets.project
-        location = self.settings.llm.vertex_ai_location or "us-central1"
-
-        # Choose model: prefer explicit chat_model, fall back to vertex specific, then gemini default
-        model_name = self.settings.llm.chat_model or self.settings.llm.vertex_ai_model or "gemini-1.5-flash-001"
-
-        # Initialize global vertexai context
-        vertexai.init(project=project, location=location)
-
-        LOGGER.info(
-            "Initialized Vertex AI client", extra={"project": project, "location": location, "model": model_name}
-        )
-
-        class VertexAdapter:
-            def __init__(self, model: GenerativeModel, temperature: float):
-                self._model = model
-                self._temperature = temperature
-
-            def invoke(self, messages: Any) -> Any:
-                # Convert LangChain messages to a single prompt string for Vertex
-                # This handles the specific list format used in extract_indicators
-                full_prompt = ""
-                if isinstance(messages, list):
-                    for msg in messages:
-                        if hasattr(msg, "content"):
-                            # Simple concatenation strategy
-                            # Note: Gemini supports "system instructions" in model init,
-                            # but simple concatenation works for many cases if formatted well.
-                            role = "System" if "System" in msg.__class__.__name__ else "User"
-                            full_prompt += f"{role}: {msg.content}\n\n"
-                        else:
-                            full_prompt += str(msg) + "\n\n"
-                else:
-                    full_prompt = str(messages)
-
-                # Simple mock of AIMessage with .content attribute
-                config = GenerationConfig(temperature=self._temperature, response_mime_type="application/json")
-                try:
-                    create_resp = self._model.generate_content(full_prompt, generation_config=config)
-
-                    # Helper class to mimic AIMessage
-                    class MessageResponse:
-                        def __init__(self, text: str):
-                            self.content = text
-
-                    return MessageResponse(create_resp.text)
-                except Exception as exc:
-                    LOGGER.error("Vertex AI generation failed", extra={"error": str(exc)})
-                    raise
-
-        return VertexAdapter(
-            model=GenerativeModel(model_name),
-            temperature=self.settings.llm.temperature,
-        )
+        return build_langchain_llm(settings=self.settings)
 
     def extract_indicators(
         self,

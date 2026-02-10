@@ -716,20 +716,9 @@ def _coerce_time_range(raw: Any) -> Dict[str, datetime] | None:
 
 def _parse_datetime(value: Any) -> datetime | None:
     """Best-effort ISO-8601 datetime parser."""
-    if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-    if not isinstance(value, str):
-        return None
-    text = value.strip()
-    if not text:
-        return None
-    if text.endswith("Z"):
-        text = text[:-1] + "+00:00"
-    try:
-        parsed = datetime.fromisoformat(text)
-    except ValueError:
-        return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    from i4g.utils.datetime_parse import parse_datetime
+
+    return parse_datetime(value, on_error="none")
 
 
 def _coerce_positive_int(value: Any, *, allow_zero: bool = False, max_value: int | None = None) -> Optional[int]:

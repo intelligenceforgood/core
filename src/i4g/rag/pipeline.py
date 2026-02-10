@@ -15,6 +15,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_ollama import ChatOllama
 
+from i4g.llm.client import build_langchain_llm
+
 
 def build_scam_detection_chain(vectorstore):
     """
@@ -28,7 +30,10 @@ def build_scam_detection_chain(vectorstore):
         a scam assessment string.
     """
     retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
-    llm = ChatOllama(model="llama3.1")
+
+    # Use the centralized LLM factory; falls back to ChatOllama("llama3.1") for
+    # mock providers (where build_langchain_llm returns None).
+    llm = build_langchain_llm() or ChatOllama(model="llama3.1")
     template = (
         "You are a scam detection assistant.\n"
         "Given the following chat or message context, "

@@ -8,6 +8,8 @@ import sys
 from typing import List
 
 from i4g.services.factories import build_review_store
+from i4g.task_status import TaskStatusReporter
+from i4g.utils.coerce import env_bool
 from i4g.worker.tasks import generate_report_for_case
 
 LOGGER = logging.getLogger("i4g.worker.jobs.report")
@@ -36,35 +38,61 @@ def main() -> int:
     _configure_logging()
 
     batch_limit = int(os.getenv("I4G_REPORT__BATCH_LIMIT", "25") or 25)
-    dry_run = os.getenv("I4G_REPORT__DRY_RUN", "false").lower() in {"1", "true", "yes", "on"}
+    dry_run = env_bool("I4G_REPORT__DRY_RUN", default=False)
 
     LOGGER.info("Starting report job: batch_limit=%s dry_run=%s", batch_limit, dry_run)
+
+    reporter = TaskStatusReporter()
 
     review_ids = _resolve_review_ids(limit=batch_limit)
     if not review_ids:
         LOGGER.info("No review IDs resolved; nothing to do")
+        if reporter.is_enabled():
+            reporter.update(status="finished", message="No reviews to process", processed=0)
         return 0
 
-    LOGGER.info("Resolved %s review ID(s) for processing", len(review_ids))
+    total = len(review_ids)
+    LOGGER.info("Resolved %s review ID(s) for processing", total)
+    if reporter.is_enabled():
+        reporter.update(status="started", message=f"Processing {total} reviews", total=total, dry_run=dry_run)
 
     store = build_review_store()
     successes = 0
     failures = 0
 
-    for review_id in review_ids:
+    for idx, review_id in enumerate(review_ids, 1):
         if dry_run:
             LOGGER.info("Dry run enabled; would generate report for %s", review_id)
             successes += 1
-            continue
-        result = generate_report_for_case(review_id, store=store)
-        if result.startswith("error:"):
-            failures += 1
-            LOGGER.error("Report generation failed for %s: %s", review_id, result)
         else:
-            successes += 1
-            LOGGER.info("Report generated for %s → %s", review_id, result)
+            result = generate_report_for_case(review_id, store=store)
+            if result.startswith("error:"):
+                failures += 1
+                LOGGER.error("Report generation failed for %s: %s", review_id, result)
+            else:
+                successes += 1
+                LOGGER.info("Report generated for %s → %s", review_id, result)
 
+        if reporter.is_enabled() and (idx % 5 == 0 or idx == total):
+            reporter.update(
+                status="processing",
+                message=f"Processed {idx}/{total} reviews",
+                progress=idx,
+                total=total,
+                successes=successes,
+                failures=failures,
+            )
+
+    status = "finished" if failures == 0 else "partial"
     LOGGER.info("Report batch complete: successes=%s failures=%s", successes, failures)
+    if reporter.is_enabled():
+        reporter.update(
+            status=status,
+            message=f"Report job {status}: {successes} succeeded, {failures} failed",
+            processed=successes + failures,
+            successes=successes,
+            failures=failures,
+        )
 
     return 0 if failures == 0 else 1
 

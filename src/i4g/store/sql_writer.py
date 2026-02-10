@@ -7,7 +7,7 @@ import logging
 import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Dict, Iterator, List, Sequence
 
@@ -75,7 +75,7 @@ def _utcnow() -> datetime:
         ``datetime`` instance representing utcnow.
     """
 
-    return datetime.utcnow()
+    return datetime.now(timezone.utc)
 
 
 @dataclass(slots=True)

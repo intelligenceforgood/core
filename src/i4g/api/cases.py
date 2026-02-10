@@ -2,7 +2,7 @@
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
@@ -206,7 +206,7 @@ async def get_case(case_id: str) -> CaseDetail:
     timeline_events = []
     for action in data.get("timeline", []):
         ts_str = action.get("created_at")
-        ts = datetime.fromisoformat(ts_str) if ts_str else datetime.utcnow()
+        ts = datetime.fromisoformat(ts_str) if ts_str else datetime.now(timezone.utc)
         timeline_events.append(
             CaseTimelineEvent(
                 id=action["action_id"],
@@ -325,7 +325,7 @@ def _build_mock_case(case_basics: Dict[str, Any]) -> CaseDetail:
         timeline=[
             CaseTimelineEvent(
                 id="evt-1",
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(timezone.utc),
                 description="Case created automatically (Mock)",
                 type="system",
             ),

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from i4g.services.factories import (
@@ -306,7 +306,7 @@ class IngestPipeline:
             },
             classification=classification_result.get("fraud_type", ""),
             confidence=float(classification_result.get("fraud_confidence", 0.0)),
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             metadata=final_metadata,
         )
 

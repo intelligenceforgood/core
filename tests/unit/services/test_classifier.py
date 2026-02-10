@@ -23,7 +23,7 @@ def test_classifier_mock_mode():
     assert result.risk_score >= 0.0
 
 
-@patch("i4g.services.classifier.get_settings")
+@patch("i4g.llm.client.get_settings")
 def test_classifier_init_ollama(mock_settings):
     """Test initialization with Ollama provider."""
     mock_settings.return_value.llm.provider = "ollama"

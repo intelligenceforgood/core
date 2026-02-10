@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
 import sqlalchemy as sa
@@ -32,7 +32,7 @@ def _seed_case_with_entity(
     if loss_amount is not None:
         case_metadata["loss_amount"] = loss_amount
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     last_seen_at = now - timedelta(days=last_seen_offset_days)
 
     session.execute(
@@ -43,8 +43,8 @@ def _seed_case_with_entity(
             "source_type": "ocr",
             "classification": "romance",
             "confidence": 0.9,
-            "detected_at": datetime.utcnow(),
-            "reported_at": datetime.utcnow(),
+            "detected_at": datetime.now(timezone.utc),
+            "reported_at": datetime.now(timezone.utc),
             "raw_text_sha256": f"sha-{case_id}",
             "status": "open",
             "metadata": case_metadata,

@@ -74,3 +74,10 @@ def jobs_sweeper() -> None:
     from i4g.worker.jobs import classification_sweeper
 
     classification_sweeper.run()
+
+
+@jobs_app.command("pii-backfill", help="Run PII tokenization backfill job.")
+def jobs_pii_backfill() -> None:
+    from i4g.worker.jobs import pii_backfill
+
+    _exit_from_return(pii_backfill.main())

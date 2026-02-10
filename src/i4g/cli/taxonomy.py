@@ -89,7 +89,7 @@ def generate_taxonomy_data(data: Dict[str, Any]):
     output_data = {
         "version": data.get("version", "1.0"),
         "steward": "Policy & Standards Team",
-        "updatedAt": datetime.datetime.utcnow().isoformat() + "Z",
+        "updatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z",
         "axes": axes,
     }
 

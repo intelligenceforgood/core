@@ -1,6 +1,6 @@
 """Unit tests for the hybrid retriever module."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -16,7 +16,7 @@ def make_record(case_id: str = "case-1", classification: str = "crypto_investmen
         entities={"wallet_addresses": ["0x123"]},
         classification=classification,
         confidence=0.9,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
 
 

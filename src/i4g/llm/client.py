@@ -1,0 +1,184 @@
+"""Centralized LLM client construction.
+
+Provides :func:`build_llm_client` (simple ``generate(prompt) -> str``
+interface) and :func:`build_langchain_llm` (LangChain Runnable interface)
+so that provider-selection and model-resolution logic lives in exactly one
+place instead of being duplicated across ``classifier.py``,
+``llm_extractor.py``, and ``rag/pipeline.py``.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any, Protocol
+
+from i4g.settings import Settings, get_settings
+
+LOGGER = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Simple (prompt-in / string-out) interface used by FraudClassifier
+# ---------------------------------------------------------------------------
+
+
+class LLMClient(Protocol):
+    """Protocol for simple prompt-in / string-out LLM interactions."""
+
+    def generate(self, prompt: str) -> str:  # pragma: no cover
+        """Generate text from a prompt."""
+        ...
+
+
+def _resolve_model_name(settings: Settings) -> str:
+    """Resolve the effective model name from settings with legacy fallback.
+
+    Priority: ``chat_model`` unless it is the default ``"llama3"`` *and*
+    ``vertex_ai_model`` is explicitly set (backwards-compat shim).
+    """
+    chat_model = settings.llm.chat_model
+    vertex_model = settings.llm.vertex_ai_model
+    if chat_model == "llama3" and vertex_model:
+        return vertex_model
+    return chat_model
+
+
+def build_llm_client(*, settings: Settings | None = None) -> LLMClient:
+    """Return a simple ``LLMClient`` based on the configured provider.
+
+    The client exposes only ``generate(prompt) -> str``.
+
+    Args:
+        settings: Optional pre-loaded settings; defaults to ``get_settings()``.
+
+    Returns:
+        An ``LLMClient`` implementation for the current provider.
+    """
+    from i4g.services.classifier import MockLLMClient, OllamaClient, VertexAIClient
+
+    s = settings or get_settings()
+    provider = s.llm.provider
+
+    if provider == "mock" or s.llm.chat_model == "mock":
+        return MockLLMClient()
+
+    if provider == "ollama":
+        return OllamaClient(
+            base_url=s.llm.ollama_base_url,
+            model=s.llm.chat_model,
+        )
+
+    if provider == "vertex_ai":
+        if not s.llm.vertex_ai_project:
+            raise ValueError("Vertex AI project not configured (settings.llm.vertex_ai_project).")
+        model_name = _resolve_model_name(s)
+        return VertexAIClient(
+            project=s.llm.vertex_ai_project,
+            location=s.llm.vertex_ai_location or "us-central1",
+            model_name=model_name,
+        )
+
+    LOGGER.warning("Unknown LLM provider '%s'; falling back to mock.", provider)
+    return MockLLMClient()
+
+
+# ---------------------------------------------------------------------------
+# LangChain-compatible interface used by AccountEntityExtractor & RAG
+# ---------------------------------------------------------------------------
+
+
+def build_langchain_llm(*, settings: Settings | None = None) -> Any:
+    """Return a LangChain-compatible LLM based on the configured provider.
+
+    The returned object supports ``.invoke(messages)`` (LangChain Runnable
+    protocol).
+
+    Args:
+        settings: Optional pre-loaded settings; defaults to ``get_settings()``.
+
+    Returns:
+        A LangChain chat model object, or ``None`` for the mock provider.
+    """
+    s = settings or get_settings()
+    provider = s.llm.provider
+
+    if provider == "mock" or s.llm.chat_model == "mock":
+        return None
+
+    if provider == "ollama":
+        from langchain_ollama import ChatOllama
+
+        return ChatOllama(
+            model=s.llm.chat_model,
+            base_url=s.llm.ollama_base_url,
+            temperature=s.llm.temperature,
+        )
+
+    if provider == "vertex_ai":
+        return _build_vertex_langchain(s)
+
+    raise RuntimeError(
+        f"Unsupported LLM provider '{provider}'. "
+        "Configure 'ollama', 'vertex_ai', or 'mock' via I4G_LLM__PROVIDER."
+    )
+
+
+def _build_vertex_langchain(settings: Settings) -> Any:
+    """Build a Vertex AI adapter matching the LangChain Runnable ``.invoke()`` interface."""
+    try:
+        import vertexai
+        from vertexai.generative_models import GenerationConfig, GenerativeModel
+    except ImportError as exc:
+        raise ImportError(
+            "Vertex AI requires 'google-cloud-aiplatform'. "
+            "Install with: pip install google-cloud-aiplatform"
+        ) from exc
+
+    project = settings.llm.vertex_ai_project or settings.secrets.project
+    location = settings.llm.vertex_ai_location or "us-central1"
+    model_name = _resolve_model_name(settings)
+
+    vertexai.init(project=project, location=location)
+    LOGGER.info("Initialized Vertex AI LangChain adapter", extra={"project": project, "model": model_name})
+
+    class _VertexLangChainAdapter:
+        """Wraps ``GenerativeModel`` to satisfy the LangChain Runnable interface."""
+
+        def __init__(self, model: GenerativeModel, temperature: float) -> None:
+            self._model = model
+            self._temperature = temperature
+
+        def invoke(self, messages: Any) -> Any:
+            """Convert LangChain messages to a prompt and call Vertex AI."""
+            if isinstance(messages, list):
+                parts = []
+                for msg in messages:
+                    if hasattr(msg, "content"):
+                        role = "System" if "System" in msg.__class__.__name__ else "User"
+                        parts.append(f"{role}: {msg.content}")
+                    else:
+                        parts.append(str(msg))
+                full_prompt = "\n\n".join(parts)
+            else:
+                full_prompt = str(messages)
+
+            config = GenerationConfig(
+                temperature=self._temperature,
+                response_mime_type="application/json",
+            )
+            try:
+                response = self._model.generate_content(full_prompt, generation_config=config)
+            except Exception:
+                LOGGER.exception("Vertex AI generation failed")
+                raise
+
+            class _MessageResponse:
+                def __init__(self, text: str) -> None:
+                    self.content = text
+
+            return _MessageResponse(response.text)
+
+    return _VertexLangChainAdapter(
+        model=GenerativeModel(model_name),
+        temperature=settings.llm.temperature,
+    )

@@ -220,16 +220,10 @@ def _coerce_sequence(value: Any) -> Sequence[str]:
 
 
 def _parse_datetime(value: Any) -> datetime:
-    if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-    if isinstance(value, str) and value.strip():
-        normalized = value.replace("Z", "+00:00")
-        try:
-            parsed = datetime.fromisoformat(normalized)
-            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
-        except ValueError:
-            pass
-    return datetime.now(timezone.utc)
+    """Parse datetime with fallback to now(utc)."""
+    from i4g.utils.datetime_parse import parse_datetime
+
+    return parse_datetime(value, on_error="now")
 
 
 def _decimal_from(value: Any) -> Decimal:

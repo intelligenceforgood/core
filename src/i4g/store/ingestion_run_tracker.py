@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import uuid
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Iterator, Literal, Optional
 
 import sqlalchemy as sa
@@ -21,7 +21,7 @@ RunStatus = Literal["running", "succeeded", "failed", "partial"]
 
 
 def _utcnow() -> datetime:
-    return datetime.utcnow()
+    return datetime.now(timezone.utc)
 
 
 class IngestionRunTracker:

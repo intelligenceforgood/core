@@ -8,9 +8,7 @@ fraud attempts based on the official taxonomy and few-shot examples.
 import json
 import yaml
 import logging
-import time
 import requests
-from pathlib import Path
 from typing import Optional, Protocol, List, Dict, Any
 
 try:
@@ -20,13 +18,12 @@ except ImportError:
     vertexai = None
     GenerativeModel = None
 
-from i4g.settings import PROJECT_ROOT, get_settings
+from i4g.settings import PROJECT_ROOT
 from i4g.taxonomy.models import FraudClassificationResult, ScoredLabel
 from i4g.classification.rules import detect_signals
 
 
 LOGGER = logging.getLogger(__name__)
-from typing import Dict, List
 
 
 class LLMClient(Protocol):
@@ -131,30 +128,9 @@ class FraudClassifier:
         if llm_client:
             self.llm_client = llm_client
         else:
-            settings = get_settings()
-            provider = settings.llm.provider
+            from i4g.llm.client import build_llm_client
 
-            if provider == "mock" or settings.llm.chat_model == "mock":
-                self.llm_client = MockLLMClient()
-            elif provider == "ollama":
-                self.llm_client = OllamaClient(base_url=settings.llm.ollama_base_url, model=settings.llm.chat_model)
-            elif provider == "vertex_ai":
-                if not settings.llm.vertex_ai_project:
-                    raise ValueError("Vertex AI project not configured.")
-
-                # Prefer generic chat_model, fallback to legacy vertex_ai_model
-                model_name = settings.llm.chat_model
-                if model_name == "llama3" and settings.llm.vertex_ai_model:
-                    # If chat_model is default but vertex_ai_model is set, use legacy
-                    model_name = settings.llm.vertex_ai_model
-
-                self.llm_client = VertexAIClient(
-                    project=settings.llm.vertex_ai_project,
-                    location=settings.llm.vertex_ai_location or "us-central1",
-                    model_name=model_name,
-                )
-            else:
-                self.llm_client = MockLLMClient()
+            self.llm_client = build_llm_client()
 
         self.definitions_path = PROJECT_ROOT / "src" / "i4g" / "taxonomy" / "definitions.yaml"
         self.examples_path = PROJECT_ROOT / "src" / "i4g" / "taxonomy" / "golden_examples.json"

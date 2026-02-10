@@ -8,6 +8,7 @@ import sys
 
 from i4g.reports.dossier_queue_processor import DossierQueueProcessor, QueueProcessSummary
 from i4g.task_status import TaskStatusReporter
+from i4g.utils.coerce import env_bool
 
 LOGGER = logging.getLogger("i4g.worker.jobs.dossier_queue")
 
@@ -18,11 +19,8 @@ def _configure_logging() -> None:
     logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 
-def _env_bool(key: str, default: bool = False) -> bool:
-    raw = os.getenv(key)
-    if raw is None:
-        return default
-    return raw.lower() in {"1", "true", "yes", "on"}
+def _env_bool(key: str, default: bool = False) -> bool:  # noqa: D103 — re-export of shared env_bool
+    return env_bool(key, default)
 
 
 def run_job(
