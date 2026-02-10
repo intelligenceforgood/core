@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Optional
 
 import typer
@@ -53,7 +52,7 @@ def admin_query(
     from i4g.cli.search import logic as search_logic
 
     settings = get_settings()
-    search_logic.run_query(SimpleNamespace(question=question, backend=backend or settings.vector.backend))
+    search_logic.run_query(question=question, backend=backend or settings.vector.backend)
 
 
 @admin_app.command("vertex-search", help="Query Vertex AI Search (Discovery) data store.")
@@ -78,17 +77,15 @@ def admin_vertex_search(
 
     settings = get_settings()
     search_logic.run_vertex_search(
-        SimpleNamespace(
-            query=query,
-            project=project or settings.vector.vertex_ai_project,
-            location=location or settings.vector.vertex_ai_location or "global",
-            data_store_id=data_store_id,
-            serving_config_id=serving_config_id,
-            page_size=page_size,
-            filter_expression=filter_expression,
-            boost_json=boost_json,
-            raw=raw,
-        )
+        query=query,
+        project=project or settings.vector.vertex_ai_project,
+        location=location or settings.vector.vertex_ai_location or "global",
+        data_store_id=data_store_id,
+        serving_config_id=serving_config_id,
+        page_size=page_size,
+        filter_expression=filter_expression,
+        boost_json=boost_json,
+        raw=raw,
     )
 
 
@@ -113,15 +110,13 @@ def admin_export_saved_searches(
     """Proxy to saved-search export helper while keeping Typer UX."""
 
     saved_searches.export_saved_searches(
-        SimpleNamespace(
-            limit=limit,
-            all=include_all,
-            owner=owner,
-            output=str(output) if output else None,
-            split=split,
-            include_tags=include_tags,
-            schema_version=schema_version or (get_settings().search.saved_search.schema_version),
-        )
+        limit=limit,
+        all=include_all,
+        owner=owner,
+        output=str(output) if output else None,
+        split=split,
+        include_tags=include_tags,
+        schema_version=schema_version or (get_settings().search.saved_search.schema_version),
     )
 
 
@@ -139,12 +134,10 @@ def admin_import_saved_searches(
     """Proxy to saved-search import helper."""
 
     saved_searches.import_saved_searches(
-        SimpleNamespace(
-            input=str(input_path) if input_path else None,
-            owner=owner,
-            shared=shared,
-            include_tags=include_tags,
-        )
+        input=str(input_path) if input_path else None,
+        owner=owner,
+        shared=shared,
+        include_tags=include_tags,
     )
 
 
@@ -160,7 +153,7 @@ def admin_prune_saved_searches(
 ) -> None:
     """Proxy to saved-search prune helper."""
 
-    saved_searches.prune_saved_searches(SimpleNamespace(owner=owner, tags=tags, dry_run=dry_run))
+    saved_searches.prune_saved_searches(owner=owner, tags=tags, dry_run=dry_run)
 
 
 @admin_app.command("bulk-update-tags", help="Add, remove, or replace saved-search tags in bulk.")
@@ -193,16 +186,14 @@ def admin_bulk_update_tags(
     """Proxy to bulk tag update helper."""
 
     saved_searches.bulk_update_saved_search_tags(
-        SimpleNamespace(
-            owner=owner,
-            tags=tags,
-            search_id=search_id,
-            add=add,
-            remove=remove,
-            replace=replace,
-            limit=limit,
-            dry_run=dry_run,
-        )
+        owner=owner,
+        tags=tags,
+        search_id=search_id,
+        add=add,
+        remove=remove,
+        replace=replace,
+        limit=limit,
+        dry_run=dry_run,
     )
 
 
@@ -213,7 +204,7 @@ def admin_export_tag_presets(
 ) -> None:
     """Proxy to tag preset export helper."""
 
-    saved_searches.export_tag_presets(SimpleNamespace(owner=owner, output=str(output) if output else None))
+    saved_searches.export_tag_presets(owner=owner, output=str(output) if output else None)
 
 
 @admin_app.command("import-tag-presets", help="Import tag presets and append as filter presets.")
@@ -222,7 +213,7 @@ def admin_import_tag_presets(
 ) -> None:
     """Proxy to tag preset import helper."""
 
-    saved_searches.import_tag_presets(SimpleNamespace(input=str(input_path) if input_path else None))
+    saved_searches.import_tag_presets(input=str(input_path) if input_path else None)
 
 
 @admin_app.command("build-dossiers", help="Group accepted cases into dossier queue entries.")
@@ -247,16 +238,14 @@ def admin_build_dossiers(
     """Proxy to dossier build helper."""
 
     dossiers.build_dossiers(
-        SimpleNamespace(
-            limit=limit,
-            min_loss=min_loss,
-            recency_days=recency_days,
-            max_cases=max_cases,
-            jurisdiction_mode=jurisdiction_mode,
-            cross_border_only=cross_border_only,
-            dry_run=dry_run,
-            preview=preview,
-        )
+        limit=limit,
+        min_loss=min_loss,
+        recency_days=recency_days,
+        max_cases=max_cases,
+        jurisdiction_mode=jurisdiction_mode,
+        cross_border_only=cross_border_only,
+        dry_run=dry_run,
+        preview=preview,
     )
 
 
@@ -279,13 +268,11 @@ def admin_process_dossiers(
     """Proxy to dossier processing helper."""
 
     dossiers.process_dossiers(
-        SimpleNamespace(
-            batch_size=batch_size,
-            preview=preview,
-            dry_run=dry_run,
-            task_id=task_id,
-            task_status_url=task_status_url,
-        )
+        batch_size=batch_size,
+        preview=preview,
+        dry_run=dry_run,
+        task_id=task_id,
+        task_status_url=task_status_url,
     )
 
 
@@ -325,16 +312,14 @@ def admin_pilot_dossiers(
     """Proxy to pilot dossier scheduler."""
 
     pilot.schedule_pilot_dossiers(
-        SimpleNamespace(
-            cases_file=cases_file,
-            cases=cases,
-            case_count=case_count,
-            seed_only=seed_only,
-            min_loss=min_loss,
-            recency_days=recency_days,
-            max_cases=max_cases,
-            jurisdiction_mode=jurisdiction_mode,
-            cross_border_only=cross_border_only,
-            dry_run=dry_run,
-        )
+        cases_file=cases_file,
+        cases=cases,
+        case_count=case_count,
+        seed_only=seed_only,
+        min_loss=min_loss,
+        recency_days=recency_days,
+        max_cases=max_cases,
+        jurisdiction_mode=jurisdiction_mode,
+        cross_border_only=cross_border_only,
+        dry_run=dry_run,
     )

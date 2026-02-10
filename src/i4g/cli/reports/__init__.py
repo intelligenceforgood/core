@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Optional
 
 import typer
@@ -20,8 +19,7 @@ def reports_verify_hashes(
     ),
     fail_on_warn: bool = typer.Option(False, "--fail-on-warn", help="Exit non-zero when warnings are present."),
 ) -> None:
-    args = SimpleNamespace(path=path, fail_on_warn=fail_on_warn)
-    code = tasks.verify_dossier_hashes(args)
+    code = tasks.verify_dossier_hashes(path=path, fail_on_warn=fail_on_warn)
     if code:
         raise typer.Exit(code)
 
@@ -44,7 +42,7 @@ def reports_verify_ingestion(
     allow_partial: bool = typer.Option(False, "--allow-partial", help="Permit partial runs (overrides status)."),
     verbose: bool = typer.Option(False, "--verbose", help="Print the selected row."),
 ) -> None:
-    args = SimpleNamespace(
+    code = tasks.verify_ingestion_run(
         run_id=run_id,
         dataset=dataset,
         status=status,
@@ -57,6 +55,5 @@ def reports_verify_ingestion(
         allow_partial=allow_partial,
         verbose=verbose,
     )
-    code = tasks.verify_ingestion_run(args)
     if code:
         raise typer.Exit(code)

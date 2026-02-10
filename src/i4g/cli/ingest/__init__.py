@@ -1,7 +1,6 @@
 import typer
 from pathlib import Path
 from typing import Optional
-from types import SimpleNamespace
 from . import logic as ingest
 
 ingest_app = typer.Typer(help="Ingestion utilities and helpers.")
@@ -12,8 +11,7 @@ def ingest_bundles(
     input_path: Path = typer.Option(..., "--input", exists=True, readable=True, help="Path to JSONL bundle file."),
     limit: int = typer.Option(0, "--limit", help="Optional limit on number of records (0 = all)."),
 ) -> None:
-    args = SimpleNamespace(input=input_path, limit=limit)
-    ingest.ingest_bundles(args)
+    ingest.ingest_bundles(input_path=input_path, limit=limit or None)
 
 
 @ingest_app.command("vertex", help="Ingest data into Vertex search.")
@@ -29,7 +27,7 @@ def ingest_vertex(
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview first record without API calls."),
     verbose: bool = typer.Option(False, "--verbose", help="Enable debug logging."),
 ) -> None:
-    args = SimpleNamespace(
+    ingest.ingest_vertex_search(
         project=project,
         location=location,
         branch_id=branch_id,
@@ -41,4 +39,3 @@ def ingest_vertex(
         dry_run=dry_run,
         verbose=verbose,
     )
-    ingest.ingest_vertex_search(args)

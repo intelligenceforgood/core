@@ -192,13 +192,20 @@ def download_via_api(
         _http_request("GET", full_url, headers=_headers(token, iap_token))
 
 
-def run_smoke(args: argparse.Namespace) -> VerificationResult:
-    iap_token = getattr(args, "iap_token", None)
-    dossiers = fetch_dossiers(args.api_url, args.token, args.status, args.limit, iap_token)
-    selected = select_plan(dossiers, args.plan_id)
-    verification = verify_plan(args.api_url, args.token, str(selected.get("plan_id")), iap_token)
-    download_via_api(args.api_url, args.token, selected.get("downloads") or {}, iap_token)
-    signature_manifest = fetch_signature_manifest(args.api_url, args.token, str(selected.get("plan_id")), iap_token)
+def run_smoke(
+    *,
+    api_url: str = DEFAULT_API_URL,
+    token: str | None = None,
+    status: str = DEFAULT_STATUS,
+    limit: int = DEFAULT_LIMIT,
+    plan_id: str | None = None,
+    iap_token: str | None = None,
+) -> VerificationResult:
+    dossiers = fetch_dossiers(api_url, token, status, limit, iap_token)
+    selected = select_plan(dossiers, plan_id)
+    verification = verify_plan(api_url, token, str(selected.get("plan_id")), iap_token)
+    download_via_api(api_url, token, selected.get("downloads") or {}, iap_token)
+    signature_manifest = fetch_signature_manifest(api_url, token, str(selected.get("plan_id")), iap_token)
     manifest_path = selected.get("manifest_path") or (selected.get("downloads", {}).get("local", {}) or {}).get(
         "manifest"
     )

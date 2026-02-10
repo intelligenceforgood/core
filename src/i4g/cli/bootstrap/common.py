@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import argparse
 import os
 import shutil
 import subprocess
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any, Optional, List, Dict
 
 
@@ -58,20 +56,30 @@ def get_bundles() -> dict[str, str]:
     }
 
 
-def run_search_smoke(args: argparse.Namespace) -> SearchSmokeResult:
+def run_search_smoke(
+    *,
+    smoke_search: bool = False,
+    run_search_smoke: bool = False,
+    search_project: str | None = None,
+    search_data_store_id: str | None = None,
+    search_serving_config_id: str | None = None,
+    search_location: str | None = None,
+    search_query: str = "wallet address verification",
+    search_page_size: int = 5,
+) -> SearchSmokeResult:
     """Run a lightweight Vertex search smoke when requested."""
 
-    if not getattr(args, "smoke_search", False) and not getattr(args, "run_search_smoke", False):
+    if not smoke_search and not run_search_smoke:
         return SearchSmokeResult(status="skipped", message="Search smoke disabled.")
 
     project = (
-        getattr(args, "search_project", None) or os.getenv("I4G_VECTOR__VERTEX_AI_PROJECT") or os.getenv("I4G_PROJECT")
+        search_project or os.getenv("I4G_VECTOR__VERTEX_AI_PROJECT") or os.getenv("I4G_PROJECT")
     )
-    data_store = getattr(args, "search_data_store_id", None) or os.getenv("I4G_VECTOR__VERTEX_AI_DATA_STORE")
-    serving_config = getattr(args, "search_serving_config_id", None) or os.getenv(
+    data_store = search_data_store_id or os.getenv("I4G_VECTOR__VERTEX_AI_DATA_STORE")
+    serving_config = search_serving_config_id or os.getenv(
         "I4G_VECTOR__VERTEX_AI_SERVING_CONFIG"
     )
-    location = getattr(args, "search_location", None) or os.getenv("I4G_VECTOR__VERTEX_AI_LOCATION") or "global"
+    location = search_location or os.getenv("I4G_VECTOR__VERTEX_AI_LOCATION") or "global"
 
     if not project or not data_store or not serving_config:
         return SearchSmokeResult(
@@ -80,17 +88,16 @@ def run_search_smoke(args: argparse.Namespace) -> SearchSmokeResult:
         )
 
     try:
-        from i4g.cli import smoke
+        from i4g.cli.smoke import runner as smoke_runner
 
-        search_args = SimpleNamespace(
+        smoke_runner.vertex_search_smoke(
             project=project,
             location=location,
             data_store_id=data_store,
             serving_config_id=serving_config,
-            query=getattr(args, "search_query", "wallet address verification"),
-            page_size=getattr(args, "search_page_size", 5),
+            query=search_query,
+            page_size=search_page_size,
         )
-        smoke.vertex_search_smoke(search_args)
     except SystemExit as exc:  # pragma: no cover - subprocess failure path
         return SearchSmokeResult(status="failed", message=str(exc))
     except Exception as exc:  # pragma: no cover - safety net
@@ -99,23 +106,32 @@ def run_search_smoke(args: argparse.Namespace) -> SearchSmokeResult:
     return SearchSmokeResult(status="success", message="Vertex search returned results.")
 
 
-def run_dossier_smoke(args: argparse.Namespace) -> DossierSmokeResult:
+def run_dossier_smoke(
+    *,
+    smoke_dossiers: bool = False,
+    run_dossier_smoke: bool = False,
+    smoke_api_url: str | None = None,
+    smoke_token: str | None = None,
+    smoke_dossier_status: str = "completed",
+    smoke_dossier_limit: int = 5,
+    smoke_dossier_plan_id: str | None = None,
+) -> DossierSmokeResult:
     """Run dossier signature verification smoke when requested."""
 
-    if not getattr(args, "smoke_dossiers", False) and not getattr(args, "run_dossier_smoke", False):
+    if not smoke_dossiers and not run_dossier_smoke:
         return DossierSmokeResult(status="skipped", message="Dossier smoke disabled.")
 
     try:
         from i4g.cli.smoke import dossiers
 
-        smoke_args = SimpleNamespace(
-            api_url=getattr(args, "smoke_api_url", None),
-            token=getattr(args, "smoke_token", None),
-            status=getattr(args, "smoke_dossier_status", "completed"),
-            limit=getattr(args, "smoke_dossier_limit", 5),
-            plan_id=getattr(args, "smoke_dossier_plan_id", None),
+        result = dossiers.run_smoke(
+            api_url=smoke_api_url,
+            token=smoke_token,
+            status=smoke_dossier_status,
+            limit=smoke_dossier_limit,
+            plan_id=smoke_dossier_plan_id,
+            iap_token=None,
         )
-        result = dossiers.run_smoke(smoke_args)
     except Exception as exc:  # pragma: no cover - CLI/network boundary safety net
         return DossierSmokeResult(status="failed", message=str(exc))
 

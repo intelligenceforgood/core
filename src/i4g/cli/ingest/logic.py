@@ -21,18 +21,18 @@ from i4g.store.ingest import IngestPipeline
 from i4g.store.vector import VectorStore
 
 
-def ingest_bundles(args: Any) -> None:
+def ingest_bundles(*, input_path: str | Path, limit: int | None = None) -> None:
     """Bulk ingest JSONL bundles into structured + vector stores."""
 
-    bundle_path = Path(args.input)
+    bundle_path = Path(input_path)
     if not bundle_path.exists():
-        console.print(f"[red]❌ Bundle file not found:[/red] {bundle_path}")
+        console.print(f"[red]\u274c Bundle file not found:[/red] {bundle_path}")
         raise SystemExit(1)
 
     pipeline = IngestPipeline()
     count = 0
     for record in iter_jsonl(bundle_path):
-        if args.limit and count >= args.limit:
+        if limit and count >= limit:
             break
         mapped = {
             "case_id": record.get("id") or record.get("case_id"),
@@ -84,38 +84,50 @@ def _chunked(iterable: Iterable[discoveryengine.Document], size: int) -> Iterato
         yield chunk
 
 
-def ingest_vertex_search(args: Any) -> int:
+def ingest_vertex_search(
+    *,
+    verbose: bool = False,
+    jsonl: str | Path,
+    dataset: str | None = None,
+    dry_run: bool = False,
+    project: str | None = None,
+    location: str = "global",
+    data_store_id: str,
+    branch_id: str = "default_branch",
+    reconcile_mode: str = "INCREMENTAL",
+    batch_size: int = 100,
+) -> int:
     """Ingest JSONL scam cases into a Vertex AI Search data store."""
 
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO, format="%(levelname)s %(message)s")
+    logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO, format="%(levelname)s %(message)s")
     settings = get_settings()
 
-    records = list(iter_jsonl(Path(args.jsonl)))
+    records = list(iter_jsonl(Path(jsonl)))
     if not records:
         logging.warning("No records found; nothing to ingest.")
         return 0
 
-    enriched_records = [_enrich_record(record, args.dataset) for record in records]
-    documents = [build_vertex_document(record, default_dataset=args.dataset) for record in enriched_records]
+    enriched_records = [_enrich_record(record, dataset) for record in records]
+    documents = [build_vertex_document(record, default_dataset=dataset) for record in enriched_records]
 
-    if args.dry_run:
+    if dry_run:
         preview = documents[0]
         logging.info("Dry run: first document payload (id=%s)", preview.id)
         logging.info(json.dumps(json_format.MessageToDict(preview._pb), indent=2))
         logging.info("Total documents parsed: %s", len(documents))
         return 0
 
-    project = args.project or settings.vector.vertex_ai_project
-    if not project:
+    resolved_project = project or settings.vector.vertex_ai_project
+    if not resolved_project:
         console.print("[red]❌ Provide --project or set I4G_VECTOR__VERTEX_AI__PROJECT.[/red]")
         return 2
 
     client = discoveryengine.DocumentServiceClient()
     parent = client.branch_path(
-        project=project,
-        location=args.location,
-        data_store=args.data_store_id,
-        branch=args.branch_id,
+        project=resolved_project,
+        location=location,
+        data_store=data_store_id,
+        branch=branch_id,
     )
 
     reconcile_lookup = {
@@ -123,17 +135,17 @@ def ingest_vertex_search(args: Any) -> int:
         "INCREMENTAL": discoveryengine.ImportDocumentsRequest.ReconciliationMode.INCREMENTAL,
         "FULL": discoveryengine.ImportDocumentsRequest.ReconciliationMode.FULL,
     }
-    reconcile_mode = reconcile_lookup[args.reconcile_mode]
+    resolved_reconcile_mode = reconcile_lookup[reconcile_mode]
 
     total_success = 0
     total_fail = 0
 
-    for batch_no, chunk in enumerate(_chunked(documents, args.batch_size), start=1):
+    for batch_no, chunk in enumerate(_chunked(documents, batch_size), start=1):
         logging.info("Submitting batch %d with %d documents", batch_no, len(chunk))
         request = discoveryengine.ImportDocumentsRequest(
             parent=parent,
             inline_source=discoveryengine.ImportDocumentsRequest.InlineSource(documents=chunk),
-            reconciliation_mode=reconcile_mode,
+            reconciliation_mode=resolved_reconcile_mode,
         )
 
         try:
@@ -172,17 +184,24 @@ def ingest_vertex_search(args: Any) -> int:
     return 0 if total_fail == 0 else 2
 
 
-def tag_saved_searches(args: Any) -> None:
+def tag_saved_searches(
+    *,
+    input_path: str | Path,
+    output_path: str | Path | None = None,
+    tag: str | None = None,
+    schema_version: str | None = None,
+    dedupe: bool = True,
+) -> None:
     """Annotate saved-search exports with migration metadata."""
 
-    input_path = Path(args.input)
-    output_path = Path(args.output) if args.output else None
+    in_path = Path(input_path)
+    out_path = Path(output_path) if output_path else None
     destination, count = saved_searches.annotate_file(
-        input_path,
-        output_path=output_path,
-        tag=args.tag or "",
-        schema_version=args.schema_version or "",
-        dedupe=args.dedupe,
+        in_path,
+        output_path=out_path,
+        tag=tag or "",
+        schema_version=schema_version or "",
+        dedupe=dedupe,
     )
     console.print(f"[green]✅ Annotated {count} saved search(es); wrote {destination}[/green]")
 

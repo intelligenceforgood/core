@@ -18,9 +18,9 @@ from i4g.reports.bundle_builder import DossierCandidate, DossierPlan
 from i4g.store.dossier_queue_store import DossierQueueStore
 
 
-def ocr(args: object) -> int:
-    input_path = Path(args.input)
-    output_path = Path(args.output)
+def ocr(*, input_path: str | Path, output_path: str | Path) -> int:
+    input_path = Path(input_path)
+    output_path = Path(output_path)
     output_path.parent.mkdir(exist_ok=True)
 
     results = batch_extract_text(str(input_path))
@@ -29,9 +29,9 @@ def ocr(args: object) -> int:
     return 0
 
 
-def extraction(args: object) -> int:
-    input_path = Path(args.input)
-    output_path = Path(args.output)
+def extraction(*, input_path: str | Path, output_path: str | Path) -> int:
+    input_path = Path(input_path)
+    output_path = Path(output_path)
 
     if not input_path.exists():
         print("❌ OCR output not found. Run i4g extract ocr first.")
@@ -51,15 +51,15 @@ def extraction(args: object) -> int:
     return 0
 
 
-def semantic(args: object) -> int:
-    input_path = Path(args.input)
-    output_path = Path(args.output)
+def semantic(*, input_path: str | Path, output_path: str | Path, model: str = "llama3.1") -> int:
+    input_path = Path(input_path)
+    output_path = Path(output_path)
 
     if not input_path.exists():
         print("❌ OCR output not found. Run i4g extract ocr first.")
         return 1
 
-    llm = build_llm(model=args.model)
+    llm = build_llm(model=model)
     ocr_results = list(iter_jsonl(input_path))
 
     output: list[dict[str, object]] = []
@@ -78,7 +78,7 @@ def semantic(args: object) -> int:
     return 0
 
 
-def lea_pilot(args: object) -> int:
+def lea_pilot() -> int:
     import hashlib
     import tempfile
     from datetime import datetime, timezone

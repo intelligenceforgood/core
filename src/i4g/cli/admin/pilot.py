@@ -5,7 +5,6 @@ from __future__ import annotations
 import sys
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
 
 from i4g.cli.utils import SETTINGS, console
 from i4g.reports.bundle_builder import BundleCriteria
@@ -17,19 +16,31 @@ from i4g.reports.dossier_pilot import (
 )
 
 
-def schedule_pilot_dossiers(args: Any) -> None:
+def schedule_pilot_dossiers(
+    *,
+    cases_file: str = str(DEFAULT_PILOT_CASES_PATH),
+    cases: list[str] | None = None,
+    case_count: int | None = None,
+    seed_only: bool = False,
+    min_loss: float | None = None,
+    recency_days: int | None = None,
+    max_cases: int | None = None,
+    jurisdiction_mode: str = "auto",
+    cross_border_only: bool = False,
+    dry_run: bool = False,
+) -> None:
     """Seed curated pilot cases and optionally enqueue dossier plans."""
 
-    cases_path = Path(args.cases_file).expanduser()
+    cases_path = Path(cases_file).expanduser()
     try:
         specs = list(load_pilot_case_specs(cases_path))
     except Exception as exc:  # pragma: no cover - file IO errors surface here
-        console.print(f"[red]❌ Failed to load pilot cases:[/red] {exc}")
+        console.print(f"[red]\u274c Failed to load pilot cases:[/red] {exc}")
         sys.exit(1)
 
     requested_ids = set()
-    if args.cases:
-        for raw in args.cases:
+    if cases:
+        for raw in cases:
             for part in str(raw).split(","):
                 value = part.strip()
                 if value:
@@ -39,42 +50,42 @@ def schedule_pilot_dossiers(args: Any) -> None:
         specs = [spec for spec in specs if spec.case_id in requested_ids]
         missing_from_config = sorted(requested_ids - {spec.case_id for spec in specs})
 
-    if args.case_count:
-        specs = specs[: args.case_count]
+    if case_count:
+        specs = specs[:case_count]
 
     if not specs:
-        console.print("[red]❌ No pilot cases matched the provided filters.")
+        console.print("[red]\u274c No pilot cases matched the provided filters.")
         sys.exit(1)
 
     seed_summary = seed_pilot_cases(specs)
     console.print(
-        f"[green]✅ Seeded {len(seed_summary.case_ids)} pilot case(s) into structured + review stores.[/green]"
+        f"[green]\u2705 Seeded {len(seed_summary.case_ids)} pilot case(s) into structured + review stores.[/green]"
     )
 
     if missing_from_config:
         console.print(
-            "[yellow]⚠️ The following case_id(s) were not present in the pilot config:[/yellow] "
+            "[yellow]\u26a0\ufe0f The following case_id(s) were not present in the pilot config:[/yellow] "
             + ", ".join(missing_from_config)
         )
 
-    if args.seed_only:
-        console.print("[cyan]ℹ️ Seed-only mode enabled; skipping dossier plan generation.")
+    if seed_only:
+        console.print("[cyan]\u2139\ufe0f Seed-only mode enabled; skipping dossier plan generation.")
         return
 
-    min_loss = Decimal(str(args.min_loss)) if args.min_loss is not None else Decimal(str(SETTINGS.report.min_loss_usd))
+    resolved_min_loss = Decimal(str(min_loss)) if min_loss is not None else Decimal(str(SETTINGS.report.min_loss_usd))
     criteria = BundleCriteria(
-        min_loss_usd=min_loss,
-        recency_days=args.recency_days or SETTINGS.report.recency_days,
-        max_cases_per_dossier=args.max_cases or SETTINGS.report.max_cases_per_dossier,
-        jurisdiction_mode=args.jurisdiction_mode,
-        require_cross_border=args.cross_border_only or SETTINGS.report.require_cross_border,
+        min_loss_usd=resolved_min_loss,
+        recency_days=recency_days or SETTINGS.report.recency_days,
+        max_cases_per_dossier=max_cases or SETTINGS.report.max_cases_per_dossier,
+        jurisdiction_mode=jurisdiction_mode,
+        require_cross_border=cross_border_only or SETTINGS.report.require_cross_border,
     )
 
-    schedule_summary = schedule_pilot_plans(specs, criteria=criteria, dry_run=args.dry_run)
+    schedule_summary = schedule_pilot_plans(specs, criteria=criteria, dry_run=dry_run)
 
     if schedule_summary.missing_cases:
         console.print(
-            "[yellow]⚠️ Candidate provider missing case_id(s):[/yellow] " + ", ".join(schedule_summary.missing_cases)
+            "[yellow]\u26a0\ufe0f Candidate provider missing case_id(s):[/yellow] " + ", ".join(schedule_summary.missing_cases)
         )
 
     if not schedule_summary.plan_ids:
@@ -83,12 +94,12 @@ def schedule_pilot_dossiers(args: Any) -> None:
 
     if schedule_summary.dry_run:
         console.print(
-            f"[cyan]ℹ️ Dry run: {len(schedule_summary.plan_ids)} plan(s) would be generated: "
+            f"[cyan]\u2139\ufe0f Dry run: {len(schedule_summary.plan_ids)} plan(s) would be generated: "
             + ", ".join(schedule_summary.plan_ids)
         )
     else:
         console.print(
-            f"[green]✅ Enqueued {len(schedule_summary.plan_ids)} pilot plan(s): "
+            f"[green]\u2705 Enqueued {len(schedule_summary.plan_ids)} pilot plan(s): "
             + ", ".join(schedule_summary.plan_ids)
         )
 

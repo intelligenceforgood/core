@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Optional
 
 import typer
@@ -35,18 +34,15 @@ def search_query_vertex(
     if verbose:
         typer.echo("[debug] Running Vertex query...", err=True)
     logic.query_vertex(
-        SimpleNamespace(
-            query=query,
-            project=project or settings.vector.vertex_ai_project,
-            location=location,
-            data_store_id=data_store_id,
-            serving_config_id=serving_config_id,
-            page_size=page_size,
-            filter_expression=filter_expression,
-            boost_json=boost_json,
-            raw=raw,
-            verbose=verbose,
-        )
+        query=query,
+        project=project or settings.vector.vertex_ai_project,
+        location=location,
+        data_store_id=data_store_id,
+        serving_config_id=serving_config_id,
+        page_size=page_size,
+        filter_expression=filter_expression,
+        boost_json=boost_json,
+        raw=raw,
     )
 
 
@@ -65,14 +61,12 @@ def search_eval_vertex(
 ) -> None:
     settings = get_settings()
     exit_code = logic.evaluate_vertex(
-        SimpleNamespace(
-            project=project or settings.vector.vertex_ai_project,
-            location=location,
-            data_store_id=data_store_id,
-            serving_config_id=serving_config_id,
-            config=config,
-            verbose=verbose,
-        )
+        project=project or settings.vector.vertex_ai_project,
+        location=location,
+        data_store_id=data_store_id,
+        serving_config_id=serving_config_id,
+        config=config,
+        verbose=verbose,
     )
     if exit_code != 0:
         raise typer.Exit(code=exit_code)
@@ -86,9 +80,7 @@ def search_snapshot_schema(
     indent: int = typer.Option(2, "--indent", help="JSON indentation level."),
     timeout: float = typer.Option(30.0, "--timeout", help="HTTP timeout seconds."),
 ) -> None:
-    logic.refresh_hybrid_schema_snapshot(
-        SimpleNamespace(api_base=api_base, api_key=api_key, output=output, indent=indent, timeout=timeout)
-    )
+    logic.refresh_hybrid_schema_snapshot(api_base=api_base, api_key=api_key, output=output, indent=indent, timeout=int(timeout))
 
 
 @search_app.command("annotate-saved-searches", help="Annotate saved-search exports with tags/schema version.")

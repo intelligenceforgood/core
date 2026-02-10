@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
 
 from i4g.cli.admin import saved_searches
 
@@ -27,7 +26,8 @@ def test_export_saved_searches_injects_schema_version(tmp_path, monkeypatch):
     monkeypatch.setattr(saved_searches, "build_review_store", lambda: store)
 
     output_path = tmp_path / "saved.json"
-    args = SimpleNamespace(
+
+    saved_searches.export_saved_searches(
         limit=10,
         all=False,
         owner=None,
@@ -36,8 +36,6 @@ def test_export_saved_searches_injects_schema_version(tmp_path, monkeypatch):
         include_tags=None,
         schema_version="hybrid-v1",
     )
-
-    saved_searches.export_saved_searches(args)
 
     payload = json.loads(output_path.read_text())
     assert payload[0]["params"]["schema_version"] == "hybrid-v1"

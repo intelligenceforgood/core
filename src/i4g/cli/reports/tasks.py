@@ -19,8 +19,8 @@ def _find_manifests(targets: Sequence[Path]) -> List[Path]:
     return manifests
 
 
-def verify_dossier_hashes(args: object) -> int:
-    base_path = Path(args.path) if args.path else get_settings().data_dir / "reports" / "dossiers"
+def verify_dossier_hashes(*, path: str | Path | None = None, fail_on_warn: bool = False) -> int:
+    base_path = Path(path) if path else get_settings().data_dir / "reports" / "dossiers"
     targets = [base_path]
     manifests = _find_manifests(targets)
     if not manifests:
@@ -37,12 +37,25 @@ def verify_dossier_hashes(args: object) -> int:
         print(summary)
         if not report.all_verified:
             exit_code = 2
-        if args.fail_on_warn and report.warnings:
+        if fail_on_warn and report.warnings:
             exit_code = max(exit_code, 3)
     return exit_code
 
 
-def verify_ingestion_run(args: object) -> int:
+def verify_ingestion_run(
+    *,
+    run_id: str | None = None,
+    dataset: str | None = None,
+    status: str = "succeeded",
+    expect_case_count: int | None = None,
+    min_case_count: int | None = None,
+    expect_sql_writes: int | None = None,
+    expect_vertex_writes: int | None = None,
+    max_retry_count: int | None = None,
+    require_vector_enabled: bool = False,
+    allow_partial: bool = False,
+    verbose: bool = False,
+) -> int:
     import sqlalchemy as sa
 
     from i4g.store import sql as sql_schema
@@ -52,38 +65,38 @@ def verify_ingestion_run(args: object) -> int:
     engine = build_engine(settings=resolved_settings)
 
     stmt = sa.select(sql_schema.ingestion_runs)
-    if args.run_id:
-        stmt = stmt.where(sql_schema.ingestion_runs.c.run_id == args.run_id)
-    if args.dataset:
-        stmt = stmt.where(sql_schema.ingestion_runs.c.dataset == args.dataset)
+    if run_id:
+        stmt = stmt.where(sql_schema.ingestion_runs.c.run_id == run_id)
+    if dataset:
+        stmt = stmt.where(sql_schema.ingestion_runs.c.dataset == dataset)
     stmt = stmt.order_by(sql_schema.ingestion_runs.c.created_at.desc()).limit(1)
 
     with engine.connect() as conn:
         row = conn.execute(stmt).mappings().first()
 
     if row is None:
-        target = args.run_id or args.dataset or "latest"
+        target = run_id or dataset or "latest"
         raise SystemExit(f"No ingestion run found for target={target}")
 
     errors: list[str] = []
-    status = row["status"]
-    expected_status = args.status
-    if args.allow_partial and expected_status == "succeeded":
+    row_status = row["status"]
+    expected_status = status
+    if allow_partial and expected_status == "succeeded":
         expected_status = "partial"
-    if expected_status and status != expected_status:
-        errors.append(f"status expected={expected_status} actual={status}")
+    if expected_status and row_status != expected_status:
+        errors.append(f"status expected={expected_status} actual={row_status}")
 
-    if args.expect_case_count is not None and row["case_count"] != args.expect_case_count:
-        errors.append(f"case_count expected={args.expect_case_count} actual={row['case_count']}")
-    if args.min_case_count is not None and row["case_count"] < args.min_case_count:
-        errors.append(f"case_count minimum={args.min_case_count} actual={row['case_count']}")
-    if args.expect_sql_writes is not None and row["sql_writes"] != args.expect_sql_writes:
-        errors.append(f"sql_writes expected={args.expect_sql_writes} actual={row['sql_writes']}")
-    if args.expect_vertex_writes is not None and row["vertex_writes"] != args.expect_vertex_writes:
-        errors.append(f"vertex_writes expected={args.expect_vertex_writes} actual={row['vertex_writes']}")
-    if args.max_retry_count is not None and row["retry_count"] > args.max_retry_count:
-        errors.append(f"retry_count exceeded max={args.max_retry_count} actual={row['retry_count']}")
-    if args.require_vector_enabled and not bool(row["vector_enabled"]):
+    if expect_case_count is not None and row["case_count"] != expect_case_count:
+        errors.append(f"case_count expected={expect_case_count} actual={row['case_count']}")
+    if min_case_count is not None and row["case_count"] < min_case_count:
+        errors.append(f"case_count minimum={min_case_count} actual={row['case_count']}")
+    if expect_sql_writes is not None and row["sql_writes"] != expect_sql_writes:
+        errors.append(f"sql_writes expected={expect_sql_writes} actual={row['sql_writes']}")
+    if expect_vertex_writes is not None and row["vertex_writes"] != expect_vertex_writes:
+        errors.append(f"vertex_writes expected={expect_vertex_writes} actual={row['vertex_writes']}")
+    if max_retry_count is not None and row["retry_count"] > max_retry_count:
+        errors.append(f"retry_count exceeded max={max_retry_count} actual={row['retry_count']}")
+    if require_vector_enabled and not bool(row["vector_enabled"]):
         errors.append("vector_enabled expected=True actual=False")
 
     if errors:
@@ -98,7 +111,7 @@ def verify_ingestion_run(args: object) -> int:
         f"vertex={row['vertex_writes']} retries={row['retry_count']}"
     )
     print(summary)
-    if args.verbose:
+    if verbose:
         print({key: row[key] for key in row.keys()})
     return 0
 

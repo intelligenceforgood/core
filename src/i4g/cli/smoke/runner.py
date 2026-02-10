@@ -16,41 +16,44 @@ from i4g.cli.utils import console
 from i4g.settings import get_settings
 
 
-def vertex_search_smoke(args: Any) -> None:
+def vertex_search_smoke(
+    *,
+    project: str,
+    location: str = "global",
+    data_store_id: str,
+    jsonl: str,
+    serving_config_id: str = "default_search",
+    query: str,
+    page_size: int = 5,
+) -> None:
     """Run a dry-run ingest then execute a Vertex search to verify connectivity."""
 
     dry_run_exit = ingest_vertex_search(
-        type(
-            "VertexArgs",
-            (),
-            {
-                "project": args.project,
-                "location": args.location,
-                "branch_id": "default_branch",
-                "data_store_id": args.data_store_id,
-                "jsonl": args.jsonl,
-                "dataset": None,
-                "batch_size": 50,
-                "reconcile_mode": "INCREMENTAL",
-                "dry_run": True,
-                "verbose": False,
-            },
-        )()
+        project=project,
+        location=location,
+        branch_id="default_branch",
+        data_store_id=data_store_id,
+        jsonl=jsonl,
+        dataset=None,
+        batch_size=50,
+        reconcile_mode="INCREMENTAL",
+        dry_run=True,
+        verbose=False,
     )
     if dry_run_exit != 0:
         raise SystemExit("Dry-run ingestion failed; see logs above.")
 
     client = discoveryengine.SearchServiceClient()
     serving_config = client.serving_config_path(
-        project=args.project,
-        location=args.location,
-        data_store=args.data_store_id,
-        serving_config=args.serving_config_id,
+        project=project,
+        location=location,
+        data_store=data_store_id,
+        serving_config=serving_config_id,
     )
     request = discoveryengine.SearchRequest(
         serving_config=serving_config,
-        query=args.query,
-        page_size=args.page_size,
+        query=query,
+        page_size=page_size,
     )
     results = list(client.search(request=request))
     if not results:
@@ -311,25 +314,33 @@ def _fetch_intake(api_url: str, intake_id: str, token: str, iap_token: str | Non
         raise SmokeError(f"Invalid JSON when fetching intake: {proc.stdout}") from exc
 
 
-def cloud_run_smoke(args: Any) -> None:
+def cloud_run_smoke(
+    *,
+    api_url: str,
+    token: str,
+    project: str,
+    region: str,
+    job: str,
+    container: str,
+    iap_token: str | None = None,
+    impersonate_service_account: str | None = None,
+) -> None:
     """Run the dev Cloud Run intake smoke end-to-end."""
-    iap_token = getattr(args, "iap_token", None)
-    impersonate_sa = getattr(args, "impersonate_service_account", None)
 
     try:
-        intake_id, job_id = _submit_intake(args.api_url.rstrip("/"), args.token, iap_token)
+        intake_id, job_id = _submit_intake(api_url.rstrip("/"), token, iap_token)
         execution_name = _execute_job(
-            args.project,
-            args.region,
-            args.job,
-            args.container,
+            project,
+            region,
+            job,
+            container,
             intake_id,
             job_id,
-            api_url=args.api_url,
-            api_key=args.token,
-            impersonate_service_account=impersonate_sa,
+            api_url=api_url,
+            api_key=token,
+            impersonate_service_account=impersonate_service_account,
         )
-        intake = _fetch_intake(args.api_url.rstrip("/"), intake_id, args.token, iap_token)
+        intake = _fetch_intake(api_url.rstrip("/"), intake_id, token, iap_token)
     except SmokeError as exc:
         raise SystemExit(f"Smoke test failed: {exc}") from exc
 
