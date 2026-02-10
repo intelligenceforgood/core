@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from i4g.api.auth import require_token
+from i4g.api.response_models import DetokenizeResponse, TokenizationHealthResponse, TokenizeResponse
 from i4g.pii.tokenization import TokenizationService
 from i4g.services.factories import build_tokenization_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tokenization", tags=["tokenization"])
 
@@ -37,7 +41,7 @@ def get_tokenization_service() -> TokenizationService:
     return build_tokenization_service()
 
 
-@router.post("/tokenize")
+@router.post("/tokenize", response_model=TokenizeResponse)
 def tokenize(
     request: TokenizeRequest,
     service: TokenizationService = Depends(get_tokenization_service),
@@ -54,8 +58,10 @@ def tokenize(
             case_id=request.case_id,
         )
     except ValueError as exc:
+        logger.warning("tokenize: bad request: %s", exc)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     except Exception as exc:  # pragma: no cover - unexpected errors mapped to 500
+        logger.error("tokenize: unexpected error", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
     return {
@@ -67,7 +73,7 @@ def tokenize(
     }
 
 
-@router.post("/detokenize")
+@router.post("/detokenize", response_model=DetokenizeResponse)
 def detokenize(
     request: DetokenizeRequest,
     service: TokenizationService = Depends(get_tokenization_service),
@@ -77,6 +83,7 @@ def detokenize(
 
     record = service.detokenize(request.token, actor=user.get("username"), case_id=request.case_id)
     if record is None or record.canonical_value is None:
+        logger.debug("detokenize: token not found: %s", request.token)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token not found or lacks canonical value")
 
     return {
@@ -90,7 +97,7 @@ def detokenize(
     }
 
 
-@router.get("/health")
+@router.get("/health", response_model=TokenizationHealthResponse)
 def tokenization_health(
     service: TokenizationService = Depends(get_tokenization_service),
     user=Depends(require_token),

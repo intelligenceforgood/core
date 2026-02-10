@@ -1,14 +1,17 @@
 """Case summaries that hydrate the console while analytics services remain stubbed."""
 
-from typing import Any, List, Optional, Dict
 import json
+import logging
 from datetime import datetime
+from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from i4g.api.auth import require_token
 from i4g.services.factories import build_review_store
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/cases", tags=["cases"], dependencies=[Depends(require_token)])
 
@@ -44,13 +47,18 @@ class CaseGraphLink(BaseModel):
     relation: str
 
 
+# Enum-like types matching SDK Zod schemas
+CaseStatus = Literal["new", "in_review", "awaiting_input", "closed", "accepted", "rejected"]
+CasePriority = Literal["critical", "high", "medium", "low"]
+
+
 class CaseDetail(BaseModel):
     """Detailed view of a case for the investigation workspace."""
 
     id: str
     title: str
-    status: str
-    priority: str
+    status: CaseStatus
+    priority: CasePriority
     assignee: Optional[str] = None
     updatedAt: Optional[str] = (
         None  # Keeping string to match existing dict style for simplicity, or should ideally parse
@@ -59,6 +67,10 @@ class CaseDetail(BaseModel):
     tags: List[str] = Field(default_factory=list)
     progress: Optional[int] = None
     dueAt: Optional[str] = None
+    classification: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Fraud classification result (intent, channel, techniques, actions, persona, risk_score, etc.)",
+    )
     description: str = Field("", description="Detailed narrative of the case")
     artifacts: List[CaseArtifact] = Field(default_factory=list)
     timeline: List[CaseTimelineEvent] = Field(default_factory=list)
@@ -167,7 +179,7 @@ def list_cases(
     return store.get_dashboard_summary(limit=limit, status=status, priority=priority, queue=queue, due_date=due_date)
 
 
-@router.get("/{case_id}", response_model=CaseDetail, summary="Get case details")
+@router.get("/{case_id}", response_model=CaseDetail, response_model_exclude_unset=True, summary="Get case details")
 async def get_case(case_id: str) -> CaseDetail:
     """Get full details for a specific case (Live DB)."""
     store = build_review_store()
@@ -252,7 +264,20 @@ async def get_case(case_id: str) -> CaseDetail:
                     )
                 )
 
-    return CaseDetail(
+    # Classification result (D38 alignment)
+    classification_result = data.get("classification_result")
+    if isinstance(classification_result, str):
+        try:
+            classification_result = json.loads(classification_result)
+        except json.JSONDecodeError:
+            classification_result = None
+    # Validate classification has required shape for SDK schema
+    if isinstance(classification_result, dict):
+        required_keys = {"intent", "channel", "techniques", "actions", "persona", "risk_score", "taxonomy_version"}
+        if not required_keys.issubset(classification_result.keys()):
+            classification_result = None
+
+    case_kwargs: dict[str, Any] = dict(
         id=data["case_id"],
         title=props.get("title", f"Investigation {data['case_id']}"),
         status=data["status"],
@@ -269,6 +294,9 @@ async def get_case(case_id: str) -> CaseDetail:
         graph_nodes=nodes,
         graph_links=links,
     )
+    if classification_result is not None:
+        case_kwargs["classification"] = classification_result
+    return CaseDetail(**case_kwargs)
 
 
 def _build_mock_case(case_basics: Dict[str, Any]) -> CaseDetail:

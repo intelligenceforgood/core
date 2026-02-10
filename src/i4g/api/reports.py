@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping
@@ -11,11 +12,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from i4g.api.auth import require_token
+from i4g.api.response_models import DossierVerifyResponse, DriveAclResponse, ItemListResponse
 from i4g.observability import Observability, get_observability
 from i4g.reports.dossier_signatures import verify_manifest_payload
 from i4g.reports.dossier_uploads import DossierUploader
 from i4g.services.factories import build_dossier_queue_store
 from i4g.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/reports", tags=["reports"], dependencies=[Depends(require_token)])
 ARTIFACTS_DIR = (get_settings().data_dir / "reports" / "dossiers").resolve()
@@ -43,7 +47,7 @@ def _validate_plan_id(plan_id: str) -> str:
     return plan_id
 
 
-@router.get("/dossiers")
+@router.get("/dossiers", response_model=ItemListResponse)
 def list_dossiers(
     *,
     status: str = Query("completed", description="Queue status to filter (use 'all' for every entry)."),
@@ -85,11 +89,12 @@ def list_dossiers(
         raise
 
 
-@router.post("/dossiers/{plan_id}/verify")
+@router.post("/dossiers/{plan_id}/verify", response_model=DossierVerifyResponse)
 def verify_dossier(plan_id: str) -> Dict[str, Any]:
     """Run an artifact verification pass for the provided dossier plan."""
 
     plan_id = _validate_plan_id(plan_id)
+    logger.info("verify_dossier: plan_id=%s", plan_id)
     tags = {"plan_id": plan_id}
     manifest_info = _load_manifest_details(plan_id, include_manifest=False)
     signature_manifest = manifest_info.get("signature_manifest")
@@ -143,7 +148,7 @@ def verify_dossier(plan_id: str) -> Dict[str, Any]:
     }
 
 
-@router.get("/dossiers/{plan_id}/drive_acl")
+@router.get("/dossiers/{plan_id}/drive_acl", response_model=DriveAclResponse)
 def fetch_drive_acl(plan_id: str) -> Dict[str, Any]:
     """Return Drive folder metadata + permissions for portal ACL previews."""
 

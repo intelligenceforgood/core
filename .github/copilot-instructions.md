@@ -11,7 +11,7 @@
 
 2. **Config Discipline** – Always fetch settings via `i4g.settings.get_settings()`; nested sections (`api`, `storage`, `vector`, `llm`, `identity`, etc.) are mutated by `_apply_environment_overrides`, so override via env vars (`I4G_*`, double underscores) rather than hard-coded paths. Store builders live in `src/i4g/services/factories.py`; use them for structured/review/vector/intake/evidence stores.
 
-3. **Coding Conventions** – New Python code needs full type hints, Google-style docstrings, and ≤120 char lines (Black/isort). Stay ASCII unless the file already depends on Unicode. Never revert user-authored changes without direction. Additional cross-language rules live in `core/.github/general-coding.instructions.md`.
+3. **Coding Conventions** – Follow `core/.github/general-coding.instructions.md` for all language-specific standards (Python, TypeScript, Terraform, SQL, Shell, HTML/CSS, config files). Use each language's idiomatic conventions — do not invent project-specific patterns. Key highlights for this repo: Python uses full type hints, Google-style docstrings, Black/isort at 120-char lines. Pydantic models use `snake_case` internally with `alias_generator = to_camel` for JSON output. Never write manual camelCase/snake_case translation functions.
 
 4. **Core Architecture** – `src/i4g/api/app.py` wires FastAPI routers, middleware (rate limit + TASK_STATUS), and the report-generation lock. `src/i4g/api/review.py` orchestrates search + queue actions backed by `ReviewStore`, `HybridRetriever`, and audit logging via `store.log_action`. Background work executes through `src/i4g/worker/jobs/*` and `src/i4g/worker/tasks.py` (e.g., `generate_report_for_case`).
 

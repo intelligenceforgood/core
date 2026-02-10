@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field, ValidationError
 
 from i4g.api.auth import require_token
+from i4g.api.response_models import (
+    IntakeCaseAttachResponse,
+    IntakeCreateResponse,
+    IntakeJobUpdateResponse,
+    IntakeStatusUpdateResponse,
+    ItemListResponse,
+)
 from i4g.services.intake import AttachmentPayload, IntakeService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/intakes", tags=["intakes"])
 
@@ -48,7 +58,7 @@ def get_service() -> IntakeService:
     return IntakeService()
 
 
-@router.post("/", summary="Submit a new intake", status_code=201)
+@router.post("/", summary="Submit a new intake", status_code=201, response_model=IntakeCreateResponse)
 async def submit_intake(
     background_tasks: BackgroundTasks,
     payload: str = Form(..., description="JSON payload describing the intake metadata"),
@@ -59,6 +69,7 @@ async def submit_intake(
     try:
         submission_model = IntakeSubmission.model_validate_json(payload)
     except ValidationError as exc:  # pragma: no cover - FastAPI converts automatically in most flows
+        logger.warning("submit_intake: invalid payload: %s", exc.errors()[0]["msg"])
         raise HTTPException(status_code=400, detail={"error": "invalid_payload", "details": exc.errors()}) from exc
 
     submission = submission_model.model_dump()
@@ -81,6 +92,7 @@ async def submit_intake(
     result = service.create_intake(
         submission, attachments, create_job=True, job_metadata={"submitted_by": submission["submitted_by"]}
     )
+    logger.info("submit_intake: intake_id=%s job_id=%s attachments=%d", result["intake_id"], result["job_id"], len(attachments))
 
     if result["job_id"]:
         background_tasks.add_task(service.process_job, result["intake_id"], result["job_id"])
@@ -96,7 +108,7 @@ async def submit_intake(
     }
 
 
-@router.get("/", summary="List recent intakes")
+@router.get("/", summary="List recent intakes", response_model=ItemListResponse)
 def list_intakes(
     limit: int = Query(25, ge=1, le=200),
     user=Depends(require_token),
@@ -122,7 +134,7 @@ def get_job(job_id: str, user=Depends(require_token), service: IntakeService = D
     return job
 
 
-@router.post("/jobs/{job_id}", summary="Update an intake job status")
+@router.post("/jobs/{job_id}", summary="Update an intake job status", response_model=IntakeJobUpdateResponse)
 def update_job(
     job_id: str,
     payload: IntakeJobUpdate,
@@ -137,7 +149,7 @@ def update_job(
     return {"updated": True, "job_id": job_id}
 
 
-@router.post("/{intake_id}/status", summary="Update intake status")
+@router.post("/{intake_id}/status", summary="Update intake status", response_model=IntakeStatusUpdateResponse)
 def update_intake_status(
     intake_id: str,
     payload: IntakeStatusUpdate,
@@ -148,7 +160,7 @@ def update_intake_status(
     return {"updated": True, "intake_id": intake_id}
 
 
-@router.post("/{intake_id}/case", summary="Attach case metadata to intake")
+@router.post("/{intake_id}/case", summary="Attach case metadata to intake", response_model=IntakeCaseAttachResponse)
 def attach_case(
     intake_id: str,
     payload: IntakeCaseAttachment,

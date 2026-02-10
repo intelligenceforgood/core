@@ -555,7 +555,7 @@ def test_import_saved_search_injects_schema_version():
     app.dependency_overrides = {}
 
 
-@patch("i4g.api.review.generate_report_for_case")
+@patch("i4g.api.review_queue.generate_report_for_case")
 def test_decision_triggers_background_report(mock_generate_report):
     """Ensure that when an analyst accepts a case with auto_generate_report=True,
     the API schedules the generate_report_for_case background task.

@@ -1,5 +1,6 @@
 """Campaign management endpoints."""
 
+import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,6 +10,8 @@ from sqlalchemy.orm import Session
 from i4g.api.auth import require_token
 from i4g.services.campaigns import CampaignService
 from i4g.store.sql import session_factory
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"], dependencies=[Depends(require_token)])
 
@@ -56,6 +59,7 @@ def list_campaigns(service: CampaignService = Depends(get_service)):
 
 @router.post("", response_model=str)
 def create_campaign(payload: CreateCampaignRequest, service: CampaignService = Depends(get_service)):
+    logger.info("create_campaign: name=%r", payload.name)
     try:
         return service.create_campaign(
             name=payload.name,
@@ -67,8 +71,9 @@ def create_campaign(payload: CreateCampaignRequest, service: CampaignService = D
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.patch("/{campaign_id}")
+@router.patch("/{campaign_id}", response_model=Dict[str, Any])
 def update_campaign(campaign_id: str, payload: UpdateCampaignRequest, service: CampaignService = Depends(get_service)):
+    logger.info("update_campaign: campaign_id=%s", campaign_id)
     try:
         service.update_campaign(
             campaign_id=campaign_id,
@@ -79,3 +84,4 @@ def update_campaign(campaign_id: str, payload: UpdateCampaignRequest, service: C
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    return {"updated": True, "campaign_id": campaign_id}

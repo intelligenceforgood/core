@@ -130,8 +130,20 @@ def _summarize_dashboard_rows(
             else:
                 updated_at = str(last_updated) if last_updated else ""
 
-            cases_list.append(
-                {
+            # Parse classification_result if available
+            classification = d_row.get("classification_result")
+            if isinstance(classification, str):
+                try:
+                    classification = json.loads(classification)
+                except Exception:
+                    classification = None
+            # Validate classification has required shape for SDK schema
+            if isinstance(classification, dict):
+                required_keys = {"intent", "channel", "techniques", "actions", "persona", "risk_score", "taxonomy_version"}
+                if not required_keys.issubset(classification.keys()):
+                    classification = None
+
+            case_entry: dict[str, Any] = {
                     "id": d_row["case_id"],
                     "title": meta.get("title", f"Case {d_row['case_id']}"),
                     "priority": current_priority,
@@ -143,7 +155,9 @@ def _summarize_dashboard_rows(
                     "progress": meta.get("progress", 0),
                     "dueAt": due_at,
                 }
-            )
+            if classification is not None:
+                case_entry["classification"] = classification
+            cases_list.append(case_entry)
 
     queues_list = [
         {
@@ -275,6 +289,7 @@ class ReviewStore:
                 rq.c.tags,
                 rq.c.last_updated,
                 rq.c.queued_at,
+                rq.c.classification_result,
                 sr.c.metadata,
             )
             .select_from(rq.join(sr, rq.c.case_id == sr.c.case_id, isouter=True))

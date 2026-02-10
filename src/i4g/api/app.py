@@ -11,6 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
+from i4g.api.response_models import ReportTriggerResponse, TaskStatusResponse, TaskUpdateResponse
+
 from i4g.api.account_list import router as account_list_router
 from i4g.api.analytics import router as analytics_router
 from i4g.api.auth import require_token
@@ -36,7 +38,7 @@ task_router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(r
 TASK_STATUS: Dict[str, Dict[str, str]] = {}
 
 
-@task_router.get("/{task_id}")
+@task_router.get("/{task_id}", response_model=TaskStatusResponse)
 def get_task_status(task_id: str) -> Dict[str, str]:
     """Retrieve the current status of a background task.
 
@@ -55,7 +57,7 @@ def get_task_status(task_id: str) -> Dict[str, str]:
     return {"task_id": task_id, **TASK_STATUS[task_id]}
 
 
-@task_router.post("/{task_id}/update")
+@task_router.post("/{task_id}/update", response_model=TaskUpdateResponse)
 def update_task_status(task_id: str, payload: Dict[str, str]) -> Dict[str, str | bool]:
     """Update or register a task status entry.
 
@@ -161,7 +163,7 @@ async def rate_limit_middleware(request: Request, call_next):
 report_lock = Lock()
 
 
-@app.post("/reports/generate")
+@app.post("/reports/generate", response_model=ReportTriggerResponse)
 def generate_report_trigger(user: dict = Depends(require_token)):
     """
     Simulate a guarded entry to report generation.

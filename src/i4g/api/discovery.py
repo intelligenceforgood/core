@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import base64
+import logging
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from i4g.api.auth import require_token
+from i4g.api.response_models import DiscoverySearchResponse
 from i4g.services.discovery import DiscoverySearchParams, get_default_discovery_params, run_discovery_search
 from i4g.services.hybrid_search import HybridSearchQuery, HybridSearchService
 from i4g.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/discovery", tags=["discovery"], dependencies=[Depends(require_token)])
 SETTINGS = get_settings()
@@ -67,7 +71,7 @@ def _local_discovery_search(query: str, limit: int, offset: int = 0) -> Dict[str
     return {"results": mapped_results, "total_size": total_size, "next_page_token": next_page_token}
 
 
-@router.get("/search")
+@router.get("/search", response_model=DiscoverySearchResponse)
 def discovery_search(
     query: str = Query(..., min_length=1, description="User-provided Discovery query string."),
     page_size: int = Query(10, ge=1, le=50, description="Number of results to return."),

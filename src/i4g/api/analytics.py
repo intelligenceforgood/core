@@ -1,5 +1,6 @@
 """Expose real analytics payloads for the console overview page."""
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Tuple
 
@@ -8,6 +9,7 @@ from sqlalchemy import desc, func, select, text, case as sa_case
 from sqlalchemy.orm import Session
 
 from i4g.api.auth import require_token
+from i4g.api.response_models import AnalyticsOverviewResponse
 from i4g.store.sql import (
     session_factory,
     cases,
@@ -16,6 +18,8 @@ from i4g.store.sql import (
     intake_records,
     ingestion_runs,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depends(require_token)])
 
@@ -183,7 +187,7 @@ def _get_metric_sla(session: Session, now: datetime) -> Dict[str, Any]:
     }
 
 
-@router.get("/overview", summary="Return live analytics trends")
+@router.get("/overview", summary="Return live analytics trends", response_model=AnalyticsOverviewResponse)
 def get_analytics_overview() -> dict[str, object]:
     """Return the analytics payload populated from the database."""
 

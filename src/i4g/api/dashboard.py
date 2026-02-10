@@ -1,5 +1,6 @@
 """Dashboard overview endpoints for analyst console."""
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
@@ -8,6 +9,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from i4g.api.auth import require_token
+from i4g.api.response_models import DashboardOverviewResponse
 from i4g.store.sql import (
     session_factory,
     cases,
@@ -16,6 +18,8 @@ from i4g.store.sql import (
     ingestion_runs,
     scam_records,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"], dependencies=[Depends(require_token)])
 
@@ -159,7 +163,7 @@ def _get_alerts(session: Session) -> List[Dict[str, str]]:
     return alerts
 
 
-@router.get("/overview")
+@router.get("/overview", response_model=DashboardOverviewResponse)
 def get_dashboard_overview():
     """Return live dashboard metrics from the database."""
     make_session = session_factory()

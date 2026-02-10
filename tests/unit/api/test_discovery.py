@@ -30,7 +30,7 @@ def test_discovery_search_pagination_wiring(mock_get_params, mock_run_search, mo
     mock_get_params.return_value = mock_params
 
     # Mock successful search
-    mock_run_search.return_value = {"results": [], "total_size": 0}
+    mock_run_search.return_value = {"results": [], "total_size": 0, "next_page_token": None}
 
     # Create a page token that decodes to offset 20
     page_token = base64.urlsafe_b64encode(b"20").decode()
@@ -63,12 +63,14 @@ def test_discovery_search_fallback_on_config_error(mock_get_params, mock_run_sea
     mock_settings.is_local = True
     mock_get_params.side_effect = RuntimeError("Config missing")
 
-    mock_local_search.return_value = {"results": ["local"], "total_size": 1}
+    mock_local_search.return_value = {"results": [{"document_id": "local-1"}], "total_size": 1, "next_page_token": None}
 
     response = client.get("/discovery/search", params={"query": "test"})
 
     assert response.status_code == 200
-    assert response.json() == {"results": ["local"], "total_size": 1}
+    data = response.json()
+    assert data["total_size"] == 1
+    assert len(data["results"]) == 1
     mock_local_search.assert_called_once()
 
 
@@ -81,12 +83,14 @@ def test_discovery_search_fallback_on_runtime_error(mock_get_params, mock_run_se
     mock_get_params.return_value = MagicMock()
     mock_run_search.side_effect = RuntimeError("Search failed")
 
-    mock_local_search.return_value = {"results": ["local"], "total_size": 1}
+    mock_local_search.return_value = {"results": [{"document_id": "local-1"}], "total_size": 1, "next_page_token": None}
 
     response = client.get("/discovery/search", params={"query": "test"})
 
     assert response.status_code == 200
-    assert response.json() == {"results": ["local"], "total_size": 1}
+    data = response.json()
+    assert data["total_size"] == 1
+    assert len(data["results"]) == 1
     mock_local_search.assert_called_once()
 
 
