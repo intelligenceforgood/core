@@ -20,16 +20,10 @@ from langchain_ollama import OllamaEmbeddings
 from i4g.settings import get_settings
 from i4g.store.schema import ScamRecord
 
-SETTINGS = get_settings()
-DEFAULT_VECTOR_DIR = str(SETTINGS.vector.chroma_dir)
-DEFAULT_FAISS_DIR = str(SETTINGS.vector.faiss_dir)
-DEFAULT_MODEL_NAME = SETTINGS.vector.embedding_model
-
 
 def _default_backend() -> str:
     """Return the configured vector backend or fall back to Chroma."""
-
-    backend = SETTINGS.vector.backend.lower()
+    backend = get_settings().vector.backend.lower()
     if backend not in {"chroma", "faiss", "vertex_ai"}:
         return "chroma"
     return backend
@@ -174,9 +168,9 @@ class VectorStore:
     def __init__(
         self,
         persist_dir: Optional[str] = None,
-        embedding_model: str = DEFAULT_MODEL_NAME,
+        embedding_model: Optional[str] = None,
         backend: Optional[str] = None,
-        collection_name: str = SETTINGS.vector.collection,
+        collection_name: Optional[str] = None,
         reset: bool = False,
     ) -> None:
         """Initialize the vector store.
@@ -188,35 +182,41 @@ class VectorStore:
             collection_name: Chroma collection name (ignored for FAISS).
             reset: If True, remove any existing persisted data before init.
         """
+        settings = get_settings()
         backend_name = (backend or _default_backend()).lower()
         if backend_name not in {"chroma", "faiss", "vertex_ai"}:
             raise ValueError(f"Unsupported vector backend '{backend_name}'")
 
+        resolved_model = embedding_model or settings.vector.embedding_model
+        resolved_collection = collection_name or settings.vector.collection
+
         self.backend_name = backend_name
-        self.embedding_model_name = embedding_model
+        self.embedding_model_name = resolved_model
 
         # Only initialize Ollama embeddings if using a local backend
         if backend_name in {"chroma", "faiss"}:
-            self.embeddings = OllamaEmbeddings(model=embedding_model)
+            self.embeddings = OllamaEmbeddings(model=resolved_model)
         else:
             self.embeddings = None
 
-        default_dir = DEFAULT_VECTOR_DIR if backend_name == "chroma" else DEFAULT_FAISS_DIR
+        default_dir = (
+            str(settings.vector.chroma_dir) if backend_name == "chroma" else str(settings.vector.faiss_dir)
+        )
         self.persist_dir = persist_dir or default_dir
 
         if reset:
             shutil.rmtree(self.persist_dir, ignore_errors=True)
 
         if backend_name == "chroma":
-            self._backend = _ChromaBackend(self.persist_dir, self.embeddings, collection_name)
+            self._backend = _ChromaBackend(self.persist_dir, self.embeddings, resolved_collection)
         elif backend_name == "vertex_ai":
             from i4g.store.vertex_vector import _VertexAIBackend
 
             self._backend = _VertexAIBackend(
-                project_id=SETTINGS.vector.vertex_ai_project,
-                location=SETTINGS.vector.vertex_ai_location,
-                data_store_id=SETTINGS.vector.vertex_ai_data_store,
-                branch_id=SETTINGS.vector.vertex_ai_branch,
+                project_id=settings.vector.vertex_ai_project,
+                location=settings.vector.vertex_ai_location,
+                data_store_id=settings.vector.vertex_ai_data_store,
+                branch_id=settings.vector.vertex_ai_branch,
             )
         else:
             self._backend = _FaissBackend(self.persist_dir, self.embeddings)
@@ -313,8 +313,6 @@ class VectorStore:
                     "metadata": metadata,
                 }
             )
-            # DEBUG
-            # print(f"DEBUG: Added record with keys: {formatted[-1].keys()}", flush=True)
 
         return formatted
 

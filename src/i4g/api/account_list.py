@@ -63,8 +63,9 @@ def get_account_list_service() -> AccountListService:
 
 def get_review_store() -> ReviewStore:
     """Dependency provider for the shared ReviewStore instance."""
+    from i4g.services.factories import build_review_store
 
-    return ReviewStore()
+    return build_review_store()
 
 
 def require_account_list_key(

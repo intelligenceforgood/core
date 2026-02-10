@@ -149,7 +149,7 @@ def lea_pilot(args: object) -> int:
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     queue_db = tmp_root / "dossier_queue.db"
-    store = DossierQueueStore(db_path=queue_db)
+    store = DossierQueueStore(db_path=queue_db)  # temp DB for extract CLI demo
     plan = create_sample_plan(artifacts_dir)
     store.enqueue_plan(plan)
     store.mark_complete(plan.plan_id, warnings=[])

@@ -20,8 +20,11 @@ class BundleCandidateProvider:
         review_store: ReviewStore | None = None,
         structured_store: StructuredStore | None = None,
     ) -> None:
-        self._review_store = review_store or ReviewStore()
-        self._structured_store = structured_store or StructuredStore()
+        if review_store is None or structured_store is None:
+            from i4g.services.factories import build_review_store, build_structured_store
+
+        self._review_store = review_store or build_review_store()
+        self._structured_store = structured_store or build_structured_store()
 
     def list_candidates(self, *, limit: int = 200) -> List[DossierCandidate]:
         """Return accepted review entries mapped to dossier candidates."""

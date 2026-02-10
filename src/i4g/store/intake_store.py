@@ -1,10 +1,12 @@
-"""SQLite-backed intake storage for i4g."""
+"""SQLAlchemy-backed intake storage for i4g.
+
+Unified implementation that works with both SQLite and PostgreSQL.
+The legacy raw-``sqlite3`` class was removed in the Store Consolidation
+sprint (WS-3 / D16).
+"""
 
 from __future__ import annotations
 
-import json
-import os
-import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,102 +15,49 @@ from typing import Any, Dict, List, Optional
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
 
-from i4g.settings import get_settings
 from i4g.store import sql as sql_schema
-from i4g.store.sql import session_factory as default_session_factory
-
-SETTINGS = get_settings()
+from i4g.store.sql import (
+    METADATA,
+    session_factory as build_session_factory,
+)
 
 
 class IntakeStore:
-    """Persist victim intake records, attachments, and job status metadata."""
+    """Persist victim intake records, attachments, and job status metadata.
 
-    def __init__(self, db_path: str | Path | None = None) -> None:
-        resolved = Path(db_path) if db_path else Path(SETTINGS.storage.sqlite_path)
-        if not resolved.is_absolute():
-            resolved = (Path(SETTINGS.project_root) / resolved).resolve()
-        try:
+    Accepts either a ``db_path`` (convenience for local SQLite) or a
+    pre-configured ``session_factory``.
+    """
+
+    def __init__(
+        self,
+        db_path: str | Path | None = None,
+        *,
+        session_factory: sessionmaker | None = None,
+    ) -> None:
+        if session_factory is not None:
+            self._session_factory = session_factory
+        elif db_path is not None:
+            resolved = Path(db_path)
             resolved.parent.mkdir(parents=True, exist_ok=True)
-        except PermissionError:
-            fallback = Path(os.getenv("I4G_RUNTIME__FALLBACK_DIR", "/tmp/i4g/sqlite")) / "intake.db"
-            fallback.parent.mkdir(parents=True, exist_ok=True)
-            resolved = fallback
-        self.db_path = resolved
-        self._init_tables()
+            engine = sa.create_engine(
+                f"sqlite:///{resolved}",
+                connect_args={"check_same_thread": False, "timeout": 30},
+                future=True,
+            )
+            self._session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+        else:
+            self._session_factory = build_session_factory()
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self.db_path))
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    def _init_tables(self) -> None:
-        with self._connect() as conn:
-            cur = conn.cursor()
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS intake_records (
-                    intake_id TEXT PRIMARY KEY,
-                    reporter_name TEXT,
-                    contact_email TEXT,
-                    contact_phone TEXT,
-                    contact_handle TEXT,
-                    preferred_contact TEXT,
-                    incident_date TEXT,
-                    loss_amount REAL,
-                    summary TEXT,
-                    details TEXT,
-                    status TEXT,
-                    submitted_by TEXT,
-                    source TEXT,
-                    case_id TEXT,
-                    review_id TEXT,
-                    job_id TEXT,
-                    job_status TEXT,
-                    job_message TEXT,
-                    metadata TEXT,
-                    created_at TEXT,
-                    updated_at TEXT
-                )
-                """
-            )
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS intake_attachments (
-                    attachment_id TEXT PRIMARY KEY,
-                    intake_id TEXT NOT NULL,
-                    file_name TEXT,
-                    content_type TEXT,
-                    size_bytes INTEGER,
-                    checksum_sha256 TEXT,
-                    storage_uri TEXT,
-                    storage_backend TEXT,
-                    created_at TEXT,
-                    FOREIGN KEY (intake_id) REFERENCES intake_records (intake_id)
-                )
-                """
-            )
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS intake_jobs (
-                    job_id TEXT PRIMARY KEY,
-                    intake_id TEXT NOT NULL,
-                    status TEXT,
-                    message TEXT,
-                    metadata TEXT,
-                    created_at TEXT,
-                    updated_at TEXT,
-                    FOREIGN KEY (intake_id) REFERENCES intake_records (intake_id)
-                )
-                """
-            )
-            conn.commit()
+        # Ensure schema exists
+        with self._session_factory() as session:
+            conn = session.connection()
+            METADATA.create_all(conn)
 
     # ------------------------------------------------------------------
     # Intake CRUD
     # ------------------------------------------------------------------
+
     def create_intake(
         self,
         *,
@@ -124,277 +73,6 @@ class IntakeStore:
         loss_amount: float | None = None,
         source: str = "unknown",
         metadata: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        intake_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc).isoformat()
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO intake_records (
-                    intake_id,
-                    reporter_name,
-                    contact_email,
-                    contact_phone,
-                    contact_handle,
-                    preferred_contact,
-                    incident_date,
-                    loss_amount,
-                    summary,
-                    details,
-                    status,
-                    submitted_by,
-                    source,
-                    metadata,
-                    created_at,
-                    updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    intake_id,
-                    reporter_name,
-                    contact_email,
-                    contact_phone,
-                    contact_handle,
-                    preferred_contact,
-                    incident_date,
-                    loss_amount,
-                    summary,
-                    details,
-                    "received",
-                    submitted_by,
-                    source,
-                    json.dumps(metadata or {}),
-                    now,
-                    now,
-                ),
-            )
-        return intake_id
-
-    def update_intake_status(self, intake_id: str, status: str, message: Optional[str] = None) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        with self._connect() as conn:
-            conn.execute(
-                """
-                UPDATE intake_records
-                SET status = ?, job_message = COALESCE(?, job_message), updated_at = ?
-                WHERE intake_id = ?
-                """,
-                (status, message, now, intake_id),
-            )
-
-    def attach_case(self, intake_id: str, *, case_id: Optional[str], review_id: Optional[str]) -> None:
-        now = datetime.now(timezone.utc).isoformat()
-        with self._connect() as conn:
-            conn.execute(
-                """
-                UPDATE intake_records
-                SET case_id = COALESCE(?, case_id), review_id = COALESCE(?, review_id), updated_at = ?
-                WHERE intake_id = ?
-                """,
-                (case_id, review_id, now, intake_id),
-            )
-
-    # ------------------------------------------------------------------
-    # Attachments
-    # ------------------------------------------------------------------
-    def add_attachment(
-        self,
-        intake_id: str,
-        *,
-        file_name: str,
-        content_type: Optional[str],
-        size_bytes: int,
-        checksum_sha256: str,
-        storage_uri: str,
-        storage_backend: str,
-    ) -> str:
-        attachment_id = str(uuid.uuid4())
-        created_at = datetime.now(timezone.utc).isoformat()
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO intake_attachments (
-                    attachment_id,
-                    intake_id,
-                    file_name,
-                    content_type,
-                    size_bytes,
-                    checksum_sha256,
-                    storage_uri,
-                    storage_backend,
-                    created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    attachment_id,
-                    intake_id,
-                    file_name,
-                    content_type,
-                    size_bytes,
-                    checksum_sha256,
-                    storage_uri,
-                    storage_backend,
-                    created_at,
-                ),
-            )
-        return attachment_id
-
-    # ------------------------------------------------------------------
-    # Jobs
-    # ------------------------------------------------------------------
-    def create_job(
-        self,
-        intake_id: str,
-        *,
-        status: str,
-        message: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        job_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc).isoformat()
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO intake_jobs (
-                    job_id,
-                    intake_id,
-                    status,
-                    message,
-                    metadata,
-                    created_at,
-                    updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (job_id, intake_id, status, message, json.dumps(metadata or {}), now, now),
-            )
-            conn.execute(
-                """
-                UPDATE intake_records
-                SET job_id = ?, job_status = ?, job_message = ?, updated_at = ?
-                WHERE intake_id = ?
-                """,
-                (job_id, status, message, now, intake_id),
-            )
-        return job_id
-
-    def update_job_status(
-        self,
-        job_id: str,
-        *,
-        status: str,
-        message: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> bool:
-        now = datetime.now(timezone.utc).isoformat()
-        with self._connect() as conn:
-            result = conn.execute(
-                """
-                UPDATE intake_jobs
-                SET status = ?, message = ?, metadata = ?, updated_at = ?
-                WHERE job_id = ?
-                """,
-                (status, message, json.dumps(metadata or {}), now, job_id),
-            )
-            if result.rowcount == 0:
-                return False
-            conn.execute(
-                """
-                UPDATE intake_records
-                SET job_status = ?, job_message = ?, updated_at = ?
-                WHERE job_id = ?
-                """,
-                (status, message, now, job_id),
-            )
-        return True
-
-    # ------------------------------------------------------------------
-    # Retrieval helpers
-    # ------------------------------------------------------------------
-    def get_intake(self, intake_id: str) -> Optional[Dict[str, Any]]:
-        with self._connect() as conn:
-            row = conn.execute("SELECT * FROM intake_records WHERE intake_id = ?", (intake_id,)).fetchone()
-            if not row:
-                return None
-            attachments = conn.execute(
-                "SELECT * FROM intake_attachments WHERE intake_id = ? ORDER BY created_at ASC",
-                (intake_id,),
-            ).fetchall()
-            job = None
-            if row["job_id"]:
-                job = conn.execute("SELECT * FROM intake_jobs WHERE job_id = ?", (row["job_id"],)).fetchone()
-        record = dict(row)
-        record["metadata"] = json.loads(record.get("metadata") or "{}")
-        record["attachments"] = [dict(a) for a in attachments]
-        if job:
-            job_dict = dict(job)
-            job_dict["metadata"] = json.loads(job_dict.get("metadata") or "{}")
-            record["job"] = job_dict
-        else:
-            record["job"] = None
-        return record
-
-    def list_intakes(self, limit: int = 25) -> List[Dict[str, Any]]:
-        with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM intake_records ORDER BY created_at DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
-        results: List[Dict[str, Any]] = []
-        for row in rows:
-            data = dict(row)
-            data["metadata"] = json.loads(data.get("metadata") or "{}")
-            results.append(data)
-        return results
-
-    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
-        with self._connect() as conn:
-            row = conn.execute("SELECT * FROM intake_jobs WHERE job_id = ?", (job_id,)).fetchone()
-        if not row:
-            return None
-        data = dict(row)
-        data["metadata"] = json.loads(data.get("metadata") or "{}")
-        return data
-
-class SqlAlchemyIntakeStore:
-    """SQLAlchemy-backed intake storage for i4g."""
-
-    def __init__(self, session_factory: sessionmaker | None = None) -> None:
-        self._session_factory = session_factory or default_session_factory()
-        # Create tables if they don't exist
-        with self._session_factory() as session:
-            # Attempt to switch to postgres role for table creation (if permissions allow)
-            # This ensures tables are owned by postgres even if created by sa-app
-            settings = get_settings()
-            conn = session.connection()
-            if settings.storage.structured_backend == "cloudsql":
-                try:
-                    conn.execute(sa.text("SET ROLE postgres"))
-                except Exception:
-                    conn.rollback()
-                    pass  # Ignore if permission denied (e.g. local dev or missing grant)
-
-            sql_schema.METADATA.create_all(conn)
-
-            if settings.storage.structured_backend == "cloudsql":
-                try:
-                    conn.execute(sa.text("RESET ROLE"))
-                except Exception:
-                    pass
-
-    def create_intake(
-        self,
-        reporter_name: str,
-        summary: str,
-        details: str,
-        submitted_by: str,
-        contact_email: str | None = None,
-        contact_phone: str | None = None,
-        contact_handle: str | None = None,
-        preferred_contact: str | None = None,
-        incident_date: str | None = None,
-        loss_amount: float | None = None,
-        source: str = "unknown",
-        metadata: Dict[str, Any] | None = None,
     ) -> str:
         intake_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
@@ -422,13 +100,12 @@ class SqlAlchemyIntakeStore:
             session.commit()
         return intake_id
 
-    def update_intake_status(self, intake_id: str, status: str, message: str | None = None) -> None:
+    def update_intake_status(self, intake_id: str, status: str, message: Optional[str] = None) -> None:
         now = datetime.now(timezone.utc)
         with self._session_factory() as session:
-            values = {"status": status, "updated_at": now}
+            values: Dict[str, Any] = {"status": status, "updated_at": now}
             if message is not None:
                 values["job_message"] = message
-            
             session.execute(
                 sa.update(sql_schema.intake_records)
                 .where(sql_schema.intake_records.c.intake_id == intake_id)
@@ -436,15 +113,14 @@ class SqlAlchemyIntakeStore:
             )
             session.commit()
 
-    def attach_case(self, intake_id: str, *, case_id: str | None = None, review_id: str | None = None) -> None:
+    def attach_case(self, intake_id: str, *, case_id: Optional[str] = None, review_id: Optional[str] = None) -> None:
         now = datetime.now(timezone.utc)
         with self._session_factory() as session:
-            values = {"updated_at": now}
+            values: Dict[str, Any] = {"updated_at": now}
             if case_id is not None:
                 values["case_id"] = case_id
             if review_id is not None:
                 values["review_id"] = review_id
-            
             session.execute(
                 sa.update(sql_schema.intake_records)
                 .where(sql_schema.intake_records.c.intake_id == intake_id)
@@ -452,11 +128,16 @@ class SqlAlchemyIntakeStore:
             )
             session.commit()
 
+    # ------------------------------------------------------------------
+    # Attachments
+    # ------------------------------------------------------------------
+
     def add_attachment(
         self,
         intake_id: str,
+        *,
         file_name: str,
-        content_type: str | None,
+        content_type: Optional[str],
         size_bytes: int,
         checksum_sha256: str,
         storage_uri: str,
@@ -481,12 +162,17 @@ class SqlAlchemyIntakeStore:
             session.commit()
         return attachment_id
 
+    # ------------------------------------------------------------------
+    # Jobs
+    # ------------------------------------------------------------------
+
     def create_job(
         self,
         intake_id: str,
+        *,
         status: str = "queued",
-        message: str | None = None,
-        metadata: Dict[str, Any] | None = None,
+        message: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         job_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
@@ -502,7 +188,6 @@ class SqlAlchemyIntakeStore:
                     updated_at=now,
                 )
             )
-            # Also update intake record with job_id
             session.execute(
                 sa.update(sql_schema.intake_records)
                 .where(sql_schema.intake_records.c.intake_id == intake_id)
@@ -514,18 +199,10 @@ class SqlAlchemyIntakeStore:
     def update_job_status(
         self,
         job_id: str,
+        *,
         status: str,
-        message: str | None = None,
-        metadata: Dict[str, Any] | None = None,
-    ) -> bool:
-        return self.update_job(job_id, status, message, metadata)
-
-    def update_job(
-        self,
-        job_id: str,
-        status: str,
-        message: str | None = None,
-        metadata: Dict[str, Any] | None = None,
+        message: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         now = datetime.now(timezone.utc)
         with self._session_factory() as session:
@@ -535,43 +212,31 @@ class SqlAlchemyIntakeStore:
             ).first()
             if not job_row:
                 return False
-            intake_id = job_row.intake_id
 
-            values = {"status": status, "updated_at": now}
+            values: Dict[str, Any] = {"status": status, "updated_at": now}
             if message is not None:
                 values["message"] = message
             if metadata is not None:
-                # Merge metadata? Or replace? SQLite implementation replaces.
-                # But here we should probably merge if possible, but let's stick to replace for consistency.
-                # Wait, SQLite implementation does:
-                # current = json.loads(row["metadata"] or "{}")
-                # current.update(metadata)
-                # So it merges.
-                
-                # Fetch current metadata
-                current_meta_row = session.execute(
-                    sa.select(sql_schema.intake_jobs.c.metadata).where(sql_schema.intake_jobs.c.job_id == job_id)
-                ).scalar()
-                current_meta = dict(current_meta_row) if current_meta_row else {}
-                current_meta.update(metadata)
-                values["metadata"] = current_meta
+                values["metadata"] = metadata
 
             session.execute(
                 sa.update(sql_schema.intake_jobs).where(sql_schema.intake_jobs.c.job_id == job_id).values(**values)
             )
-
             # Update intake record
-            intake_values = {"job_status": status, "updated_at": now}
+            intake_values: Dict[str, Any] = {"job_status": status, "updated_at": now}
             if message is not None:
                 intake_values["job_message"] = message
-            
             session.execute(
                 sa.update(sql_schema.intake_records)
-                .where(sql_schema.intake_records.c.intake_id == intake_id)
+                .where(sql_schema.intake_records.c.intake_id == job_row.intake_id)
                 .values(**intake_values)
             )
             session.commit()
         return True
+
+    # ------------------------------------------------------------------
+    # Retrieval helpers
+    # ------------------------------------------------------------------
 
     def get_intake(self, intake_id: str) -> Optional[Dict[str, Any]]:
         with self._session_factory() as session:
@@ -580,7 +245,7 @@ class SqlAlchemyIntakeStore:
             ).first()
             if not row:
                 return None
-            
+
             attachments = session.execute(
                 sa.select(sql_schema.intake_attachments)
                 .where(sql_schema.intake_attachments.c.intake_id == intake_id)
@@ -594,17 +259,16 @@ class SqlAlchemyIntakeStore:
                 ).first()
 
             record = dict(row._mapping)
-            # Metadata is already a dict in SQLAlchemy if using JSON type
             record["metadata"] = record.get("metadata") or {}
             record["attachments"] = [dict(a._mapping) for a in attachments]
-            
+
             if job:
                 job_dict = dict(job._mapping)
                 job_dict["metadata"] = job_dict.get("metadata") or {}
                 record["job"] = job_dict
             else:
                 record["job"] = None
-            
+
             return record
 
     def list_intakes(self, limit: int = 25) -> List[Dict[str, Any]]:
@@ -614,8 +278,8 @@ class SqlAlchemyIntakeStore:
                 .order_by(sql_schema.intake_records.c.created_at.desc())
                 .limit(limit)
             ).all()
-            
-            results = []
+
+            results: List[Dict[str, Any]] = []
             for row in rows:
                 data = dict(row._mapping)
                 data["metadata"] = data.get("metadata") or {}
@@ -632,3 +296,7 @@ class SqlAlchemyIntakeStore:
             data = dict(row._mapping)
             data["metadata"] = data.get("metadata") or {}
             return data
+
+
+# Backward-compatible alias
+SqlAlchemyIntakeStore = IntakeStore

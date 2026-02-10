@@ -18,11 +18,8 @@ from typing import Any, Dict, Iterable, List, Optional
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
 
-from i4g.settings import get_settings
 from i4g.store import sql as sql_schema
 from i4g.store.sql import session_factory as default_session_factory
-
-SETTINGS = get_settings()
 
 
 def _iso_timestamp(value: Optional[datetime]) -> str:

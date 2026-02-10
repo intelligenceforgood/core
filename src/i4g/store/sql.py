@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy import Engine
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import URL
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from i4g.settings import Settings, get_settings
 
@@ -335,6 +335,22 @@ intake_jobs = sa.Table(
     sa.Column("created_at", TIMESTAMP, nullable=True),
     sa.Column("updated_at", TIMESTAMP, nullable=True),
 )
+
+
+def dialect_insert(session: "Session", table: sa.Table):
+    """Return a dialect-aware INSERT construct that supports ``on_conflict_do_update``.
+
+    Both SQLite and PostgreSQL dialects offer ``insert(...).on_conflict_do_update()``.
+    This helper picks the correct one based on the session's bound engine dialect.
+    """
+
+    bind = session.get_bind()
+    dialect_name = bind.dialect.name
+    if dialect_name == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert
+    else:
+        from sqlalchemy.dialects.sqlite import insert
+    return insert(table)
 
 
 def _resolve_database_url(settings: Settings | None = None) -> str:

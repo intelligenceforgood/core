@@ -43,7 +43,7 @@ def seed_sample_dossier() -> int:
         sig = {"algorithm": "sha256", "generated_at": datetime.now(timezone.utc).isoformat(), "artifacts": []}
         (artifacts_dir / f"{plan_id}.signatures.json").write_text(json.dumps(sig))
 
-    store = DossierQueueStore()  # uses default sqlite_path from settings
+    store = DossierQueueStore()  # unified class; uses default session from settings
     candidate = DossierCandidate(
         case_id="case-1",
         loss_amount_usd=Decimal("125000"),

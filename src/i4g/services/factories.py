@@ -21,18 +21,18 @@ from i4g.services.vertex_writer import VertexDocumentWriter
 from i4g.services.classifier import FraudClassifier
 from i4g.settings import get_settings
 from i4g.storage import EvidenceStorage
-from i4g.store.dossier_queue_store import DossierQueueStore, SqlAlchemyDossierQueueStore
+from i4g.store.dossier_queue_store import DossierQueueStore
 from i4g.store.entity_store import EntityStore
 from i4g.store.ingestion_retry_store import IngestionRetryStore
 from i4g.store.ingestion_run_tracker import IngestionRunTracker
-from i4g.store.intake_store import IntakeStore, SqlAlchemyIntakeStore
+from i4g.store.intake_store import IntakeStore
 from i4g.store.pii_token_store import PiiTokenStore
 from i4g.store.pii_token_store_sql import SqlAlchemyPiiTokenStore
 from i4g.store.review_store import ReviewStore
 from i4g.store.sql import METADATA
 from i4g.store.sql import session_factory as build_sql_session_factory
 from i4g.store.sql_writer import SqlWriter
-from i4g.store.structured import StructuredStore, SqlAlchemyStructuredStore
+from i4g.store.structured import StructuredStore
 from i4g.store.vector import VectorStore
 
 try:
@@ -45,26 +45,18 @@ def build_structured_store(db_path: str | Path | None = None) -> StructuredStore
     """Return a structured-store instance that matches the configured backend.
 
     Args:
-        db_path: Optional path override. When ``None``, the path configured in
-            ``settings.storage.sqlite_path`` is used.
+        db_path: Optional path override for local SQLite. Ignored when the
+            configured backend is Cloud SQL.
 
     Returns:
         Instantiated :class:`StructuredStore`.
-
-    Raises:
-        NotImplementedError: If the configured backend is not yet supported.
     """
-
     settings = get_settings()
     backend = settings.storage.structured_backend
-    if backend == "sqlite":
-        return StructuredStore(db_path=db_path)
-
     if backend == "cloudsql":
-        session_factory = build_sql_session_factory()
-        return SqlAlchemyStructuredStore(session_factory=session_factory)
-
-    raise NotImplementedError(f"Unsupported structured storage backend '{backend}'")
+        return StructuredStore(session_factory=build_sql_session_factory())
+    # sqlite (default) or any local backend
+    return StructuredStore(db_path=db_path)
 
 
 def build_entity_store() -> EntityStore:
@@ -149,17 +141,11 @@ def build_vector_store(
 
 def build_intake_store(db_path: str | Path | None = None) -> IntakeStore:
     """Return an :class:`IntakeStore` aligned with the structured backend."""
-
     settings = get_settings()
     backend = settings.storage.structured_backend
-    if backend == "sqlite":
-        return IntakeStore(db_path=db_path)
-
     if backend == "cloudsql":
-        session_factory = build_sql_session_factory()
-        return SqlAlchemyIntakeStore(session_factory=session_factory)
-
-    raise NotImplementedError(f"Unsupported intake storage backend '{backend}'")
+        return IntakeStore(session_factory=build_sql_session_factory())
+    return IntakeStore(db_path=db_path)
 
 
 def build_evidence_storage(*, local_dir: str | Path | None = None) -> EvidenceStorage:
@@ -216,17 +202,11 @@ def build_vertex_writer(*, settings: "Settings" | None = None) -> VertexDocument
 
 def build_dossier_queue_store(db_path: str | Path | None = None) -> DossierQueueStore:
     """Return a DossierQueueStore instance backed by the configured backend."""
-
     settings = get_settings()
     backend = settings.storage.structured_backend
-    if backend == "sqlite":
-        return DossierQueueStore(db_path=db_path)
-
     if backend == "cloudsql":
-        session_factory = build_sql_session_factory()
-        return SqlAlchemyDossierQueueStore(session_factory=session_factory)
-
-    raise NotImplementedError(f"Unsupported dossier queue backend '{backend}'")
+        return DossierQueueStore(session_factory=build_sql_session_factory())
+    return DossierQueueStore(db_path=db_path)
 
 
 def build_tokenization_service() -> TokenizationService:

@@ -1,260 +1,66 @@
-"""SQLite-backed queue for dossier bundle plans."""
+"""SQLAlchemy-backed queue for dossier bundle plans.
+
+Unified implementation that works with both SQLite and PostgreSQL via
+:mod:`i4g.store.sql` session factories.  The legacy raw-``sqlite3`` class
+was removed in the Store Consolidation sprint (WS-3 / D16).
+"""
 
 from __future__ import annotations
 
 import json
-import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
 
-from i4g.settings import get_settings
 from i4g.store import sql as sql_schema
-from i4g.store.sql import session_factory as default_session_factory
+from i4g.store.sql import (
+    METADATA,
+    dialect_insert,
+    session_factory as build_session_factory,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - import used only for type hints
     from i4g.reports.bundle_builder import DossierPlan
 
-SETTINGS = get_settings()
-
 
 class DossierQueueStore:
-    """Persists DossierPlan payloads for downstream agent execution."""
+    """Persists DossierPlan payloads for downstream agent execution.
 
-    def __init__(self, db_path: str | Path | None = None) -> None:
-        resolved = Path(db_path) if db_path else Path(SETTINGS.storage.sqlite_path)
-        if not resolved.is_absolute():
-            resolved = (Path(SETTINGS.project_root) / resolved).resolve()
-        resolved.parent.mkdir(parents=True, exist_ok=True)
-        self.db_path = resolved
-        self._init_tables()
+    Accepts either a ``db_path`` (convenience for local SQLite) or a
+    pre-configured ``session_factory``.
+    """
 
-    def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(str(self.db_path))
-        conn.row_factory = sqlite3.Row
-        return conn
-
-    def _init_tables(self) -> None:
-        with self._connect() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS dossier_queue (
-                    plan_id TEXT PRIMARY KEY,
-                    status TEXT NOT NULL,
-                    priority TEXT NOT NULL,
-                    payload TEXT NOT NULL,
-                    queued_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    error TEXT,
-                    warnings TEXT
-                )
-                """
-            )
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_dossier_queue_status ON dossier_queue(status)")
-            try:
-                conn.execute("ALTER TABLE dossier_queue ADD COLUMN warnings TEXT")
-            except sqlite3.OperationalError:
-                pass
-
-    def enqueue_plan(self, plan: "DossierPlan", *, priority: str = "normal") -> str:
-        """Insert or replace a dossier plan in the queue."""
-
-        now = datetime.now(timezone.utc).isoformat()
-        payload = json.dumps(plan.to_dict(), sort_keys=True)
-        with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO dossier_queue (plan_id, status, priority, payload, queued_at, updated_at, warnings)
-                VALUES (?, 'pending', ?, ?, ?, ?, NULL)
-                ON CONFLICT(plan_id) DO UPDATE SET
-                    status='pending',
-                    priority=excluded.priority,
-                    payload=excluded.payload,
-                    queued_at=excluded.queued_at,
-                    updated_at=excluded.updated_at,
-                    error=NULL,
-                    warnings=NULL
-                """,
-                (plan.plan_id, priority, payload, now, now),
-            )
-        return plan.plan_id
-
-    def list_pending(self, *, limit: int = 25) -> List[Dict[str, Any]]:
-        """Return pending queue entries along with their serialized plans."""
-
-        with self._connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT plan_id, priority, payload, queued_at, updated_at, warnings
-                FROM dossier_queue
-                WHERE status='pending'
-                ORDER BY queued_at ASC
-                LIMIT ?
-                """,
-                (limit,),
-            ).fetchall()
-        return [self._row_to_dict(row) for row in rows]
-
-    def list_plans(self, *, status: str | None = None, limit: int = 50) -> List[Dict[str, Any]]:
-        """Return queue entries filtered by ``status`` (or all entries when omitted)."""
-
-        clauses = []
-        params: list[Any] = []
-        if status:
-            clauses.append("status = ?")
-            params.append(status)
-        where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-        query = f"""
-            SELECT plan_id, status, priority, payload, queued_at, updated_at, error, warnings
-            FROM dossier_queue
-            {where}
-            ORDER BY updated_at DESC
-            LIMIT ?
-        """
-        params.append(limit)
-        with self._connect() as conn:
-            rows = conn.execute(query, tuple(params)).fetchall()
-        return [self._row_to_dict(row) for row in rows]
-
-    def get_plan(self, plan_id: str) -> Optional[Dict[str, Any]]:
-        """Return a single queue entry regardless of status."""
-
-        with self._connect() as conn:
-            row = conn.execute(
-                """
-                SELECT plan_id, status, priority, payload, queued_at, updated_at, error, warnings
-                FROM dossier_queue
-                WHERE plan_id=?
-                """,
-                (plan_id,),
-            ).fetchone()
-        if not row:
-            return None
-        return self._row_to_dict(row)
-
-    def mark_complete(self, plan_id: str, *, warnings: Optional[Sequence[str]] = None) -> None:
-        """Mark a queued plan as completed and persist optional warnings."""
-
-        self._update_status(plan_id, status="completed", warnings=warnings)
-
-    def mark_failed(self, plan_id: str, error: str) -> None:
-        """Mark a queued plan as failed with an error message."""
-
-        self._update_status(plan_id, status="failed", error=error)
-
-    def reset(self, plan_id: str) -> None:
-        """Return a leased plan to the pending state (used for dry runs)."""
-
-        self._update_status(plan_id, status="pending", warnings=None)
-
-    def lease_next(self) -> Optional[Dict[str, Any]]:
-        """Atomically lease the next pending entry for processing."""
-
-        with self._connect() as conn:
-            conn.execute("BEGIN IMMEDIATE")
-            row = conn.execute(
-                """
-                SELECT plan_id, priority, payload, queued_at, updated_at, warnings
-                FROM dossier_queue
-                WHERE status='pending'
-                ORDER BY queued_at ASC
-                LIMIT 1
-                """,
-            ).fetchone()
-            if not row:
-                conn.commit()
-                return None
-            plan_id = row["plan_id"] if isinstance(row, sqlite3.Row) else row[0]
-            conn.execute(
-                """
-                UPDATE dossier_queue
-                SET status='leased', updated_at=?
-                WHERE plan_id=?
-                """,
-                (datetime.now(timezone.utc).isoformat(), plan_id),
-            )
-            conn.commit()
-        return self._row_to_dict(row)
-
-    def _update_status(
+    def __init__(
         self,
-        plan_id: str,
+        db_path: str | Path | None = None,
         *,
-        status: str,
-        error: Optional[str] = None,
-        warnings: Optional[Sequence[str]] = None,
+        session_factory: sessionmaker | None = None,
     ) -> None:
-        warnings_payload = json.dumps(list(warnings)) if warnings is not None else None
-        with self._connect() as conn:
-            conn.execute(
-                """
-                UPDATE dossier_queue
-                SET status=?, updated_at=?, error=?, warnings=?
-                WHERE plan_id=?
-                """,
-                (status, datetime.now(timezone.utc).isoformat(), error, warnings_payload, plan_id),
+        if session_factory is not None:
+            self._session_factory = session_factory
+        elif db_path is not None:
+            resolved = Path(db_path)
+            resolved.parent.mkdir(parents=True, exist_ok=True)
+            engine = sa.create_engine(
+                f"sqlite:///{resolved}",
+                connect_args={"check_same_thread": False, "timeout": 30},
+                future=True,
             )
-
-    def _row_to_dict(self, row: sqlite3.Row | Tuple[Any, ...]) -> Dict[str, Any]:
-        if isinstance(row, sqlite3.Row):
-            record = dict(row)
+            self._session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
         else:
-            # Fallback for callers passing tuples in older tests (plan_id, priority, payload, queued_at, updated_at, warnings)
-            record = {}
-            if len(row) >= 6:
-                record["plan_id"] = row[0]
-                # Some queries include status as the second column
-                if len(row) >= 8:
-                    record["status"] = row[1]
-                    record["priority"] = row[2]
-                    record["payload"] = row[3]
-                    record["queued_at"] = row[4]
-                    record["updated_at"] = row[5]
-                    record["error"] = row[6]
-                    record["warnings"] = row[7]
-                else:
-                    record["priority"] = row[1]
-                    record["payload"] = row[2]
-                    record["queued_at"] = row[3]
-                    record["updated_at"] = row[4]
-                    record["warnings"] = row[5]
-        payload_raw = record.get("payload")
-        payload = json.loads(payload_raw) if payload_raw else {}
-        warnings_raw = record.get("warnings")
-        result = {
-            "plan_id": record.get("plan_id"),
-            "priority": record.get("priority"),
-            "payload": payload,
-            "queued_at": record.get("queued_at"),
-            "updated_at": record.get("updated_at"),
-            "warnings": json.loads(warnings_raw) if warnings_raw else [],
-        }
-        if "status" in record:
-            result["status"] = record.get("status")
-        if "error" in record:
-            result["error"] = record.get("error")
-        return result
+            self._session_factory = build_session_factory()
 
-
-class SqlAlchemyDossierQueueStore:
-    """SQLAlchemy-backed queue for dossier bundle plans."""
-
-    def __init__(self, session_factory: sessionmaker | None = None) -> None:
-        self._session_factory = session_factory or default_session_factory()
-        # Ensure tables exist (best effort for dev flows)
+        # Ensure schema exists
         with self._session_factory() as session:
-            settings = get_settings()
             conn = session.connection()
-            if settings.storage.structured_backend == "cloudsql":
-                try:
-                    # Force creation if not exists, though migrations should handle this
-                    if not sa.inspect(conn).has_table("dossier_queue"):
-                        sql_schema.dossier_queue.create(conn)
-                except Exception:
-                    pass
+            METADATA.create_all(conn)
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
 
     def enqueue_plan(self, plan: "DossierPlan", *, priority: str = "normal") -> str:
         """Insert or replace a dossier plan in the queue."""
@@ -262,37 +68,30 @@ class SqlAlchemyDossierQueueStore:
         now = datetime.now(timezone.utc)
         payload = json.dumps(plan.to_dict(), sort_keys=True)
 
-        stmt = sa.pool.base._CommonRequest()  # Just a dummy to hold logic
-
-        # Postgres UPSERT using ON CONFLICT since plan_id is PK
-        from sqlalchemy.dialects.postgresql import insert
-
-        insert_stmt = insert(sql_schema.dossier_queue).values(
-            plan_id=plan.plan_id,
-            status="pending",
-            priority=priority,
-            payload=payload,
-            queued_at=now,
-            updated_at=now,
-            warnings=None,
-            error=None,
-        )
-
-        do_update_stmt = insert_stmt.on_conflict_do_update(
-            index_elements=["plan_id"],
-            set_={
-                "status": "pending",
-                "priority": insert_stmt.excluded.priority,
-                "payload": insert_stmt.excluded.payload,
-                "queued_at": insert_stmt.excluded.queued_at,
-                "updated_at": insert_stmt.excluded.updated_at,
-                "warnings": None,
-                "error": None,
-            },
-        )
-
         with self._session_factory() as session:
-            session.execute(do_update_stmt)
+            stmt = dialect_insert(session, sql_schema.dossier_queue).values(
+                plan_id=plan.plan_id,
+                status="pending",
+                priority=priority,
+                payload=payload,
+                queued_at=now,
+                updated_at=now,
+                warnings=None,
+                error=None,
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["plan_id"],
+                set_={
+                    "status": "pending",
+                    "priority": stmt.excluded.priority,
+                    "payload": stmt.excluded.payload,
+                    "queued_at": stmt.excluded.queued_at,
+                    "updated_at": stmt.excluded.updated_at,
+                    "warnings": None,
+                    "error": None,
+                },
+            )
+            session.execute(stmt)
             session.commit()
 
         return plan.plan_id
@@ -313,10 +112,13 @@ class SqlAlchemyDossierQueueStore:
         return [self._row_to_dict(row) for row in rows]
 
     def list_plans(self, *, status: str | None = None, limit: int = 50) -> List[Dict[str, Any]]:
-        """Return queue entries filtered by ``status``."""
+        """Return queue entries filtered by ``status`` (or all entries when omitted)."""
 
-        stmt = sa.select(sql_schema.dossier_queue).limit(limit).order_by(sql_schema.dossier_queue.c.updated_at.desc())
-
+        stmt = (
+            sa.select(sql_schema.dossier_queue)
+            .limit(limit)
+            .order_by(sql_schema.dossier_queue.c.updated_at.desc())
+        )
         if status:
             stmt = stmt.where(sql_schema.dossier_queue.c.status == status)
 
@@ -354,33 +156,50 @@ class SqlAlchemyDossierQueueStore:
 
         now = datetime.now(timezone.utc)
 
-        # Postgres: UPDATE ... RETURNING with subquery logic is tricky in standard SQL
-        # Use CTE or subquery with FOR UPDATE SKIP LOCKED
-
         with self._session_factory() as session:
-            # Subquery to identify the row to lock
-            subq = (
-                sa.select(sql_schema.dossier_queue.c.plan_id)
-                .where(sql_schema.dossier_queue.c.status == "pending")
-                .order_by(sql_schema.dossier_queue.c.queued_at.asc())
-                .limit(1)
-                .with_for_update(skip_locked=True)
-                .scalar_subquery()
-            )
+            dialect = session.get_bind().dialect.name
 
-            stmt = (
-                sa.update(sql_schema.dossier_queue)
-                .where(sql_schema.dossier_queue.c.plan_id == subq)
-                .values(status="leased", updated_at=now)
-                .returning(sql_schema.dossier_queue)
-            )
+            if dialect == "postgresql":
+                # Postgres: atomic CTE with FOR UPDATE SKIP LOCKED
+                subq = (
+                    sa.select(sql_schema.dossier_queue.c.plan_id)
+                    .where(sql_schema.dossier_queue.c.status == "pending")
+                    .order_by(sql_schema.dossier_queue.c.queued_at.asc())
+                    .limit(1)
+                    .with_for_update(skip_locked=True)
+                    .scalar_subquery()
+                )
+                stmt = (
+                    sa.update(sql_schema.dossier_queue)
+                    .where(sql_schema.dossier_queue.c.plan_id == subq)
+                    .values(status="leased", updated_at=now)
+                    .returning(sql_schema.dossier_queue)
+                )
+                row = session.execute(stmt).fetchone()
+            else:
+                # SQLite: SELECT + UPDATE inside the same transaction
+                row = session.execute(
+                    sa.select(sql_schema.dossier_queue)
+                    .where(sql_schema.dossier_queue.c.status == "pending")
+                    .order_by(sql_schema.dossier_queue.c.queued_at.asc())
+                    .limit(1)
+                ).fetchone()
+                if row:
+                    session.execute(
+                        sa.update(sql_schema.dossier_queue)
+                        .where(sql_schema.dossier_queue.c.plan_id == row.plan_id)
+                        .values(status="leased", updated_at=now)
+                    )
 
-            row = session.execute(stmt).fetchone()
             session.commit()
 
         if not row:
             return None
         return self._row_to_dict(row)
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
 
     def _update_status(
         self,
@@ -390,19 +209,13 @@ class SqlAlchemyDossierQueueStore:
         error: Optional[str] = None,
         warnings: Optional[Sequence[str]] = None,
     ) -> None:
-
         now = datetime.now(timezone.utc)
         warnings_payload = json.dumps(list(warnings)) if warnings is not None else None
 
-        values = {
-            "status": status,
-            "updated_at": now,
-        }
-        # Only update error/warnings if explicitly passed (or None to clear)
-        # But here valid args are passed so we can set them
+        values: Dict[str, Any] = {"status": status, "updated_at": now}
         if error is not None:
             values["error"] = error
-        elif status == "pending":  # Clear error on reset
+        elif status == "pending":
             values["error"] = None
 
         if warnings is not None:
@@ -410,38 +223,41 @@ class SqlAlchemyDossierQueueStore:
         elif status == "pending":
             values["warnings"] = None
 
-        stmt = sa.update(sql_schema.dossier_queue).where(sql_schema.dossier_queue.c.plan_id == plan_id).values(**values)
+        stmt = (
+            sa.update(sql_schema.dossier_queue)
+            .where(sql_schema.dossier_queue.c.plan_id == plan_id)
+            .values(**values)
+        )
 
         with self._session_factory() as session:
             session.execute(stmt)
             session.commit()
 
     def _row_to_dict(self, row: Any) -> Dict[str, Any]:
-        # SQLAlchemy Row acts like KeyedTuple
-        # We need to access columns by name or index
-        # Assuming row is a `Row` object from sqlalchemy
-
-        # Helper to safely get value from row
-        def get_val(key):
-            try:
-                return getattr(row, key)
-            except AttributeError:
-                # Fallback if indices are needed or mapping used?
-                # For `select(Table)`, `row` is a Row object with attributes matching columns
-                return row._mapping[key]
-
-        payload_raw = get_val("payload")
+        """Convert a SQLAlchemy Row to a JSON-friendly dict."""
+        payload_raw = row.payload
         payload = json.loads(payload_raw) if payload_raw else {}
-        warnings_raw = get_val("warnings")
+        warnings_raw = row.warnings
 
-        result = {
-            "plan_id": get_val("plan_id"),
-            "status": get_val("status"),
-            "priority": get_val("priority"),
+        queued = row.queued_at
+        updated = row.updated_at
+        # Normalise timestamps to ISO strings for API consumers
+        if hasattr(queued, "isoformat"):
+            queued = queued.isoformat()
+        if hasattr(updated, "isoformat"):
+            updated = updated.isoformat()
+
+        return {
+            "plan_id": row.plan_id,
+            "status": row.status,
+            "priority": row.priority,
             "payload": payload,
-            "queued_at": get_val("queued_at").isoformat() if get_val("queued_at") else None,
-            "updated_at": get_val("updated_at").isoformat() if get_val("updated_at") else None,
+            "queued_at": queued,
+            "updated_at": updated,
             "warnings": json.loads(warnings_raw) if warnings_raw else [],
-            "error": get_val("error"),
+            "error": row.error,
         }
-        return result
+
+
+# Backward-compatible alias
+SqlAlchemyDossierQueueStore = DossierQueueStore
