@@ -3,10 +3,11 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Tuple
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from sqlalchemy import desc, func, select, text, case as sa_case
 from sqlalchemy.orm import Session
 
+from i4g.api.auth import require_token
 from i4g.store.sql import (
     session_factory,
     cases,
@@ -16,7 +17,7 @@ from i4g.store.sql import (
     ingestion_runs,
 )
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depends(require_token)])
 
 
 def _calculate_trend(current: float, previous: float) -> Tuple[str, str]:

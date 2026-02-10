@@ -3,10 +3,11 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
+from i4g.api.auth import require_token
 from i4g.store.sql import (
     session_factory,
     cases,
@@ -16,7 +17,7 @@ from i4g.store.sql import (
     scam_records,
 )
 
-router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+router = APIRouter(prefix="/dashboard", tags=["dashboard"], dependencies=[Depends(require_token)])
 
 
 def _get_active_investigations(session: Session) -> Dict[str, str]:

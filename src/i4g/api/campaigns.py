@@ -6,10 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from i4g.api.auth import require_token
 from i4g.services.campaigns import CampaignService
 from i4g.store.sql import session_factory
 
-router = APIRouter(prefix="/campaigns", tags=["campaigns"])
+router = APIRouter(prefix="/campaigns", tags=["campaigns"], dependencies=[Depends(require_token)])
 
 
 def get_db_session():

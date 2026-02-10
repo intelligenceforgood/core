@@ -5,11 +5,12 @@ import json
 from datetime import datetime
 from pydantic import BaseModel, Field
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from i4g.api.auth import require_token
 from i4g.services.factories import build_review_store
 
-router = APIRouter(prefix="/cases", tags=["cases"])
+router = APIRouter(prefix="/cases", tags=["cases"], dependencies=[Depends(require_token)])
 
 # --- Schemas ---
 

@@ -208,6 +208,7 @@ def list_queue(
     status: str = Query("new"),
     limit: int = Query(25),
     store: ReviewStore = Depends(get_store),
+    user=Depends(require_token),
 ) -> Dict[str, Any]:
     """List queued cases by status.
 
@@ -576,7 +577,7 @@ def reviews_by_case(
 
 
 @router.get("/{review_id}", summary="Get a review item")
-def get_review(review_id: str, store: ReviewStore = Depends(get_store)):
+def get_review(review_id: str, store: ReviewStore = Depends(get_store), user=Depends(require_token)):
     """Get full review item by ID."""
     item = store.get_review(review_id)
     if not item:
@@ -946,7 +947,7 @@ def decision(
 
 
 @router.get("/{review_id}/actions", summary="Get review action history")
-def actions(review_id: str, store: ReviewStore = Depends(get_store)):
+def actions(review_id: str, store: ReviewStore = Depends(get_store), user=Depends(require_token)):
     """Return audit trail for a review."""
     actions = store.get_actions(review_id)
     return {"review_id": review_id, "actions": actions}

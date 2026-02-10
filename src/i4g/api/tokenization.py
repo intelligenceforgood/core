@@ -91,7 +91,10 @@ def detokenize(
 
 
 @router.get("/health")
-def tokenization_health(service: TokenizationService = Depends(get_tokenization_service)):
+def tokenization_health(
+    service: TokenizationService = Depends(get_tokenization_service),
+    user=Depends(require_token),
+):
     """Expose a lightweight readiness check for tokenization secrets."""
 
     return {

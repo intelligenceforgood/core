@@ -5,13 +5,14 @@ from __future__ import annotations
 import base64
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from i4g.api.auth import require_token
 from i4g.services.discovery import DiscoverySearchParams, get_default_discovery_params, run_discovery_search
 from i4g.services.hybrid_search import HybridSearchQuery, HybridSearchService
 from i4g.settings import get_settings
 
-router = APIRouter(prefix="/discovery", tags=["discovery"])
+router = APIRouter(prefix="/discovery", tags=["discovery"], dependencies=[Depends(require_token)])
 SETTINGS = get_settings()
 
 

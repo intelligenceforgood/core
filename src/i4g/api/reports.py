@@ -3,19 +3,21 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 
+from i4g.api.auth import require_token
 from i4g.observability import Observability, get_observability
 from i4g.reports.dossier_signatures import verify_manifest_payload
 from i4g.reports.dossier_uploads import DossierUploader
 from i4g.services.factories import build_dossier_queue_store
 from i4g.settings import get_settings
 
-router = APIRouter(prefix="/reports", tags=["reports"])
+router = APIRouter(prefix="/reports", tags=["reports"], dependencies=[Depends(require_token)])
 ARTIFACTS_DIR = (get_settings().data_dir / "reports" / "dossiers").resolve()
 _OBS: Observability = get_observability(component="reports_api")
 _ALLOWED_ARTIFACTS = {
@@ -25,6 +27,20 @@ _ALLOWED_ARTIFACTS = {
     "html": "html",
     "signature": "signature_manifest",
 }
+
+_SAFE_PLAN_ID = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.\-]{0,127}$")
+
+
+def _validate_plan_id(plan_id: str) -> str:
+    """Validate ``plan_id`` against a safe character allowlist.
+
+    Raises:
+        HTTPException: 400 if ``plan_id`` contains path-traversal sequences
+            or forbidden characters.
+    """
+    if not _SAFE_PLAN_ID.match(plan_id):
+        raise HTTPException(status_code=400, detail=f"Invalid plan_id: {plan_id!r}")
+    return plan_id
 
 
 @router.get("/dossiers")
@@ -73,6 +89,7 @@ def list_dossiers(
 def verify_dossier(plan_id: str) -> Dict[str, Any]:
     """Run an artifact verification pass for the provided dossier plan."""
 
+    plan_id = _validate_plan_id(plan_id)
     tags = {"plan_id": plan_id}
     manifest_info = _load_manifest_details(plan_id, include_manifest=False)
     signature_manifest = manifest_info.get("signature_manifest")
@@ -130,6 +147,7 @@ def verify_dossier(plan_id: str) -> Dict[str, Any]:
 def fetch_drive_acl(plan_id: str) -> Dict[str, Any]:
     """Return Drive folder metadata + permissions for portal ACL previews."""
 
+    plan_id = _validate_plan_id(plan_id)
     tags = {"plan_id": plan_id}
     manifest_info = _load_manifest_details(plan_id, include_manifest=False)
     drive_info = (manifest_info.get("downloads") or {}).get("drive") or {}
@@ -160,6 +178,7 @@ def fetch_drive_acl(plan_id: str) -> Dict[str, Any]:
 def fetch_signature_manifest(plan_id: str) -> Dict[str, Any]:
     """Return the raw signature manifest for client-side verification flows."""
 
+    plan_id = _validate_plan_id(plan_id)
     manifest_info = _load_manifest_details(plan_id, include_manifest=False)
     signature_manifest = manifest_info.get("signature_manifest")
     if not signature_manifest:
@@ -175,6 +194,7 @@ def fetch_signature_manifest(plan_id: str) -> Dict[str, Any]:
 def download_dossier_artifact(plan_id: str, artifact: str) -> FileResponse:
     """Serve local dossier artifacts for portal/analyst download and client-side verification."""
 
+    plan_id = _validate_plan_id(plan_id)
     normalized = artifact.strip().lower()
     if normalized not in _ALLOWED_ARTIFACTS:
         raise HTTPException(status_code=400, detail=f"Unsupported artifact '{artifact}'")
@@ -186,7 +206,12 @@ def download_dossier_artifact(plan_id: str, artifact: str) -> FileResponse:
     if not path_str:
         raise HTTPException(status_code=404, detail=f"Artifact '{artifact}' not available for plan {plan_id}")
 
-    path = Path(path_str)
+    path = Path(path_str).resolve()
+    # Defense-in-depth: ensure the resolved path is within the artifacts tree.
+    try:
+        path.relative_to(ARTIFACTS_DIR)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Artifact path outside allowed directory")
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail=f"Artifact path missing for plan {plan_id}: {path}")
     try:
@@ -317,11 +342,22 @@ def _build_downloads(
 
 
 def _resolve_relative(raw_path: object, base_dir: Path) -> str | None:
+    """Resolve a path relative to *base_dir*, ensuring confinement.
+
+    Returns ``None`` when the resolved path falls outside ``ARTIFACTS_DIR``.
+    """
     if not raw_path:
         return None
     candidate = Path(str(raw_path))
     if not candidate.is_absolute():
         candidate = (base_dir / candidate).resolve()
+    else:
+        candidate = candidate.resolve()
+    # Ensure the resolved path stays within the artifacts tree.
+    try:
+        candidate.relative_to(ARTIFACTS_DIR)
+    except ValueError:
+        return None
     return str(candidate)
 
 

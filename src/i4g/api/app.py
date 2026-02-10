@@ -6,13 +6,14 @@ import uuid
 from threading import Lock
 from typing import Dict
 
-from fastapi import APIRouter, FastAPI, HTTPException, Request
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 from i4g.api.account_list import router as account_list_router
 from i4g.api.analytics import router as analytics_router
+from i4g.api.auth import require_token
 from i4g.api.cases import router as cases_router
 from i4g.api.campaigns import router as campaigns_router
 from i4g.api.dashboard import router as dashboard_router
@@ -29,7 +30,7 @@ from i4g.settings import get_settings
 # Task Status API (Step 2 of M6.3)
 # ----------------------------------------
 
-task_router = APIRouter(prefix="/tasks", tags=["tasks"])
+task_router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(require_token)])
 
 # Simple in-memory store (replace later with Redis or DB-backed worker registry)
 TASK_STATUS: Dict[str, Dict[str, str]] = {}
@@ -161,7 +162,7 @@ report_lock = Lock()
 
 
 @app.post("/reports/generate")
-def generate_report_trigger():
+def generate_report_trigger(user: dict = Depends(require_token)):
     """
     Simulate a guarded entry to report generation.
     Ensures only one concurrent report build at a time.
