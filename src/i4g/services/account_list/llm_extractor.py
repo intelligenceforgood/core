@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 from typing import Any, Iterable, List
 
@@ -16,14 +15,6 @@ from .models import FinancialIndicator, SourceDocument
 from .queries import IndicatorQuery
 
 LOGGER = logging.getLogger(__name__)
-
-
-def _provider_override_from_env() -> str | None:
-    for key in ("I4G_LLM__PROVIDER", "I4G_LLM_PROVIDER", "LLM__PROVIDER", "LLM_PROVIDER"):
-        raw = os.getenv(key)
-        if raw:
-            return raw.strip().lower()
-    return None
 
 
 def _strip_code_fence(text: str) -> str:
@@ -41,8 +32,7 @@ class AccountEntityExtractor:
     def __init__(self, *, settings: Settings | None = None, max_chars: int = 12000) -> None:
         self.settings = settings or get_settings()
         self.max_chars = max_chars
-        override = _provider_override_from_env()
-        self.provider = (override or self.settings.llm.provider or "ollama").lower()
+        self.provider = (self.settings.llm.provider or "ollama").lower()
         self._client = self._build_client()
 
     def _build_client(self):
@@ -86,10 +76,6 @@ class AccountEntityExtractor:
 
         payload = _strip_code_fence(content)
         indicators = self._parse_payload(payload, query)
-        if not indicators:
-            # If LLM returns empty/garbage, try mock as a safety net?
-            # Maybe not, might duplicate. But here we trust LLM if it returned valid JSON but empty list.
-            pass
         return indicators
 
     def _mock_extract(self, *, query: IndicatorQuery, documents: List[SourceDocument]) -> List[FinancialIndicator]:

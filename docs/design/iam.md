@@ -20,21 +20,21 @@ This document is the single source of truth for how we authenticate users, autho
 
 ## 2. Personas & Role Expectations
 
-| Persona | Capabilities | Entry Requirements | Near-term Controls | Future Controls |
-| --- | --- | --- | --- | --- |
-| Victim / End User | Submit cases, upload evidence, check status | Google account (temporary), future passkey/email options | Cloud Run IAM via Google tokens, signed URLs for uploads | Dedicated intake endpoint with anti-abuse, CAPTCHA, fraud throttling |
-| Analyst | Review cases, run RAG search, generate reports | Google account in Analyst group, future VPN cert | Cloud Run IAM + Google Group membership, Terraform-managed bindings | Analyst-only endpoint behind VPN / BeyondCorp + device posture checks |
-| Law Enforcement (LEO) | Search approved cases, download reports | Provisioned Google account, MFA | Google Identity + role claim, signed report URLs | Dedicated LEO portal with read-only scope + case export formats |
-| Automation (jobs) | Ingest feeds, generate reports, rotate secrets | Service accounts only | Terraform service accounts (`sa-ingest`, `sa-report`, etc.) with least privilege | Same accounts, plus workload-identity federation to CI/CD |
+| Persona               | Capabilities                                   | Entry Requirements                                       | Near-term Controls                                                               | Future Controls                                                       |
+| --------------------- | ---------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Victim / End User     | Submit cases, upload evidence, check status    | Google account (temporary), future passkey/email options | Cloud Run IAM via Google tokens, signed URLs for uploads                         | Dedicated intake endpoint with anti-abuse, CAPTCHA, fraud throttling  |
+| Analyst               | Review cases, run RAG search, generate reports | Google account in Analyst group, future VPN cert         | Cloud Run IAM + Google Group membership, Terraform-managed bindings              | Analyst-only endpoint behind VPN / BeyondCorp + device posture checks |
+| Law Enforcement (LEO) | Search approved cases, download reports        | Provisioned Google account, MFA                          | Google Identity + role claim, signed report URLs                                 | Dedicated LEO portal with read-only scope + case export formats       |
+| Automation (jobs)     | Ingest feeds, generate reports, rotate secrets | Service accounts only                                    | Terraform service accounts (`sa-ingest`, `sa-report`, etc.) with least privilege | Same accounts, plus workload-identity federation to CI/CD             |
 
 ---
 
 ## 3. Service & Endpoint Matrix
 
-| Service | Purpose | URL (dev) | IAM Owner | Notes |
-| --- | --- | --- | --- | --- |
-| FastAPI Gateway | API for intake, review, reports | `https://fastapi-gateway-y5jge5w2cq-uc.a.run.app/` | `sa-app` runtime | Protected by Identity-Aware Proxy (IAP). 404 at `/` is expected. |
-| Next.js Analyst Console | Analyst portal | `https://i4g-console-y5jge5w2cq-uc.a.run.app/` | `sa-app` runtime | Protected by IAP; uses FastAPI APIs under the hood. |
+| Service                 | Purpose                         | URL (dev)                                          | IAM Owner        | Notes                                                            |
+| ----------------------- | ------------------------------- | -------------------------------------------------- | ---------------- | ---------------------------------------------------------------- |
+| FastAPI Gateway         | API for intake, review, reports | `https://fastapi-gateway-y5jge5w2cq-uc.a.run.app/` | `sa-app` runtime | Protected by Identity-Aware Proxy (IAP). 404 at `/` is expected. |
+| Next.js Analyst Console | Analyst portal                  | `https://i4g-console-y5jge5w2cq-uc.a.run.app/`     | `sa-app` runtime | Protected by IAP; uses FastAPI APIs under the hood.              |
 
 All application services currently reuse the shared runtime service account (`sa-app`). Terraform now owns both the Cloud Run `roles/run.invoker` binding (runtime + IAP service agent) and the IAP `roles/iap.httpsResourceAccessor` policy via the `i4g_analyst_members` input, which now points at the Workspace group `group:gcp-i4g-analyst@intelligenceforgood.org`. Project-level `roles/owner` grants flow through the sister variable `i4g_admin_members`, mapped to `group:gcp-i4g-admin@intelligenceforgood.org`.
 
@@ -47,24 +47,28 @@ All application services currently reuse the shared runtime service account (`sa
 Authentication operates at two distinct layers:
 
 **Infrastructure layer — IAP via Load Balancer (production)**
+
 - **Global External Load Balancer (ALB)**: We use a Global ALB as the single ingress point for `app.intelligenceforgood.org` and `api.intelligenceforgood.org`.
-- **Identity-Aware Proxy (IAP)**: Enabled on the ALB's backend services. This enforces authentication *before* traffic reaches Cloud Run.
+- **Identity-Aware Proxy (IAP)**: Enabled on the ALB's backend services. This enforces authentication _before_ traffic reaches Cloud Run.
 - **Cloud Run Configuration**: Services are deployed with `--allow-unauthenticated` (to accept traffic from the LB), but the LB is the only path that users can traverse. (Future hardening: use "Ingress: Internal and Cloud Load Balancing" to strictly block direct access).
 - **Browser experience**: Users hit `https://app.intelligenceforgood.org`, are redirected to Google Sign-In by the LB/IAP, and upon success, the request is forwarded to Cloud Run with `X-Goog-Authenticated-User-Email`.
-- **Access Control**: Terraform manages the `roles/iap.httpsResourceAccessor` binding on the *Backend Service*, granting access to `group:gcp-i4g-analyst@intelligenceforgood.org`.
+- **Access Control**: Terraform manages the `roles/iap.httpsResourceAccessor` binding on the _Backend Service_, granting access to `group:gcp-i4g-analyst@intelligenceforgood.org`.
 
 **Application layer — API-key tokens (prototype)**
+
 - The FastAPI application currently uses a lightweight `X-API-KEY` header-based mechanism defined in `src/i4g/api/auth.py`. This is an **MVP stub** — two hardcoded tokens (`dev-analyst-token`, `dev-admin-token`) map to roles (`analyst`, `admin`).
 - Protected endpoints use the `require_token` or `require_role("analyst")` FastAPI dependencies.
 - **This layer does NOT verify IAP headers or Google identity.** It exists to enable local development and testing without requiring IAP. In production, IAP provides the real perimeter authentication; the API-key layer is defense-in-depth until it is replaced with IAP header verification (Phase 1 roadmap item).
 - **Action item:** Replace the hardcoded token map with IAP JWT verification and map `X-Goog-Authenticated-User-Email` to application-level roles.
 
 ### 4.2 Medium-Term Enhancements (in parallel)
+
 - Replace per-user bindings with Google Group bindings (`group:gcp-i4g-analyst@intelligenceforgood.org`, `group:gcp-i4g-leo@intelligenceforgood.org`) so onboarding/offboarding requires only Workspace group membership changes.
 - Add device-based checks by pairing IAP with BeyondCorp Enterprise or Context-Aware Access policies (post-Milestone 3).
 - Introduce per-persona Cloud Run services, each with its own IAP policy and rate limits, to isolate analyst vs. LEO experiences.
 
 ### 4.3 Future-State Principles
+
 - **Role-specific endpoints:** separate Cloud Run services (or distinct URL paths) for Victim, Analyst, and LEO experiences, each with unique IAM claims and throttling settings.
 - **VPN / Zero-Trust Network Access for Analysts:** use BeyondCorp Enterprise, Cloud VPN + Identity-Aware Proxy, or another certificate-based solution. Documented as TBD; decision deferred until load justifies the investment.
 - **Non-Google identity options:** evaluate passkeys or external IdPs (Auth0 for Nonprofits, Okta) to accommodate victims without Google accounts.
@@ -74,7 +78,7 @@ Authentication operates at two distinct layers:
 ## 5. Authorization & Service Accounts
 
 1. **Runtime Service Accounts**
-   - `sa-app`: shared by FastAPI and the Next.js analyst console. Roles: `roles/datastore.user`, `roles/storage.objectViewer`, `roles/secretmanager.secretAccessor`, `roles/run.invoker` (self), `roles/logging.logWriter`, plus Discovery search role.
+   - `sa-app`: shared by FastAPI and the Next.js analyst console. Roles: `roles/storage.objectViewer`, `roles/secretmanager.secretAccessor`, `roles/run.invoker` (self), `roles/logging.logWriter`, `roles/cloudsql.client`, plus Discovery search role.
    - `sa-ingest`, `sa-report`, `sa-vault`, `sa-infra`: keep existing least-privilege grants (see Terraform modules).
 
 2. **Workspace Groups & Human Roles**
@@ -83,7 +87,7 @@ Authentication operates at two distinct layers:
    - Law-enforcement and partner cohorts will receive their own Google Groups before we ship those personas.
 
 3. **Cloud Run + IAP Policy Management**
-   - Terraform now manages both the Cloud Run `roles/run.invoker` binding (runtime service account + IAP service agent + any extra service accounts) *and* the IAP `roles/iap.httpsResourceAccessor` policy for each service. Both derive from `i4g_analyst_members` plus optional per-service overrides.
+   - Terraform now manages both the Cloud Run `roles/run.invoker` binding (runtime service account + IAP service agent + any extra service accounts) _and_ the IAP `roles/iap.httpsResourceAccessor` policy for each service. Both derive from `i4g_analyst_members` plus optional per-service overrides.
    - Requirement: maintain this list via tfvars or Google Groups; avoid manual IAM edits so Terraform remains authoritative.
 
 4. **Data Plane Permissions**
@@ -104,41 +108,44 @@ Authentication operates at two distinct layers:
 IAP is now the ingress layer for every Cloud Run HTTPS endpoint. The helper SPA has been removed; instead, analysts hit the standard Cloud Run URLs and IAP gates access.
 
 ### 6.1 Terraform-managed configuration
+
 - `infra/modules/iap/project` wires project-level access defaults (allowed domains, HTTP OPTIONS). When `iap_manage_brand=true` (only possible if the project belongs to an organization), it will also create/manage the brand; otherwise it simply reuses the manually created brand name.
 - `infra/modules/iap/cloud_run_service` always manages the `roles/iap.httpsResourceAccessor` bindings derived from `i4g_analyst_members`. When `iap_manage_clients=true`, it additionally creates per-service OAuth clients and Secret Manager entries; for standalone projects we leave this disabled and rely on Google’s default IAP client.
 - Every environment now requires the following tfvars before planning:
-   - `iap_support_email` — verified Workspace/Gmail address (only used when managing the brand but kept for parity).
-   - `iap_application_title` *(optional)* — consent screen title.
-   - `iap_manage_brand`, `iap_existing_brand_name`, `iap_manage_clients` *(optional)* — feature toggles described above.
-   - `iap_secret_replication_locations` *(optional)* — list of regions for the stored secrets (defaults to the Cloud Run region).
+  - `iap_support_email` — verified Workspace/Gmail address (only used when managing the brand but kept for parity).
+  - `iap_application_title` _(optional)_ — consent screen title.
+  - `iap_manage_brand`, `iap_existing_brand_name`, `iap_manage_clients` _(optional)_ — feature toggles described above.
+  - `iap_secret_replication_locations` _(optional)_ — list of regions for the stored secrets (defaults to the Cloud Run region).
 - Terraform automatically grants Cloud Run `roles/run.invoker` to the shared runtime service account plus the IAP service agent so the proxy can reach the backend. Only service-to-service callers should be added via the legacy `*_invoker_members` variables.
 - Outputs (`terraform output iap`) expose the brand name plus optional OAuth client metadata (null until `iap_manage_clients=true`).
 - Drift management: rerun `terraform plan -var-file=terraform.tfvars` whenever group membership changes to confirm the policy is still aligned; record ad-hoc manual bindings in `planning/change_log.md`.
 
 ### 6.2 Manual overrides / break-glass
+
 Terraform is the source of truth, but if we need an emergency change before a plan/apply cycle finishes, use the stock `gcloud` commands:
 
 1. **Enable IAP for a service** (only if Terraform hasn’t already done so):
-      ```bash
-      gcloud iap web enable \
-         --resource-type=run \
-         --service=i4g-console \
-         --project=i4g-dev \
-         --region=us-central1
-      ```
+   ```bash
+   gcloud iap web enable \
+      --resource-type=run \
+      --service=i4g-console \
+      --project=i4g-dev \
+      --region=us-central1
+   ```
 2. **Grant access to a group or user** (remember to capture the change in `planning/change_log.md` and back-port to Terraform tfvars):
-      ```bash
-      gcloud iap web add-iam-policy-binding \
-         --resource-type=run \
-         --service=i4g-console \
-         --project=i4g-dev \
-         --region=us-central1 \
-         --member=group:gcp-i4g-analyst@intelligenceforgood.org \
-         --role=roles/iap.httpsResourceAccessor
-      ```
+   ```bash
+   gcloud iap web add-iam-policy-binding \
+      --resource-type=run \
+      --service=i4g-console \
+      --project=i4g-dev \
+      --region=us-central1 \
+      --member=group:gcp-i4g-analyst@intelligenceforgood.org \
+      --role=roles/iap.httpsResourceAccessor
+   ```
 3. **Repeat for FastAPI** as needed; Terraform will reconcile the bindings on the next apply.
 
 ### 6.3 Consuming identity inside the app
+
 - **Current state (MVP):** The FastAPI application uses `X-API-KEY` header tokens validated by `src/i4g/api/auth.py`. This provides role-based access control (`analyst`, `admin`) via the `require_token` and `require_role()` dependencies. See §4.1 for details.
 - **Target state:** FastAPI should trust IAP headers (`X-Goog-Authenticated-User-Email`) for lightweight auditing and map the authenticated email to application roles. If cryptographic verification is needed, enable signed headers in IAP and verify the JWT using the documented audience.
 - Command-line scripts can continue to call Cloud Run directly with `gcloud auth print-identity-token` as long as the caller account is part of the IAP policy.
@@ -147,14 +154,15 @@ Terraform is the source of truth, but if we need an emergency change before a pl
 
 ## 7. Future IAM Roadmap
 
-| Phase | Timeline (est.) | Deliverables |
-| --- | --- | --- |
-| **Phase 0 (Now)** | Dec 2025 | Publish this IAM strategy, remove the Quick Auth helper, gate every Cloud Run service behind Terraform-managed IAP, document troubleshooting. |
-| **Phase 1** | Q1 2026 | Integrate GIS + Authorization headers directly into the Next.js UI; remove reliance on GAIA cookies; add low-risk law-enforcement read-only views. |
-| **Phase 2** | Q2 2026 | Introduce role-specific Cloud Run services (victim intake, analyst tools, LEO portal). Enforce analyst access through VPN/Zero-Trust access, log device posture, and expand auditing. |
-| **Phase 3** | Q3 2026 | Evaluate non-Google identity options (passkeys, Auth0 for Nonprofits), finalize automation for IAM drift detection, and implement signed report attestations for legal workflows. |
+| Phase             | Timeline (est.) | Deliverables                                                                                                                                                                          |
+| ----------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Phase 0 (Now)** | Dec 2025        | Publish this IAM strategy, remove the Quick Auth helper, gate every Cloud Run service behind Terraform-managed IAP, document troubleshooting.                                         |
+| **Phase 1**       | Q1 2026         | Integrate GIS + Authorization headers directly into the Next.js UI; remove reliance on GAIA cookies; add low-risk law-enforcement read-only views.                                    |
+| **Phase 2**       | Q2 2026         | Introduce role-specific Cloud Run services (victim intake, analyst tools, LEO portal). Enforce analyst access through VPN/Zero-Trust access, log device posture, and expand auditing. |
+| **Phase 3**       | Q3 2026         | Evaluate non-Google identity options (passkeys, Auth0 for Nonprofits), finalize automation for IAM drift detection, and implement signed report attestations for legal workflows.     |
 
 Open questions to track:
+
 1. Which VPN / ZTNA solution best balances cost and volunteer usability? (BeyondCorp, AppGate, Cloudflare Zero Trust, etc.)
 2. How do we onboard law-enforcement partners who cannot use Google accounts? Need alternative IdP integration plan.
 3. What compliance requirements (CJIS, HIPAA, etc.) apply, and how do they influence log retention and MFA policies?
@@ -177,4 +185,4 @@ Open questions to track:
 - `docs/book/api/authentication.md` — references this file for authoritative instructions.
 - `infra/` Terraform modules (`iam/`, `run/service`) — enforce the described policies.
 
-*End of document.*
+_End of document._
