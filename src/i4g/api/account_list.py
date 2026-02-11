@@ -11,6 +11,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from i4g.api.camel import CamelModel
+
 try:
     from google.cloud import storage as gcs_storage
 except ImportError:
@@ -33,7 +35,7 @@ _REQUESTER_HEADERS = (
 _AUDIT_ACTION = "account_list_run"
 
 
-class AccountListRunSummary(BaseModel):
+class AccountListRunSummary(CamelModel):
     """Serialized audit summary for a prior account list run."""
 
     request_id: str
@@ -48,7 +50,7 @@ class AccountListRunSummary(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-class AccountListRunResponse(BaseModel):
+class AccountListRunResponse(CamelModel):
     """Envelope returned by the run-history endpoint."""
 
     runs: List[AccountListRunSummary]

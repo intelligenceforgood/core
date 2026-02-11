@@ -10,7 +10,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from i4g.api.camel import CamelModel
 
 
 # ---------------------------------------------------------------------------
@@ -18,27 +20,27 @@ from pydantic import BaseModel, Field
 # ---------------------------------------------------------------------------
 
 
-class ItemListResponse(BaseModel):
+class ItemListResponse(CamelModel):
     """Paginated list wrapper used by several list endpoints."""
 
     items: List[Dict[str, Any]]
     count: int
 
 
-class EventListResponse(BaseModel):
+class EventListResponse(CamelModel):
     """Wrapper for event/action history lists."""
 
     events: List[Dict[str, Any]]
     count: int
 
 
-class IdResponse(BaseModel):
+class IdResponse(CamelModel):
     """Single-ID confirmation used by create / share / import endpoints."""
 
     search_id: str
 
 
-class MutationResponse(BaseModel):
+class MutationResponse(CamelModel):
     """Generic update/delete confirmation."""
 
     updated: Optional[bool] = None
@@ -46,7 +48,7 @@ class MutationResponse(BaseModel):
     search_id: Optional[str] = None
 
 
-class BulkTagResponse(BaseModel):
+class BulkTagResponse(CamelModel):
     """Result of a bulk tag update."""
 
     updated: int
@@ -57,7 +59,7 @@ class BulkTagResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class TaskStatusResponse(BaseModel):
+class TaskStatusResponse(CamelModel):
     """Background task status."""
 
     task_id: str
@@ -65,14 +67,14 @@ class TaskStatusResponse(BaseModel):
     message: Optional[str] = None
 
 
-class TaskUpdateResponse(BaseModel):
+class TaskUpdateResponse(CamelModel):
     """Confirmation of a task status update."""
 
     task_id: str
     updated: bool
 
 
-class ReportTriggerResponse(BaseModel):
+class ReportTriggerResponse(CamelModel):
     """Result of triggering report generation."""
 
     status: str
@@ -84,35 +86,35 @@ class ReportTriggerResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class EnqueueResponse(BaseModel):
+class EnqueueResponse(CamelModel):
     """Result of enqueuing a case for review."""
 
     review_id: str
     case_id: str
 
 
-class ClaimResponse(BaseModel):
+class ClaimResponse(CamelModel):
     """Result of claiming a review."""
 
     review_id: str
     status: str
 
 
-class AnnotateResponse(BaseModel):
+class AnnotateResponse(CamelModel):
     """Result of annotating a review."""
 
     review_id: str
     annotated: bool
 
 
-class FeedbackResponse(BaseModel):
+class FeedbackResponse(CamelModel):
     """Result of submitting feedback."""
 
     review_id: str
     feedback_recorded: bool
 
 
-class DecisionResponse(BaseModel):
+class DecisionResponse(CamelModel):
     """Result of making a decision on a review."""
 
     review_id: str
@@ -124,7 +126,7 @@ class DecisionResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class CaseReviewsResponse(BaseModel):
+class CaseReviewsResponse(CamelModel):
     """Reviews associated with a case."""
 
     case_id: str
@@ -132,7 +134,7 @@ class CaseReviewsResponse(BaseModel):
     count: int
 
 
-class ActionHistoryResponse(BaseModel):
+class ActionHistoryResponse(CamelModel):
     """Audit trail for a review."""
 
     review_id: str
@@ -144,7 +146,7 @@ class ActionHistoryResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class SearchResultsResponse(BaseModel):
+class SearchResultsResponse(CamelModel):
     """Response from GET /reviews/search."""
 
     results: List[Dict[str, Any]]
@@ -161,7 +163,7 @@ class SearchResultsResponse(BaseModel):
     duration_ms: Optional[float] = None
 
 
-class AdvancedSearchResultsResponse(BaseModel):
+class AdvancedSearchResultsResponse(CamelModel):
     """Response from POST /reviews/search/query.
 
     Extends the raw hybrid search result with a search_id.
@@ -176,7 +178,7 @@ class AdvancedSearchResultsResponse(BaseModel):
     total: Optional[int] = None
 
 
-class SearchSchemaResponse(BaseModel):
+class SearchSchemaResponse(CamelModel):
     """Dynamic filter schema returned by GET /reviews/search/schema.
 
     Uses ``extra = "allow"`` because the schema is dynamic.
@@ -188,7 +190,7 @@ class SearchSchemaResponse(BaseModel):
     campaigns: Optional[List[Dict[str, Any]]] = None
 
 
-class PresetListResponse(BaseModel):
+class PresetListResponse(CamelModel):
     """List of tag presets."""
 
     presets: List[Dict[str, Any]]
@@ -200,7 +202,7 @@ class PresetListResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class TokenizeResponse(BaseModel):
+class TokenizeResponse(CamelModel):
     """Result of tokenizing a PII value."""
 
     token: str
@@ -210,7 +212,7 @@ class TokenizeResponse(BaseModel):
     pepper_version: int
 
 
-class DetokenizeResponse(BaseModel):
+class DetokenizeResponse(CamelModel):
     """Result of detokenizing a token."""
 
     token: str
@@ -222,7 +224,7 @@ class DetokenizeResponse(BaseModel):
     created_at: Optional[str] = None
 
 
-class TokenizationHealthResponse(BaseModel):
+class TokenizationHealthResponse(CamelModel):
     """Tokenization readiness check."""
 
     pepper_configured: bool
@@ -235,7 +237,7 @@ class TokenizationHealthResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class IntakeCreateResponse(BaseModel):
+class IntakeCreateResponse(CamelModel):
     """Result of creating a new intake."""
 
     intake_id: str
@@ -245,21 +247,21 @@ class IntakeCreateResponse(BaseModel):
     job: Optional[Dict[str, Any]] = None
 
 
-class IntakeJobUpdateResponse(BaseModel):
+class IntakeJobUpdateResponse(CamelModel):
     """Confirmation of intake job status update."""
 
     updated: bool
     job_id: str
 
 
-class IntakeStatusUpdateResponse(BaseModel):
+class IntakeStatusUpdateResponse(CamelModel):
     """Confirmation of intake status update."""
 
     updated: bool
     intake_id: str
 
 
-class IntakeCaseAttachResponse(BaseModel):
+class IntakeCaseAttachResponse(CamelModel):
     """Confirmation of attaching case metadata to intake."""
 
     updated: bool
@@ -273,7 +275,7 @@ class IntakeCaseAttachResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class VerifyArtifact(BaseModel):
+class VerifyArtifact(CamelModel):
     """Single artifact in a dossier verification result."""
 
     label: str
@@ -286,7 +288,7 @@ class VerifyArtifact(BaseModel):
     error: Optional[str] = None
 
 
-class DossierVerifyResponse(BaseModel):
+class DossierVerifyResponse(CamelModel):
     """Result of verifying a dossier's artifacts."""
 
     plan_id: str
@@ -298,7 +300,7 @@ class DossierVerifyResponse(BaseModel):
     artifacts: List[VerifyArtifact]
 
 
-class DriveAclResponse(BaseModel):
+class DriveAclResponse(CamelModel):
     """Drive folder metadata + permissions."""
 
     plan_id: str
@@ -315,7 +317,7 @@ class DriveAclResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class DashboardMetric(BaseModel):
+class DashboardMetric(CamelModel):
     """Single metric card on the dashboard."""
 
     label: str
@@ -323,7 +325,7 @@ class DashboardMetric(BaseModel):
     change: str
 
 
-class DashboardActivity(BaseModel):
+class DashboardActivity(CamelModel):
     """Recent activity entry."""
 
     id: str
@@ -332,7 +334,7 @@ class DashboardActivity(BaseModel):
     when: str
 
 
-class DashboardAlert(BaseModel):
+class DashboardAlert(CamelModel):
     """Alert card on the dashboard."""
 
     id: str
@@ -342,7 +344,7 @@ class DashboardAlert(BaseModel):
     variant: str
 
 
-class DashboardReminder(BaseModel):
+class DashboardReminder(CamelModel):
     """Reminder item on the dashboard."""
 
     id: str
@@ -350,7 +352,7 @@ class DashboardReminder(BaseModel):
     category: str
 
 
-class DashboardOverviewResponse(BaseModel):
+class DashboardOverviewResponse(CamelModel):
     """Complete dashboard overview payload."""
 
     metrics: List[DashboardMetric]
@@ -364,7 +366,7 @@ class DashboardOverviewResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class AnalyticsMetric(BaseModel):
+class AnalyticsMetric(CamelModel):
     """Single analytics metric with trend info."""
 
     id: str
@@ -374,21 +376,21 @@ class AnalyticsMetric(BaseModel):
     trend: str
 
 
-class DailySeries(BaseModel):
+class DailySeries(CamelModel):
     """Daily data point for time series."""
 
     label: str
     value: int
 
 
-class PipelineStep(BaseModel):
+class PipelineStep(CamelModel):
     """Step in the pipeline breakdown."""
 
     label: str
     value: int
 
 
-class WeeklyIncident(BaseModel):
+class WeeklyIncident(CamelModel):
     """Weekly incident/intervention data point."""
 
     week: str
@@ -396,21 +398,21 @@ class WeeklyIncident(BaseModel):
     interventions: int
 
 
-class GeographyBreakdown(BaseModel):
+class GeographyBreakdown(CamelModel):
     """Regional breakdown data point."""
 
     region: str
     value: int
 
 
-class AnalyticsOverviewResponse(BaseModel):
+class AnalyticsOverviewResponse(CamelModel):
     """Complete analytics overview payload."""
 
     metrics: List[AnalyticsMetric]
-    detectionRateSeries: List[DailySeries]
-    pipelineBreakdown: List[PipelineStep]
-    geographyBreakdown: List[GeographyBreakdown]
-    weeklyIncidents: List[WeeklyIncident]
+    detection_rate_series: List[DailySeries]
+    pipeline_breakdown: List[PipelineStep]
+    geography_breakdown: List[GeographyBreakdown]
+    weekly_incidents: List[WeeklyIncident]
 
 
 # ---------------------------------------------------------------------------
@@ -418,7 +420,7 @@ class AnalyticsOverviewResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-class DiscoveryResult(BaseModel):
+class DiscoveryResult(CamelModel):
     """Single Discovery search result."""
 
     model_config = {"extra": "allow"}
@@ -427,7 +429,7 @@ class DiscoveryResult(BaseModel):
     document_name: Optional[str] = None
 
 
-class DiscoverySearchResponse(BaseModel):
+class DiscoverySearchResponse(CamelModel):
     """Response from Discovery search."""
 
     results: List[Dict[str, Any]]

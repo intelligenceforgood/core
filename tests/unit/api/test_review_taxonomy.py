@@ -46,7 +46,7 @@ def test_enqueue_with_taxonomy(client):
     response = client.post("/reviews/", json=payload)
     assert response.status_code == 200
     data = response.json()
-    review_id = data["review_id"]
+    review_id = data["reviewId"]
 
     # Verify persistence
     response = client.get(f"/reviews/{review_id}")

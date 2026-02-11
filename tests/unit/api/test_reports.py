@@ -222,8 +222,8 @@ def test_drive_acl_endpoint_returns_acl(tmp_path, queue_store, monkeypatch) -> N
 
     assert response.status_code == 200
     body = response.json()
-    assert body["folder_id"] == "drive-folder"
-    assert body["folder_name"] == "LEA Shared"
+    assert body["folderId"] == "drive-folder"
+    assert body["folderName"] == "LEA Shared"
     assert body["permissions"][0]["role"] == "reader"
     assert body["warnings"] == ["cached"]
 

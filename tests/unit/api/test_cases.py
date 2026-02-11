@@ -17,8 +17,8 @@ def test_get_case_detail_success():
     assert data["id"] == case_id
     assert "artifacts" in data
     assert "timeline" in data
-    assert "graph_nodes" in data
-    assert "graph_links" in data
+    assert "graphNodes" in data
+    assert "graphLinks" in data
 
     # Check specific mock data structure
     assert len(data["artifacts"]) >= 2

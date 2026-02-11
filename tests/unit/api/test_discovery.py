@@ -69,7 +69,7 @@ def test_discovery_search_fallback_on_config_error(mock_get_params, mock_run_sea
 
     assert response.status_code == 200
     data = response.json()
-    assert data["total_size"] == 1
+    assert data["totalSize"] == 1
     assert len(data["results"]) == 1
     mock_local_search.assert_called_once()
 
@@ -89,7 +89,7 @@ def test_discovery_search_fallback_on_runtime_error(mock_get_params, mock_run_se
 
     assert response.status_code == 200
     data = response.json()
-    assert data["total_size"] == 1
+    assert data["totalSize"] == 1
     assert len(data["results"]) == 1
     mock_local_search.assert_called_once()
 

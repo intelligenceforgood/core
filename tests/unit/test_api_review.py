@@ -75,7 +75,7 @@ def test_enqueue_and_list_queue():
     r = client.post("/reviews/", json=payload, headers=headers)
     assert r.status_code == 200
     body = r.json()
-    assert body["review_id"] == "rev-1"
+    assert body["reviewId"] == "rev-1"
 
     r2 = client.get("/reviews/queue", headers=headers)
     assert r2.status_code == 200
@@ -166,14 +166,14 @@ def test_search_cases_returns_combined_results():
     assert payload["limit"] == 4
     # Total is now the count of filtered items, not the raw total from retriever
     assert payload["total"] == 2
-    assert payload["vector_hits"] == mock_retriever.query.return_value["vector_hits"]
-    assert payload["structured_hits"] == mock_retriever.query.return_value["structured_hits"]
-    assert "merged_results" in payload
-    assert "source_breakdown" in payload
+    assert payload["vectorHits"] == mock_retriever.query.return_value["vector_hits"]
+    assert payload["structuredHits"] == mock_retriever.query.return_value["structured_hits"]
+    assert "mergedResults" in payload
+    assert "sourceBreakdown" in payload
     counts = payload["diagnostics"]["counts"]
-    assert payload["merged_results"] == counts.get("merged_results")
-    assert payload["source_breakdown"] == counts.get("source_breakdown")
-    assert payload["search_id"].startswith("search:")
+    assert payload["mergedResults"] == counts.get("merged_results")
+    assert payload["sourceBreakdown"] == counts.get("source_breakdown")
+    assert payload["searchId"].startswith("search:")
     assert payload["results"][0]["case_id"] == "CASE-A"
     mock_retriever.query.assert_called_once_with(
         text="wallet",
@@ -206,7 +206,7 @@ def test_reviews_by_case_endpoint():
     assert r.status_code == 200
     body = r.json()
     assert body["count"] == 2
-    assert body["case_id"] == "CASE-A"
+    assert body["caseId"] == "CASE-A"
     mock_store.get_reviews_by_case.assert_called_once_with(case_id="CASE-A", limit=2)
 
     app.dependency_overrides = {}
@@ -318,7 +318,7 @@ def test_saved_search_crud():
     assert saved_params["structured_limit"] == expected_limit
 
     r_json = r.json()
-    assert "search_id" in r_json
+    assert "searchId" in r_json
 
     mock_store.list_saved_searches.return_value = [
         {
@@ -430,7 +430,7 @@ def test_share_saved_search_endpoint():
     headers = {"X-API-KEY": "dev-analyst-token"}
     r = client.post("/reviews/search/saved/saved:123/share", headers=headers)
     assert r.status_code == 200
-    assert r.json()["search_id"] == "saved:shared"
+    assert r.json()["searchId"] == "saved:shared"
     mock_store.clone_saved_search.assert_called_once_with("saved:123", target_owner=None)
 
     app.dependency_overrides = {}

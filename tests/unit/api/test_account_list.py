@@ -182,7 +182,7 @@ def test_list_account_runs_returns_audit_entries(monkeypatch):
     assert response.status_code == 200
     payload = response.json()
     assert payload["count"] == 1
-    assert payload["runs"][0]["request_id"] == "account-run-1234"
+    assert payload["runs"][0]["requestId"] == "account-run-1234"
     assert payload["runs"][0]["artifacts"]["pdf"].endswith("report.pdf")
     assert store_calls == [{"action": "account_list_run", "limit": 20}]
 

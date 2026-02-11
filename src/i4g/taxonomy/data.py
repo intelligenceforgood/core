@@ -5,7 +5,7 @@ from typing import Any, Dict
 TAXONOMY_DEFINITIONS: Dict[str, Any] = {
     "version": "1.0",
     "steward": "Policy & Standards Team",
-    "updatedAt": "2026-01-10T22:08:08.880839Z",
+    "updatedAt": "2026-02-11T20:45:33.980007+00:00Z",
     "axes": [
         {
             "id": "intents",

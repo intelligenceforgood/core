@@ -4,11 +4,12 @@ import json
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from i4g.api.auth import require_token
+from i4g.api.camel import CamelModel
 from i4g.services.factories import build_review_store
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ router = APIRouter(prefix="/cases", tags=["cases"], dependencies=[Depends(requir
 # --- Schemas ---
 
 
-class CaseArtifact(BaseModel):
+class CaseArtifact(CamelModel):
     id: str
     type: str = Field(..., description="Type of artifact (document, image, etc.)")
     name: str = Field(..., description="Display name of the artifact")
@@ -26,7 +27,7 @@ class CaseArtifact(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-class CaseTimelineEvent(BaseModel):
+class CaseTimelineEvent(CamelModel):
     id: str
     timestamp: datetime
     description: str
@@ -34,14 +35,14 @@ class CaseTimelineEvent(BaseModel):
     type: str = Field(..., description="Type of event (comment, status_change, alert)")
 
 
-class CaseGraphNode(BaseModel):
+class CaseGraphNode(CamelModel):
     id: str
     label: str
     type: str
     data: Dict[str, Any] = Field(default_factory=dict)
 
 
-class CaseGraphLink(BaseModel):
+class CaseGraphLink(CamelModel):
     source: str
     target: str
     relation: str
@@ -52,7 +53,7 @@ CaseStatus = Literal["new", "in_review", "awaiting_input", "closed", "accepted",
 CasePriority = Literal["critical", "high", "medium", "low"]
 
 
-class CaseDetail(BaseModel):
+class CaseDetail(CamelModel):
     """Detailed view of a case for the investigation workspace."""
 
     id: str
@@ -60,13 +61,11 @@ class CaseDetail(BaseModel):
     status: CaseStatus
     priority: CasePriority
     assignee: Optional[str] = None
-    updatedAt: Optional[str] = (
-        None  # Keeping string to match existing dict style for simplicity, or should ideally parse
-    )
+    updated_at: Optional[str] = None
     queue: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
     progress: Optional[int] = None
-    dueAt: Optional[str] = None
+    due_at: Optional[str] = None
     classification: Optional[Dict[str, Any]] = Field(
         None,
         description="Fraud classification result (intent, channel, techniques, actions, persona, risk_score, etc.)",

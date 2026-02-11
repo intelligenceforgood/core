@@ -20,6 +20,11 @@ router = APIRouter(prefix="/discovery", tags=["discovery"], dependencies=[Depend
 SETTINGS = get_settings()
 
 
+def _allow_local_fallback() -> bool:
+    """Return True when the discovery endpoint should fall back to local search on failure."""
+    return SETTINGS.is_local or SETTINGS.identity.disable_auth
+
+
 def _local_discovery_search(query: str, limit: int, offset: int = 0) -> Dict[str, Any]:
     """Use local HybridSearchService to simulate Discovery results."""
     # Raise errors directly if local search fails
@@ -100,7 +105,8 @@ def discovery_search(
             query=query, page_size=page_size, page_token=page_token, offset=effective_offset
         )
     except RuntimeError as exc:  # pragma: no cover - configuration errors surface to clients
-        if SETTINGS.is_local:
+        if _allow_local_fallback():
+            logger.info("Discovery config unavailable, falling back to local search")
             return _local_discovery_search(query, page_size, effective_offset)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -120,7 +126,8 @@ def discovery_search(
     try:
         return run_discovery_search(params)
     except RuntimeError as exc:  # pragma: no cover - surfaces backend errors
-        if SETTINGS.is_local:
+        if _allow_local_fallback():
+            logger.info("Discovery search failed, falling back to local search: %s", exc)
             return _local_discovery_search(query, page_size, effective_offset)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

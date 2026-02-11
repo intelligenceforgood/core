@@ -51,10 +51,10 @@ def test_submit_and_track_intake(tmp_path):
     response = client.post("/intakes/", data={"payload": json.dumps(payload)}, files=files, headers=API_KEY)
     assert response.status_code == 201
     data = response.json()
-    assert "intake_id" in data
-    assert "job_id" in data
-    intake_id = data["intake_id"]
-    job_id = data["job_id"]
+    assert "intakeId" in data
+    assert "jobId" in data
+    intake_id = data["intakeId"]
+    job_id = data["jobId"]
 
     detail_resp = client.get(f"/intakes/{intake_id}", headers=API_KEY)
     assert detail_resp.status_code == 200

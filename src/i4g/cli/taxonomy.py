@@ -110,41 +110,20 @@ def generate_taxonomy_data(data: Dict[str, Any]):
 def generate_typescript_interfaces(data: Dict[str, Any]):
     lines = [
         "/**",
-        " * Fraud Taxonomy Interfaces",
-        f' * Version: fraud-taxonomy.v{data["version"]}',
+        " * Fraud Taxonomy Types",
         " *",
-        " * Auto-generated from definitions.yaml. DO NOT EDIT.",
+        " * Re-exported from @i4g/sdk (canonical source).",
+        " * The SDK Zod schemas are the single source of truth; these re-exports",
+        " * are provided for convenience so that consumers can import from either",
+        " * @i4g/sdk or @i4g/types.",
         " */",
-        "",
-        "export interface TaxonomyItem {",
-        "  code: string;",
-        "  label: string;",
-        "  description: string;",
-        "  examples: string[];",
-        "}",
-        "",
-        "export interface TaxonomyAxis {",
-        "  id: string;",
-        "  label: string;",
-        "  description: string;",
-        "  items: TaxonomyItem[];",
-        "}",
-        "",
-        "export interface TaxonomyDefinitions {",
-        "  version: string;",
-        "  steward: string;",
-        "  updatedAt: string;",
-        "  axes: TaxonomyAxis[];",
-        "}",
+        'export type {',
+        '  TaxonomyItem,',
+        '  TaxonomyAxis,',
+        '  TaxonomyResponse as TaxonomyDefinitions,',
+        '} from "@i4g/sdk";',
         "",
     ]
-
-    # Check if we still need these for backward compatibility in the short term,
-    # but based on the request "removing the frontend code", we should probably NOT generate values.
-    # However, to avoid instant compilation errors for `ScamIntent.IMPOSTER`, we might want to generate
-    # const objects that map to the strings, OR we accept the breakage and fix it.
-    # The user asked to "help me do this refactor", implying I should fix the code.
-    # I will generate the interfaces ONLY, and then I will go fix the frontend code to use strings.
 
     # Ensure directory exists
     TS_ENUMS_PATH.parent.mkdir(parents=True, exist_ok=True)

@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from i4g.api.camel import CamelModel
+
 from i4g.api.auth import require_token
 from i4g.services.campaigns import CampaignService
 from i4g.store.sql import session_factory
@@ -30,7 +32,7 @@ def get_service(session: Session = Depends(get_db_session)) -> CampaignService:
     return CampaignService(session)
 
 
-class CampaignResponse(BaseModel):
+class CampaignResponse(CamelModel):
     id: str
     name: str
     description: Optional[str] = None
