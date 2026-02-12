@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import time
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -12,30 +11,24 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from i4g.services.factories import build_fraud_classifier
+from i4g.settings import get_settings
 from i4g.store import sql as sql_schema
 from i4g.store.sql import session_factory as default_session_factory
 from i4g.task_status import TaskStatusReporter
 from i4g.taxonomy.models import FraudClassificationResult
+from i4g.worker.logging import configure_job_logging
 
 LOGGER = logging.getLogger("i4g.worker.jobs.classification_sweeper")
 
 
-def _configure_logging() -> None:
-    """Configures the logging level based on environment variables."""
-    level_name = os.getenv("I4G_RUNTIME__LOG_LEVEL", "INFO").upper()
-    level = getattr(logging, level_name, logging.INFO)
-    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-
-
 def run() -> None:
     """Execute the classification sweeper job."""
-    _configure_logging()
+    settings = get_settings()
+    configure_job_logging(settings)
 
     start_time = time.time()
-    # Default execution limit is 55 mins (Cloud Run default timeout is usually 60m)
-    max_runtime_seconds = int(os.getenv("JOB_MAX_RUNTIME_SECONDS", "3300"))
-    # Lower default batch size to improve reliability with gemini-2.5-flash
-    batch_size = int(os.getenv("JOB_BATCH_SIZE", "20"))
+    max_runtime_seconds = settings.sweep.max_runtime_seconds
+    batch_size = settings.sweep.batch_size
 
     LOGGER.info(f"Starting classification sweeper (batch_size={batch_size}, timeout={max_runtime_seconds}s)")
 

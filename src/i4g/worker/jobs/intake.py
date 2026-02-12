@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import sys
 import urllib.parse
 from typing import Any, Dict, Optional
@@ -15,15 +14,9 @@ from google.oauth2 import id_token
 from i4g.services.intake import IntakeService
 from i4g.services.intake_job_runner import LocalPipelineIntakeJobRunner
 from i4g.settings import get_settings
+from i4g.worker.logging import configure_job_logging
 
 LOGGER = logging.getLogger("i4g.worker.jobs.intake")
-
-
-def _configure_logging() -> None:
-    """Configures the logging level based on environment variables."""
-    level_name = os.getenv("I4G_RUNTIME__LOG_LEVEL", "INFO").upper()
-    level = getattr(logging, level_name, logging.INFO)
-    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 
 def _safe_post(
@@ -185,7 +178,7 @@ def _process_via_api(intake_id: str, job_id: str, api_base: str, api_key: Option
 def main() -> int:
     """Entry point executed by the Cloud Run job container."""
 
-    _configure_logging()
+    configure_job_logging()
 
     try:
         settings = get_settings()

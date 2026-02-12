@@ -33,8 +33,12 @@ def mock_env():
         yield
 
 
-def test_get_default_discovery_params_uses_env(mock_env, mock_settings):
-    """Verify environment variables override settings."""
+def test_get_default_discovery_params_uses_env(mock_settings):
+    """Verify settings values are used to populate params."""
+    mock_settings.return_value.vector.vertex_ai_project = "env-project"
+    mock_settings.return_value.vector.vertex_ai_data_store = "env-store"
+    mock_settings.return_value.vector.vertex_ai_location = "global"
+    mock_settings.return_value.vector.vertex_ai_serving_config = "default_search"
     params = get_default_discovery_params("test query")
     assert params.project == "env-project"
     assert params.data_store_id == "env-store"

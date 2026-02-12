@@ -26,28 +26,9 @@ from i4g.services.ingest_payloads import prepare_ingest_payload
 from i4g.settings import get_settings
 from i4g.store.ingest import IngestPipeline
 from i4g.store.sql_writer import SqlWriterResult
+from i4g.worker.logging import configure_job_logging
 
 LOGGER = logging.getLogger("i4g.worker.jobs.ingest")
-
-
-def _configure_logging() -> None:
-    """Configures the logging level based on environment variables."""
-    level_name = os.getenv("I4G_RUNTIME__LOG_LEVEL", "INFO").upper()
-    level = getattr(logging, level_name, logging.INFO)
-    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-
-
-def _env_flag(name: str) -> Optional[bool]:
-    """Parses a boolean environment variable."""
-    raw = os.getenv(name)
-    if raw is None:
-        return None
-    normalized = raw.strip().lower()
-    if normalized in {"1", "true", "yes", "on"}:
-        return True
-    if normalized in {"0", "false", "no", "off"}:
-        return False
-    return None
 
 
 def _download_and_yield(blob: storage.Blob) -> Iterator[Dict[str, Any]]:
@@ -289,54 +270,30 @@ def _maybe_enqueue_retry(
 def main() -> int:
     """Entry point executed by the Cloud Run job container."""
 
-    _configure_logging()
-
     settings = get_settings()
+    configure_job_logging(settings)
 
-    dataset_override = os.getenv("I4G_INGEST__JSONL_PATH")
-    if dataset_override and dataset_override.startswith("gs://"):
-        dataset_path = dataset_override
+    dataset_path_str = str(settings.ingestion.dataset_path)
+    if dataset_path_str.startswith("gs://"):
+        dataset_path: str | Path = dataset_path_str
     else:
-        dataset_path = Path(dataset_override) if dataset_override else Path(settings.ingestion.dataset_path)
+        dataset_path = Path(settings.ingestion.dataset_path)
 
-    batch_limit_override = os.getenv("I4G_INGEST__BATCH_LIMIT")
-    try:
-        batch_limit = int(batch_limit_override) if batch_limit_override else settings.ingestion.batch_limit
-    except ValueError:
-        LOGGER.warning("Invalid batch limit override: %s", batch_limit_override)
-        batch_limit = settings.ingestion.batch_limit
-
-    rate_limit_delay = 0.0
-    rate_limit_override = os.getenv("I4G_INGEST__RATE_LIMIT_DELAY")
-    if rate_limit_override:
-        try:
-            rate_limit_delay = float(rate_limit_override)
-        except ValueError:
-            LOGGER.warning("Invalid rate limit override: %s", rate_limit_override)
+    batch_limit = settings.ingestion.batch_limit
+    rate_limit_delay = settings.ingestion.rate_limit_delay
 
     is_local = settings.env == "local"
 
-    dry_run_override = _env_flag("I4G_INGEST__DRY_RUN")
-    dry_run = dry_run_override if dry_run_override is not None else settings.ingestion.dry_run
-
-    reset_override = _env_flag("I4G_INGEST__RESET_VECTOR")
-    reset_vector = reset_override if reset_override is not None else settings.ingestion.reset_vector
-    vector_override = _env_flag("I4G_INGEST__ENABLE_VECTOR")
-    enable_vector = vector_override if vector_override is not None else settings.ingestion.enable_vector_store
-
-    vertex_override = _env_flag("I4G_INGEST__ENABLE_VERTEX")
-    if vertex_override is not None:
-        enable_vertex = vertex_override
-    else:
-        enable_vertex = False if is_local else settings.ingestion.enable_vertex
-
-    classification_override = _env_flag("I4G_INGEST__SKIP_CLASSIFICATION")
-    skip_classification = classification_override if classification_override is not None else False
+    dry_run = settings.ingestion.dry_run
+    reset_vector = settings.ingestion.reset_vector
+    enable_vector = settings.ingestion.enable_vector_store
+    enable_vertex = False if is_local else settings.ingestion.enable_vertex
+    skip_classification = settings.ingestion.skip_classification
 
     dataset_name = (
-        os.getenv("I4G_INGEST__DATASET_NAME")
-        or (dataset_path.stem if isinstance(dataset_path, Path) else "gcs_dataset")
-        or settings.ingestion.default_dataset
+        settings.ingestion.default_dataset
+        if settings.ingestion.default_dataset != "unknown"
+        else (dataset_path.stem if isinstance(dataset_path, Path) else "gcs_dataset")
     )
 
     tokenization_backend = settings.pii.backend

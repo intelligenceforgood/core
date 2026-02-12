@@ -3,6 +3,8 @@ from typing import Optional
 
 import typer
 
+from i4g.cli.bootstrap.dev.constants import DEFAULT_SMOKE_API_URL
+
 from . import runner as smoke
 
 smoke_app = typer.Typer(help="Run smoketests against local or remote services.")
@@ -105,7 +107,7 @@ def smoke_cloud_run(extra_args: Optional[list[str]] = typer.Argument(None)) -> N
 
     # Defaults preserved from the original script env fallbacks.
     resolved_api_url = (
-        api_url or os.getenv("I4G_SMOKE_API_URL") or "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app"
+        api_url or os.getenv("I4G_SMOKE_API_URL") or DEFAULT_SMOKE_API_URL
     ).rstrip("/")
     resolved_token = token or os.getenv("I4G_SMOKE_TOKEN") or "dev-analyst-token"
     resolved_project = project or os.getenv("I4G_SMOKE_PROJECT") or "i4g-dev"

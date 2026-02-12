@@ -22,6 +22,7 @@ from .constants import (
     DEFAULT_PROJECT,
     DEFAULT_REGION,
     DEFAULT_REPORT_DIR,
+    DEFAULT_SMOKE_API_URL,
     DEFAULT_WIF_SA,
     JobResult,
 )
@@ -104,7 +105,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--smoke-api-url",
-        default=os.getenv("I4G_SMOKE_API_URL", "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app"),
+        default=os.getenv("I4G_SMOKE_API_URL", DEFAULT_SMOKE_API_URL),
         help="API base URL for smoke (default: dev gateway).",
     )
     parser.add_argument(

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Sequence
@@ -41,13 +40,13 @@ class DiscoverySearchParams:
 
 
 def _load_defaults() -> DiscoveryDefaults:
-    """Resolve Discovery defaults from env vars + settings."""
+    """Resolve Discovery defaults from settings."""
 
     settings = get_settings()
-    project = os.getenv("I4G_VERTEX_SEARCH_PROJECT") or (settings.vector.vertex_ai_project or "")
-    location = os.getenv("I4G_VERTEX_SEARCH_LOCATION") or settings.vector.vertex_ai_location or "global"
-    data_store = os.getenv("I4G_VERTEX_SEARCH_DATA_STORE") or settings.vector.vertex_ai_data_store or ""
-    serving_config = os.getenv("I4G_VERTEX_SEARCH_SERVING_CONFIG") or "default_search"
+    project = settings.vector.vertex_ai_project or ""
+    location = settings.vector.vertex_ai_location or "global"
+    data_store = settings.vector.vertex_ai_data_store or ""
+    serving_config = settings.vector.vertex_ai_serving_config or "default_search"
 
     if not project or not data_store:
         raise RuntimeError(

@@ -9,7 +9,6 @@ implemented.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from i4g.pii.tokenization import TokenizationService
@@ -180,10 +179,10 @@ def build_vertex_writer(*, settings: "Settings" | None = None) -> VertexDocument
     """Instantiate a Vertex document writer honoring current settings/env."""
 
     resolved = settings or get_settings()
-    project = os.getenv("I4G_VERTEX_SEARCH_PROJECT") or resolved.vector.vertex_ai_project
-    location = os.getenv("I4G_VERTEX_SEARCH_LOCATION") or resolved.vector.vertex_ai_location or "global"
-    data_store = os.getenv("I4G_VERTEX_SEARCH_DATA_STORE") or resolved.vector.vertex_ai_data_store
-    branch = os.getenv("I4G_VERTEX_SEARCH_BRANCH") or resolved.vector.vertex_ai_branch or "default_branch"
+    project = resolved.vector.vertex_ai_project
+    location = resolved.vector.vertex_ai_location or "global"
+    data_store = resolved.vector.vertex_ai_data_store
+    branch = resolved.vector.vertex_ai_branch or "default_branch"
 
     if not project or not data_store:
         raise RuntimeError(

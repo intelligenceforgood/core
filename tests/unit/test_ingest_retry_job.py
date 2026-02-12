@@ -16,7 +16,9 @@ def _settings(default_dataset: str = "demo", retry_delay: int = 30, max_retries:
         max_retries=max_retries,
         default_dataset=default_dataset,
     )
-    return SimpleNamespace(ingestion=ingestion)
+    runtime = SimpleNamespace(log_level="INFO")
+    ingest_retry_job = SimpleNamespace(batch_limit=25, dry_run=False)
+    return SimpleNamespace(ingestion=ingestion, runtime=runtime, ingest_retry_job=ingest_retry_job)
 
 
 def _make_item(backend: str, payload: dict) -> RetryItem:

@@ -3,24 +3,14 @@
 from __future__ import annotations
 
 import logging
-import os
 import sys
 
 from i4g.reports.dossier_queue_processor import DossierQueueProcessor, QueueProcessSummary
+from i4g.settings import get_settings
 from i4g.task_status import TaskStatusReporter
-from i4g.utils.coerce import env_bool
+from i4g.worker.logging import configure_job_logging
 
 LOGGER = logging.getLogger("i4g.worker.jobs.dossier_queue")
-
-
-def _configure_logging() -> None:
-    level_name = os.getenv("I4G_RUNTIME__LOG_LEVEL", "INFO").upper()
-    level = getattr(logging, level_name, logging.INFO)
-    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-
-
-def _env_bool(key: str, default: bool = False) -> bool:  # noqa: D103 — re-export of shared env_bool
-    return env_bool(key, default)
 
 
 def run_job(
@@ -39,9 +29,10 @@ def run_job(
 def main() -> int:
     """Entry point executed by Cloud Run jobs and local CLI."""
 
-    _configure_logging()
-    batch_size = int(os.getenv("I4G_DOSSIER__BATCH_SIZE", "5") or 5)
-    dry_run = _env_bool("I4G_DOSSIER__DRY_RUN", default=False)
+    settings = get_settings()
+    configure_job_logging(settings)
+    batch_size = settings.dossier_job.batch_size
+    dry_run = settings.dossier_job.dry_run
 
     LOGGER.info("Starting dossier queue job: batch_size=%s dry_run=%s", batch_size, dry_run)
     reporter = TaskStatusReporter()

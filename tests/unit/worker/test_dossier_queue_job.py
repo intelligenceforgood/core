@@ -3,9 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 from i4g.reports.dossier_queue_processor import QueueProcessSummary
 from i4g.worker.jobs import dossier_queue
+
+
+def _make_settings(batch_size: int = 5, dry_run: bool = False) -> SimpleNamespace:
+    runtime = SimpleNamespace(log_level="CRITICAL")
+    dossier_job = SimpleNamespace(batch_size=batch_size, dry_run=dry_run)
+    return SimpleNamespace(runtime=runtime, dossier_job=dossier_job)
 
 
 @dataclass
@@ -39,9 +46,7 @@ def test_run_job_delegates_to_processor() -> None:
 def test_main_returns_error_code_when_failures(monkeypatch) -> None:
     stub = _StubProcessor(processed=1, completed=0, failed=1)
 
-    monkeypatch.setenv("I4G_DOSSIER__BATCH_SIZE", "1")
-    monkeypatch.setenv("I4G_DOSSIER__DRY_RUN", "false")
-    monkeypatch.setenv("I4G_RUNTIME__LOG_LEVEL", "CRITICAL")
+    monkeypatch.setattr(dossier_queue, "get_settings", lambda: _make_settings(batch_size=1, dry_run=False))
     monkeypatch.setattr(
         dossier_queue,
         "run_job",
@@ -58,8 +63,7 @@ def test_main_returns_error_code_when_failures(monkeypatch) -> None:
 def test_main_success(monkeypatch) -> None:
     stub = _StubProcessor(processed=1, completed=1, failed=0)
 
-    monkeypatch.setenv("I4G_DOSSIER__BATCH_SIZE", "1")
-    monkeypatch.setenv("I4G_DOSSIER__DRY_RUN", "true")
+    monkeypatch.setattr(dossier_queue, "get_settings", lambda: _make_settings(batch_size=1, dry_run=True))
     monkeypatch.setattr(
         dossier_queue,
         "run_job",

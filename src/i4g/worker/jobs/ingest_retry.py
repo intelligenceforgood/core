@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import sys
 from typing import Any, Dict, Tuple
 
@@ -12,18 +11,13 @@ from i4g.settings import get_settings
 from i4g.store.ingest import build_case_bundle
 from i4g.store.ingestion_retry_store import IngestionRetryStore, RetryItem
 from i4g.store.sql_writer import SqlWriterResult
+from i4g.worker.logging import configure_job_logging
 
 LOGGER = logging.getLogger("i4g.worker.jobs.ingest_retry")
 
 
 class RetryPayloadError(RuntimeError):
     """Raised when a retry payload is irrecoverably malformed."""
-
-
-def _configure_logging() -> None:
-    level_name = os.getenv("I4G_RUNTIME__LOG_LEVEL", "INFO").upper()
-    level = getattr(logging, level_name, logging.INFO)
-    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 
 def _extract_retry_payload(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -109,11 +103,11 @@ def _handle_retry_failure(
 def main() -> int:
     """Entry point executed by the Cloud Run job container."""
 
-    _configure_logging()
     settings = get_settings()
+    configure_job_logging(settings)
 
-    batch_limit = int(os.getenv("I4G_INGEST_RETRY__BATCH_LIMIT", "25") or 25)
-    dry_run = os.getenv("I4G_INGEST_RETRY__DRY_RUN", "false").lower() in {"1", "true", "yes", "on"}
+    batch_limit = settings.ingest_retry_job.batch_limit
+    dry_run = settings.ingest_retry_job.dry_run
 
     try:
         retry_store = build_ingestion_retry_store()

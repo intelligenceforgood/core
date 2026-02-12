@@ -3,30 +3,25 @@
 from __future__ import annotations
 
 import logging
-import os
 import sys
 from typing import List
 
 from i4g.services.factories import build_review_store
+from i4g.settings import get_settings
 from i4g.task_status import TaskStatusReporter
-from i4g.utils.coerce import env_bool
+from i4g.worker.logging import configure_job_logging
 from i4g.worker.tasks import generate_report_for_case
 
 LOGGER = logging.getLogger("i4g.worker.jobs.report")
 
 
-def _configure_logging() -> None:
-    level_name = os.getenv("I4G_RUNTIME__LOG_LEVEL", "INFO").upper()
-    level = getattr(logging, level_name, logging.INFO)
-    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-
-
-def _resolve_review_ids(limit: int) -> List[str]:
-    explicit = os.getenv("I4G_REPORT__REVIEW_IDS")
+def _resolve_review_ids(limit: int, *, settings=None) -> List[str]:
+    s = settings or get_settings()
+    explicit = s.report.review_ids
     if explicit:
         return [value.strip() for value in explicit.split(",") if value.strip()]
 
-    target_status = os.getenv("I4G_REPORT__TARGET_STATUS", "accepted")
+    target_status = s.report.target_status
     store = build_review_store()
     queue = store.get_queue(status=target_status, limit=limit)
     return [item["review_id"] for item in queue]
@@ -35,16 +30,17 @@ def _resolve_review_ids(limit: int) -> List[str]:
 def main() -> int:
     """Entry point executed by the Cloud Run job container."""
 
-    _configure_logging()
+    settings = get_settings()
+    configure_job_logging(settings)
 
-    batch_limit = int(os.getenv("I4G_REPORT__BATCH_LIMIT", "25") or 25)
-    dry_run = env_bool("I4G_REPORT__DRY_RUN", default=False)
+    batch_limit = settings.report.batch_limit
+    dry_run = settings.report.dry_run
 
     LOGGER.info("Starting report job: batch_limit=%s dry_run=%s", batch_limit, dry_run)
 
     reporter = TaskStatusReporter()
 
-    review_ids = _resolve_review_ids(limit=batch_limit)
+    review_ids = _resolve_review_ids(limit=batch_limit, settings=settings)
     if not review_ids:
         LOGGER.info("No review IDs resolved; nothing to do")
         if reporter.is_enabled():

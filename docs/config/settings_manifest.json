@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-02-12T00:43:18.738770+00:00",
+  "generated_at": "2026-02-12T18:27:18.778594+00:00",
   "source": "src/i4g/settings/config.py",
   "env_prefix": "I4G_",
   "fields": [
@@ -220,6 +220,20 @@
       "description": "API endpoint configuration shared by CLI + dashboards."
     },
     {
+      "path": "api.cors_origins",
+      "section": "api",
+      "type": "list[str]",
+      "default": [
+        "*"
+      ],
+      "env_vars": [
+        "I4G_API__CORS_ORIGINS",
+        "API_CORS_ORIGINS",
+        "API__CORS_ORIGINS"
+      ],
+      "description": "Allowed CORS origins. Defaults to ['*'] for local dev; override in cloud envs."
+    },
+    {
       "path": "api.key",
       "section": "api",
       "type": "str",
@@ -264,6 +278,30 @@
         "I4G_DATA_DIR"
       ],
       "description": "Top-level configuration model with nested sections for each subsystem."
+    },
+    {
+      "path": "dossier_job.batch_size",
+      "section": "dossier_job",
+      "type": "int",
+      "default": 5,
+      "env_vars": [
+        "I4G_DOSSIER_JOB__BATCH_SIZE",
+        "DOSSIER_BATCH_SIZE",
+        "DOSSIER__BATCH_SIZE"
+      ],
+      "description": "Cloud Run job overrides for dossier queue processing."
+    },
+    {
+      "path": "dossier_job.dry_run",
+      "section": "dossier_job",
+      "type": "bool",
+      "default": false,
+      "env_vars": [
+        "I4G_DOSSIER_JOB__DRY_RUN",
+        "DOSSIER_DRY_RUN",
+        "DOSSIER__DRY_RUN"
+      ],
+      "description": "Cloud Run job overrides for dossier queue processing."
     },
     {
       "path": "env",
@@ -339,6 +377,30 @@
       "description": "Identity provider wiring for auth-enabled services."
     },
     {
+      "path": "ingest_retry_job.batch_limit",
+      "section": "ingest_retry_job",
+      "type": "int",
+      "default": 25,
+      "env_vars": [
+        "I4G_INGEST_RETRY_JOB__BATCH_LIMIT",
+        "INGEST_RETRY_BATCH_LIMIT",
+        "INGEST_RETRY__BATCH_LIMIT"
+      ],
+      "description": "Cloud Run job overrides for the ingestion retry processor."
+    },
+    {
+      "path": "ingest_retry_job.dry_run",
+      "section": "ingest_retry_job",
+      "type": "bool",
+      "default": false,
+      "env_vars": [
+        "I4G_INGEST_RETRY_JOB__DRY_RUN",
+        "INGEST_RETRY_DRY_RUN",
+        "INGEST_RETRY__DRY_RUN"
+      ],
+      "description": "Cloud Run job overrides for the ingestion retry processor."
+    },
+    {
       "path": "ingestion.batch_limit",
       "section": "ingestion",
       "type": "int",
@@ -375,6 +437,7 @@
         "I4G_INGESTION__DEFAULT_DATASET",
         "INGEST_DEFAULT_DATASET",
         "INGEST__DEFAULT_DATASET",
+        "INGEST__DATASET_NAME",
         "INGESTION_DEFAULT_DATASET",
         "INGESTION__DEFAULT_DATASET"
       ],
@@ -501,6 +564,20 @@
       "description": "Scheduler + job configuration for ingestion workflows."
     },
     {
+      "path": "ingestion.rate_limit_delay",
+      "section": "ingestion",
+      "type": "float",
+      "default": 0.0,
+      "env_vars": [
+        "I4G_INGESTION__RATE_LIMIT_DELAY",
+        "INGEST_RATE_LIMIT_DELAY",
+        "INGEST__RATE_LIMIT_DELAY",
+        "INGESTION_RATE_LIMIT_DELAY",
+        "INGESTION__RATE_LIMIT_DELAY"
+      ],
+      "description": "Delay in seconds between records for rate limiting."
+    },
+    {
       "path": "ingestion.reset_vector",
       "section": "ingestion",
       "type": "bool",
@@ -539,6 +616,20 @@
         "INGESTION__SCHEDULER_PROJECT"
       ],
       "description": "Scheduler + job configuration for ingestion workflows."
+    },
+    {
+      "path": "ingestion.skip_classification",
+      "section": "ingestion",
+      "type": "bool",
+      "default": false,
+      "env_vars": [
+        "I4G_INGESTION__SKIP_CLASSIFICATION",
+        "INGEST_SKIP_CLASSIFICATION",
+        "INGEST__SKIP_CLASSIFICATION",
+        "INGESTION_SKIP_CLASSIFICATION",
+        "INGESTION__SKIP_CLASSIFICATION"
+      ],
+      "description": "When True, skip fraud classification during ingestion."
     },
     {
       "path": "intake.api_base",
@@ -878,6 +969,18 @@
       "description": "Top-level configuration model with nested sections for each subsystem."
     },
     {
+      "path": "report.batch_limit",
+      "section": "report",
+      "type": "int",
+      "default": 25,
+      "env_vars": [
+        "I4G_REPORT__BATCH_LIMIT",
+        "REPORT_BATCH_LIMIT",
+        "REPORT__BATCH_LIMIT"
+      ],
+      "description": "Maximum number of reviews to process per report batch."
+    },
+    {
       "path": "report.drive_parent_id",
       "section": "report",
       "type": "str | NoneType",
@@ -888,6 +991,18 @@
         "REPORT__DRIVE_PARENT_ID"
       ],
       "description": "Agentic dossier/report configuration."
+    },
+    {
+      "path": "report.dry_run",
+      "section": "report",
+      "type": "bool",
+      "default": false,
+      "env_vars": [
+        "I4G_REPORT__DRY_RUN",
+        "REPORT_DRY_RUN",
+        "REPORT__DRY_RUN"
+      ],
+      "description": "When True, log actions without generating reports."
     },
     {
       "path": "report.hash_algorithm",
@@ -948,6 +1063,30 @@
         "REPORT__REQUIRE_CROSS_BORDER"
       ],
       "description": "Agentic dossier/report configuration."
+    },
+    {
+      "path": "report.review_ids",
+      "section": "report",
+      "type": "str | NoneType",
+      "default": null,
+      "env_vars": [
+        "I4G_REPORT__REVIEW_IDS",
+        "REPORT_REVIEW_IDS",
+        "REPORT__REVIEW_IDS"
+      ],
+      "description": "Comma-separated explicit review IDs (overrides queue lookup)."
+    },
+    {
+      "path": "report.target_status",
+      "section": "report",
+      "type": "str",
+      "default": "accepted",
+      "env_vars": [
+        "I4G_REPORT__TARGET_STATUS",
+        "REPORT_TARGET_STATUS",
+        "REPORT__TARGET_STATUS"
+      ],
+      "description": "Queue status filter when auto-resolving review IDs."
     },
     {
       "path": "report.tool_timeout_seconds",
@@ -1186,6 +1325,18 @@
       "description": "Secret resolution strategy (local vs Secret Manager)."
     },
     {
+      "path": "smoke.api_url",
+      "section": "smoke",
+      "type": "str",
+      "default": "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app",
+      "env_vars": [
+        "I4G_SMOKE__API_URL",
+        "SMOKE_API_URL",
+        "SMOKE__API_URL"
+      ],
+      "description": "Default API base URL for smoke tests."
+    },
+    {
       "path": "storage.cloudsql_database",
       "section": "storage",
       "type": "str | NoneType",
@@ -1302,6 +1453,32 @@
         "STORAGE__STRUCTURED_BACKEND"
       ],
       "description": "Structured + blob storage configuration."
+    },
+    {
+      "path": "sweep.batch_size",
+      "section": "sweep",
+      "type": "int",
+      "default": 20,
+      "env_vars": [
+        "I4G_SWEEP__BATCH_SIZE",
+        "SWEEP_BATCH_SIZE",
+        "SWEEP__BATCH_SIZE",
+        "JOB_BATCH_SIZE"
+      ],
+      "description": "Number of cases to classify per loop iteration."
+    },
+    {
+      "path": "sweep.max_runtime_seconds",
+      "section": "sweep",
+      "type": "int",
+      "default": 3300,
+      "env_vars": [
+        "I4G_SWEEP__MAX_RUNTIME_SECONDS",
+        "SWEEP_MAX_RUNTIME_SECONDS",
+        "SWEEP__MAX_RUNTIME_SECONDS",
+        "JOB_MAX_RUNTIME_SECONDS"
+      ],
+      "description": "Maximum wall-clock seconds before the sweeper exits gracefully."
     },
     {
       "path": "vector.backend",
@@ -1436,6 +1613,19 @@
         "I4G_VERTEX_SEARCH_PROJECT"
       ],
       "description": "Vector store configuration supporting multiple backends."
+    },
+    {
+      "path": "vector.vertex_ai_serving_config",
+      "section": "vector",
+      "type": "str",
+      "default": "default_search",
+      "env_vars": [
+        "I4G_VECTOR__VERTEX_AI_SERVING_CONFIG",
+        "VECTOR_VERTEX_AI_SERVING_CONFIG",
+        "VECTOR__VERTEX_AI__SERVING_CONFIG",
+        "I4G_VERTEX_SEARCH_SERVING_CONFIG"
+      ],
+      "description": "Vertex AI Search serving config ID."
     }
   ]
 }

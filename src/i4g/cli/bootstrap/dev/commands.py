@@ -8,7 +8,7 @@ from typing import Optional
 
 import typer
 
-from .constants import DEFAULT_JOBS, DEFAULT_PROJECT, DEFAULT_REGION, DEFAULT_REPORT_DIR, DEFAULT_WIF_SA
+from .constants import DEFAULT_JOBS, DEFAULT_PROJECT, DEFAULT_REGION, DEFAULT_REPORT_DIR, DEFAULT_SMOKE_API_URL, DEFAULT_WIF_SA
 from .orchestrator import run_dev
 
 dev_app = typer.Typer(help="Bootstrap dev via Cloud Run jobs and optional smokes.")
@@ -93,7 +93,7 @@ def bootstrap_dev_reset(
     force: bool = typer.Option(False, "--force", help="Allow targeting non-dev projects (never prod)."),
     log_level: str = typer.Option("INFO", "--log-level", help="Logging verbosity (DEBUG/INFO/WARNING/ERROR)."),
     smoke_api_url: str = typer.Option(
-        os.getenv("I4G_SMOKE_API_URL", "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app"),
+        os.getenv("I4G_SMOKE_API_URL", DEFAULT_SMOKE_API_URL),
         "--smoke-api-url",
         help="API base URL for smoke.",
     ),
@@ -252,7 +252,7 @@ def bootstrap_dev_load(
     force: bool = typer.Option(False, "--force", help="Allow targeting non-dev projects (never prod)."),
     log_level: str = typer.Option("INFO", "--log-level", help="Logging verbosity (DEBUG/INFO/WARNING/ERROR)."),
     smoke_api_url: str = typer.Option(
-        os.getenv("I4G_SMOKE_API_URL", "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app"),
+        os.getenv("I4G_SMOKE_API_URL", DEFAULT_SMOKE_API_URL),
         "--smoke-api-url",
         help="API base URL for smoke.",
     ),
@@ -384,7 +384,7 @@ def bootstrap_dev_verify(
     force: bool = typer.Option(False, "--force", help="Allow targeting non-dev projects (never prod)."),
     log_level: str = typer.Option("INFO", "--log-level", help="Logging verbosity (DEBUG/INFO/WARNING/ERROR)."),
     smoke_api_url: str = typer.Option(
-        os.getenv("I4G_SMOKE_API_URL", "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app"),
+        os.getenv("I4G_SMOKE_API_URL", DEFAULT_SMOKE_API_URL),
         "--smoke-api-url",
         help="API base URL for smoke.",
     ),
@@ -455,7 +455,7 @@ def bootstrap_dev_smoke(
     project: str = typer.Option(DEFAULT_PROJECT, "--project", help="Target GCP project (default: i4g-dev)."),
     region: str = typer.Option(DEFAULT_REGION, "--region", help="Cloud Run region (default: us-central1)."),
     smoke_api_url: str = typer.Option(
-        os.getenv("I4G_SMOKE_API_URL", "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app"),
+        os.getenv("I4G_SMOKE_API_URL", DEFAULT_SMOKE_API_URL),
         "--smoke-api-url",
         help="API base URL for smoke.",
     ),

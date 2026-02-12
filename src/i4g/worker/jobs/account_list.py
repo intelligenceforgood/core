@@ -3,22 +3,16 @@
 from __future__ import annotations
 
 import logging
-import os
 import sys
 from datetime import datetime, timedelta, timezone
 
 from i4g.services.account_list import AccountListRequest, AccountListResult, AccountListService, log_account_list_run
 from i4g.settings import Settings, get_settings
 from i4g.utils.datetime_parse import parse_datetime
+from i4g.worker.logging import configure_job_logging
 
 LOGGER = logging.getLogger("i4g.worker.jobs.account_list")
 _DEFAULT_FORMATS = ["xlsx", "pdf"]
-
-
-def _configure_logging(settings: Settings | None = None) -> None:
-    level_name = (settings.runtime.log_level if settings else os.getenv("I4G_RUNTIME__LOG_LEVEL", "INFO")).upper()
-    level = getattr(logging, level_name, logging.INFO)
-    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 
 def _parse_datetime(value: str) -> datetime:  # noqa: D103 — thin wrapper around shared parse_datetime
@@ -81,14 +75,12 @@ def _log_result_summary(result: AccountListResult, *, actor: str) -> None:
 def main() -> int:
     """Entry point executed by the Cloud Run job container."""
 
-    _configure_logging()
-
     try:
         settings = get_settings()
     except Exception:
         LOGGER.exception("Unable to load settings for account job")
         return 1
-    _configure_logging(settings)  # re-apply with loaded settings
+    configure_job_logging(settings)
     actor = f"account_job:{getattr(settings, 'env', 'unknown')}"
 
     try:

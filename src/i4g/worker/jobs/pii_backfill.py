@@ -3,22 +3,17 @@
 from __future__ import annotations
 
 import logging
-import os
 import sys
 from datetime import datetime, timezone
 
 from i4g.services.factories import build_structured_store, build_tokenization_service
+from i4g.settings import get_settings
 from i4g.store.schema import ScamRecord
 from i4g.task_status import TaskStatusReporter
 from i4g.utils.coerce import env_bool
+from i4g.worker.logging import configure_job_logging
 
 logger = logging.getLogger(__name__)
-
-
-def _configure_logging() -> None:
-    level_name = os.getenv("I4G_RUNTIME__LOG_LEVEL", "INFO").upper()
-    level = getattr(logging, level_name, logging.INFO)
-    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 
 def run_pii_backfill(
@@ -119,7 +114,7 @@ def run_pii_backfill(
 def main() -> int:
     """Entry point executed by Cloud Run jobs and local CLI."""
 
-    _configure_logging()
+    configure_job_logging()
     dry_run = env_bool("I4G_PII_BACKFILL__DRY_RUN", default=False)
 
     logger.info("Starting PII backfill job: dry_run=%s", dry_run)

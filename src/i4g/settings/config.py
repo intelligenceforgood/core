@@ -350,6 +350,15 @@ class VectorSettings(BaseSettings):
             "I4G_VERTEX_SEARCH_BRANCH",
         ),
     )
+    vertex_ai_serving_config: str = Field(
+        default="default_search",
+        validation_alias=AliasChoices(
+            "VECTOR_VERTEX_AI_SERVING_CONFIG",
+            "VECTOR__VERTEX_AI__SERVING_CONFIG",
+            "I4G_VERTEX_SEARCH_SERVING_CONFIG",
+        ),
+        description="Vertex AI Search serving config ID.",
+    )
 
 
 class LLMSettings(BaseSettings):
@@ -554,6 +563,7 @@ class IngestionSettings(BaseSettings):
         validation_alias=AliasChoices(
             "INGEST_DEFAULT_DATASET",
             "INGEST__DEFAULT_DATASET",
+            "INGEST__DATASET_NAME",
             "INGESTION_DEFAULT_DATASET",
             "INGESTION__DEFAULT_DATASET",
         ),
@@ -584,6 +594,93 @@ class IngestionSettings(BaseSettings):
             "INGESTION_RETRY_DELAY_SECONDS",
             "INGESTION__RETRY_DELAY_SECONDS",
         ),
+    )
+    rate_limit_delay: float = Field(
+        default=0.0,
+        validation_alias=AliasChoices(
+            "INGEST_RATE_LIMIT_DELAY",
+            "INGEST__RATE_LIMIT_DELAY",
+            "INGESTION_RATE_LIMIT_DELAY",
+            "INGESTION__RATE_LIMIT_DELAY",
+        ),
+        description="Delay in seconds between records for rate limiting.",
+    )
+    skip_classification: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "INGEST_SKIP_CLASSIFICATION",
+            "INGEST__SKIP_CLASSIFICATION",
+            "INGESTION_SKIP_CLASSIFICATION",
+            "INGESTION__SKIP_CLASSIFICATION",
+        ),
+        description="When True, skip fraud classification during ingestion.",
+    )
+
+
+class IngestRetryJobSettings(BaseSettings):
+    """Cloud Run job overrides for the ingestion retry processor."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    batch_limit: int = Field(
+        default=25,
+        validation_alias=AliasChoices("INGEST_RETRY_BATCH_LIMIT", "INGEST_RETRY__BATCH_LIMIT"),
+    )
+    dry_run: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("INGEST_RETRY_DRY_RUN", "INGEST_RETRY__DRY_RUN"),
+    )
+
+
+class SweepSettings(BaseSettings):
+    """Classification sweeper job configuration."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    max_runtime_seconds: int = Field(
+        default=3300,
+        validation_alias=AliasChoices(
+            "SWEEP_MAX_RUNTIME_SECONDS",
+            "SWEEP__MAX_RUNTIME_SECONDS",
+            "JOB_MAX_RUNTIME_SECONDS",
+        ),
+        description="Maximum wall-clock seconds before the sweeper exits gracefully.",
+    )
+    batch_size: int = Field(
+        default=20,
+        validation_alias=AliasChoices(
+            "SWEEP_BATCH_SIZE",
+            "SWEEP__BATCH_SIZE",
+            "JOB_BATCH_SIZE",
+        ),
+        description="Number of cases to classify per loop iteration.",
+    )
+
+
+class DossierJobSettings(BaseSettings):
+    """Cloud Run job overrides for dossier queue processing."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    batch_size: int = Field(
+        default=5,
+        validation_alias=AliasChoices("DOSSIER_BATCH_SIZE", "DOSSIER__BATCH_SIZE"),
+    )
+    dry_run: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("DOSSIER_DRY_RUN", "DOSSIER__DRY_RUN"),
+    )
+
+
+class SmokeSettings(BaseSettings):
+    """Smoke test CLI defaults."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    api_url: str = Field(
+        default="https://fastapi-gateway-y5jge5w2cq-uc.a.run.app",
+        validation_alias=AliasChoices("SMOKE_API_URL", "SMOKE__API_URL"),
+        description="Default API base URL for smoke tests.",
     )
 
 
@@ -795,6 +892,26 @@ class ReportSettings(BaseSettings):
         validation_alias=AliasChoices("REPORT_TOOL_TIMEOUT_SECONDS", "REPORT__TOOL_TIMEOUT_SECONDS"),
         description="Per-tool timeout for LangChain dossier tools; None disables timeouts.",
     )
+    batch_limit: int = Field(
+        default=25,
+        validation_alias=AliasChoices("REPORT_BATCH_LIMIT", "REPORT__BATCH_LIMIT"),
+        description="Maximum number of reviews to process per report batch.",
+    )
+    target_status: str = Field(
+        default="accepted",
+        validation_alias=AliasChoices("REPORT_TARGET_STATUS", "REPORT__TARGET_STATUS"),
+        description="Queue status filter when auto-resolving review IDs.",
+    )
+    review_ids: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("REPORT_REVIEW_IDS", "REPORT__REVIEW_IDS"),
+        description="Comma-separated explicit review IDs (overrides queue lookup).",
+    )
+    dry_run: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("REPORT_DRY_RUN", "REPORT__DRY_RUN"),
+        description="When True, log actions without generating reports.",
+    )
 
 
 class AccountJobSettings(BaseSettings):
@@ -911,6 +1028,10 @@ class Settings(BaseSettings):
     intake: IntakeJobSettings = Field(default_factory=IntakeJobSettings)
     search: SearchSettings = Field(default_factory=SearchSettings)
     report: ReportSettings = Field(default_factory=ReportSettings)
+    ingest_retry_job: IngestRetryJobSettings = Field(default_factory=IngestRetryJobSettings)
+    sweep: SweepSettings = Field(default_factory=SweepSettings)
+    dossier_job: DossierJobSettings = Field(default_factory=DossierJobSettings)
+    smoke: SmokeSettings = Field(default_factory=SmokeSettings)
     env_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
     config_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
 
