@@ -204,6 +204,11 @@ class APISettings(BaseSettings):
         default=60,
         validation_alias=AliasChoices("API_RATE_LIMIT", "API__RATE_LIMIT_PER_MINUTE"),
     )
+    cors_origins: list[str] = Field(
+        default=["*"],
+        validation_alias=AliasChoices("API_CORS_ORIGINS", "API__CORS_ORIGINS"),
+        description="Allowed CORS origins. Defaults to ['*'] for local dev; override in cloud envs.",
+    )
 
 
 class IdentitySettings(BaseSettings):

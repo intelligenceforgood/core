@@ -336,7 +336,7 @@ def test_saved_search_crud():
     assert r2.status_code == 200
     body = r2.json()
     assert body["count"] == 1
-    mock_store.list_saved_searches.assert_called_once_with(owner="analyst_1", limit=10)
+    mock_store.list_saved_searches.assert_called_once_with(owner="local-dev", limit=10)
 
     mock_store.update_saved_search.return_value = True
     patch_payload = {"name": "Wallet scam v2", "favorite": True}
@@ -383,14 +383,14 @@ def test_saved_search_patch_normalizes_params():
 
 def test_saved_search_duplicate_handling_returns_409():
     mock_store = make_mock_store()
-    mock_store.upsert_saved_search.side_effect = ValueError("duplicate_saved_search:analyst_1")
+    mock_store.upsert_saved_search.side_effect = ValueError("duplicate_saved_search:local-dev")
     app.dependency_overrides[get_store] = lambda: mock_store
 
     headers = {"X-API-KEY": "dev-analyst-token"}
     payload = {"name": "Wallet scam", "params": {}}
     r = client.post("/reviews/search/saved", json=payload, headers=headers)
     assert r.status_code == 409
-    assert r.json()["detail"] == "Saved search name already exists (owner=analyst_1)"
+    assert r.json()["detail"] == "Saved search name already exists (owner=local-dev)"
 
     app.dependency_overrides = {}
 
@@ -479,7 +479,7 @@ def test_tag_presets_endpoint():
     body = r.json()
     assert body["count"] == 1
     assert body["presets"][0]["tags"] == ["wallet", "urgent"]
-    mock_store.list_tag_presets.assert_called_once_with(owner="analyst_1", limit=10)
+    mock_store.list_tag_presets.assert_called_once_with(owner="local-dev", limit=10)
 
     app.dependency_overrides = {}
 
@@ -550,7 +550,7 @@ def test_import_saved_search_injects_schema_version():
     args, kwargs = mock_store.import_saved_search.call_args
     record = args[0]
     assert record["params"]["schema_version"] == "hybrid-v1"
-    assert kwargs["owner"] == "analyst_1"
+    assert kwargs["owner"] == "local-dev"
 
     app.dependency_overrides = {}
 

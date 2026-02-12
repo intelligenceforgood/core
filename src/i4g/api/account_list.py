@@ -18,7 +18,6 @@ try:
 except ImportError:
     gcs_storage = None
 
-from i4g.api.auth import is_valid_api_token
 from i4g.services.account_list import AccountListRequest, AccountListResult, AccountListService, log_account_list_run
 from i4g.services.account_list.exporters import AccountListExporter
 from i4g.settings import Settings, get_settings

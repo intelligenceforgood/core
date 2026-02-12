@@ -3,7 +3,7 @@
 **Unified Workspace Context:** This repository is part of the `i4g` multi-root workspace. The `core/` repository acts as the primary entry point for coding conventions and architectural standards. These instructions are synchronized to ensure consistent behavior across all roots.
 
 1. **Rehydrate & Daily Loop** – Start every session by checking `git status -sb`. Skim `planning/change_log.md` for recent decisions. Check `.entire/` and `.claud/` folders (if present) for conversation context from prior commits — these are managed by the Entire tool and capture AI session history per commit.
-   - **Plan:** Check active work stream in `planning/tasks/debt_remediation_plan.md`.
+   - **Plan:** Check active work stream in `planning/tasks/quality_elevation_plan.md`.
    - **Build:** Run `uvicorn i4g.api.app:app --reload` for API; use `conda run -n i4g ...`.
    - **Test:** Run `pytest tests/unit` or targeted smokes. If skipping, record why.
    - **Docs:** Update `docs/` and `planning/change_log.md` when behavior/env vars change.

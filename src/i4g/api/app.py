@@ -82,10 +82,10 @@ def create_app() -> FastAPI:
     """
     app = FastAPI(title="i4g Analyst Review API", version="0.1")
 
-    # Enable CORS for local development (Next.js on localhost:3000)
+    settings = get_settings()
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # In production, restrict this to specific domains
+        allow_origins=settings.api.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -106,7 +106,6 @@ def create_app() -> FastAPI:
     app.include_router(task_router)
 
     # Serve artifacts
-    settings = get_settings()
     artifacts_dir = Path(settings.data_dir) / "artifacts"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/artifacts", StaticFiles(directory=str(artifacts_dir)), name="artifacts")
