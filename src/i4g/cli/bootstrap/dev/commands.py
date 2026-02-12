@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Optional
 
 import typer
 
@@ -25,9 +24,9 @@ def _exit_from_return(code: int | None) -> None:
 def bootstrap_dev_reset(
     project: str = typer.Option(DEFAULT_PROJECT, "--project", help="Target GCP project (default: i4g-dev)."),
     region: str = typer.Option(DEFAULT_REGION, "--region", help="Cloud Run region (default: us-central1)."),
-    bundle: Optional[str] = typer.Option(None, "--bundle", help="Name of a specific bundle to process."),
-    bundle_uri: Optional[str] = typer.Option(None, "--bundle-uri", help="Bundle URI passed to jobs, if supported."),
-    dataset: Optional[str] = typer.Option(None, "--dataset", help="Dataset identifier injected into job args."),
+    bundle: str | None = typer.Option(None, "--bundle", help="Name of a specific bundle to process."),
+    bundle_uri: str | None = typer.Option(None, "--bundle-uri", help="Bundle URI passed to jobs, if supported."),
+    dataset: str | None = typer.Option(None, "--dataset", help="Dataset identifier injected into job args."),
     limit: int = typer.Option(0, "--limit", help="Limit the number of records to ingest (0 = unlimited)."),
     wif_service_account: str = typer.Option(
         DEFAULT_WIF_SA,
@@ -73,13 +72,13 @@ def bootstrap_dev_reset(
     run_search_smoke: bool = typer.Option(
         False, "--run-search-smoke/--no-run-search-smoke", help="Run Vertex search smoke."
     ),
-    search_project: Optional[str] = typer.Option(
+    search_project: str | None = typer.Option(
         None, "--search-project", help="Vertex project for search smoke (defaults to --project)."
     ),
-    search_location: Optional[str] = typer.Option(
+    search_location: str | None = typer.Option(
         None, "--search-location", help="Vertex location for search smoke (default from orchestrator)."
     ),
-    search_data_store_id: Optional[str] = typer.Option(
+    search_data_store_id: str | None = typer.Option(
         None, "--search-data-store-id", help="Vertex data store id for search smoke."
     ),
     search_serving_config_id: str = typer.Option(
@@ -184,9 +183,9 @@ def bootstrap_dev_reset(
 def bootstrap_dev_load(
     project: str = typer.Option(DEFAULT_PROJECT, "--project", help="Target GCP project (default: i4g-dev)."),
     region: str = typer.Option(DEFAULT_REGION, "--region", help="Cloud Run region (default: us-central1)."),
-    bundle: Optional[str] = typer.Option(None, "--bundle", help="Name of a specific bundle to process."),
-    bundle_uri: Optional[str] = typer.Option(None, "--bundle-uri", help="Bundle URI passed to jobs, if supported."),
-    dataset: Optional[str] = typer.Option(None, "--dataset", help="Dataset identifier injected into job args."),
+    bundle: str | None = typer.Option(None, "--bundle", help="Name of a specific bundle to process."),
+    bundle_uri: str | None = typer.Option(None, "--bundle-uri", help="Bundle URI passed to jobs, if supported."),
+    dataset: str | None = typer.Option(None, "--dataset", help="Dataset identifier injected into job args."),
     limit: int = typer.Option(0, "--limit", help="Limit the number of records to ingest (0 = unlimited)."),
     wif_service_account: str = typer.Option(
         DEFAULT_WIF_SA,
@@ -232,13 +231,13 @@ def bootstrap_dev_load(
     run_search_smoke: bool = typer.Option(
         False, "--run-search-smoke/--no-run-search-smoke", help="Run Vertex search smoke."
     ),
-    search_project: Optional[str] = typer.Option(
+    search_project: str | None = typer.Option(
         None, "--search-project", help="Vertex project for search smoke (defaults to --project)."
     ),
-    search_location: Optional[str] = typer.Option(
+    search_location: str | None = typer.Option(
         None, "--search-location", help="Vertex location for search smoke (default from orchestrator)."
     ),
-    search_data_store_id: Optional[str] = typer.Option(
+    search_data_store_id: str | None = typer.Option(
         None, "--search-data-store-id", help="Vertex data store id for search smoke."
     ),
     search_serving_config_id: str = typer.Option(
@@ -340,9 +339,9 @@ def bootstrap_dev_load(
 def bootstrap_dev_verify(
     project: str = typer.Option(DEFAULT_PROJECT, "--project", help="Target GCP project (default: i4g-dev)."),
     region: str = typer.Option(DEFAULT_REGION, "--region", help="Cloud Run region (default: us-central1)."),
-    bundle: Optional[str] = typer.Option(None, "--bundle", help="Name of a specific bundle to process."),
-    bundle_uri: Optional[str] = typer.Option(None, "--bundle-uri", help="Bundle URI passed to jobs, if supported."),
-    dataset: Optional[str] = typer.Option(None, "--dataset", help="Dataset identifier injected into job args."),
+    bundle: str | None = typer.Option(None, "--bundle", help="Name of a specific bundle to process."),
+    bundle_uri: str | None = typer.Option(None, "--bundle-uri", help="Bundle URI passed to jobs, if supported."),
+    dataset: str | None = typer.Option(None, "--dataset", help="Dataset identifier injected into job args."),
     wif_service_account: str = typer.Option(
         DEFAULT_WIF_SA,
         "--wif-service-account",
@@ -364,13 +363,13 @@ def bootstrap_dev_verify(
     run_search_smoke: bool = typer.Option(
         True, "--run-search-smoke/--no-run-search-smoke", help="Run Vertex search smoke."
     ),
-    search_project: Optional[str] = typer.Option(
+    search_project: str | None = typer.Option(
         None, "--search-project", help="Vertex project for search smoke (defaults to --project)."
     ),
-    search_location: Optional[str] = typer.Option(
+    search_location: str | None = typer.Option(
         None, "--search-location", help="Vertex location for search smoke (default from orchestrator)."
     ),
-    search_data_store_id: Optional[str] = typer.Option(
+    search_data_store_id: str | None = typer.Option(
         None, "--search-data-store-id", help="Vertex data store id for search smoke."
     ),
     search_serving_config_id: str = typer.Option(

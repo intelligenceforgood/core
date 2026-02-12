@@ -266,7 +266,7 @@ class Scenario:
     pass_k: int = 3
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "Scenario":
+    def from_dict(cls, payload: dict[str, Any]) -> Scenario:
         expected_ids = payload.get("expected_ids")
         expected_labels = payload.get("expected_labels")
         expected_tags = payload.get("expected_tags")

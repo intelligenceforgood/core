@@ -6,10 +6,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
+from collections.abc import Mapping, Sequence
 from urllib import error, parse, request
 
 DEFAULT_API_URL = "http://localhost:8000"

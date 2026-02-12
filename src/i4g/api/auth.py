@@ -9,7 +9,7 @@ developers can iterate without token overhead.  Non-local environments
 from __future__ import annotations
 
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 from fastapi import Depends, Header, HTTPException, Request, status
 

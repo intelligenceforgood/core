@@ -6,7 +6,6 @@ and ``review_detail`` can share them without circular imports.
 """
 
 import logging
-from typing import Any, Dict
 
 from fastapi import Depends
 

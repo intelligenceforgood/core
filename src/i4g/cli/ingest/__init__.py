@@ -1,6 +1,5 @@
 import typer
 from pathlib import Path
-from typing import Optional
 from . import logic as ingest
 
 ingest_app = typer.Typer(help="Ingestion utilities and helpers.")
@@ -16,12 +15,12 @@ def ingest_bundles(
 
 @ingest_app.command("vertex", help="Ingest data into Vertex search.")
 def ingest_vertex(
-    project: Optional[str] = typer.Option(None, "--project", help="GCP project hosting the Discovery data store."),
+    project: str | None = typer.Option(None, "--project", help="GCP project hosting the Discovery data store."),
     location: str = typer.Option("global", "--location", help="Discovery location."),
     data_store_id: str = typer.Option(..., "--data-store-id", help="Discovery data store identifier."),
     jsonl: Path = typer.Option(..., "--jsonl", exists=True, readable=True, help="JSONL file of cases to ingest."),
     branch_id: str = typer.Option("default_branch", "--branch-id", help="Branch to import documents into."),
-    dataset: Optional[str] = typer.Option(None, "--dataset", help="Dataset identifier injected when missing."),
+    dataset: str | None = typer.Option(None, "--dataset", help="Dataset identifier injected when missing."),
     batch_size: int = typer.Option(50, "--batch-size", help="Documents per import batch."),
     reconcile_mode: str = typer.Option("INCREMENTAL", "--reconcile-mode", help="Reconciliation mode."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview first record without API calls."),

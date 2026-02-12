@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
 
 try:
     from google.cloud import storage
@@ -22,9 +21,9 @@ class ProvisionResult:
     storage_class: str
     versioning_enabled: bool
     uniform_access: bool
-    retention_seconds: Optional[int]
-    delete_noncurrent_after_days: Optional[int]
-    iam_members: List[str]
+    retention_seconds: int | None
+    delete_noncurrent_after_days: int | None
+    iam_members: list[str]
 
 
 def _require_storage() -> None:
@@ -37,9 +36,9 @@ def provision_bucket(
     project: str,
     location: str,
     storage_class: str,
-    retention_days: Optional[int],
-    delete_noncurrent_days: Optional[int],
-    iam_members: List[str],
+    retention_days: int | None,
+    delete_noncurrent_days: int | None,
+    iam_members: list[str],
 ) -> ProvisionResult:
     """Create or update a GCS bucket with versioning, lifecycle, and IAM bindings."""
 

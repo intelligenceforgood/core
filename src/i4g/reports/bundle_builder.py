@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Iterable, List, Literal, Optional, Sequence
+from typing import Literal
+from collections.abc import Iterable, Sequence
 
 from i4g.store.dossier_queue_store import DossierQueueStore
 
@@ -49,10 +50,10 @@ class DossierPlan:
     jurisdiction_key: str
     created_at: datetime
     total_loss_usd: Decimal
-    cases: List[DossierCandidate]
+    cases: list[DossierCandidate]
     bundle_reason: str
     cross_border: bool
-    shared_drive_parent_id: Optional[str] = None
+    shared_drive_parent_id: str | None = None
 
     def to_dict(self) -> dict:
         """Return a JSON-serializable representation of the plan."""
@@ -79,7 +80,7 @@ class DossierPlan:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict) -> "DossierPlan":
+    def from_dict(cls, payload: dict) -> DossierPlan:
         """Instantiate a plan from the serialized payload."""
 
         cases = [
@@ -112,7 +113,7 @@ class BundleBuilder:
         self,
         queue_store: DossierQueueStore,
         *,
-        shared_drive_parent_id: Optional[str] = None,
+        shared_drive_parent_id: str | None = None,
     ) -> None:
         self._queue_store = queue_store
         self._shared_drive_parent_id = shared_drive_parent_id
@@ -133,7 +134,7 @@ class BundleBuilder:
         """
 
         plans = self.generate_plans(candidates=candidates, criteria=criteria)
-        enqueued: List[str] = []
+        enqueued: list[str] = []
         for plan in plans:
             self._queue_store.enqueue_plan(plan)
             enqueued.append(plan.plan_id)
@@ -144,14 +145,14 @@ class BundleBuilder:
         candidates: Iterable[DossierCandidate],
         criteria: BundleCriteria,
         *,
-        reference_time: Optional[datetime] = None,
-    ) -> List[DossierPlan]:
+        reference_time: datetime | None = None,
+    ) -> list[DossierPlan]:
         """Return deterministic bundles without mutating queue state."""
 
         now = reference_time or datetime.now(timezone.utc)
         filtered = self._filter_candidates(candidates, criteria, now)
         buckets = self._group_candidates(filtered, criteria)
-        plans: List[DossierPlan] = []
+        plans: list[DossierPlan] = []
         for bucket_key, bucket_candidates in buckets.items():
             chunks = self._chunk(bucket_candidates, criteria.max_cases_per_dossier)
             for index, chunk in enumerate(chunks, start=1):
@@ -169,10 +170,10 @@ class BundleBuilder:
         candidates: Iterable[DossierCandidate],
         criteria: BundleCriteria,
         reference_time: datetime,
-    ) -> List[DossierCandidate]:
+    ) -> list[DossierCandidate]:
         """Apply loss, recency, and cross-border filters."""
 
-        result: List[DossierCandidate] = []
+        result: list[DossierCandidate] = []
         for candidate in candidates:
             if candidate.loss_amount_usd < criteria.min_loss_usd:
                 continue
@@ -187,10 +188,10 @@ class BundleBuilder:
         self,
         candidates: Sequence[DossierCandidate],
         criteria: BundleCriteria,
-    ) -> dict[str, List[DossierCandidate]]:
+    ) -> dict[str, list[DossierCandidate]]:
         """Group candidates according to the jurisdiction mode."""
 
-        buckets: dict[str, List[DossierCandidate]] = {}
+        buckets: dict[str, list[DossierCandidate]] = {}
         if criteria.jurisdiction_mode == "global":
             buckets["global"] = list(candidates)
             return buckets
@@ -207,7 +208,7 @@ class BundleBuilder:
         self,
         candidates: Sequence[DossierCandidate],
         chunk_size: int,
-    ) -> List[List[DossierCandidate]]:
+    ) -> list[list[DossierCandidate]]:
         """Yield deterministic slices bounded by chunk_size."""
 
         if chunk_size <= 0:

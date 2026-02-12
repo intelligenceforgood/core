@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import sys
 import urllib.parse
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 from google.auth.transport.requests import Request
@@ -22,11 +22,11 @@ LOGGER = logging.getLogger("i4g.worker.jobs.intake")
 def _safe_post(
     client: httpx.Client,
     path: str,
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     *,
     required: bool = True,
     log_context: str,
-) -> Optional[httpx.Response]:
+) -> httpx.Response | None:
     """
     Performs a POST request and handles errors gracefully.
 
@@ -51,7 +51,7 @@ def _safe_post(
         raise
 
 
-def _get_oidc_token(audience: str) -> Optional[str]:
+def _get_oidc_token(audience: str) -> str | None:
     """
     Fetch an OIDC token for the given audience if running in GCP.
 
@@ -70,7 +70,7 @@ def _get_oidc_token(audience: str) -> Optional[str]:
         return None
 
 
-def _process_via_api(intake_id: str, job_id: str, api_base: str, api_key: Optional[str]) -> int:
+def _process_via_api(intake_id: str, job_id: str, api_base: str, api_key: str | None) -> int:
     """
     Processes an intake job by communicating with the API.
 

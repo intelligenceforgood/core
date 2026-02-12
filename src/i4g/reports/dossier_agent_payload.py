@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 from i4g.reports.bundle_builder import DossierPlan
 from i4g.reports.dossier_analysis import DossierAnalysis
@@ -14,11 +14,11 @@ from i4g.reports.dossier_context import DossierContextResult
 class DossierAgentPayload:
     """Container passed into the LangChain-based dossier agent."""
 
-    plan: Dict[str, Any]
-    context: Optional[Dict[str, Any]]
-    analysis: Dict[str, Any]
+    plan: dict[str, Any]
+    context: dict[str, Any] | None
+    analysis: dict[str, Any]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "plan": self.plan,
             "context": self.context,

@@ -6,7 +6,7 @@ import logging
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from i4g.services.factories import (
     build_sql_writer,
@@ -58,7 +58,7 @@ class BackendWriteAttempt:
 
 
 def build_case_bundle(
-    classification_result: Dict[str, Any],
+    classification_result: dict[str, Any],
     *,
     case_id: str,
     dataset: str,
@@ -70,7 +70,7 @@ def build_case_bundle(
     metadata = metadata if isinstance(metadata, dict) else {}
     source_type = classification_result.get("source_type") or metadata.get("source_type") or "ingest_pipeline"
 
-    case_metadata: Dict[str, Any] = {
+    case_metadata: dict[str, Any] = {
         "explanation": classification_result.get("explanation"),
         "reasons": classification_result.get("reasons"),
     }
@@ -101,7 +101,7 @@ def build_case_bundle(
         )
     ]
 
-    entities: List[EntityPayload] = []
+    entities: list[EntityPayload] = []
     entity_map = classification_result.get("entities") or {}
     if isinstance(entity_map, dict):
         for entity_type, values in entity_map.items():
@@ -140,16 +140,16 @@ class IngestPipeline:
 
     def __init__(
         self,
-        structured_store: Optional["StructuredStore"] = None,
-        vector_store: Optional["VectorStore"] = None,
+        structured_store: StructuredStore | None = None,
+        vector_store: VectorStore | None = None,
         *,
-        sql_writer: Optional[SqlWriter] = None,
+        sql_writer: SqlWriter | None = None,
         enable_vector: bool = True,
-        enable_sql: Optional[bool] = None,
-        enable_vertex: Optional[bool] = None,
-        default_dataset: Optional[str] = None,
-        vertex_writer: Optional["VertexDocumentWriter"] = None,
-        tokenization_service: "TokenizationService | None" = None,
+        enable_sql: bool | None = None,
+        enable_vertex: bool | None = None,
+        default_dataset: str | None = None,
+        vertex_writer: VertexDocumentWriter | None = None,
+        tokenization_service: TokenizationService | None = None,
     ) -> None:
         """Initialize pipeline with store instances.
 
@@ -166,7 +166,7 @@ class IngestPipeline:
 
         self.structured_store = structured_store or build_structured_store()
 
-        self.vector_store: Optional["VectorStore"]
+        self.vector_store: VectorStore | None
         self._vector_enabled = enable_vector
         self._default_dataset = default_dataset or ingestion_settings.default_dataset
         self._sql_enabled = enable_sql if enable_sql is not None else ingestion_settings.enable_sql
@@ -181,8 +181,8 @@ class IngestPipeline:
             self._vertex_enabled = False
 
         self._tokenization_enabled = True
-        self.sql_writer: Optional[SqlWriter]
-        self.vertex_writer: Optional["VertexDocumentWriter"] = None
+        self.sql_writer: SqlWriter | None
+        self.vertex_writer: VertexDocumentWriter | None = None
         self.tokenization_service = tokenization_service or build_tokenization_service()
 
         if vector_store is not None:
@@ -223,7 +223,7 @@ class IngestPipeline:
 
     def ingest_classified_case(
         self,
-        classification_result: Dict[str, Any],
+        classification_result: dict[str, Any],
         *,
         ingestion_run_id: str | None = None,
     ) -> IngestResult:
@@ -352,7 +352,7 @@ class IngestPipeline:
             vertex_error=vertex_attempt.error,
         )
 
-    def query_similar_cases(self, text: str, top_k: int = 5) -> List[Dict[str, Any]]:
+    def query_similar_cases(self, text: str, top_k: int = 5) -> list[dict[str, Any]]:
         """Search for semantically similar scam cases."""
         if self.vector_store is None:
             raise RuntimeError("Vector store disabled for this pipeline instance")
@@ -371,7 +371,7 @@ class IngestPipeline:
             LOGGER.exception("SQL writer failed for case_id=%s", bundle.case.case_id or "unknown")
             return None
 
-    def _write_vertex_document(self, classification_result: Dict[str, Any]) -> BackendWriteAttempt:
+    def _write_vertex_document(self, classification_result: dict[str, Any]) -> BackendWriteAttempt:
         if not self._vertex_enabled or self.vertex_writer is None:
             return BackendWriteAttempt(attempted=False, succeeded=False)
 
@@ -384,7 +384,7 @@ class IngestPipeline:
             LOGGER.exception("Vertex writer failed for case_id=%s", classification_result.get("case_id"))
             return BackendWriteAttempt(attempted=True, succeeded=False, error=str(exc))
 
-    def _resolve_dataset(self, classification_result: Dict[str, Any]) -> str:
+    def _resolve_dataset(self, classification_result: dict[str, Any]) -> str:
         metadata = classification_result.get("metadata")
         if not isinstance(metadata, dict):
             metadata = {}

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any
+from collections.abc import Iterable
 
-_NETWORK_ENTITY_FIELDS: Dict[str, Tuple[str, ...]] = {
+_NETWORK_ENTITY_FIELDS: dict[str, tuple[str, ...]] = {
     "browser_agent": ("browser_agent", "browser", "browser_string", "user_agent", "ua"),
     "ip_address": (
         "ip_address",
@@ -20,7 +21,7 @@ _NETWORK_ENTITY_FIELDS: Dict[str, Tuple[str, ...]] = {
 }
 
 
-def _as_dict(value: Any) -> Dict[str, Any]:
+def _as_dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
@@ -31,8 +32,8 @@ def _coerce_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def _normalise_string_list(value: Any) -> List[str]:
-    result: List[str] = []
+def _normalise_string_list(value: Any) -> list[str]:
+    result: list[str] = []
     if isinstance(value, str):
         stripped = value.strip()
         if stripped:
@@ -47,8 +48,8 @@ def _normalise_string_list(value: Any) -> List[str]:
     return result
 
 
-def _normalise_indicator_ids(value: Any) -> List[str]:
-    result: List[str] = []
+def _normalise_indicator_ids(value: Any) -> list[str]:
+    result: list[str] = []
 
     def _append(candidate: str | None) -> None:
         if candidate:
@@ -72,7 +73,7 @@ def _normalise_indicator_ids(value: Any) -> List[str]:
     return result
 
 
-def _extract_summary(record: Dict[str, Any], metadata: Dict[str, Any]) -> str | None:
+def _extract_summary(record: dict[str, Any], metadata: dict[str, Any]) -> str | None:
     summary = record.get("summary")
     if isinstance(summary, str) and summary.strip():
         return summary.strip()
@@ -82,7 +83,7 @@ def _extract_summary(record: Dict[str, Any], metadata: Dict[str, Any]) -> str | 
     return None
 
 
-def _extract_tags(record: Dict[str, Any], metadata: Dict[str, Any]) -> List[str]:
+def _extract_tags(record: dict[str, Any], metadata: dict[str, Any]) -> list[str]:
     for candidate in (record.get("tags"), metadata.get("tags")):
         tags = _normalise_string_list(candidate)
         if tags:
@@ -90,7 +91,7 @@ def _extract_tags(record: Dict[str, Any], metadata: Dict[str, Any]) -> List[str]
     return []
 
 
-def _extract_text(record: Dict[str, Any], metadata: Dict[str, Any]) -> Tuple[str, str]:
+def _extract_text(record: dict[str, Any], metadata: dict[str, Any]) -> tuple[str, str]:
     raw_text = record.get("text")
     if isinstance(raw_text, str) and raw_text.strip():
         return raw_text.strip(), "record.text"
@@ -116,7 +117,7 @@ def _extract_text(record: Dict[str, Any], metadata: Dict[str, Any]) -> Tuple[str
     return text, "derived" if text else "none"
 
 
-def _extract_entities(record: Dict[str, Any], metadata: Dict[str, Any]) -> Tuple[Dict[str, Any], str]:
+def _extract_entities(record: dict[str, Any], metadata: dict[str, Any]) -> tuple[dict[str, Any], str]:
     entities = record.get("entities")
     if isinstance(entities, dict):
         return entities, "record.entities"
@@ -128,7 +129,7 @@ def _extract_entities(record: Dict[str, Any], metadata: Dict[str, Any]) -> Tuple
     return {}, "none"
 
 
-def _normalize_network_value(value: Any) -> List[str]:
+def _normalize_network_value(value: Any) -> list[str]:
     if value is None:
         return []
     if isinstance(value, str):
@@ -143,16 +144,16 @@ def _normalize_network_value(value: Any) -> List[str]:
                 return _normalize_network_value(candidate)
         return []
     if isinstance(value, (list, tuple, set)):
-        results: List[str] = []
+        results: list[str] = []
         for item in value:
             results.extend(_normalize_network_value(item))
         return results
     return [str(value)]
 
 
-def _dedupe_preserving_order(values: Iterable[str]) -> List[str]:
+def _dedupe_preserving_order(values: Iterable[str]) -> list[str]:
     seen: set[str] = set()
-    ordered: List[str] = []
+    ordered: list[str] = []
     for item in values:
         normalized = item.strip()
         if not normalized:
@@ -166,11 +167,11 @@ def _dedupe_preserving_order(values: Iterable[str]) -> List[str]:
 
 
 def _extract_network_entities(
-    record: Dict[str, Any],
-    metadata: Dict[str, Any],
-    structured_fields: Dict[str, Any] | None,
-) -> Dict[str, List[str]]:
-    sources: List[Dict[str, Any]] = []
+    record: dict[str, Any],
+    metadata: dict[str, Any],
+    structured_fields: dict[str, Any] | None,
+) -> dict[str, list[str]]:
+    sources: list[dict[str, Any]] = []
     for candidate in (record, metadata):
         if isinstance(candidate, dict):
             sources.append(candidate)
@@ -183,9 +184,9 @@ def _extract_network_entities(
         if isinstance(network_section, dict):
             sources.append(network_section)
 
-    extracted: Dict[str, List[str]] = {}
+    extracted: dict[str, list[str]] = {}
     for entity_type, field_names in _NETWORK_ENTITY_FIELDS.items():
-        collected: List[str] = []
+        collected: list[str] = []
         for source in sources:
             for field_name in field_names:
                 raw_value = source.get(field_name)
@@ -198,7 +199,7 @@ def _extract_network_entities(
     return extracted
 
 
-def _entity_list_contains(entries: List[Any], value: str) -> bool:
+def _entity_list_contains(entries: list[Any], value: str) -> bool:
     target = value.strip().lower()
     if not target:
         return True
@@ -213,9 +214,9 @@ def _entity_list_contains(entries: List[Any], value: str) -> bool:
 
 
 def _merge_network_entities(
-    entities: Dict[str, Any],
-    network_entities: Dict[str, List[str]],
-) -> Dict[str, Any]:
+    entities: dict[str, Any],
+    network_entities: dict[str, list[str]],
+) -> dict[str, Any]:
     if not network_entities:
         return entities
     merged = dict(entities)
@@ -235,7 +236,7 @@ def _merge_network_entities(
     return merged
 
 
-def _extract_categories(record: Dict[str, Any], metadata: Dict[str, Any]) -> List[str]:
+def _extract_categories(record: dict[str, Any], metadata: dict[str, Any]) -> list[str]:
     for candidate in (record.get("categories"), record.get("category"), metadata.get("categories")):
         categories = _normalise_string_list(candidate)
         if categories:
@@ -245,7 +246,7 @@ def _extract_categories(record: Dict[str, Any], metadata: Dict[str, Any]) -> Lis
     return tags
 
 
-def _extract_indicator_ids(record: Dict[str, Any], metadata: Dict[str, Any]) -> List[str]:
+def _extract_indicator_ids(record: dict[str, Any], metadata: dict[str, Any]) -> list[str]:
     for candidate in (
         record.get("indicator_ids"),
         metadata.get("indicator_ids"),
@@ -258,10 +259,10 @@ def _extract_indicator_ids(record: Dict[str, Any], metadata: Dict[str, Any]) -> 
 
 
 def prepare_ingest_payload(
-    record: Dict[str, Any],
+    record: dict[str, Any],
     *,
     default_dataset: str | None = None,
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Build a classification payload compatible with ``IngestPipeline``.
 
     Returns a tuple of (payload, diagnostics). The diagnostics field surfaces the
@@ -320,7 +321,7 @@ def prepare_ingest_payload(
     document_title = record.get("document_title") or metadata.get("document_title")
     source_url = record.get("source_url") or metadata.get("source_url")
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "case_id": record.get("case_id") or record.get("intake_id") or record.get("id"),
         "text": text,
         "fraud_type": classification,

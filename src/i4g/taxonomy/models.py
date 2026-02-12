@@ -1,6 +1,6 @@
 """Taxonomy data models."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -18,20 +18,20 @@ class ScoredLabel(BaseModel):
 
     label: str
     confidence: float = Field(..., ge=0.0, le=1.0)
-    explanation: Optional[str] = None
+    explanation: str | None = None
 
 
 class FraudClassificationResult(BaseModel):
     """The complete classification result across all axes."""
 
-    intent: List[ScoredLabel] = Field(default_factory=list)
-    channel: List[ScoredLabel] = Field(default_factory=list)
-    techniques: List[ScoredLabel] = Field(default_factory=list)
-    actions: List[ScoredLabel] = Field(default_factory=list)
-    persona: List[ScoredLabel] = Field(default_factory=list)
+    intent: list[ScoredLabel] = Field(default_factory=list)
+    channel: list[ScoredLabel] = Field(default_factory=list)
+    techniques: list[ScoredLabel] = Field(default_factory=list)
+    actions: list[ScoredLabel] = Field(default_factory=list)
+    persona: list[ScoredLabel] = Field(default_factory=list)
 
-    explanation: Optional[str] = Field(default=None, description="Human-readable explanation of the classification.")
-    few_shot_examples: List[Dict[str, Any]] = Field(
+    explanation: str | None = Field(default=None, description="Human-readable explanation of the classification.")
+    few_shot_examples: list[dict[str, Any]] = Field(
         default_factory=list, description="Relevant examples used for few-shot prompting."
     )
 
@@ -40,7 +40,7 @@ class FraudClassificationResult(BaseModel):
 
     @field_validator("intent")
     @classmethod
-    def validate_intent(cls, v: List[ScoredLabel]) -> List[ScoredLabel]:
+    def validate_intent(cls, v: list[ScoredLabel]) -> list[ScoredLabel]:
         valid_values = {e.value for e in ScamIntent}
         for item in v:
             if item.label not in valid_values:
@@ -49,7 +49,7 @@ class FraudClassificationResult(BaseModel):
 
     @field_validator("channel")
     @classmethod
-    def validate_channel(cls, v: List[ScoredLabel]) -> List[ScoredLabel]:
+    def validate_channel(cls, v: list[ScoredLabel]) -> list[ScoredLabel]:
         valid_values = {e.value for e in DeliveryChannel}
         for item in v:
             if item.label not in valid_values:
@@ -58,7 +58,7 @@ class FraudClassificationResult(BaseModel):
 
     @field_validator("techniques")
     @classmethod
-    def validate_techniques(cls, v: List[ScoredLabel]) -> List[ScoredLabel]:
+    def validate_techniques(cls, v: list[ScoredLabel]) -> list[ScoredLabel]:
         valid_values = {e.value for e in SocialEngineeringTechnique}
         for item in v:
             if item.label not in valid_values:
@@ -67,7 +67,7 @@ class FraudClassificationResult(BaseModel):
 
     @field_validator("actions")
     @classmethod
-    def validate_actions(cls, v: List[ScoredLabel]) -> List[ScoredLabel]:
+    def validate_actions(cls, v: list[ScoredLabel]) -> list[ScoredLabel]:
         valid_values = {e.value for e in RequestedAction}
         for item in v:
             if item.label not in valid_values:
@@ -76,7 +76,7 @@ class FraudClassificationResult(BaseModel):
 
     @field_validator("persona")
     @classmethod
-    def validate_persona(cls, v: List[ScoredLabel]) -> List[ScoredLabel]:
+    def validate_persona(cls, v: list[ScoredLabel]) -> list[ScoredLabel]:
         valid_values = {e.value for e in ClaimedPersona}
         for item in v:
             if item.label not in valid_values:
@@ -91,7 +91,7 @@ ClassificationResult = FraudClassificationResult
 class AnalystFeedbackRequest(BaseModel):
     """Feedback provided by an analyst regarding a fraud classification."""
 
-    original_classification: Optional[FraudClassificationResult] = None
+    original_classification: FraudClassificationResult | None = None
     corrected_classification: FraudClassificationResult
-    notes: Optional[str] = None
+    notes: str | None = None
     taxonomy_version: str

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import List
 
 from i4g.services.factories import build_review_store
 from i4g.settings import get_settings
@@ -15,7 +14,7 @@ from i4g.worker.tasks import generate_report_for_case
 LOGGER = logging.getLogger("i4g.worker.jobs.report")
 
 
-def _resolve_review_ids(limit: int, *, settings=None) -> List[str]:
+def _resolve_review_ids(limit: int, *, settings=None) -> list[str]:
     s = settings or get_settings()
     explicit = s.report.review_ids
     if explicit:

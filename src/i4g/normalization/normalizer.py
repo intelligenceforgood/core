@@ -7,12 +7,11 @@ Future phases may replace or extend this logic with ML-based alias resolution
 and probabilistic entity linking.
 """
 
-from typing import Dict, List
 
 from i4g.normalization.reference_data import KNOWN_ASSETS, KNOWN_LOCATIONS, KNOWN_ORGS
 
 
-def normalize_entities(entities: Dict[str, List[str]]) -> Dict[str, List[str]]:
+def normalize_entities(entities: dict[str, list[str]]) -> dict[str, list[str]]:
     """Normalize and canonicalize extracted entities.
 
     Cleans, deduplicates, and maps extracted entities to canonical forms
@@ -73,7 +72,7 @@ def normalize_entities(entities: Dict[str, List[str]]) -> Dict[str, List[str]]:
     return normalized
 
 
-def merge_entities(*entity_dicts: Dict[str, List[str]]) -> Dict[str, List[str]]:
+def merge_entities(*entity_dicts: dict[str, list[str]]) -> dict[str, list[str]]:
     """Merge multiple entity dictionaries into one normalized structure.
 
     Args:
@@ -82,7 +81,7 @@ def merge_entities(*entity_dicts: Dict[str, List[str]]) -> Dict[str, List[str]]:
     Returns:
         Merged dictionary with combined and deduplicated lists.
     """
-    merged: Dict[str, List[str]] = {}
+    merged: dict[str, list[str]] = {}
 
     for d in entity_dicts:
         for key, vals in d.items():

@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import datetime
 from pathlib import Path
-from typing import Dict, Optional
 
 import docx
 
@@ -15,7 +14,7 @@ import docx
 def export_report(
     title: str,
     content: str,
-) -> Dict[str, Optional[str]]:
+) -> dict[str, str | None]:
     """Export a rendered report to a local .docx file.
 
     Args:

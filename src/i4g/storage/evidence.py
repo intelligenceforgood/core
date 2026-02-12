@@ -7,7 +7,6 @@ import io
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 from i4g.settings import get_settings
 
@@ -23,7 +22,7 @@ class StoredAttachment:
 
     attachment_id: str
     file_name: str
-    content_type: Optional[str]
+    content_type: str | None
     size_bytes: int
     checksum_sha256: str
     storage_uri: str
@@ -33,7 +32,7 @@ class StoredAttachment:
 class EvidenceStorage:
     """Persist evidence artifacts to the configured storage backend."""
 
-    def __init__(self, *, local_dir: Optional[Path] = None) -> None:
+    def __init__(self, *, local_dir: Path | None = None) -> None:
         self._settings = get_settings()
         storage_settings = self._settings.storage
 
@@ -59,7 +58,7 @@ class EvidenceStorage:
             self._client = None
             self._bucket = None
 
-    def save(self, intake_id: str, file_name: str, data: bytes, content_type: Optional[str]) -> StoredAttachment:
+    def save(self, intake_id: str, file_name: str, data: bytes, content_type: str | None) -> StoredAttachment:
         """Persist a single attachment and return metadata."""
 
         if not file_name:

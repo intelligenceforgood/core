@@ -1,7 +1,7 @@
 """Campaign management endpoints."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -35,26 +35,26 @@ def get_service(session: Session = Depends(get_db_session)) -> CampaignService:
 class CampaignResponse(CamelModel):
     id: str
     name: str
-    description: Optional[str] = None
-    taxonomy_labels: Optional[Dict[str, Any]] = None
-    taxonomy_rollup: List[str] = []
+    description: str | None = None
+    taxonomy_labels: dict[str, Any] | None = None
+    taxonomy_rollup: list[str] = []
 
 
 class CreateCampaignRequest(BaseModel):
     name: str
     description: str
-    taxonomy_labels: Dict[str, Any]
-    associated_taxonomy_ids: Optional[List[str]] = None
+    taxonomy_labels: dict[str, Any]
+    associated_taxonomy_ids: list[str] | None = None
 
 
 class UpdateCampaignRequest(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    taxonomy_labels: Optional[Dict[str, Any]] = None
-    associated_taxonomy_ids: Optional[List[str]] = None
+    name: str | None = None
+    description: str | None = None
+    taxonomy_labels: dict[str, Any] | None = None
+    associated_taxonomy_ids: list[str] | None = None
 
 
-@router.get("", response_model=List[CampaignResponse])
+@router.get("", response_model=list[CampaignResponse])
 def list_campaigns(service: CampaignService = Depends(get_service)):
     return service.list_active_campaigns()
 
@@ -73,7 +73,7 @@ def create_campaign(payload: CreateCampaignRequest, service: CampaignService = D
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.patch("/{campaign_id}", response_model=Dict[str, Any])
+@router.patch("/{campaign_id}", response_model=dict[str, Any])
 def update_campaign(campaign_id: str, payload: UpdateCampaignRequest, service: CampaignService = Depends(get_service)):
     logger.info("update_campaign: campaign_id=%s", campaign_id)
     try:

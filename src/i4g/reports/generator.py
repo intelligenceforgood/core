@@ -16,7 +16,7 @@ import json
 import os
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from langchain_ollama import OllamaLLM
 
@@ -27,7 +27,7 @@ from i4g.store.structured import StructuredStore
 from i4g.store.vector import VectorStore
 
 
-def _resolve_structured_store(candidate: Optional[StructuredStore]) -> StructuredStore:
+def _resolve_structured_store(candidate: StructuredStore | None) -> StructuredStore:
     """Return a structured store honoring test-time mocks when provided."""
 
     if candidate is not None:
@@ -40,7 +40,7 @@ def _resolve_structured_store(candidate: Optional[StructuredStore]) -> Structure
     return build_structured_store()
 
 
-def _resolve_vector_store(candidate: Optional[VectorStore]) -> VectorStore:
+def _resolve_vector_store(candidate: VectorStore | None) -> VectorStore:
     """Return a vector store honoring test-time mocks when provided."""
 
     if candidate is not None:
@@ -67,9 +67,9 @@ class ReportGenerator:
 
     def __init__(
         self,
-        structured_store: Optional["StructuredStore"] = None,
-        vector_store: Optional["VectorStore"] = None,
-        template_engine: Optional[TemplateEngine] = None,
+        structured_store: StructuredStore | None = None,
+        vector_store: VectorStore | None = None,
+        template_engine: TemplateEngine | None = None,
         llm_model: str = "llama3.1",
     ) -> None:
         self.structured = _resolve_structured_store(structured_store)
@@ -82,10 +82,10 @@ class ReportGenerator:
     # ---- Retrieval helpers ----
     def _fetch_related_cases(
         self,
-        case_id: Optional[str] = None,
-        text_query: Optional[str] = None,
+        case_id: str | None = None,
+        text_query: str | None = None,
         top_k: int = 8,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Fetch related cases using vector similarity or structured lookup.
 
         Priority:
@@ -113,7 +113,7 @@ class ReportGenerator:
         return [r.to_dict() for r in self.structured.list_recent(limit=top_k)]
 
     # ---- Aggregation / Summarization helpers ----
-    def _aggregate_structured(self, related: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _aggregate_structured(self, related: list[dict[str, Any]]) -> dict[str, Any]:
         """Aggregate entities across related cases into a summary structure."""
         agg = {
             "people": set(),
@@ -148,7 +148,7 @@ class ReportGenerator:
         # Convert sets to sorted lists
         return {k: sorted(list(v)) for k, v in agg.items()}
 
-    def _llm_summarize(self, related: List[Dict[str, Any]], prompt_extra: Optional[str] = None) -> str:
+    def _llm_summarize(self, related: list[dict[str, Any]], prompt_extra: str | None = None) -> str:
         """Ask the LLM to produce a human-readable summary of the evidence.
 
         This is intentionally thin — a project-specific prompt can improve results.
@@ -179,11 +179,11 @@ class ReportGenerator:
     # ---- Template / Render / Output ----
     def generate_report(
         self,
-        case_id: Optional[str] = None,
-        text_query: Optional[str] = None,
+        case_id: str | None = None,
+        text_query: str | None = None,
         template_name: str = "base_template.md.j2",
         top_k: int = 8,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Generate a report and save it to disk.
 
         Args:

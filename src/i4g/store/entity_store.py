@@ -6,7 +6,8 @@ import json
 import logging
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterator, List, Literal, Sequence
+from typing import Any, Literal
+from collections.abc import Iterator, Sequence
 
 import sqlalchemy as sa
 from sqlalchemy.exc import OperationalError
@@ -43,7 +44,7 @@ class EntityStore:
         datasets: Sequence[str] | None = None,
         loss_buckets: Sequence[str] | None = None,
         limit: int = 25,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Return case matches for a given indicator filter.
 
         Args:
@@ -93,7 +94,7 @@ class EntityStore:
             stmt = stmt.limit(fetch_limit)
             rows = session.execute(stmt).all()
 
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         seen: set[str] = set()
         for row in rows:
             case_id = row.case_id
@@ -132,7 +133,7 @@ class EntityStore:
         *,
         entity_types: Sequence[str] | None = None,
         limit: int | None = None,
-    ) -> List[str]:
+    ) -> list[str]:
         """Return datasets that currently contain the requested entity types."""
 
         normalized_types = _normalize_list(entity_types)
@@ -161,7 +162,7 @@ class EntityStore:
                     return []
                 raise
 
-        datasets: Dict[str, str] = {}
+        datasets: dict[str, str] = {}
         for row in rows:
             dataset = (row.dataset or "").strip()
             if not dataset:
@@ -179,7 +180,7 @@ class EntityStore:
         entity_types: Sequence[str],
         datasets: Sequence[str] | None = None,
         per_type_limit: int = 5,
-    ) -> Dict[str, List[Dict[str, Any]]]:
+    ) -> dict[str, list[dict[str, Any]]]:
         """Return representative entity values for each requested type."""
 
         normalized_types = _normalize_list(entity_types)
@@ -188,7 +189,7 @@ class EntityStore:
 
         dataset_filters = _normalize_list(datasets)
         fetch_limit = max(per_type_limit * 4, per_type_limit)
-        results: Dict[str, List[Dict[str, Any]]] = {entity_type: [] for entity_type in normalized_types}
+        results: dict[str, list[dict[str, Any]]] = {entity_type: [] for entity_type in normalized_types}
 
         with self._session_scope() as session:
             try:
@@ -209,7 +210,7 @@ class EntityStore:
                     stmt = stmt.limit(fetch_limit)
                     rows = session.execute(stmt).all()
 
-                    examples: List[Dict[str, Any]] = []
+                    examples: list[dict[str, Any]] = []
                     seen_values: set[str] = set()
                     for row in rows:
                         canonical = (row.canonical_value or "").strip()
@@ -243,8 +244,8 @@ class EntityStore:
         return results
 
 
-def _normalize_list(values: Sequence[str] | None) -> List[str]:
-    normalized: List[str] = []
+def _normalize_list(values: Sequence[str] | None) -> list[str]:
+    normalized: list[str] = []
     if not values:
         return normalized
     for entry in values:
@@ -268,7 +269,7 @@ def _value_predicate(column: sa.ColumnElement[Any], value: str, match_mode: Matc
     raise ValueError(f"Unsupported match mode '{match_mode}'")
 
 
-def _coerce_metadata(value: Any) -> Dict[str, Any]:
+def _coerce_metadata(value: Any) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
     if isinstance(value, str):
@@ -279,7 +280,7 @@ def _coerce_metadata(value: Any) -> Dict[str, Any]:
     return {}
 
 
-def _extract_loss_amount(*payloads: Dict[str, Any]) -> float | None:
+def _extract_loss_amount(*payloads: dict[str, Any]) -> float | None:
     for payload in payloads:
         if not payload:
             continue
@@ -307,8 +308,8 @@ def _coerce_number(value: Any) -> float | None:
     return None
 
 
-def _parse_loss_buckets(values: Sequence[str] | None) -> List[tuple[float | None, float | None]]:
-    ranges: List[tuple[float | None, float | None]] = []
+def _parse_loss_buckets(values: Sequence[str] | None) -> list[tuple[float | None, float | None]]:
+    ranges: list[tuple[float | None, float | None]] = []
     if not values:
         return ranges
     for bucket in values:

@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import shutil
 from pathlib import Path
-from typing import Optional
 
 from i4g.cli.utils import stage_bundle
 from i4g.cli.bootstrap.common import (
@@ -35,26 +34,26 @@ def run_local(
     *,
     reset: bool,
     skip_vector: bool,
-    bundle_uri: Optional[str],
+    bundle_uri: str | None,
     dry_run: bool,
     verify_only: bool,
     report_dir: Path,
     smoke_search: bool,
-    search_project: Optional[str],
-    search_location: Optional[str],
-    search_data_store_id: Optional[str],
+    search_project: str | None,
+    search_location: str | None,
+    search_data_store_id: str | None,
     search_serving_config_id: str,
     search_query: str,
     search_page_size: int,
     smoke_dossiers: bool,
-    smoke_api_url: Optional[str],
-    smoke_token: Optional[str],
+    smoke_api_url: str | None,
+    smoke_token: str | None,
     smoke_dossier_status: str,
     smoke_dossier_limit: int,
-    smoke_dossier_plan_id: Optional[str],
+    smoke_dossier_plan_id: str | None,
     force: bool,
     skip_ingest: bool = False,
-    limit: Optional[int] = None,
+    limit: int | None = None,
 ) -> None:
     """Execute the local sandbox bootstrap flow."""
 

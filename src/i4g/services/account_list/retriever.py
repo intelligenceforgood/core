@@ -6,7 +6,8 @@ import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any
+from collections.abc import Iterable
 
 from i4g.settings import get_settings
 from i4g.store.retriever import HybridRetriever
@@ -15,7 +16,7 @@ from .models import SourceDocument
 from .queries import IndicatorQuery
 
 LOGGER = logging.getLogger(__name__)
-_VECTOR_ENV_KEYS: Tuple[str, ...] = (
+_VECTOR_ENV_KEYS: tuple[str, ...] = (
     "I4G_ACCOUNT_LIST__ENABLE_VECTOR",
     "ACCOUNT_LIST__ENABLE_VECTOR",
     "I4G_ACCOUNT_LIST_ENABLE_VECTOR",
@@ -23,7 +24,7 @@ _VECTOR_ENV_KEYS: Tuple[str, ...] = (
 )
 
 
-def _coerce_metadata(value: object) -> Dict[str, Any]:
+def _coerce_metadata(value: object) -> dict[str, Any]:
     if isinstance(value, dict):
         return value
     if isinstance(value, str):
@@ -72,7 +73,7 @@ def _within_range(timestamp: datetime | None, start: datetime | None, end: datet
     return True
 
 
-def _vector_override_from_env() -> Optional[bool]:
+def _vector_override_from_env() -> bool | None:
     for key in _VECTOR_ENV_KEYS:
         raw = os.getenv(key)
         if raw is None:
@@ -107,7 +108,7 @@ class FinancialEntityRetriever:
         top_k: int,
         start_time: datetime | None,
         end_time: datetime | None,
-    ) -> List[SourceDocument]:
+    ) -> list[SourceDocument]:
         """Fetch candidate documents for a particular indicator category."""
 
         response = self.hybrid.query(
@@ -115,7 +116,7 @@ class FinancialEntityRetriever:
             vector_top_k=top_k,
             structured_top_k=top_k,
         )
-        documents: List[SourceDocument] = []
+        documents: list[SourceDocument] = []
         for entry in response.get("results", []):
             record = entry.get("record") or {}
             vector_entry = entry.get("vector") or {}
@@ -154,10 +155,10 @@ class FinancialEntityRetriever:
         top_k: int,
         start_time: datetime | None,
         end_time: datetime | None,
-    ) -> dict[str, List[SourceDocument]]:
+    ) -> dict[str, list[SourceDocument]]:
         """Fetch documents for each indicator in ``queries``."""
 
-        results: dict[str, List[SourceDocument]] = {}
+        results: dict[str, list[SourceDocument]] = {}
         for query in queries:
             results[query.slug] = self.fetch_documents(
                 indicator_query=query,

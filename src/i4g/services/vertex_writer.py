@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from google.cloud import discoveryengine_v1beta as discoveryengine
 from google.protobuf import json_format
@@ -20,7 +20,7 @@ class VertexWriteResult:
     """Summary of a Vertex document upsert."""
 
     document_id: str
-    warnings: List[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
 
 class VertexWriterError(RuntimeError):
@@ -37,9 +37,9 @@ class VertexDocumentWriter:
         location: str,
         data_store_id: str,
         branch: str = "default_branch",
-        default_dataset: Optional[str] = None,
+        default_dataset: str | None = None,
         timeout_seconds: int = 60,
-        client: Optional[discoveryengine.DocumentServiceClient] = None,
+        client: discoveryengine.DocumentServiceClient | None = None,
     ) -> None:
         if not project or not data_store_id:
             raise ValueError("VertexDocumentWriter requires both project and data_store_id")
@@ -55,7 +55,7 @@ class VertexDocumentWriter:
         self._default_dataset = default_dataset
         self._reconcile_mode = discoveryengine.ImportDocumentsRequest.ReconciliationMode.INCREMENTAL
 
-    def upsert_record(self, record: Dict[str, Any]) -> VertexWriteResult:
+    def upsert_record(self, record: dict[str, Any]) -> VertexWriteResult:
         """Persist a single record to Vertex AI Search via import_documents."""
 
         try:
@@ -77,7 +77,7 @@ class VertexDocumentWriter:
         except Exception as exc:  # pragma: no cover - network/backend failure
             raise VertexWriterError(f"Vertex import failed for document_id={document.id}: {exc}") from exc
 
-        warnings: List[str] = []
+        warnings: list[str] = []
         for sample in getattr(response, "error_samples", [])[:3]:
             try:
                 warnings.append(json_format.MessageToJson(sample))

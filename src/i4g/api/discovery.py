@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import base64
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from i4g.api.auth import require_token
 from i4g.api.response_models import DiscoverySearchResponse
-from i4g.services.discovery import DiscoverySearchParams, get_default_discovery_params, run_discovery_search
+from i4g.services.discovery import get_default_discovery_params, run_discovery_search
 from i4g.services.hybrid_search import HybridSearchQuery, HybridSearchService
 from i4g.settings import get_settings
 
@@ -25,7 +25,7 @@ def _allow_local_fallback() -> bool:
     return SETTINGS.is_local or SETTINGS.identity.disable_auth
 
 
-def _local_discovery_search(query: str, limit: int, offset: int = 0) -> Dict[str, Any]:
+def _local_discovery_search(query: str, limit: int, offset: int = 0) -> dict[str, Any]:
     """Use local HybridSearchService to simulate Discovery results."""
     # Raise errors directly if local search fails
     service = HybridSearchService()

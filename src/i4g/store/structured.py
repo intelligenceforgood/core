@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
@@ -135,7 +135,7 @@ class StructuredStore:
             session.execute(stmt)
             session.commit()
 
-    def get_by_id(self, case_id: str) -> Optional[ScamRecord]:
+    def get_by_id(self, case_id: str) -> ScamRecord | None:
         """Retrieve a record by ``case_id``."""
         with self._session_factory() as session:
             row = session.execute(
@@ -145,7 +145,7 @@ class StructuredStore:
                 return None
             return self._row_to_record(row)
 
-    def list_recent(self, limit: int = 50) -> List[ScamRecord]:
+    def list_recent(self, limit: int = 50) -> list[ScamRecord]:
         """List the most recent records ordered by ``created_at`` descending."""
         with self._session_factory() as session:
             rows = session.execute(
@@ -155,7 +155,7 @@ class StructuredStore:
             ).all()
             return [self._row_to_record(r) for r in rows]
 
-    def list_all(self) -> List[ScamRecord]:
+    def list_all(self) -> list[ScamRecord]:
         """Return every record in the store (used by batch jobs like PII backfill)."""
         with self._session_factory() as session:
             rows = session.execute(
@@ -163,7 +163,7 @@ class StructuredStore:
             ).all()
             return [self._row_to_record(r) for r in rows]
 
-    def search_by_field(self, field: str, value: Any, top_k: int = 50) -> List[ScamRecord]:
+    def search_by_field(self, field: str, value: Any, top_k: int = 50) -> list[ScamRecord]:
         """Search records by a top-level field or JSON entity key."""
         with self._session_factory() as session:
             query = sa.select(sql_schema.scam_records)
@@ -224,7 +224,7 @@ class StructuredStore:
 
             return records
 
-    def search_text(self, query: str, top_k: int = 50, offset: int = 0) -> List[ScamRecord]:
+    def search_text(self, query: str, top_k: int = 50, offset: int = 0) -> list[ScamRecord]:
         """Run a case-insensitive substring search against the text column."""
         if not query:
             return []

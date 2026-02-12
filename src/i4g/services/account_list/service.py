@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List
 from uuid import uuid4
 
 from i4g.settings import Settings, get_settings
@@ -12,7 +11,7 @@ from i4g.settings import Settings, get_settings
 from .exporters import AccountListExporter
 from .llm_extractor import AccountEntityExtractor
 from .models import AccountListRequest, AccountListResult, FinancialIndicator, SourceDocument
-from .queries import IndicatorQuery, get_indicator_query, list_indicator_queries
+from .queries import get_indicator_query, list_indicator_queries
 from .retriever import FinancialEntityRetriever
 
 LOGGER = logging.getLogger(__name__)
@@ -40,9 +39,9 @@ class AccountListService:
         request_id = f"account-run-{uuid4().hex[:8]}"
         generated_at = datetime.now(tz=timezone.utc)
         categories = request.categories or [query.slug for query in list_indicator_queries()]
-        indicators: List[FinancialIndicator] = []
-        source_lookup: Dict[str, SourceDocument] = {}
-        warnings: List[str] = []
+        indicators: list[FinancialIndicator] = []
+        source_lookup: dict[str, SourceDocument] = {}
+        warnings: list[str] = []
 
         for category in categories:
             try:
@@ -93,7 +92,7 @@ class AccountListService:
             else:
                 if export_warnings:
                     warnings.extend(export_warnings)
-                payload: Dict[str, object] = {}
+                payload: dict[str, object] = {}
                 if artifacts:
                     payload["artifacts"] = artifacts
                 if warnings:
@@ -103,9 +102,9 @@ class AccountListService:
         return result
 
     @staticmethod
-    def _deduplicate(indicators: List[FinancialIndicator]) -> List[FinancialIndicator]:
+    def _deduplicate(indicators: list[FinancialIndicator]) -> list[FinancialIndicator]:
         seen: set[tuple[str, str, str]] = set()
-        result: List[FinancialIndicator] = []
+        result: list[FinancialIndicator] = []
         for indicator in indicators:
             key = (indicator.category.lower(), indicator.item.lower(), indicator.number.lower())
             if key in seen:

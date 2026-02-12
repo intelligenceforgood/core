@@ -7,8 +7,7 @@ the JSON the server returns, not domain/business logic.
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import Field
 
@@ -23,14 +22,14 @@ from i4g.api.camel import CamelModel
 class ItemListResponse(CamelModel):
     """Paginated list wrapper used by several list endpoints."""
 
-    items: List[Dict[str, Any]]
+    items: list[dict[str, Any]]
     count: int
 
 
 class EventListResponse(CamelModel):
     """Wrapper for event/action history lists."""
 
-    events: List[Dict[str, Any]]
+    events: list[dict[str, Any]]
     count: int
 
 
@@ -43,9 +42,9 @@ class IdResponse(CamelModel):
 class MutationResponse(CamelModel):
     """Generic update/delete confirmation."""
 
-    updated: Optional[bool] = None
-    deleted: Optional[bool] = None
-    search_id: Optional[str] = None
+    updated: bool | None = None
+    deleted: bool | None = None
+    search_id: str | None = None
 
 
 class BulkTagResponse(CamelModel):
@@ -64,7 +63,7 @@ class TaskStatusResponse(CamelModel):
 
     task_id: str
     status: str
-    message: Optional[str] = None
+    message: str | None = None
 
 
 class TaskUpdateResponse(CamelModel):
@@ -130,7 +129,7 @@ class CaseReviewsResponse(CamelModel):
     """Reviews associated with a case."""
 
     case_id: str
-    reviews: List[Dict[str, Any]]
+    reviews: list[dict[str, Any]]
     count: int
 
 
@@ -138,7 +137,7 @@ class ActionHistoryResponse(CamelModel):
     """Audit trail for a review."""
 
     review_id: str
-    actions: List[Dict[str, Any]]
+    actions: list[dict[str, Any]]
 
 
 # ---------------------------------------------------------------------------
@@ -149,18 +148,18 @@ class ActionHistoryResponse(CamelModel):
 class SearchResultsResponse(CamelModel):
     """Response from GET /reviews/search."""
 
-    results: List[Dict[str, Any]]
+    results: list[dict[str, Any]]
     count: int
     offset: int
     limit: int
     total: int
-    vector_hits: Optional[int] = None
-    structured_hits: Optional[int] = None
-    merged_results: Optional[int] = None
-    source_breakdown: Optional[Dict[str, Any]] = None
-    diagnostics: Optional[Dict[str, Any]] = None
+    vector_hits: int | None = None
+    structured_hits: int | None = None
+    merged_results: int | None = None
+    source_breakdown: dict[str, Any] | None = None
+    diagnostics: dict[str, Any] | None = None
     search_id: str
-    duration_ms: Optional[float] = None
+    duration_ms: float | None = None
 
 
 class AdvancedSearchResultsResponse(CamelModel):
@@ -173,9 +172,9 @@ class AdvancedSearchResultsResponse(CamelModel):
     model_config = {"extra": "allow"}
 
     search_id: str
-    results: Optional[List[Dict[str, Any]]] = None
-    count: Optional[int] = None
-    total: Optional[int] = None
+    results: list[dict[str, Any]] | None = None
+    count: int | None = None
+    total: int | None = None
 
 
 class SearchSchemaResponse(CamelModel):
@@ -186,14 +185,14 @@ class SearchSchemaResponse(CamelModel):
 
     model_config = {"extra": "allow"}
 
-    classifications: Optional[List[str]] = None
-    campaigns: Optional[List[Dict[str, Any]]] = None
+    classifications: list[str] | None = None
+    campaigns: list[dict[str, Any]] | None = None
 
 
 class PresetListResponse(CamelModel):
     """List of tag presets."""
 
-    presets: List[Dict[str, Any]]
+    presets: list[dict[str, Any]]
     count: int
 
 
@@ -219,9 +218,9 @@ class DetokenizeResponse(CamelModel):
     prefix: str
     canonical_value: str
     pepper_version: int
-    case_id: Optional[str] = None
-    detector: Optional[str] = None
-    created_at: Optional[str] = None
+    case_id: str | None = None
+    detector: str | None = None
+    created_at: str | None = None
 
 
 class TokenizationHealthResponse(CamelModel):
@@ -241,10 +240,10 @@ class IntakeCreateResponse(CamelModel):
     """Result of creating a new intake."""
 
     intake_id: str
-    job_id: Optional[str] = None
-    attachments: List[Dict[str, Any]] = Field(default_factory=list)
+    job_id: str | None = None
+    attachments: list[dict[str, Any]] = Field(default_factory=list)
     status: str = "received"
-    job: Optional[Dict[str, Any]] = None
+    job: dict[str, Any] | None = None
 
 
 class IntakeJobUpdateResponse(CamelModel):
@@ -266,8 +265,8 @@ class IntakeCaseAttachResponse(CamelModel):
 
     updated: bool
     intake_id: str
-    case_id: Optional[str] = None
-    review_id: Optional[str] = None
+    case_id: str | None = None
+    review_id: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -279,13 +278,13 @@ class VerifyArtifact(CamelModel):
     """Single artifact in a dossier verification result."""
 
     label: str
-    path: Optional[str] = None
-    expected_hash: Optional[str] = None
-    actual_hash: Optional[str] = None
+    path: str | None = None
+    expected_hash: str | None = None
+    actual_hash: str | None = None
     exists: bool
     matches: bool
-    size_bytes: Optional[int] = None
-    error: Optional[str] = None
+    size_bytes: int | None = None
+    error: str | None = None
 
 
 class DossierVerifyResponse(CamelModel):
@@ -293,23 +292,23 @@ class DossierVerifyResponse(CamelModel):
 
     plan_id: str
     algorithm: str
-    warnings: List[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
     missing_count: int
     mismatch_count: int
     all_verified: bool
-    artifacts: List[VerifyArtifact]
+    artifacts: list[VerifyArtifact]
 
 
 class DriveAclResponse(CamelModel):
     """Drive folder metadata + permissions."""
 
     plan_id: str
-    folder_id: Optional[str] = None
-    folder_name: Optional[str] = None
-    link: Optional[str] = None
-    drive_id: Optional[str] = None
-    permissions: List[Dict[str, Any]] = Field(default_factory=list)
-    warnings: List[str] = Field(default_factory=list)
+    folder_id: str | None = None
+    folder_name: str | None = None
+    link: str | None = None
+    drive_id: str | None = None
+    permissions: list[dict[str, Any]] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -355,10 +354,10 @@ class DashboardReminder(CamelModel):
 class DashboardOverviewResponse(CamelModel):
     """Complete dashboard overview payload."""
 
-    metrics: List[DashboardMetric]
-    alerts: List[DashboardAlert]
-    activity: List[DashboardActivity]
-    reminders: List[DashboardReminder]
+    metrics: list[DashboardMetric]
+    alerts: list[DashboardAlert]
+    activity: list[DashboardActivity]
+    reminders: list[DashboardReminder]
 
 
 # ---------------------------------------------------------------------------
@@ -408,11 +407,11 @@ class GeographyBreakdown(CamelModel):
 class AnalyticsOverviewResponse(CamelModel):
     """Complete analytics overview payload."""
 
-    metrics: List[AnalyticsMetric]
-    detection_rate_series: List[DailySeries]
-    pipeline_breakdown: List[PipelineStep]
-    geography_breakdown: List[GeographyBreakdown]
-    weekly_incidents: List[WeeklyIncident]
+    metrics: list[AnalyticsMetric]
+    detection_rate_series: list[DailySeries]
+    pipeline_breakdown: list[PipelineStep]
+    geography_breakdown: list[GeographyBreakdown]
+    weekly_incidents: list[WeeklyIncident]
 
 
 # ---------------------------------------------------------------------------
@@ -425,13 +424,119 @@ class DiscoveryResult(CamelModel):
 
     model_config = {"extra": "allow"}
 
-    document_id: Optional[str] = None
-    document_name: Optional[str] = None
+    document_id: str | None = None
+    document_name: str | None = None
 
 
 class DiscoverySearchResponse(CamelModel):
     """Response from Discovery search."""
 
-    results: List[Dict[str, Any]]
+    results: list[dict[str, Any]]
     total_size: int
-    next_page_token: Optional[str] = None
+    next_page_token: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Cases (cases.py)
+# ---------------------------------------------------------------------------
+
+
+class CasesSummary(CamelModel):
+    """Aggregate counts for the cases overview."""
+
+    active: int = 0
+    due_today: int = 0
+    pending_review: int = 0
+    escalations: int = 0
+
+
+class CaseListItem(CamelModel):
+    """Minimal case data for list views."""
+
+    model_config = {"extra": "allow"}
+
+    id: str
+    title: str
+    priority: str
+    status: str
+
+
+class CaseQueue(CamelModel):
+    """Queue summary entry."""
+
+    id: str
+    name: str
+    description: str
+    count: int
+
+
+class CasesListResponse(CamelModel):
+    """Response for GET /cases."""
+
+    summary: CasesSummary
+    cases: list[CaseListItem]
+    queues: list[CaseQueue]
+
+
+# ---------------------------------------------------------------------------
+# Review detail (review_detail.py) — single review
+# ---------------------------------------------------------------------------
+
+
+class ReviewItemResponse(CamelModel):
+    """Single review queue item returned by GET /reviews/{review_id}."""
+
+    model_config = {"extra": "allow"}
+
+    review_id: str
+    case_id: str
+    status: str | None = None
+    priority: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Saved search export (review_search.py)
+# ---------------------------------------------------------------------------
+
+
+class SavedSearchExportResponse(CamelModel):
+    """Exported saved search configuration."""
+
+    model_config = {"extra": "allow"}
+
+    search_id: str
+    name: str
+    params: dict[str, Any] | None = None
+    tags: list[str] | None = None
+
+
+# ---------------------------------------------------------------------------
+# Taxonomy (taxonomy.py)
+# ---------------------------------------------------------------------------
+
+
+class TaxonomyResponse(CamelModel):
+    """Taxonomy tree. Uses ``extra = "allow"`` for dynamic structure."""
+
+    model_config = {"extra": "allow"}
+
+
+# ---------------------------------------------------------------------------
+# Intake record / job detail
+# ---------------------------------------------------------------------------
+
+
+class IntakeRecordResponse(CamelModel):
+    """Full intake record. Uses ``extra = "allow"`` for flexible payloads."""
+
+    model_config = {"extra": "allow"}
+
+    intake_id: str
+
+
+class IntakeJobResponse(CamelModel):
+    """Intake job status detail."""
+
+    model_config = {"extra": "allow"}
+
+    job_id: str

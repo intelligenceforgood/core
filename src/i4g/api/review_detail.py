@@ -5,12 +5,11 @@ and action history. Mounted by the main ``review.py`` orchestrator.
 """
 
 import logging
-from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from i4g.api.auth import require_token
-from i4g.api.response_models import ActionHistoryResponse, CaseReviewsResponse
+from i4g.api.response_models import ActionHistoryResponse, CaseReviewsResponse, ReviewItemResponse
 from i4g.api.review_deps import get_store
 from i4g.store.review_store import ReviewStore
 
@@ -35,7 +34,7 @@ def reviews_by_case(
     return {"case_id": case_id, "reviews": reviews, "count": len(reviews)}
 
 
-@router.get("/{review_id}", summary="Get a review item")
+@router.get("/{review_id}", summary="Get a review item", response_model=ReviewItemResponse)
 def get_review(review_id: str, store: ReviewStore = Depends(get_store), user=Depends(require_token)):
     """Get full review item by ID."""
     item = store.get_review(review_id)

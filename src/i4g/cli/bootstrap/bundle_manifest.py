@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 ISO_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 HASH_CHUNK_SIZE = 8192
@@ -17,12 +17,12 @@ class FileRecord:
     path: str
     size_bytes: int
     sha256: str
-    line_count: Optional[int] = None
+    line_count: int | None = None
 
 
 @dataclass
 class ManifestResult:
-    manifest: Dict[str, Any]
+    manifest: dict[str, Any]
     output_path: Path
 
 
@@ -42,7 +42,7 @@ def count_lines(path: Path) -> int:
 def summarize_file(path: Path, root: Path) -> FileRecord:
     size_bytes = path.stat().st_size
     sha256 = file_sha256(path)
-    line_count: Optional[int] = None
+    line_count: int | None = None
     if path.suffix.lower() in COUNTABLE_SUFFIXES:
         line_count = count_lines(path)
     relative_path = path.relative_to(root).as_posix()
@@ -52,15 +52,15 @@ def summarize_file(path: Path, root: Path) -> FileRecord:
 def build_manifest(
     bundle_dir: Path,
     bundle_id: str,
-    provenance: Optional[str],
-    license_name: Optional[str],
-    tags: List[str],
+    provenance: str | None,
+    license_name: str | None,
+    tags: list[str],
     pii: bool,
     output_path: Path,
 ) -> ManifestResult:
     bundle_dir = bundle_dir.resolve()
     output_path = output_path.resolve()
-    files: List[FileRecord] = []
+    files: list[FileRecord] = []
 
     for path in sorted(bundle_dir.rglob("*")):
         if not path.is_file():

@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any, Iterable, Iterator, List
+from typing import Any
+from collections.abc import Iterable, Iterator
 
 import google.api_core.exceptions
 from google.cloud import discoveryengine_v1beta as discoveryengine
@@ -13,12 +14,10 @@ from google.protobuf import json_format
 
 from i4g.cli.admin import helpers as saved_searches
 from i4g.cli.utils import console, iter_jsonl
-from i4g.ingestion.preprocess import prepare_documents
 from i4g.services.ingest_payloads import prepare_ingest_payload
 from i4g.services.vertex_documents import build_vertex_document
 from i4g.settings import get_settings
 from i4g.store.ingest import IngestPipeline
-from i4g.store.vector import VectorStore
 
 
 def ingest_bundles(*, input_path: str | Path, limit: int | None = None) -> None:
@@ -73,8 +72,8 @@ def _enrich_record(record: dict[str, Any], default_dataset: str | None = None) -
     return enriched
 
 
-def _chunked(iterable: Iterable[discoveryengine.Document], size: int) -> Iterator[List[discoveryengine.Document]]:
-    chunk: List[discoveryengine.Document] = []
+def _chunked(iterable: Iterable[discoveryengine.Document], size: int) -> Iterator[list[discoveryengine.Document]]:
+    chunk: list[discoveryengine.Document] = []
     for item in iterable:
         chunk.append(item)
         if len(chunk) == size:

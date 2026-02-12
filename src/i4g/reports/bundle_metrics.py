@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import Any, Mapping, Optional
+from typing import Any
+from collections.abc import Mapping
 
 _LOSS_BAND_EMPTY = "unknown"
 
@@ -17,8 +18,8 @@ class BundleMetrics:
     loss_band: str
     jurisdiction: str
     geo_bucket: str
-    victim_country: Optional[str]
-    offender_country: Optional[str]
+    victim_country: str | None
+    offender_country: str | None
     cross_border: bool
 
     def to_dict(self) -> dict[str, Any]:
@@ -74,7 +75,7 @@ def _parse_loss(metadata: Mapping[str, Any]) -> Decimal:
     return Decimal("0")
 
 
-def _first_value(metadata: Mapping[str, Any], keys: tuple[str, ...]) -> Optional[str]:
+def _first_value(metadata: Mapping[str, Any], keys: tuple[str, ...]) -> str | None:
     for key in keys:
         value = metadata.get(key)
         if isinstance(value, str) and value.strip():
@@ -82,14 +83,14 @@ def _first_value(metadata: Mapping[str, Any], keys: tuple[str, ...]) -> Optional
     return None
 
 
-def _normalize_country(value: Optional[str]) -> Optional[str]:
+def _normalize_country(value: str | None) -> str | None:
     if not value:
         return None
     normalized = value.strip().upper()
     return normalized or None
 
 
-def _derive_geo_bucket(jurisdiction: str, victim_country: Optional[str]) -> str:
+def _derive_geo_bucket(jurisdiction: str, victim_country: str | None) -> str:
     token = jurisdiction.strip()
     if token:
         if "-" in token:

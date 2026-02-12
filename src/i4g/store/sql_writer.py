@@ -5,11 +5,12 @@ from __future__ import annotations
 import hashlib
 import logging
 import uuid
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, Dict, Iterator, List, Sequence
+from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session, sessionmaker
@@ -87,15 +88,15 @@ class CasePayload:
     classification: str
     confidence: float
     classification_status: str = "pending"
-    classification_result: Dict[str, Any] | None = None
-    tags: List[str] | None = None
+    classification_result: dict[str, Any] | None = None
+    tags: list[str] | None = None
     text: str | None = None
     case_id: str | None = None
     raw_text_sha256: str | None = None
     detected_at: datetime | None = None
     reported_at: datetime | None = None
     status: str = "open"
-    metadata: Dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
     is_deleted: bool = False
     deleted_at: datetime | None = None
 
@@ -116,7 +117,7 @@ class SourceDocumentPayload:
     chunk_count: int = 1
     score: float | None = None
     captured_at: datetime | None = None
-    metadata: Dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)
@@ -128,7 +129,7 @@ class EntityMentionPayload:
     span_start: int | None = None
     span_end: int | None = None
     sentence: str | None = None
-    metadata: Dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)
@@ -143,8 +144,8 @@ class EntityPayload:
     raw_value: str | None = None
     first_seen_at: datetime | None = None
     last_seen_at: datetime | None = None
-    metadata: Dict[str, Any] | None = None
-    mentions: List[EntityMentionPayload] = field(default_factory=list)
+    metadata: dict[str, Any] | None = None
+    mentions: list[EntityMentionPayload] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -157,7 +158,7 @@ class IndicatorSourcePayload:
     entity_alias: str | None = None
     evidence_score: float | None = None
     explanation: str | None = None
-    metadata: Dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 @dataclass(slots=True)
@@ -174,8 +175,8 @@ class IndicatorPayload:
     confidence: float = 0.0
     first_seen_at: datetime | None = None
     last_seen_at: datetime | None = None
-    metadata: Dict[str, Any] | None = None
-    sources: List[IndicatorSourcePayload] = field(default_factory=list)
+    metadata: dict[str, Any] | None = None
+    sources: list[IndicatorSourcePayload] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -183,9 +184,9 @@ class CaseBundle:
     """Complete payload passed into :class:`SqlWriter`."""
 
     case: CasePayload
-    documents: List[SourceDocumentPayload] = field(default_factory=list)
-    entities: List[EntityPayload] = field(default_factory=list)
-    indicators: List[IndicatorPayload] = field(default_factory=list)
+    documents: list[SourceDocumentPayload] = field(default_factory=list)
+    entities: list[EntityPayload] = field(default_factory=list)
+    indicators: list[IndicatorPayload] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -193,9 +194,9 @@ class SqlWriterResult:
     """Return value emitted after persisting a bundle."""
 
     case_id: str
-    document_ids: List[str]
-    entity_ids: List[str]
-    indicator_ids: List[str]
+    document_ids: list[str]
+    entity_ids: list[str]
+    indicator_ids: list[str]
 
 
 class SqlWriter:
@@ -309,9 +310,9 @@ class SqlWriter:
         case_id: str,
         documents: Sequence[SourceDocumentPayload],
         timestamp: datetime,
-    ) -> tuple[List[str], Dict[str, str]]:
-        ids: List[str] = []
-        alias_map: Dict[str, str] = {}
+    ) -> tuple[list[str], dict[str, str]]:
+        ids: list[str] = []
+        alias_map: dict[str, str] = {}
         for doc in documents:
             document_id = _generate_uuid(doc.document_id)
             ids.append(document_id)
@@ -349,11 +350,11 @@ class SqlWriter:
         session: Session,
         case_id: str,
         entities: Sequence[EntityPayload],
-        doc_alias_map: Dict[str, str],
+        doc_alias_map: dict[str, str],
         timestamp: datetime,
-    ) -> tuple[List[str], Dict[str, str]]:
-        ids: List[str] = []
-        alias_map: Dict[str, str] = {}
+    ) -> tuple[list[str], dict[str, str]]:
+        ids: list[str] = []
+        alias_map: dict[str, str] = {}
         for entity in entities:
             entity_id = entity.entity_id or self._lookup_entity_id(session, case_id, entity) or _generate_uuid(None)
             ids.append(entity_id)
@@ -393,7 +394,7 @@ class SqlWriter:
         session: Session,
         entity_id: str,
         mentions: Sequence[EntityMentionPayload],
-        doc_alias_map: Dict[str, str],
+        doc_alias_map: dict[str, str],
         timestamp: datetime,
     ) -> None:
         session.execute(
@@ -422,12 +423,12 @@ class SqlWriter:
         session: Session,
         case_id: str,
         indicators: Sequence[IndicatorPayload],
-        doc_alias_map: Dict[str, str],
-        entity_alias_map: Dict[str, str],
+        doc_alias_map: dict[str, str],
+        entity_alias_map: dict[str, str],
         default_dataset: str,
         timestamp: datetime,
-    ) -> List[str]:
-        ids: List[str] = []
+    ) -> list[str]:
+        ids: list[str] = []
         for indicator in indicators:
             dataset = indicator.dataset or default_dataset
             if not dataset:
@@ -487,8 +488,8 @@ class SqlWriter:
         session: Session,
         indicator_id: str,
         sources: Sequence[IndicatorSourcePayload],
-        doc_alias_map: Dict[str, str],
-        entity_alias_map: Dict[str, str],
+        doc_alias_map: dict[str, str],
+        entity_alias_map: dict[str, str],
         timestamp: datetime,
     ) -> None:
         session.execute(
@@ -512,7 +513,7 @@ class SqlWriter:
         self,
         document_id: str | None,
         document_alias: str | None,
-        doc_alias_map: Dict[str, str],
+        doc_alias_map: dict[str, str],
     ) -> str:
         resolved = document_id or (doc_alias_map.get(document_alias) if document_alias else None)
         if not resolved:
@@ -523,7 +524,7 @@ class SqlWriter:
         self,
         entity_id: str | None,
         entity_alias: str | None,
-        entity_alias_map: Dict[str, str],
+        entity_alias_map: dict[str, str],
     ) -> str | None:
         if entity_id:
             return entity_id

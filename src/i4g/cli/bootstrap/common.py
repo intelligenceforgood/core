@@ -3,23 +3,22 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import Any, Optional, List, Dict
+from typing import Any
 
 
 @dataclass
 class VerificationReport:
     environment: str
     timestamp: str
-    bundles: Dict[str, Any]
-    storage: Dict[str, Any]
-    smoke_tests: Dict[str, Any]
-    errors: List[str]
+    bundles: dict[str, Any]
+    storage: dict[str, Any]
+    smoke_tests: dict[str, Any]
+    errors: list[str]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -33,9 +32,9 @@ class SmokeResult:
 class DossierSmokeResult:
     status: str
     message: str
-    plan_id: Optional[str] = None
-    manifest_path: Optional[str] = None
-    signature_path: Optional[str] = None
+    plan_id: str | None = None
+    manifest_path: str | None = None
+    signature_path: str | None = None
 
 
 @dataclass

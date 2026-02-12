@@ -13,7 +13,8 @@ Key features:
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
+from collections.abc import Iterable
 
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
@@ -22,7 +23,7 @@ from i4g.store import sql as sql_schema
 from i4g.store.sql import session_factory as default_session_factory
 
 
-def _iso_timestamp(value: Optional[datetime]) -> str:
+def _iso_timestamp(value: datetime | None) -> str:
     """Return an ISO-8601 string, defaulting to UTC now when value is None."""
     dt = value or datetime.now(timezone.utc)
     if dt.tzinfo is None:
@@ -33,11 +34,11 @@ def _iso_timestamp(value: Optional[datetime]) -> str:
 def _summarize_dashboard_rows(
     rows: Iterable[Any],
     limit: int,
-    status_filter: Optional[str],
-    priority_filter: Optional[str],
-    queue_filter: Optional[str],
-    due_date_filter: Optional[str],
-) -> Dict[str, Any]:
+    status_filter: str | None,
+    priority_filter: str | None,
+    queue_filter: str | None,
+    due_date_filter: str | None,
+) -> dict[str, Any]:
     """Shared logic for aggregating dashboard metrics from review queue rows."""
     summary = {
         "active": 0,
@@ -199,7 +200,7 @@ class ReviewStore:
     def __init__(self, session_factory: sessionmaker | None = None) -> None:
         self._session_factory = session_factory or default_session_factory()
 
-    def get_extended_case(self, case_id: str) -> Optional[Dict[str, Any]]:
+    def get_extended_case(self, case_id: str) -> dict[str, Any] | None:
         """Fetch full case details including timeline and scam record data."""
         rq = sql_schema.review_queue
         sr = sql_schema.scam_records
@@ -266,11 +267,11 @@ class ReviewStore:
     def get_dashboard_summary(
         self,
         limit: int = 50,
-        status: Optional[str] = None,
-        priority: Optional[str] = None,
-        queue: Optional[str] = None,
-        due_date: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        status: str | None = None,
+        priority: str | None = None,
+        queue: str | None = None,
+        due_date: str | None = None,
+    ) -> dict[str, Any]:
         """Aggregate summary statistics and recent cases for the dashboard."""
 
         rq = sql_schema.review_queue
@@ -306,7 +307,7 @@ class ReviewStore:
             due_date_filter=due_date,
         )
 
-    def get_queue(self, status: str = "new", limit: int = 25) -> List[Dict[str, Any]]:
+    def get_queue(self, status: str = "new", limit: int = 25) -> list[dict[str, Any]]:
         with self._session_factory() as session:
             rows = session.execute(
                 sa.select(sql_schema.review_queue)
@@ -316,14 +317,14 @@ class ReviewStore:
             ).all()
             return [dict(r._mapping) for r in rows]
 
-    def get_review(self, review_id: str) -> Optional[Dict[str, Any]]:
+    def get_review(self, review_id: str) -> dict[str, Any] | None:
         with self._session_factory() as session:
             row = session.execute(
                 sa.select(sql_schema.review_queue).where(sql_schema.review_queue.c.review_id == review_id)
             ).first()
             return dict(row._mapping) if row else None
 
-    def get_cases(self, case_ids: Iterable[str]) -> Dict[str, Dict[str, Any]]:
+    def get_cases(self, case_ids: Iterable[str]) -> dict[str, dict[str, Any]]:
         normalized = list({str(cid).strip() for cid in case_ids if cid and str(cid).strip()})
         if not normalized:
             return {}
@@ -338,8 +339,8 @@ class ReviewStore:
         self,
         case_id: str,
         priority: str = "medium",
-        classification_result: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
+        classification_result: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
     ) -> str:
         """Enqueue a case for review."""
         return self.upsert_queue_entry(
@@ -352,7 +353,7 @@ class ReviewStore:
             tags=tags,
         )
 
-    def update_status(self, review_id: str, status: str, notes: Optional[str] = None) -> None:
+    def update_status(self, review_id: str, status: str, notes: str | None = None) -> None:
         now = datetime.now(timezone.utc)
         with self._session_factory() as session:
             stmt = (
@@ -366,16 +367,16 @@ class ReviewStore:
     def upsert_queue_entry(
         self,
         *,
-        review_id: Optional[str],
+        review_id: str | None,
         case_id: str,
         status: str,
         queued_at: datetime,
         priority: str = "medium",
-        last_updated: Optional[datetime] = None,
-        assigned_to: Optional[str] = None,
-        notes: Optional[str] = None,
-        classification_result: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
+        last_updated: datetime | None = None,
+        assigned_to: str | None = None,
+        notes: str | None = None,
+        classification_result: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
     ) -> str:
         normalized_review_id = review_id or str(uuid.uuid4())
         last_updated = last_updated or queued_at
@@ -453,7 +454,7 @@ class ReviewStore:
         review_id: str,
         action: str,
         actor: str = "system",
-        payload: Optional[Dict[str, Any]] = None,
+        payload: dict[str, Any] | None = None,
     ) -> str:
         action_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
@@ -490,7 +491,7 @@ class ReviewStore:
             session.commit()
         return action_id
 
-    def get_recent_actions(self, action: Optional[str] = None, limit: int = 20) -> List[Dict[str, Any]]:
+    def get_recent_actions(self, action: str | None = None, limit: int = 20) -> list[dict[str, Any]]:
         with self._session_factory() as session:
             query = sa.select(sql_schema.review_actions)
             if action:
@@ -499,7 +500,7 @@ class ReviewStore:
             rows = session.execute(query).all()
             return [dict(r._mapping) for r in rows]
 
-    def get_actions(self, review_id: str) -> List[Dict[str, Any]]:
+    def get_actions(self, review_id: str) -> list[dict[str, Any]]:
         with self._session_factory() as session:
             rows = session.execute(
                 sa.select(sql_schema.review_actions)
@@ -511,11 +512,11 @@ class ReviewStore:
     def upsert_saved_search(
         self,
         name: str,
-        params: Dict[str, Any],
-        owner: Optional[str] = None,
-        search_id: Optional[str] = None,
+        params: dict[str, Any],
+        owner: str | None = None,
+        search_id: str | None = None,
         favorite: bool = False,
-        tags: Optional[List[str]] = None,
+        tags: list[str] | None = None,
     ) -> str:
         sid = search_id or str(uuid.uuid4())
         now = datetime.now(timezone.utc)
@@ -545,7 +546,7 @@ class ReviewStore:
             session.commit()
         return sid
 
-    def list_saved_searches(self, owner: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
+    def list_saved_searches(self, owner: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         with self._session_factory() as session:
             query = sa.select(sql_schema.saved_searches)
             if owner:
@@ -562,7 +563,7 @@ class ReviewStore:
             rows = session.execute(query).all()
             return [dict(r._mapping) for r in rows]
 
-    def list_searches(self, owner: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_searches(self, owner: str | None = None) -> list[dict[str, Any]]:
         with self._session_factory() as session:
             query = sa.select(sql_schema.saved_searches)
             if owner:
@@ -571,7 +572,7 @@ class ReviewStore:
             rows = session.execute(query).all()
             return [dict(r._mapping) for r in rows]
 
-    def get_search(self, search_id: str) -> Optional[Dict[str, Any]]:
+    def get_search(self, search_id: str) -> dict[str, Any] | None:
         with self._session_factory() as session:
             row = session.execute(
                 sa.select(sql_schema.saved_searches).where(sql_schema.saved_searches.c.search_id == search_id)
@@ -599,17 +600,20 @@ class ReviewStore:
     def update_saved_search(
         self,
         search_id: str,
-        name: Optional[str] = None,
-        params: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
+        name: str | None = None,
+        params: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
+        favorite: bool | None = None,
     ) -> bool:
-        values = {}
+        values: dict[str, Any] = {}
         if name is not None:
             values["name"] = name
         if params is not None:
             values["params"] = params
         if tags is not None:
             values["tags"] = tags
+        if favorite is not None:
+            values["favorite"] = favorite
 
         if not values:
             return False
@@ -623,7 +627,7 @@ class ReviewStore:
             session.commit()
             return result.rowcount > 0
 
-    def bulk_tag_searches(self, search_ids: List[str], tags: List[str]) -> int:
+    def bulk_tag_searches(self, search_ids: list[str], tags: list[str]) -> int:
         updated = 0
         for sid in search_ids:
             search = self.get_search(sid)
@@ -637,6 +641,216 @@ class ReviewStore:
             if self.update_saved_search(sid, tags=new_tags):
                 updated += 1
         return updated
+
+    def bulk_update_tags(
+        self,
+        search_ids: list[str],
+        add: list[str] | None = None,
+        remove: list[str] | None = None,
+        replace: list[str] | None = None,
+    ) -> int:
+        """Bulk update tags across multiple saved searches.
+
+        Args:
+            search_ids: IDs of saved searches to update.
+            add: Tags to append (ignored when ``replace`` is set).
+            remove: Tags to remove (ignored when ``replace`` is set).
+            replace: When set, replaces all tags with this list.
+
+        Returns:
+            Number of records updated.
+        """
+        updated = 0
+        for sid in search_ids:
+            search = self.get_search(sid)
+            if not search:
+                continue
+
+            if replace is not None:
+                new_tags = list(replace)
+            else:
+                current_tags: list[str] = search.get("tags") or []
+                if not isinstance(current_tags, list):
+                    current_tags = []
+                if remove:
+                    current_tags = [t for t in current_tags if t not in remove]
+                if add:
+                    current_tags = current_tags + [t for t in add if t not in current_tags]
+                new_tags = current_tags
+
+            if self.update_saved_search(sid, tags=new_tags):
+                updated += 1
+        return updated
+
+    # --- Alias methods --------------------------------------------------------
+    # The API layer uses these names; keep thin wrappers for consistency.
+
+    def get_saved_search(self, search_id: str) -> dict[str, Any] | None:
+        """Alias for :meth:`get_search`."""
+        return self.get_search(search_id)
+
+    def delete_saved_search(self, search_id: str) -> bool:
+        """Alias for :meth:`delete_search`."""
+        return self.delete_search(search_id)
+
+    def import_saved_search(
+        self,
+        record: dict[str, Any],
+        owner: str | None = None,
+    ) -> str:
+        """Import a saved search definition from an export payload.
+
+        Raises:
+            ValueError: If name conflicts with existing search for same owner.
+        """
+        name = record.get("name", "Imported Search")
+        params = record.get("params", {})
+        tags = record.get("tags", [])
+        favorite = record.get("favorite", False)
+
+        # Check for name collision within same owner scope
+        existing = self.list_saved_searches(owner=owner, limit=200)
+        for entry in existing:
+            if entry.get("name") == name:
+                raise ValueError(f"duplicate_saved_search:{owner or ''}")
+
+        return self.upsert_saved_search(
+            name=name,
+            params=params,
+            owner=owner,
+            favorite=favorite,
+            tags=tags,
+        )
+
+    def clone_saved_search(self, search_id: str, target_owner: str | None = None) -> str:
+        """Clone a saved search to a different owner (or shared scope).
+
+        Args:
+            search_id: Source search to clone.
+            target_owner: New owner (``None`` for shared scope).
+
+        Raises:
+            ValueError: If source not found or name conflicts.
+        """
+        source = self.get_search(search_id)
+        if not source:
+            raise ValueError("saved_search_not_found")
+
+        return self.import_saved_search(
+            record={
+                "name": source["name"],
+                "params": source.get("params", {}),
+                "tags": source.get("tags", []),
+                "favorite": source.get("favorite", False),
+            },
+            owner=target_owner,
+        )
+
+    def list_tag_presets(self, owner: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+        """Derive tag presets by aggregating tags across saved searches.
+
+        Returns a list of ``{tag, count}`` dicts ordered by frequency.
+        """
+        searches = self.list_saved_searches(owner=owner, limit=200)
+        tag_counts: dict[str, int] = {}
+        for entry in searches:
+            tags = entry.get("tags") or []
+            if isinstance(tags, list):
+                for tag in tags:
+                    tag_counts[tag] = tag_counts.get(tag, 0) + 1
+
+        presets = [{"tag": tag, "count": count} for tag, count in tag_counts.items()]
+        presets.sort(key=lambda p: (-p["count"], p["tag"]))
+        return presets[:limit]
+
+    def get_reviews_by_case(self, case_id: str, limit: int = 5) -> list[dict[str, Any]]:
+        """Return review queue entries for a given case ID."""
+        with self._session_factory() as session:
+            rows = session.execute(
+                sa.select(sql_schema.review_queue)
+                .where(sql_schema.review_queue.c.case_id == case_id)
+                .order_by(sql_schema.review_queue.c.queued_at.desc())
+                .limit(limit)
+            ).all()
+            return [dict(r._mapping) for r in rows]
+
+    def list_dossier_candidates(
+        self,
+        status: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Return review queue entries enriched with scam record metadata.
+
+        Used by the dossier bundler to identify cases eligible for report
+        generation. Joins ``review_queue`` with ``scam_records`` to provide
+        loss band, geography, and cross-border indicators.
+        """
+        rq = sql_schema.review_queue
+        sr = sql_schema.scam_records
+
+        query = (
+            sa.select(
+                rq.c.review_id,
+                rq.c.case_id,
+                rq.c.status,
+                rq.c.priority,
+                rq.c.queued_at,
+                sr.c.metadata.label("sr_metadata"),
+            )
+            .select_from(rq.outerjoin(sr, rq.c.case_id == sr.c.case_id))
+            .order_by(rq.c.queued_at.desc())
+            .limit(limit)
+        )
+        if status:
+            query = query.where(rq.c.status == status)
+
+        with self._session_factory() as session:
+            rows = session.execute(query).all()
+
+        results: list[dict[str, Any]] = []
+        for row in rows:
+            d = dict(row._mapping)
+            meta = d.pop("sr_metadata", None) or {}
+            if isinstance(meta, str):
+                try:
+                    meta = json.loads(meta)
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    meta = {}
+
+            loss_usd = meta.get("loss_amount_usd", 0)
+            loss_band = _loss_band(loss_usd)
+            victim = meta.get("victim_country", "")
+            offender = meta.get("offender_country", "") or meta.get("scammer_country", "")
+            jurisdiction = meta.get("jurisdiction", "")
+
+            # Raw fields expected by BundleCandidateProvider._map_metric_rows
+            d["loss_amount_usd"] = loss_usd
+            d["accepted_at"] = d.get("queued_at")
+            d["jurisdiction"] = jurisdiction or victim or "unknown"
+            d["cross_border"] = 1 if (victim and offender and victim != offender) else 0
+
+            # Derived analytics fields for dashboard/UI consumers
+            d["loss_band"] = loss_band
+            d["geo_bucket"] = victim or "Unknown"
+            results.append(d)
+        return results
+
+
+def _loss_band(amount: float | int) -> str:
+    """Map a USD loss amount to a human-readable band."""
+    if amount <= 0:
+        return "none"
+    if amount < 10_000:
+        return "<10k"
+    if amount < 50_000:
+        return "10k-50k"
+    if amount < 100_000:
+        return "50k-100k"
+    if amount < 250_000:
+        return "100k-250k"
+    if amount < 1_000_000:
+        return "250k-1M"
+    return "1M+"
 
 
 # Alias for backward compatibility if needed, though factories.py is updated

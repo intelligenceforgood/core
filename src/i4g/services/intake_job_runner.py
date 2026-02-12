@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, Protocol
+from typing import Any, Protocol
 
 from i4g.services.ingest_payloads import prepare_ingest_payload
 from i4g.store.ingest import IngestPipeline
@@ -17,7 +17,7 @@ class IntakeJobResult:
 
     case_id: str
     message: str = "Ingestion completed"
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 class IntakeJobRunner(Protocol):
@@ -25,12 +25,8 @@ class IntakeJobRunner(Protocol):
 
     name: str
 
-    def run(self, intake: Dict[str, Any]) -> IntakeJobResult:  # pragma: no cover - Protocol
+    def run(self, intake: dict[str, Any]) -> IntakeJobResult:  # pragma: no cover - Protocol
         ...
-
-
-def _coerce_bool(value: str | None) -> bool | None:  # noqa: D103 — re-export of coerce_bool
-    return coerce_bool(value)
 
 
 class LocalPipelineIntakeJobRunner:
@@ -45,11 +41,11 @@ class LocalPipelineIntakeJobRunner:
         enable_vector: bool | None = None,
     ) -> None:
         self._pipeline_factory = pipeline_factory or IngestPipeline
-        env_override = _coerce_bool(os.getenv("I4G_INGEST__ENABLE_VECTOR"))
+        env_override = coerce_bool(os.getenv("I4G_INGEST__ENABLE_VECTOR"))
         self._enable_vector = enable_vector if enable_vector is not None else env_override
 
-    def run(self, intake: Dict[str, Any]) -> IntakeJobResult:
-        kwargs: Dict[str, Any] = {}
+    def run(self, intake: dict[str, Any]) -> IntakeJobResult:
+        kwargs: dict[str, Any] = {}
         if self._enable_vector is not None:
             kwargs["enable_vector"] = self._enable_vector
 

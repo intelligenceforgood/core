@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import typer
 
@@ -16,7 +15,7 @@ search_app = typer.Typer(help="Search/retrieval queries and evaluations.")
 @search_app.command("query-vertex", help="Query Vertex AI Search data store.")
 def search_query_vertex(
     query: str = typer.Argument(..., help="Free-text query string to execute."),
-    project: Optional[str] = typer.Option(None, "--project", help="GCP project hosting the Discovery data store."),
+    project: str | None = typer.Option(None, "--project", help="GCP project hosting the Discovery data store."),
     location: str = typer.Option("global", "--location", help="Discovery location."),
     data_store_id: str = typer.Option(..., "--data-store-id", help="Discovery data store identifier."),
     serving_config_id: str = typer.Option(
@@ -25,8 +24,8 @@ def search_query_vertex(
         help="Serving config identifier (default: default_search).",
     ),
     page_size: int = typer.Option(5, "--page-size", help="Maximum number of results to return."),
-    filter_expression: Optional[str] = typer.Option(None, "--filter", help="Discovery filter expression."),
-    boost_json: Optional[str] = typer.Option(None, "--boost-json", help="BoostSpec payload as JSON."),
+    filter_expression: str | None = typer.Option(None, "--filter", help="Discovery filter expression."),
+    boost_json: str | None = typer.Option(None, "--boost-json", help="BoostSpec payload as JSON."),
     raw: bool = typer.Option(False, "--raw", help="Print raw JSON response instead of a formatted summary."),
     verbose: bool = typer.Option(False, "--verbose", help="Enable debug logging."),
 ) -> None:
@@ -48,7 +47,7 @@ def search_query_vertex(
 
 @search_app.command("eval-vertex", help="Evaluate Vertex retrieval against scenarios.")
 def search_eval_vertex(
-    project: Optional[str] = typer.Option(None, "--project", help="GCP project hosting the Discovery data store."),
+    project: str | None = typer.Option(None, "--project", help="GCP project hosting the Discovery data store."),
     location: str = typer.Option("global", "--location", help="Discovery location."),
     data_store_id: str = typer.Option(..., "--data-store-id", help="Discovery data store identifier."),
     serving_config_id: str = typer.Option(
@@ -56,7 +55,7 @@ def search_eval_vertex(
         "--serving-config-id",
         help="Serving config identifier (default: default_search).",
     ),
-    config: Optional[Path] = typer.Option(None, "--config", exists=True, readable=True, help="JSON scenario file."),
+    config: Path | None = typer.Option(None, "--config", exists=True, readable=True, help="JSON scenario file."),
     verbose: bool = typer.Option(False, "--verbose", help="Enable debug logging."),
 ) -> None:
     settings = get_settings()
@@ -75,7 +74,7 @@ def search_eval_vertex(
 @search_app.command("snapshot-schema", help="Refresh hybrid schema snapshot.")
 def search_snapshot_schema(
     api_base: str = typer.Option("http://127.0.0.1:8000", "--api-base", help="FastAPI base URL."),
-    api_key: Optional[str] = typer.Option(None, "--api-key", help="API key with analyst scope."),
+    api_key: str | None = typer.Option(None, "--api-key", help="API key with analyst scope."),
     output: Path = typer.Option(Path("docs/examples/reviews_search_schema.json"), "--output", help="Destination file."),
     indent: int = typer.Option(2, "--indent", help="JSON indentation level."),
     timeout: float = typer.Option(30.0, "--timeout", help="HTTP timeout seconds."),
@@ -86,9 +85,9 @@ def search_snapshot_schema(
 @search_app.command("annotate-saved-searches", help="Annotate saved-search exports with tags/schema version.")
 def search_annotate_saved_searches(
     input_path: Path = typer.Option(..., "--input", exists=True, readable=True, help="Path to JSON export file."),
-    output_path: Optional[Path] = typer.Option(None, "--output", help="Destination file (defaults to input)."),
-    tag: Optional[str] = typer.Option(None, "--tag", help="Tag to append; defaults to settings value."),
-    schema_version: Optional[str] = typer.Option(
+    output_path: Path | None = typer.Option(None, "--output", help="Destination file (defaults to input)."),
+    tag: str | None = typer.Option(None, "--tag", help="Tag to append; defaults to settings value."),
+    schema_version: str | None = typer.Option(
         None, "--schema-version", help="Schema version to set in params; defaults to settings value."
     ),
     dedupe: bool = typer.Option(True, "--dedupe/--no-dedupe", help="Remove duplicate tags (case-insensitive)."),

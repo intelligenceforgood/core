@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
@@ -72,7 +72,7 @@ class IntakeStore:
         incident_date: str | None = None,
         loss_amount: float | None = None,
         source: str = "unknown",
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         intake_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
@@ -100,10 +100,10 @@ class IntakeStore:
             session.commit()
         return intake_id
 
-    def update_intake_status(self, intake_id: str, status: str, message: Optional[str] = None) -> None:
+    def update_intake_status(self, intake_id: str, status: str, message: str | None = None) -> None:
         now = datetime.now(timezone.utc)
         with self._session_factory() as session:
-            values: Dict[str, Any] = {"status": status, "updated_at": now}
+            values: dict[str, Any] = {"status": status, "updated_at": now}
             if message is not None:
                 values["job_message"] = message
             session.execute(
@@ -113,10 +113,10 @@ class IntakeStore:
             )
             session.commit()
 
-    def attach_case(self, intake_id: str, *, case_id: Optional[str] = None, review_id: Optional[str] = None) -> None:
+    def attach_case(self, intake_id: str, *, case_id: str | None = None, review_id: str | None = None) -> None:
         now = datetime.now(timezone.utc)
         with self._session_factory() as session:
-            values: Dict[str, Any] = {"updated_at": now}
+            values: dict[str, Any] = {"updated_at": now}
             if case_id is not None:
                 values["case_id"] = case_id
             if review_id is not None:
@@ -137,7 +137,7 @@ class IntakeStore:
         intake_id: str,
         *,
         file_name: str,
-        content_type: Optional[str],
+        content_type: str | None,
         size_bytes: int,
         checksum_sha256: str,
         storage_uri: str,
@@ -171,8 +171,8 @@ class IntakeStore:
         intake_id: str,
         *,
         status: str = "queued",
-        message: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        message: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         job_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
@@ -201,8 +201,8 @@ class IntakeStore:
         job_id: str,
         *,
         status: str,
-        message: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        message: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         now = datetime.now(timezone.utc)
         with self._session_factory() as session:
@@ -213,7 +213,7 @@ class IntakeStore:
             if not job_row:
                 return False
 
-            values: Dict[str, Any] = {"status": status, "updated_at": now}
+            values: dict[str, Any] = {"status": status, "updated_at": now}
             if message is not None:
                 values["message"] = message
             if metadata is not None:
@@ -223,7 +223,7 @@ class IntakeStore:
                 sa.update(sql_schema.intake_jobs).where(sql_schema.intake_jobs.c.job_id == job_id).values(**values)
             )
             # Update intake record
-            intake_values: Dict[str, Any] = {"job_status": status, "updated_at": now}
+            intake_values: dict[str, Any] = {"job_status": status, "updated_at": now}
             if message is not None:
                 intake_values["job_message"] = message
             session.execute(
@@ -238,7 +238,7 @@ class IntakeStore:
     # Retrieval helpers
     # ------------------------------------------------------------------
 
-    def get_intake(self, intake_id: str) -> Optional[Dict[str, Any]]:
+    def get_intake(self, intake_id: str) -> dict[str, Any] | None:
         with self._session_factory() as session:
             row = session.execute(
                 sa.select(sql_schema.intake_records).where(sql_schema.intake_records.c.intake_id == intake_id)
@@ -271,7 +271,7 @@ class IntakeStore:
 
             return record
 
-    def list_intakes(self, limit: int = 25) -> List[Dict[str, Any]]:
+    def list_intakes(self, limit: int = 25) -> list[dict[str, Any]]:
         with self._session_factory() as session:
             rows = session.execute(
                 sa.select(sql_schema.intake_records)
@@ -279,14 +279,14 @@ class IntakeStore:
                 .limit(limit)
             ).all()
 
-            results: List[Dict[str, Any]] = []
+            results: list[dict[str, Any]] = []
             for row in rows:
                 data = dict(row._mapping)
                 data["metadata"] = data.get("metadata") or {}
                 results.append(data)
             return results
 
-    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+    def get_job(self, job_id: str) -> dict[str, Any] | None:
         with self._session_factory() as session:
             row = session.execute(
                 sa.select(sql_schema.intake_jobs).where(sql_schema.intake_jobs.c.job_id == job_id)

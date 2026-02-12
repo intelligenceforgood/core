@@ -5,7 +5,7 @@ Mounted by the main ``review.py`` orchestrator.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -35,23 +35,23 @@ router = APIRouter()
 
 class EnqueueRequest(BaseModel):
     case_id: str
-    priority: Optional[str] = "medium"
+    priority: str | None = "medium"
     # Optional preview fields for the UI
-    text: Optional[str] = None
-    classification: Optional[ClassificationResult] = None
-    tags: Optional[List[str]] = None
-    entities: Optional[Dict[str, Any]] = None
+    text: str | None = None
+    classification: ClassificationResult | None = None
+    tags: list[str] | None = None
+    entities: dict[str, Any] | None = None
 
 
 class DecisionRequest(BaseModel):
     decision: str  # accepted | rejected | needs_more_info
-    notes: Optional[str] = None
-    auto_generate_report: Optional[bool] = False
+    notes: str | None = None
+    auto_generate_report: bool | None = False
 
 
 class AnnotateRequest(BaseModel):
-    annotations: Dict[str, Any]
-    notes: Optional[str] = None
+    annotations: dict[str, Any]
+    notes: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -62,9 +62,9 @@ class AnnotateRequest(BaseModel):
 @router.post("/", summary="Enqueue a case for review", response_model=EnqueueResponse)
 def enqueue_case(
     payload: EnqueueRequest,
-    user: Dict[str, Any] = Depends(require_token),
+    user: dict[str, Any] = Depends(require_token),
     store: ReviewStore = Depends(get_store),
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """Add a case to the review queue.
 
     Args:
@@ -97,7 +97,7 @@ def list_queue(
     limit: int = Query(25),
     store: ReviewStore = Depends(get_store),
     user=Depends(require_token),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """List queued cases by status.
 
     Args:

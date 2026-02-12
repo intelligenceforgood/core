@@ -6,7 +6,8 @@ import random
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional, Sequence
+from typing import Any
+from collections.abc import Callable, Sequence
 
 import yaml
 
@@ -312,7 +313,7 @@ def bank_mule_redirect(rng: random.Random, idx: int) -> dict[str, Any]:
     }
 
 
-def build_scenarios(include: Optional[list[str]], smoke: bool, total_count: Optional[int]) -> list[Scenario]:
+def build_scenarios(include: list[str] | None, smoke: bool, total_count: int | None) -> list[Scenario]:
     base_count = 3 if smoke else 12
     scenarios: list[Scenario] = [
         Scenario(
@@ -600,9 +601,9 @@ def write_manifest(
 def generate_bundle(
     output_dir: Path = Path("data/bundles/synthetic_coverage"),
     seed: int = 1337,
-    include: Optional[list[str]] = None,
+    include: list[str] | None = None,
     smoke: bool = False,
-    total_count: Optional[int] = None,
+    total_count: int | None = None,
 ) -> GenerationResult:
     scenarios = build_scenarios(include=include, smoke=smoke, total_count=total_count)
     cases = build_cases(scenarios, seed)

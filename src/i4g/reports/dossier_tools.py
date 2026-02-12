@@ -5,11 +5,10 @@ from __future__ import annotations
 import json
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from dataclasses import dataclass
-from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from statistics import mean
-from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Sequence
+from typing import Any
+from collections.abc import Mapping, MutableMapping, Sequence
 
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel
@@ -28,17 +27,17 @@ class DossierToolInput(BaseModel):
     assets: Mapping[str, Any] | None = None
 
 
-def _normalise_cases(plan: Mapping[str, Any]) -> List[Mapping[str, Any]]:
+def _normalise_cases(plan: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     cases = plan.get("cases") or []
     if not isinstance(cases, list):
         return []
     return [case for case in cases if isinstance(case, Mapping)]
 
 
-def _context_map(context: Mapping[str, Any] | None) -> Dict[str, Mapping[str, Any]]:
+def _context_map(context: Mapping[str, Any] | None) -> dict[str, Mapping[str, Any]]:
     if not context:
         return {}
-    result: Dict[str, Mapping[str, Any]] = {}
+    result: dict[str, Mapping[str, Any]] = {}
     for case in context.get("cases", []):
         if isinstance(case, Mapping):
             case_id = str(case.get("case_id") or "")
@@ -57,7 +56,7 @@ class GeoReasonerTool(BaseTool):
     def _run(self, plan: DossierToolInput) -> str:
         cases = _normalise_cases(plan.plan)
         jurisdiction_counts: MutableMapping[str, int] = {}
-        cross_border_cases: List[str] = []
+        cross_border_cases: list[str] = []
         for case in cases:
             jurisdiction = str(case.get("jurisdiction") or "unknown").upper()
             jurisdiction_counts[jurisdiction] = jurisdiction_counts.get(jurisdiction, 0) + 1
@@ -86,7 +85,7 @@ class TimelineSynthesizerTool(BaseTool):
     def _run(self, plan: DossierToolInput) -> str:
         cases = _normalise_cases(plan.plan)
         context_lookup = _context_map(plan.context)
-        events: List[Dict[str, Any]] = []
+        events: list[dict[str, Any]] = []
         for case in cases:
             timestamp = str(case.get("accepted_at") or plan.plan.get("created_at"))
             summary = self._case_summary(case, context_lookup.get(str(case.get("case_id")) or ""))
@@ -134,7 +133,7 @@ class EntityGraphTool(BaseTool):
 
     def _run(self, plan: DossierToolInput) -> str:
         cases = _normalise_cases(plan.plan)
-        adjacency: MutableMapping[str, List[str]] = {}
+        adjacency: MutableMapping[str, list[str]] = {}
         for case in cases:
             case_id = str(case.get("case_id") or "")
             for entity in case.get("primary_entities", []) or []:
@@ -225,7 +224,7 @@ class DossierToolResults:
     warnings: Sequence[str]
     errors: Mapping[str, str]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "outputs": dict(self.outputs),
             "warnings": list(self.warnings),
@@ -268,9 +267,9 @@ class DossierToolSuite:
             analysis=analysis.to_dict(),
             assets=asset_payload,
         )
-        outputs: Dict[str, Any] = {}
-        warnings: List[str] = []
-        errors: Dict[str, str] = {}
+        outputs: dict[str, Any] = {}
+        warnings: list[str] = []
+        errors: dict[str, str] = {}
         for tool in self._tools:
             try:
                 raw = self._run_tool(tool, input_payload)

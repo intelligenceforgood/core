@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -41,7 +41,7 @@ class FinancialIndicator(BaseModel):
     type: str
     number: str
     source_case_id: str | None = None
-    metadata: Dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class AccountListRequest(BaseModel):
@@ -49,14 +49,14 @@ class AccountListRequest(BaseModel):
 
     start_time: datetime | None = None
     end_time: datetime | None = None
-    categories: List[str] = Field(default_factory=list)
+    categories: list[str] = Field(default_factory=list)
     top_k: int = Field(default=100, ge=1, le=500)
     include_sources: bool = Field(default=True)
-    output_formats: List[str] = Field(default_factory=list)
+    output_formats: list[str] = Field(default_factory=list)
 
     @field_validator("categories", mode="after")
     @classmethod
-    def _normalize_categories(cls, value: List[str]) -> List[str]:
+    def _normalize_categories(cls, value: list[str]) -> list[str]:
         if not value:
             return [
                 IndicatorCategory.BANK.value,
@@ -68,14 +68,14 @@ class AccountListRequest(BaseModel):
 
     @field_validator("output_formats", mode="after")
     @classmethod
-    def _normalize_formats(cls, value: List[str]) -> List[str]:
+    def _normalize_formats(cls, value: list[str]) -> list[str]:
         if not value:
             return []
         normalized = [item.lower().strip() for item in value if item]
         return [item for item in normalized if item]
 
     @model_validator(mode="after")
-    def _validate_range(self) -> "AccountListRequest":
+    def _validate_range(self) -> AccountListRequest:
         if self.start_time and self.end_time and self.start_time > self.end_time:
             raise ValueError("start_time must be before end_time")
         return self
@@ -86,8 +86,8 @@ class AccountListResult(BaseModel):
 
     request_id: str
     generated_at: datetime
-    indicators: List[FinancialIndicator]
-    sources: List[SourceDocument] = Field(default_factory=list)
-    warnings: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    artifacts: Dict[str, str] = Field(default_factory=dict)
+    indicators: list[FinancialIndicator]
+    sources: list[SourceDocument] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    artifacts: dict[str, str] = Field(default_factory=dict)

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import subprocess
 from pathlib import Path
-from typing import Iterable, Sequence
+from collections.abc import Iterable, Sequence
 
 from i4g.cli.utils import hash_file
 from i4g.settings import get_settings

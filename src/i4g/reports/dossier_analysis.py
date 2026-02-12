@@ -6,7 +6,8 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Sequence
+from typing import Any
+from collections.abc import Sequence
 
 from i4g.reports.bundle_builder import DossierPlan
 
@@ -17,12 +18,12 @@ class DossierAnalysis:
 
     case_count: int
     total_loss_usd: Decimal
-    loss_by_jurisdiction: Dict[str, Decimal]
+    loss_by_jurisdiction: dict[str, Decimal]
     cross_border_cases: Sequence[str]
     accepted_range: tuple[datetime | None, datetime | None]
     primary_entity_frequencies: Sequence[tuple[str, int]]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation of the analysis payload."""
 
         earliest, latest = self.accepted_range
@@ -44,10 +45,10 @@ class DossierAnalysis:
 def analyze_plan(plan: DossierPlan, *, top_entities: int = 10) -> DossierAnalysis:
     """Compute aggregate statistics for ``plan`` to enrich dossier manifests."""
 
-    loss_by_jurisdiction: Dict[str, Decimal] = {}
-    cross_border_cases: List[str] = []
+    loss_by_jurisdiction: dict[str, Decimal] = {}
+    cross_border_cases: list[str] = []
     entity_counter: Counter[str] = Counter()
-    accepted_values: List[datetime] = []
+    accepted_values: list[datetime] = []
 
     for candidate in plan.cases:
         jurisdiction = (candidate.jurisdiction or "unknown").strip() or "unknown"

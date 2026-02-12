@@ -1,5 +1,4 @@
 import re
-from typing import Dict, List, Optional
 from i4g.taxonomy.models import ScoredLabel
 from i4g.taxonomy.enums import RequestedAction, DeliveryChannel
 
@@ -23,14 +22,14 @@ PHONE_PATTERN = r"(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}"
 EMAIL_PATTERN = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
 
 
-def detect_signals(text: str) -> Dict[str, List[ScoredLabel]]:
+def detect_signals(text: str) -> dict[str, list[ScoredLabel]]:
     """
     Detect deterministic signals in the text using regex patterns.
     
     Returns a dictionary mapping taxonomy categories (actions, channel) 
     to lists of ScoredLabel objects.
     """
-    signals: Dict[str, List[ScoredLabel]] = {
+    signals: dict[str, list[ScoredLabel]] = {
         "actions": [],
         "channel": []
     }

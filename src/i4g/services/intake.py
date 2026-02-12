@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any
+from collections.abc import Iterable
 
 from i4g.services.factories import build_evidence_storage, build_intake_store
 from i4g.services.intake_job_runner import IntakeJobResult, IntakeJobRunner, LocalPipelineIntakeJobRunner
@@ -17,7 +18,7 @@ class AttachmentPayload:
 
     file_name: str
     data: bytes
-    content_type: Optional[str]
+    content_type: str | None
 
 
 class IntakeService:
@@ -26,9 +27,9 @@ class IntakeService:
     def __init__(
         self,
         *,
-        store: Optional[IntakeStore] = None,
-        evidence_storage: Optional[EvidenceStorage] = None,
-        job_runner: Optional[IntakeJobRunner] = None,
+        store: IntakeStore | None = None,
+        evidence_storage: EvidenceStorage | None = None,
+        job_runner: IntakeJobRunner | None = None,
     ) -> None:
         self._store = store or build_intake_store()
         self._evidence = evidence_storage or build_evidence_storage()
@@ -39,17 +40,17 @@ class IntakeService:
     # ------------------------------------------------------------------
     def create_intake(
         self,
-        submission: Dict[str, Any],
+        submission: dict[str, Any],
         attachments: Iterable[AttachmentPayload],
         *,
         create_job: bool = True,
-        job_metadata: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        job_metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Persist a new intake and optionally queue an ingestion job."""
 
         intake_id = self._store.create_intake(**submission)
 
-        stored_attachments: List[StoredAttachment] = []
+        stored_attachments: list[StoredAttachment] = []
         for item in attachments:
             stored = self._evidence.save(
                 intake_id,
@@ -68,9 +69,9 @@ class IntakeService:
             )
             stored_attachments.append(stored)
 
-        job_id: Optional[str] = None
+        job_id: str | None = None
         if create_job:
-            effective_metadata: Dict[str, Any] = {"runner": self._job_runner.name}
+            effective_metadata: dict[str, Any] = {"runner": self._job_runner.name}
             if job_metadata:
                 effective_metadata.update(job_metadata)
             job_id = self._store.create_job(
@@ -89,13 +90,13 @@ class IntakeService:
     # ------------------------------------------------------------------
     # Retrieval + job helpers for API wiring
     # ------------------------------------------------------------------
-    def get_intake(self, intake_id: str) -> Optional[Dict[str, Any]]:
+    def get_intake(self, intake_id: str) -> dict[str, Any] | None:
         return self._store.get_intake(intake_id)
 
-    def list_intakes(self, limit: int = 25) -> List[Dict[str, Any]]:
+    def list_intakes(self, limit: int = 25) -> list[dict[str, Any]]:
         return self._store.list_intakes(limit=limit)
 
-    def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
+    def get_job(self, job_id: str) -> dict[str, Any] | None:
         return self._store.get_job(job_id)
 
     def update_job_status(
@@ -103,15 +104,15 @@ class IntakeService:
         job_id: str,
         *,
         status: str,
-        message: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        message: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> bool:
         return self._store.update_job_status(job_id, status=status, message=message, metadata=metadata)
 
-    def update_intake_status(self, intake_id: str, *, status: str, message: Optional[str] = None) -> None:
+    def update_intake_status(self, intake_id: str, *, status: str, message: str | None = None) -> None:
         self._store.update_intake_status(intake_id, status=status, message=message)
 
-    def attach_case(self, intake_id: str, *, case_id: Optional[str], review_id: Optional[str]) -> None:
+    def attach_case(self, intake_id: str, *, case_id: str | None, review_id: str | None) -> None:
         self._store.attach_case(intake_id, case_id=case_id, review_id=review_id)
 
     # ------------------------------------------------------------------

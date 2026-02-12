@@ -7,7 +7,8 @@ import hashlib
 import hmac
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Mapping, Tuple
+from typing import Any
+from collections.abc import Iterable, Mapping
 
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -34,7 +35,7 @@ class TokenizedValue:
 class TokenizationService:
     """Generate deterministic tokens and persist canonical PII for detokenization."""
 
-    _ENTITY_PREFIX_MAP: Dict[str, str] = {
+    _ENTITY_PREFIX_MAP: dict[str, str] = {
         "email": "EID",
         "phone": "PHN",
         "ip_address": "IPA",
@@ -117,17 +118,17 @@ class TokenizationService:
         *,
         detector: str | None = None,
         case_id: str | None = None,
-    ) -> Dict[str, list[Dict[str, Any]]]:
+    ) -> dict[str, list[dict[str, Any]]]:
         """Tokenize a mapping of entity lists, returning a token-only structure."""
 
         if not entities:
             return {}
-        tokenized: Dict[str, list[Dict[str, Any]]] = {}
+        tokenized: dict[str, list[dict[str, Any]]] = {}
         for entity_type, values in entities.items():
             if not isinstance(values, Iterable):
                 continue
             prefix = self._prefix_for_entity(entity_type)
-            tokens: list[Dict[str, Any]] = []
+            tokens: list[dict[str, Any]] = []
             for raw in values:
                 value = self._extract_value(raw)
                 if not value:
@@ -274,7 +275,7 @@ class TokenizationService:
         # Design: HMAC-SHA256(value || prefix || version)
         # We use a separator for safety against concatenation collisions, though design implies concatenation.
         # Using concatenation as per design doc: value + prefix + version
-        message = f"{normalized_value}{prefix}{self.pepper_version}".encode("utf-8")
+        message = f"{normalized_value}{prefix}{self.pepper_version}".encode()
         return hmac.new(self._pepper_bytes, message, hashlib.sha256).hexdigest()
 
     def _normalize(self, prefix: str, value: str) -> str:

@@ -6,9 +6,11 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Optional
+from typing import Any
+from collections.abc import Callable
 
 import requests
+from i4g.task_status_store import TASK_STATUS
 
 LOGGER = logging.getLogger(__name__)
 
@@ -17,9 +19,9 @@ LOGGER = logging.getLogger(__name__)
 class TaskStatusReporter:
     """Reports task state changes to the API in-memory store or an HTTP endpoint."""
 
-    task_id: Optional[str] = None
-    endpoint: Optional[str] = None
-    sink: Optional[Callable[[str, Dict[str, Any]], None]] = field(default=None, repr=False)
+    task_id: str | None = None
+    endpoint: str | None = None
+    sink: Callable[[str, dict[str, Any]], None] | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if self.task_id is None:
@@ -45,7 +47,7 @@ class TaskStatusReporter:
             LOGGER.debug("TaskStatusReporter skipped update (task_id missing): %s - %s", status, message)
             return
 
-        body: Dict[str, Any] = {"status": status, "message": message}
+        body: dict[str, Any] = {"status": status, "message": message}
         body.update(payload)
 
         if self.sink:
@@ -59,7 +61,7 @@ class TaskStatusReporter:
         if not self._update_local_store(body):
             LOGGER.debug("TaskStatusReporter could not locate a task store; dropping update: %s", json.dumps(body))
 
-    def _post_update(self, body: Dict[str, Any]) -> None:
+    def _post_update(self, body: dict[str, Any]) -> None:
         url = f"{self.endpoint.rstrip('/')}/{self.task_id}/update"
         try:
             response = requests.post(url, json=body, timeout=5)
@@ -67,12 +69,7 @@ class TaskStatusReporter:
         except Exception as exc:  # pragma: no cover - network/HTTP errors
             LOGGER.warning("Task status POST failed (%s): %s", url, exc)
 
-    def _update_local_store(self, body: Dict[str, Any]) -> bool:
-        try:
-            from i4g.api.app import TASK_STATUS  # type: ignore import
-        except Exception:  # pragma: no cover - import guard
-            return False
-
+    def _update_local_store(self, body: dict[str, Any]) -> bool:
         TASK_STATUS[self.task_id] = body
         return True
 

@@ -8,7 +8,8 @@ import socket
 import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Iterable, Mapping, MutableMapping
+from typing import Any
+from collections.abc import Iterable, Mapping, MutableMapping
 
 from i4g.settings import Settings, get_settings
 
@@ -26,7 +27,7 @@ except Exception:  # pragma: no cover - gracefully handle missing OTLP dependenc
 
 _LOGGER = logging.getLogger("i4g.observability")
 _METRICS_BACKEND_LOCK = threading.Lock()
-_SHARED_METRICS: "_CompositeMetricsBackend | None" = None
+_SHARED_METRICS: _CompositeMetricsBackend | None = None
 
 
 class Observability:
@@ -37,7 +38,7 @@ class Observability:
         *,
         settings: Settings,
         component: str | None = None,
-        metrics_backend: "_CompositeMetricsBackend | None" = None,
+        metrics_backend: _CompositeMetricsBackend | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         self.settings = settings
@@ -100,7 +101,7 @@ def reset_observability_cache() -> None:
 class _CompositeMetricsBackend:
     """Dispatch metrics to every configured backend."""
 
-    def __init__(self, backends: Iterable["_MetricsBackend"]) -> None:
+    def __init__(self, backends: Iterable[_MetricsBackend]) -> None:
         self.backends = tuple(backends)
 
     def increment(self, metric: str, *, value: float, tags: Mapping[str, str] | None) -> None:

@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import types
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Sequence, Union, get_args, get_origin
+from typing import Any, Union, get_args, get_origin
+from collections.abc import Sequence
 
 import yaml
 from pydantic.fields import FieldInfo, PydanticUndefined
 from pydantic_settings import BaseSettings
 
-from i4g.settings.config import PROJECT_ROOT, Settings
+from i4g.settings.config import Settings
 
 SMOKE_COMMAND = (
     "```bash\n" "conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g jobs account\n" "```"

@@ -6,7 +6,8 @@ import logging
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Iterator, Literal, Optional
+from typing import Literal
+from collections.abc import Iterator
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session, sessionmaker
@@ -94,7 +95,7 @@ class IngestionRunTracker:
         run_id: str,
         *,
         status: RunStatus,
-        last_error: Optional[str] = None,
+        last_error: str | None = None,
         retry_increment: int = 0,
     ) -> None:
         """Mark a run as completed with the supplied status."""

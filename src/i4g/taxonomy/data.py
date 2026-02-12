@@ -1,8 +1,8 @@
 """Static taxonomy data."""
 
-from typing import Any, Dict
+from typing import Any
 
-TAXONOMY_DEFINITIONS: Dict[str, Any] = {
+TAXONOMY_DEFINITIONS: dict[str, Any] = {
     "version": "1.0",
     "steward": "Policy & Standards Team",
     "updatedAt": "2026-02-11T20:45:33.980007+00:00Z",

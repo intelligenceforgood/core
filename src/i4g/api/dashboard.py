@@ -2,7 +2,6 @@
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import desc, func, select
@@ -12,10 +11,8 @@ from i4g.api.auth import require_token
 from i4g.api.response_models import DashboardOverviewResponse
 from i4g.api.review_deps import get_db_session
 from i4g.store.sql import (
-    cases,
     review_queue,
     review_actions,
-    ingestion_runs,
     scam_records,
 )
 
@@ -24,7 +21,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dashboard", tags=["dashboard"], dependencies=[Depends(require_token)])
 
 
-def _get_active_investigations(session: Session) -> Dict[str, str]:
+def _get_active_investigations(session: Session) -> dict[str, str]:
     """Count open cases in the review queue."""
     count = (
         session.scalar(
@@ -59,7 +56,7 @@ def _get_active_investigations(session: Session) -> Dict[str, str]:
     return {"label": "Active investigations", "value": str(count), "change": change_str}
 
 
-def _get_new_leads(session: Session) -> Dict[str, str]:
+def _get_new_leads(session: Session) -> dict[str, str]:
     """Count new cases created in the last 7 days."""
     now = datetime.now(timezone.utc)
     start_dt = now - timedelta(days=7)
@@ -72,7 +69,7 @@ def _get_new_leads(session: Session) -> Dict[str, str]:
     return {"label": "New leads this week", "value": str(count), "change": f"+{count} sourced automatically"}
 
 
-def _get_cases_at_risk(session: Session) -> Dict[str, str]:
+def _get_cases_at_risk(session: Session) -> dict[str, str]:
     """Count high priority cases."""
     count = (
         session.scalar(
@@ -86,7 +83,7 @@ def _get_cases_at_risk(session: Session) -> Dict[str, str]:
     return {"label": "Cases at risk", "value": str(count), "change": "Need follow-up within 24h"}
 
 
-def _get_recent_activity(session: Session) -> List[Dict[str, str]]:
+def _get_recent_activity(session: Session) -> list[dict[str, str]]:
     """Get recent review actions."""
     rows = session.execute(
         select(review_actions.c.action_id, review_actions.c.action, review_actions.c.actor, review_actions.c.created_at)
@@ -125,7 +122,7 @@ def _get_recent_activity(session: Session) -> List[Dict[str, str]]:
     return activities
 
 
-def _get_alerts(session: Session) -> List[Dict[str, str]]:
+def _get_alerts(session: Session) -> list[dict[str, str]]:
     """Get alerts based on high priority cases created recently."""
     # Use scam_records instead of cases since 'cases' table is missing in local mode
     rows = session.execute(
@@ -175,19 +172,8 @@ def get_dashboard_overview(session: Session = Depends(get_db_session)):
     activity = _get_recent_activity(session)
     alerts = _get_alerts(session)
 
-    # Reminders are static for now as we don't have a task/reminder system
-    reminders = [
-        {
-            "id": "rem-1",
-            "text": "Review weekly refresh metrics",
-            "category": "data",
-        },
-        {
-            "id": "rem-2",
-            "text": "Check pending high priority cases",
-            "category": "alert",
-        },
-    ]
+    # TODO: Wire to a task/reminder system when available.
+    reminders: list[dict[str, str]] = []
 
     return {
         "metrics": metrics,

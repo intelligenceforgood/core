@@ -5,7 +5,8 @@ from __future__ import annotations
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Sequence
+from typing import Any, Literal
+from collections.abc import Sequence
 
 from i4g.observability import Observability, get_observability
 from i4g.services.factories import build_entity_store
@@ -35,11 +36,11 @@ class HybridSearchQuery:
     """Normalized hybrid search request."""
 
     text: str | None = None
-    entities: List[QueryEntityFilter] = field(default_factory=list)
-    classifications: List[str] = field(default_factory=list)
-    datasets: List[str] = field(default_factory=list)
-    loss_buckets: List[str] = field(default_factory=list)
-    case_ids: List[str] = field(default_factory=list)
+    entities: list[QueryEntityFilter] = field(default_factory=list)
+    classifications: list[str] = field(default_factory=list)
+    datasets: list[str] = field(default_factory=list)
+    loss_buckets: list[str] = field(default_factory=list)
+    case_ids: list[str] = field(default_factory=list)
     time_range: QueryTimeRange | None = None
     limit: int | None = None
     vector_limit: int | None = None
@@ -52,14 +53,14 @@ class HybridSearchItem:
     """Single merged hybrid search result."""
 
     case_id: str
-    sources: List[str]
+    sources: list[str]
     merged_score: float | None
-    scores: Dict[str, Any]
-    record: Dict[str, Any] | None = None
-    vector: Dict[str, Any] | None = None
-    metadata: Dict[str, Any] | None = None
+    scores: dict[str, Any]
+    record: dict[str, Any] | None = None
+    vector: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation."""
 
         payload = asdict(self)
@@ -70,14 +71,14 @@ class HybridSearchItem:
 class SearchSchema:
     """Schema metadata describing available hybrid search filters."""
 
-    indicator_types: List[str]
-    datasets: List[str]
-    classifications: List[str]
-    loss_buckets: List[str]
-    time_presets: List[str]
-    entity_examples: Dict[str, List[str]] | None = None
+    indicator_types: list[str]
+    datasets: list[str]
+    classifications: list[str]
+    loss_buckets: list[str]
+    time_presets: list[str]
+    entity_examples: dict[str, list[str]] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize schema to a dictionary."""
 
         payload = {
@@ -106,7 +107,7 @@ class HybridSearchService:
         retriever: HybridRetriever | None = None,
         settings: Settings | None = None,
         observability: Observability | None = None,
-        entity_store: "EntityStore" | None = None,
+        entity_store: EntityStore | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self.retriever = retriever or HybridRetriever()
@@ -122,7 +123,7 @@ class HybridSearchService:
     # Public API
     # ------------------------------------------------------------------
 
-    def search(self, query: HybridSearchQuery) -> Dict[str, Any]:
+    def search(self, query: HybridSearchQuery) -> dict[str, Any]:
         """Execute a hybrid search request and return merged results."""
 
         limit = query.limit or self.settings.search.default_limit
@@ -216,7 +217,7 @@ class HybridSearchService:
             "duration_ms": duration_ms,
         }
 
-    def schema(self) -> Dict[str, Any]:
+    def schema(self) -> dict[str, Any]:
         """Return the search schema description (cached)."""
 
         cached = self._schema_from_cache()
@@ -253,8 +254,8 @@ class HybridSearchService:
         self._schema_cache = None
         return None
 
-    def _build_filter_items(self, query: HybridSearchQuery) -> List[tuple[str, Any]]:
-        filters: List[tuple[str, Any]] = []
+    def _build_filter_items(self, query: HybridSearchQuery) -> list[tuple[str, Any]]:
+        filters: list[tuple[str, Any]] = []
         for classification in query.classifications:
             filters.append(("classification", classification))
         for dataset in query.datasets:
@@ -277,7 +278,7 @@ class HybridSearchService:
             )
         return filters
 
-    def _normalize_result(self, payload: Dict[str, Any]) -> HybridSearchItem:
+    def _normalize_result(self, payload: dict[str, Any]) -> HybridSearchItem:
         sources = self._ensure_sources(payload.get("sources"))
         record_raw = payload.get("record")
         vector_raw = payload.get("vector")
@@ -298,7 +299,7 @@ class HybridSearchService:
         )
 
     @staticmethod
-    def _ensure_sources(value: Any) -> List[str]:
+    def _ensure_sources(value: Any) -> list[str]:
         if value is None:
             return []
         if isinstance(value, set):
@@ -308,7 +309,7 @@ class HybridSearchService:
         return [str(value)]
 
     @staticmethod
-    def _redact_record(record: Dict[str, Any] | None) -> Dict[str, Any] | None:
+    def _redact_record(record: dict[str, Any] | None) -> dict[str, Any] | None:
         if not isinstance(record, dict):
             return None
         allowed_keys = ("case_id", "classification", "confidence", "entities", "created_at")
@@ -316,7 +317,7 @@ class HybridSearchService:
         return redacted or None
 
     @staticmethod
-    def _redact_vector(vector: Dict[str, Any] | None) -> Dict[str, Any] | None:
+    def _redact_vector(vector: dict[str, Any] | None) -> dict[str, Any] | None:
         if not isinstance(vector, dict):
             return None
         allowed_keys = (
@@ -334,7 +335,7 @@ class HybridSearchService:
         return redacted or None
 
     @staticmethod
-    def _structured_score(record: Dict[str, Any] | None) -> float | None:
+    def _structured_score(record: dict[str, Any] | None) -> float | None:
         if not record:
             return None
         raw = record.get("confidence")
@@ -348,7 +349,7 @@ class HybridSearchService:
             return 1.0
 
     @staticmethod
-    def _semantic_score(vector_payload: Dict[str, Any] | None) -> float | None:
+    def _semantic_score(vector_payload: dict[str, Any] | None) -> float | None:
         if not vector_payload:
             return None
         if "similarity" in vector_payload and vector_payload["similarity"] is not None:
@@ -369,9 +370,9 @@ class HybridSearchService:
             return None
         return 1.0 / (1.0 + value)
 
-    def _combine_scores(self, semantic: float | None, structured: float | None) -> tuple[float | None, Dict[str, Any]]:
+    def _combine_scores(self, semantic: float | None, structured: float | None) -> tuple[float | None, dict[str, Any]]:
         weights = self.settings.search
-        scores: Dict[str, Any] = {}
+        scores: dict[str, Any] = {}
         semantic_weighted: float | None = None
         structured_weighted: float | None = None
         tie_breaker_applied = False
@@ -428,8 +429,8 @@ class HybridSearchService:
         return merged_score, scores
 
     @staticmethod
-    def _extract_metadata(record: Dict[str, Any] | None, vector: Dict[str, Any] | None) -> Dict[str, Any] | None:
-        metadata: Dict[str, Any] = {}
+    def _extract_metadata(record: dict[str, Any] | None, vector: dict[str, Any] | None) -> dict[str, Any] | None:
+        metadata: dict[str, Any] = {}
 
         record_meta = record.get("metadata") if isinstance(record, dict) else None
         if isinstance(record_meta, dict):
@@ -454,10 +455,10 @@ class HybridSearchService:
         return metadata or None
 
     @staticmethod
-    def _filter_by_time_range(items: Sequence[HybridSearchItem], timerange: QueryTimeRange) -> List[HybridSearchItem]:
+    def _filter_by_time_range(items: Sequence[HybridSearchItem], timerange: QueryTimeRange) -> list[HybridSearchItem]:
         start = timerange.start
         end = timerange.end
-        filtered: List[HybridSearchItem] = []
+        filtered: list[HybridSearchItem] = []
         for item in items:
             ts = HybridSearchService._extract_timestamp(item)
             if ts is None or (start <= ts <= end):
@@ -487,14 +488,14 @@ class HybridSearchService:
                 return None
         return None
 
-    def _resolve_dataset_presets(self, indicator_types: Sequence[str]) -> List[str]:
+    def _resolve_dataset_presets(self, indicator_types: Sequence[str]) -> list[str]:
         configured = list(self.settings.search.dataset_presets)
         if not self.entity_store:
             return configured
         dynamic = self.entity_store.list_datasets(entity_types=indicator_types or None)
         return self._merge_preserving_order(configured, dynamic)
 
-    def _resolve_entity_examples(self, indicator_types: Sequence[str]) -> Dict[str, List[str]]:
+    def _resolve_entity_examples(self, indicator_types: Sequence[str]) -> dict[str, list[str]]:
         if not indicator_types or not self.entity_store:
             return {}
         limit = self.settings.search.schema_entity_example_limit
@@ -503,7 +504,7 @@ class HybridSearchService:
             datasets=None,
             per_type_limit=limit,
         )
-        resolved: Dict[str, List[str]] = {}
+        resolved: dict[str, list[str]] = {}
         for indicator_type in indicator_types:
             key = indicator_type.strip().lower()
             entries = raw_examples.get(key, [])
@@ -513,8 +514,8 @@ class HybridSearchService:
         return resolved
 
     @staticmethod
-    def _merge_preserving_order(primary: Sequence[str], secondary: Sequence[str]) -> List[str]:
-        merged: List[str] = []
+    def _merge_preserving_order(primary: Sequence[str], secondary: Sequence[str]) -> list[str]:
+        merged: list[str] = []
         seen: set[str] = set()
         for source in (primary, secondary):
             for value in source:
@@ -533,14 +534,14 @@ class HybridSearchService:
     def _build_diagnostics(
         self,
         *,
-        raw_payload: Dict[str, Any],
+        raw_payload: dict[str, Any],
         deduped_count: int,
         filtered_count: int,
         limit: int,
         query: HybridSearchQuery,
-        source_breakdown: Dict[str, int],
-        score_breakdown: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        source_breakdown: dict[str, int],
+        score_breakdown: dict[str, Any],
+    ) -> dict[str, Any]:
         vector_hits = int(raw_payload.get("vector_hits", 0) or 0)
         structured_hits = int(raw_payload.get("structured_hits", 0) or 0)
         deduped_overlap = max(vector_hits + structured_hits - deduped_count, 0)
@@ -568,7 +569,7 @@ class HybridSearchService:
             },
         }
 
-    def _metric_tags(self, query: HybridSearchQuery) -> Dict[str, str]:
+    def _metric_tags(self, query: HybridSearchQuery) -> dict[str, str]:
         return {
             "text": "true" if (query.text or "").strip() else "false",
             "entity_filters": "true" if query.entities else "false",
@@ -582,7 +583,7 @@ class HybridSearchService:
         self,
         *,
         query: HybridSearchQuery,
-        diagnostics: Dict[str, Any],
+        diagnostics: dict[str, Any],
         vector_hits: int,
         structured_hits: int,
         total: int,
@@ -604,7 +605,7 @@ class HybridSearchService:
         self.observability.emit_event("hybrid_search.query", **payload)
 
     @staticmethod
-    def _summarize_query(query: HybridSearchQuery) -> Dict[str, Any]:
+    def _summarize_query(query: HybridSearchQuery) -> dict[str, Any]:
         return {
             "has_text": bool((query.text or "").strip()),
             "entity_filters": len(query.entities),
@@ -622,7 +623,7 @@ class HybridSearchService:
         }
 
     @staticmethod
-    def _source_breakdown(results: Sequence[Dict[str, Any]]) -> Dict[str, int]:
+    def _source_breakdown(results: Sequence[dict[str, Any]]) -> dict[str, int]:
         """Return counts describing which sources contributed to each merged result."""
 
         counts = {
@@ -663,7 +664,7 @@ class HybridSearchService:
         return counts
 
     @staticmethod
-    def _score_breakdown(items: Sequence[HybridSearchItem]) -> Dict[str, Any]:
+    def _score_breakdown(items: Sequence[HybridSearchItem]) -> dict[str, Any]:
         """Summarize winner/tie metrics for score policy diagnostics."""
 
         winners = {"semantic": 0, "structured": 0, "unknown": 0}

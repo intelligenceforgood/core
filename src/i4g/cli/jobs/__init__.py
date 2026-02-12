@@ -1,5 +1,4 @@
 import os
-from typing import Optional
 import typer
 
 jobs_app = typer.Typer(help="Invoke background jobs (ingest, report, intake, dossier, account).")
@@ -14,10 +13,10 @@ def _exit_from_return(code: int | None) -> None:
 
 @jobs_app.command("ingest", help="Run ingestion job.")
 def jobs_ingest(
-    bundle_uri: Optional[str] = typer.Option(
+    bundle_uri: str | None = typer.Option(
         None, "--bundle-uri", help="Override bundle URI (sets I4G_INGEST__JSONL_PATH)."
     ),
-    dataset: Optional[str] = typer.Option(
+    dataset: str | None = typer.Option(
         None, "--dataset", help="Override dataset name (sets I4G_INGEST__DATASET_NAME)."
     ),
 ) -> None:
@@ -33,8 +32,8 @@ def jobs_ingest(
 
 @jobs_app.command("report", help="Run report job.")
 def jobs_report(
-    bundle_uri: Optional[str] = typer.Option(None, "--bundle-uri", help="Ignored (compatibility arg)."),
-    dataset: Optional[str] = typer.Option(None, "--dataset", help="Ignored (compatibility arg)."),
+    bundle_uri: str | None = typer.Option(None, "--bundle-uri", help="Ignored (compatibility arg)."),
+    dataset: str | None = typer.Option(None, "--dataset", help="Ignored (compatibility arg)."),
 ) -> None:
     from i4g.worker.jobs import report
 

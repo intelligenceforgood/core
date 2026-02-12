@@ -15,7 +15,6 @@ from i4g.pii.tokenization import TokenizationService
 from i4g.reports.bundle_builder import BundleBuilder
 from i4g.reports.bundle_candidates import BundleCandidateProvider
 from i4g.reports.dossier_context import DossierContextLoader
-from i4g.services.campaigns import CampaignService
 from i4g.services.vertex_writer import VertexDocumentWriter
 from i4g.services.classifier import FraudClassifier
 from i4g.settings import get_settings
@@ -155,28 +154,28 @@ def build_evidence_storage(*, local_dir: str | Path | None = None) -> EvidenceSt
     return EvidenceStorage(local_dir=path)
 
 
-def build_sql_writer(*, settings: "Settings" | None = None) -> SqlWriter:
+def build_sql_writer(*, settings: Settings | None = None) -> SqlWriter:
     """Create a SqlWriter bound to the configured SQLAlchemy engine."""
 
     session_factory = build_sql_session_factory(settings=settings)
     return SqlWriter(session_factory=session_factory)
 
 
-def build_ingestion_run_tracker(*, settings: "Settings" | None = None) -> IngestionRunTracker:
+def build_ingestion_run_tracker(*, settings: Settings | None = None) -> IngestionRunTracker:
     """Return a tracker for ingestion run metrics."""
 
     session_factory = build_sql_session_factory(settings=settings)
     return IngestionRunTracker(session_factory=session_factory)
 
 
-def build_ingestion_retry_store(*, settings: "Settings" | None = None) -> IngestionRetryStore:
+def build_ingestion_retry_store(*, settings: Settings | None = None) -> IngestionRetryStore:
     """Return a store for managing ingestion retry queue entries."""
 
     session_factory = build_sql_session_factory(settings=settings)
     return IngestionRetryStore(session_factory=session_factory)
 
 
-def build_vertex_writer(*, settings: "Settings" | None = None) -> VertexDocumentWriter:
+def build_vertex_writer(*, settings: Settings | None = None) -> VertexDocumentWriter:
     """Instantiate a Vertex document writer honoring current settings/env."""
 
     resolved = settings or get_settings()
@@ -288,7 +287,7 @@ def build_fraud_classifier() -> FraudClassifier:
     return FraudClassifier(llm_client=build_llm_client())
 
 
-def build_llm_client(*, settings: "Settings | None" = None):
+def build_llm_client(*, settings: Settings | None = None):
     """Return a simple LLM client (``generate(prompt) -> str``).
 
     Delegates to :func:`i4g.llm.client.build_llm_client`.
@@ -298,7 +297,7 @@ def build_llm_client(*, settings: "Settings | None" = None):
     return _build(settings=settings)
 
 
-def build_langchain_llm(*, settings: "Settings | None" = None):
+def build_langchain_llm(*, settings: Settings | None = None):
     """Return a LangChain-compatible LLM (``invoke(messages)``).
 
     Delegates to :func:`i4g.llm.client.build_langchain_llm`.

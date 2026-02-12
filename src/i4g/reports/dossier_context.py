@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Sequence
+from typing import Any
+from collections.abc import Iterable, Sequence
 
 from i4g.reports.bundle_builder import DossierPlan
 from i4g.store.review_store import ReviewStore
@@ -16,11 +17,11 @@ class CaseContext:
     """Serializable per-case context payload used by dossier generation."""
 
     case_id: str
-    structured_record: Dict[str, Any] | None
-    review: Dict[str, Any] | None
+    structured_record: dict[str, Any] | None
+    review: dict[str, Any] | None
     warnings: Sequence[str] = field(default_factory=tuple)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable dictionary for downstream usage."""
 
         return {
@@ -38,7 +39,7 @@ class DossierContextResult:
     cases: Sequence[CaseContext]
     warnings: Sequence[str] = field(default_factory=tuple)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation of the context result."""
 
         return {
@@ -67,8 +68,8 @@ class DossierContextLoader:
             return DossierContextResult(cases=tuple(), warnings=tuple())
 
         review_map = self._review_store.get_cases(case_ids)
-        cases: List[CaseContext] = []
-        aggregated_warnings: List[str] = []
+        cases: list[CaseContext] = []
+        aggregated_warnings: list[str] = []
 
         for case_id in case_ids:
             structured = self._structured_store.get_by_id(case_id)
@@ -87,9 +88,9 @@ class DossierContextLoader:
         return DossierContextResult(cases=tuple(cases), warnings=tuple(_deduplicate(aggregated_warnings)))
 
 
-def _unique_case_ids(plan: DossierPlan) -> List[str]:
+def _unique_case_ids(plan: DossierPlan) -> list[str]:
     seen: set[str] = set()
-    ordered: List[str] = []
+    ordered: list[str] = []
     for candidate in plan.cases:
         case_id = (candidate.case_id or "").strip()
         if not case_id or case_id in seen:
@@ -99,8 +100,8 @@ def _unique_case_ids(plan: DossierPlan) -> List[str]:
     return ordered
 
 
-def _case_warnings(*, structured: ScamRecord | None, review: Dict[str, Any] | None, case_id: str) -> List[str]:
-    warnings: List[str] = []
+def _case_warnings(*, structured: ScamRecord | None, review: dict[str, Any] | None, case_id: str) -> list[str]:
+    warnings: list[str] = []
     if structured is None:
         warnings.append(f"No structured record found for case {case_id}")
     if review is None:
@@ -108,9 +109,9 @@ def _case_warnings(*, structured: ScamRecord | None, review: Dict[str, Any] | No
     return warnings
 
 
-def _deduplicate(values: Iterable[str]) -> List[str]:
+def _deduplicate(values: Iterable[str]) -> list[str]:
     seen: set[str] = set()
-    ordered: List[str] = []
+    ordered: list[str] = []
     for value in values:
         if value in seen:
             continue

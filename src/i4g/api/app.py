@@ -1,17 +1,13 @@
 """FastAPI app factory for i4g Analyst Review API."""
 
-import threading
 import time
-import uuid
-from threading import Lock
-from typing import Dict
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from i4g.api.response_models import ReportTriggerResponse, TaskStatusResponse, TaskUpdateResponse
+from i4g.api.response_models import TaskStatusResponse, TaskUpdateResponse
 
 from i4g.api.account_list import router as account_list_router
 from i4g.api.analytics import router as analytics_router
@@ -27,6 +23,7 @@ from i4g.api.review import router as review_router
 from i4g.api.taxonomy import router as taxonomy_router
 from i4g.api.tokenization import router as tokenization_router
 from i4g.settings import get_settings
+from i4g.task_status_store import TASK_STATUS
 
 # ----------------------------------------
 # Task Status API (Step 2 of M6.3)
@@ -34,12 +31,8 @@ from i4g.settings import get_settings
 
 task_router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(require_token)])
 
-# Simple in-memory store (replace later with Redis or DB-backed worker registry)
-TASK_STATUS: Dict[str, Dict[str, str]] = {}
-
-
 @task_router.get("/{task_id}", response_model=TaskStatusResponse)
-def get_task_status(task_id: str) -> Dict[str, str]:
+def get_task_status(task_id: str) -> dict[str, str]:
     """Retrieve the current status of a background task.
 
     This endpoint is used by the analyst console or external clients to monitor report
@@ -58,7 +51,7 @@ def get_task_status(task_id: str) -> Dict[str, str]:
 
 
 @task_router.post("/{task_id}/update", response_model=TaskUpdateResponse)
-def update_task_status(task_id: str, payload: Dict[str, str]) -> Dict[str, str | bool]:
+def update_task_status(task_id: str, payload: dict[str, str]) -> dict[str, str | bool]:
     """Update or register a task status entry.
 
     This simulates what a background worker would do.
@@ -155,43 +148,9 @@ async def rate_limit_middleware(request: Request, call_next):
     return response
 
 
-# ----------------------------------------
-# Simple Queue Lock for Report Generation
-# ----------------------------------------
-
-report_lock = Lock()
-
-
-@app.post("/reports/generate", response_model=ReportTriggerResponse)
-def generate_report_trigger(user: dict = Depends(require_token)):
-    """
-    Simulate a guarded entry to report generation.
-    Ensures only one concurrent report build at a time.
-    """
-    if not report_lock.acquire(blocking=False):
-        raise HTTPException(status_code=423, detail="Report generation already in progress")
-
-    task_id = str(uuid.uuid4())
-
-    def _run_report():
-        try:
-            TASK_STATUS[task_id] = {
-                "status": "in_progress",
-                "message": "Generating report...",
-            }
-            time.sleep(5)  # Simulate work
-            TASK_STATUS[task_id] = {
-                "status": "done",
-                "message": "Report generated successfully.",
-            }
-        finally:
-            report_lock.release()  # Release lock when thread is done
-
-    thread = threading.Thread(target=_run_report)
-    thread.start()
-
-    return {"status": "started", "task_id": task_id}
-
+# Report generation is handled by the worker task pipeline
+# (see ``i4g.worker.tasks.generate_report_for_case`` and reports router).
+# The legacy ``/reports/generate`` stub has been removed (E29).
 
 # Expose REQUEST_LOG for testing purposes
 __all__ = ["app", "REQUEST_LOG"]

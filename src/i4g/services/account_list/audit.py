@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import List
 
 from i4g.services.factories import build_review_store
 from i4g.store.review_store import ReviewStore
@@ -14,7 +13,7 @@ LOGGER = logging.getLogger(__name__)
 _AUDIT_ACTION = "account_list_run"
 
 
-def _indicator_categories(result: AccountListResult) -> List[str]:
+def _indicator_categories(result: AccountListResult) -> list[str]:
     return sorted({indicator.category for indicator in result.indicators})
 
 

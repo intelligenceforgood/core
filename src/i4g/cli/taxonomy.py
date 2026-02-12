@@ -2,7 +2,7 @@ import typer
 import yaml
 import json
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any
 
 taxonomy_app = typer.Typer(help="Manage fraud taxonomy definitions and code generation.")
 
@@ -17,12 +17,12 @@ TS_ENUMS_PATH = WORKSPACE_ROOT / "ui/packages/types/src/taxonomy.ts"
 DOCS_PATH = WORKSPACE_ROOT / "docs/book/api/taxonomy_reference.md"
 
 
-def load_definitions() -> Dict[str, Any]:
-    with open(DEFINITIONS_PATH, "r") as f:
+def load_definitions() -> dict[str, Any]:
+    with open(DEFINITIONS_PATH) as f:
         return yaml.safe_load(f)
 
 
-def generate_python_enums(data: Dict[str, Any]):
+def generate_python_enums(data: dict[str, Any]):
     """
     Generate Python Enums for backend type safety.
     NOTE: These are still used by i4g.taxonomy.models for validation, even if the frontend fetches data dynamically.
@@ -40,7 +40,7 @@ def generate_python_enums(data: Dict[str, Any]):
     ]
 
     # Helper to generate an enum class
-    def add_enum(class_name: str, items: List[Dict[str, str]]):
+    def add_enum(class_name: str, items: list[dict[str, str]]):
         lines.append(f"class {class_name}(str, Enum):")
         for item in items:
             # Generate docstring for the enum member if description exists
@@ -61,7 +61,7 @@ def generate_python_enums(data: Dict[str, Any]):
     typer.echo(f"Generated {PYTHON_ENUMS_PATH}")
 
 
-def generate_taxonomy_data(data: Dict[str, Any]):
+def generate_taxonomy_data(data: dict[str, Any]):
     """
     Generates the static data.py file which powers the API.
     Transforms the flat definitions.yaml lists into the axes-based structure.
@@ -89,7 +89,7 @@ def generate_taxonomy_data(data: Dict[str, Any]):
     output_data = {
         "version": data.get("version", "1.0"),
         "steward": "Policy & Standards Team",
-        "updatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat() + "Z",
+        "updatedAt": datetime.datetime.now(datetime.UTC).isoformat() + "Z",
         "axes": axes,
     }
 
@@ -107,7 +107,7 @@ def generate_taxonomy_data(data: Dict[str, Any]):
     typer.echo(f"Generated {PYTHON_DATA_PATH}")
 
 
-def generate_typescript_interfaces(data: Dict[str, Any]):
+def generate_typescript_interfaces(data: dict[str, Any]):
     lines = [
         "/**",
         " * Fraud Taxonomy Types",
@@ -133,7 +133,7 @@ def generate_typescript_interfaces(data: Dict[str, Any]):
     typer.echo(f"Generated {TS_ENUMS_PATH}")
 
 
-def generate_markdown_docs(data: Dict[str, Any]):
+def generate_markdown_docs(data: dict[str, Any]):
     lines = [
         "# Fraud Taxonomy Reference",
         "",
@@ -143,7 +143,7 @@ def generate_markdown_docs(data: Dict[str, Any]):
         "",
     ]
 
-    def add_section(title: str, items: List[Dict[str, str]]):
+    def add_section(title: str, items: list[dict[str, str]]):
         lines.append(f"## {title}")
         lines.append("")
         lines.append("| Code | Label | Description |")

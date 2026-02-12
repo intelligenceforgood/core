@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timezone
-from typing import List, Optional
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -114,7 +113,7 @@ def run() -> None:
         )
 
 
-def _update_batch(session: Session, case_ids: List[str], results: List[Optional[FraudClassificationResult]]) -> None:
+def _update_batch(session: Session, case_ids: list[str], results: list[FraudClassificationResult | None]) -> None:
     """Update classification status and results for the batch."""
 
     now = datetime.now(timezone.utc)

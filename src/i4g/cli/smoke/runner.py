@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Tuple
+from typing import Any
 
 from google.cloud import discoveryengine_v1beta as discoveryengine
 
@@ -94,7 +93,7 @@ def _run_command(cmd: list[str], *, capture_output: bool = True, check: bool = T
         raise SmokeError(message) from exc
 
 
-def _submit_intake(api_url: str, token: str, iap_token: str | None = None) -> Tuple[str, str]:
+def _submit_intake(api_url: str, token: str, iap_token: str | None = None) -> tuple[str, str]:
     payload = {
         "reporter_name": "Dev Smoke",
         "summary": "Automated dev smoke submission",
@@ -295,7 +294,7 @@ def _execute_job(
     raise SmokeError(f"Job execution timed out: {execution_name}")
 
 
-def _fetch_intake(api_url: str, intake_id: str, token: str, iap_token: str | None = None) -> Dict[str, Any]:
+def _fetch_intake(api_url: str, intake_id: str, token: str, iap_token: str | None = None) -> dict[str, Any]:
     cmd = [
         "curl",
         "-sS",

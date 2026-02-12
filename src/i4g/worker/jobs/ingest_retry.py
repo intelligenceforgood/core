@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Any, Dict, Tuple
+from typing import Any
 
 from i4g.services.factories import build_ingestion_retry_store, build_vertex_writer
 from i4g.settings import get_settings
-from i4g.store.ingest import build_case_bundle
 from i4g.store.ingestion_retry_store import IngestionRetryStore, RetryItem
 from i4g.store.sql_writer import SqlWriterResult
 from i4g.worker.logging import configure_job_logging
@@ -20,7 +19,7 @@ class RetryPayloadError(RuntimeError):
     """Raised when a retry payload is irrecoverably malformed."""
 
 
-def _extract_retry_payload(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+def _extract_retry_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     record = payload.get("record") if isinstance(payload, dict) else None
     context = payload.get("context") if isinstance(payload, dict) else None
     if not isinstance(record, dict):
@@ -30,7 +29,7 @@ def _extract_retry_payload(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], Dic
     return record, context
 
 
-def _deserialize_sql_result(data: Dict[str, Any] | None, fallback_case_id: str | None) -> SqlWriterResult:
+def _deserialize_sql_result(data: dict[str, Any] | None, fallback_case_id: str | None) -> SqlWriterResult:
     if not data:
         raise RetryPayloadError("retry payload missing sql_result context")
     case_id = data.get("case_id") or fallback_case_id
@@ -46,7 +45,7 @@ def _deserialize_sql_result(data: Dict[str, Any] | None, fallback_case_id: str |
 
 def _process_vertex_retry(
     item: RetryItem,
-    record: Dict[str, Any],
+    record: dict[str, Any],
     *,
     vertex_writer,
     default_dataset: str,

@@ -1,0 +1,521 @@
+"""Ingestion/search/report/job section models."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from pydantic import AliasChoices, Field, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from i4g.settings.sections._paths import PROJECT_ROOT
+
+
+class IngestionSettings(BaseSettings):
+    """Scheduler + job configuration for ingestion workflows."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    enable_scheduled_jobs: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("INGESTION_ENABLE_SCHEDULED_JOBS", "INGESTION__ENABLE_SCHEDULED_JOBS"),
+    )
+    default_region: str = Field(
+        default="us-central1",
+        validation_alias=AliasChoices("INGESTION_DEFAULT_REGION", "INGESTION__DEFAULT_REGION"),
+    )
+    scheduler_project: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("INGESTION_SCHEDULER_PROJECT", "INGESTION__SCHEDULER_PROJECT"),
+    )
+    default_service_account: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("INGESTION_SERVICE_ACCOUNT", "INGESTION__SERVICE_ACCOUNT"),
+    )
+    enable_sql: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "INGEST_ENABLE_SQL",
+            "INGEST__ENABLE_SQL",
+            "INGESTION_ENABLE_SQL",
+            "INGESTION__ENABLE_SQL",
+        ),
+    )
+    enable_vertex: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "INGEST_ENABLE_VERTEX",
+            "INGEST__ENABLE_VERTEX",
+            "INGESTION_ENABLE_VERTEX",
+            "INGESTION__ENABLE_VERTEX",
+        ),
+    )
+    enable_vector_store: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "INGEST_ENABLE_VECTOR",
+            "INGEST__ENABLE_VECTOR",
+            "INGESTION_ENABLE_VECTOR",
+            "INGESTION__ENABLE_VECTOR",
+        ),
+    )
+    dataset_path: Path = Field(
+        default=PROJECT_ROOT / "data" / "retrieval_poc" / "cases.jsonl",
+        validation_alias=AliasChoices(
+            "INGEST_JSONL_PATH",
+            "INGEST__JSONL_PATH",
+            "INGESTION_JSONL_PATH",
+            "INGESTION__JSONL_PATH",
+        ),
+    )
+    batch_limit: int = Field(
+        default=0,
+        validation_alias=AliasChoices(
+            "INGEST_BATCH_LIMIT",
+            "INGEST__BATCH_LIMIT",
+            "INGESTION_BATCH_LIMIT",
+            "INGESTION__BATCH_LIMIT",
+        ),
+    )
+    dry_run: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "INGEST_DRY_RUN",
+            "INGEST__DRY_RUN",
+            "INGESTION_DRY_RUN",
+            "INGESTION__DRY_RUN",
+        ),
+    )
+    reset_vector: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "INGEST_RESET_VECTOR",
+            "INGEST__RESET_VECTOR",
+            "INGESTION_RESET_VECTOR",
+            "INGESTION__RESET_VECTOR",
+        ),
+    )
+    default_dataset: str = Field(
+        default="unknown",
+        validation_alias=AliasChoices(
+            "INGEST_DEFAULT_DATASET",
+            "INGEST__DEFAULT_DATASET",
+            "INGEST__DATASET_NAME",
+            "INGESTION_DEFAULT_DATASET",
+            "INGESTION__DEFAULT_DATASET",
+        ),
+    )
+    fanout_timeout_seconds: int = Field(
+        default=60,
+        validation_alias=AliasChoices(
+            "INGEST_FANOUT_TIMEOUT_SECONDS",
+            "INGEST__FANOUT_TIMEOUT_SECONDS",
+            "INGESTION_FANOUT_TIMEOUT_SECONDS",
+            "INGESTION__FANOUT_TIMEOUT_SECONDS",
+        ),
+    )
+    max_retries: int = Field(
+        default=3,
+        validation_alias=AliasChoices(
+            "INGEST_MAX_RETRIES",
+            "INGEST__MAX_RETRIES",
+            "INGESTION_MAX_RETRIES",
+            "INGESTION__MAX_RETRIES",
+        ),
+    )
+    retry_delay_seconds: int = Field(
+        default=60,
+        validation_alias=AliasChoices(
+            "INGEST_RETRY_DELAY_SECONDS",
+            "INGEST__RETRY_DELAY_SECONDS",
+            "INGESTION_RETRY_DELAY_SECONDS",
+            "INGESTION__RETRY_DELAY_SECONDS",
+        ),
+    )
+    rate_limit_delay: float = Field(
+        default=0.0,
+        validation_alias=AliasChoices(
+            "INGEST_RATE_LIMIT_DELAY",
+            "INGEST__RATE_LIMIT_DELAY",
+            "INGESTION_RATE_LIMIT_DELAY",
+            "INGESTION__RATE_LIMIT_DELAY",
+        ),
+        description="Delay in seconds between records for rate limiting.",
+    )
+    skip_classification: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "INGEST_SKIP_CLASSIFICATION",
+            "INGEST__SKIP_CLASSIFICATION",
+            "INGESTION_SKIP_CLASSIFICATION",
+            "INGESTION__SKIP_CLASSIFICATION",
+        ),
+        description="When True, skip fraud classification during ingestion.",
+    )
+
+
+class IngestRetryJobSettings(BaseSettings):
+    """Cloud Run job overrides for the ingestion retry processor."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    batch_limit: int = Field(
+        default=25,
+        validation_alias=AliasChoices("INGEST_RETRY_BATCH_LIMIT", "INGEST_RETRY__BATCH_LIMIT"),
+    )
+    dry_run: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("INGEST_RETRY_DRY_RUN", "INGEST_RETRY__DRY_RUN"),
+    )
+
+
+class SweepSettings(BaseSettings):
+    """Classification sweeper job configuration."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    max_runtime_seconds: int = Field(
+        default=3300,
+        validation_alias=AliasChoices(
+            "SWEEP_MAX_RUNTIME_SECONDS",
+            "SWEEP__MAX_RUNTIME_SECONDS",
+            "JOB_MAX_RUNTIME_SECONDS",
+        ),
+        description="Maximum wall-clock seconds before the sweeper exits gracefully.",
+    )
+    batch_size: int = Field(
+        default=20,
+        validation_alias=AliasChoices(
+            "SWEEP_BATCH_SIZE",
+            "SWEEP__BATCH_SIZE",
+            "JOB_BATCH_SIZE",
+        ),
+        description="Number of cases to classify per loop iteration.",
+    )
+
+
+class DossierJobSettings(BaseSettings):
+    """Cloud Run job overrides for dossier queue processing."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    batch_size: int = Field(
+        default=5,
+        validation_alias=AliasChoices("DOSSIER_BATCH_SIZE", "DOSSIER__BATCH_SIZE"),
+    )
+    dry_run: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("DOSSIER_DRY_RUN", "DOSSIER__DRY_RUN"),
+    )
+
+
+class SmokeSettings(BaseSettings):
+    """Smoke test CLI defaults."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    api_url: str = Field(
+        default="https://fastapi-gateway-y5jge5w2cq-uc.a.run.app",
+        validation_alias=AliasChoices("SMOKE_API_URL", "SMOKE__API_URL"),
+        description="Default API base URL for smoke tests.",
+    )
+
+
+class ObservabilitySettings(BaseSettings):
+    """Logging, tracing, and metrics configuration."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    structured_logging: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("OBS_STRUCTURED_LOGGING", "OBSERVABILITY__STRUCTURED_LOGGING"),
+    )
+    otlp_endpoint: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OBS_OTLP_ENDPOINT", "OBSERVABILITY__OTLP_ENDPOINT"),
+    )
+    trace_sample_rate: float = Field(
+        default=0.0,
+        validation_alias=AliasChoices("OBS_TRACE_SAMPLE_RATE", "OBSERVABILITY__TRACE_SAMPLE_RATE"),
+    )
+    statsd_host: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("OBS_STATSD_HOST", "OBSERVABILITY__STATSD_HOST"),
+    )
+    statsd_port: int = Field(
+        default=8125,
+        validation_alias=AliasChoices("OBS_STATSD_PORT", "OBSERVABILITY__STATSD_PORT"),
+    )
+    statsd_prefix: str = Field(
+        default="i4g",
+        validation_alias=AliasChoices("OBS_STATSD_PREFIX", "OBSERVABILITY__STATSD_PREFIX"),
+    )
+    service_name: str = Field(
+        default="i4g-backend",
+        validation_alias=AliasChoices("OBS_SERVICE_NAME", "OBSERVABILITY__SERVICE_NAME"),
+    )
+
+
+class AccountListSettings(BaseSettings):
+    """Account list extraction configuration."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("ACCOUNT_LIST_ENABLED", "ACCOUNT_LIST__ENABLED"),
+    )
+    require_api_key: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("ACCOUNT_LIST_REQUIRE_API_KEY", "ACCOUNT_LIST__REQUIRE_API_KEY"),
+    )
+    api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ACCOUNT_LIST_API_KEY", "ACCOUNT_LIST__API_KEY"),
+    )
+    header_name: str = Field(
+        default="X-ACCOUNTLIST-KEY",
+        validation_alias=AliasChoices("ACCOUNT_LIST_HEADER_NAME", "ACCOUNT_LIST__HEADER_NAME"),
+    )
+    max_top_k: int = Field(
+        default=250,
+        validation_alias=AliasChoices("ACCOUNT_LIST_MAX_TOP_K", "ACCOUNT_LIST__MAX_TOP_K"),
+    )
+    default_formats: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("ACCOUNT_LIST_DEFAULT_FORMATS", "ACCOUNT_LIST__DEFAULT_FORMATS"),
+    )
+    artifact_prefix: str = Field(
+        default="account_list",
+        validation_alias=AliasChoices("ACCOUNT_LIST_ARTIFACT_PREFIX", "ACCOUNT_LIST__ARTIFACT_PREFIX"),
+    )
+    drive_folder_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ACCOUNT_LIST_DRIVE_FOLDER_ID", "ACCOUNT_LIST__DRIVE_FOLDER_ID"),
+    )
+    enable_vector: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("ACCOUNT_LIST_ENABLE_VECTOR", "ACCOUNT_LIST__ENABLE_VECTOR"),
+    )
+
+
+class SavedSearchSettings(BaseSettings):
+    """Saved-search migration defaults shared across CLI scripts."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    migration_tag: str = Field(
+        default="hybrid-v1",
+        validation_alias=AliasChoices(
+            "SEARCH_SAVED_SEARCH_MIGRATION_TAG",
+            "SEARCH__SAVED_SEARCH__MIGRATION_TAG",
+            "SAVED_SEARCH_MIGRATION_TAG",
+        ),
+    )
+    schema_version: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "SEARCH_SAVED_SEARCH_SCHEMA_VERSION",
+            "SEARCH__SAVED_SEARCH__SCHEMA_VERSION",
+            "SAVED_SEARCH_SCHEMA_VERSION",
+        ),
+    )
+
+
+class SearchSettings(BaseSettings):
+    """Hybrid search tuning parameters and schema presets."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    semantic_weight: float = Field(
+        default=0.65,
+        validation_alias=AliasChoices("SEARCH_SEMANTIC_WEIGHT", "SEARCH__SEMANTIC_WEIGHT"),
+    )
+    structured_weight: float = Field(
+        default=0.35,
+        validation_alias=AliasChoices("SEARCH_STRUCTURED_WEIGHT", "SEARCH__STRUCTURED_WEIGHT"),
+    )
+    default_limit: int = Field(
+        default=25,
+        validation_alias=AliasChoices("SEARCH_DEFAULT_LIMIT", "SEARCH__DEFAULT_LIMIT"),
+    )
+    schema_cache_ttl_seconds: int = Field(
+        default=300,
+        validation_alias=AliasChoices("SEARCH_SCHEMA_CACHE_TTL", "SEARCH__SCHEMA_CACHE_TTL"),
+    )
+    indicator_types: list[str] = Field(
+        default_factory=lambda: [
+            "bank_account",
+            "crypto_wallet",
+            "email",
+            "phone",
+            "ip_address",
+            "asn",
+            "browser_agent",
+            "url",
+            "merchant",
+        ],
+        validation_alias=AliasChoices("SEARCH_INDICATOR_TYPES", "SEARCH__INDICATOR_TYPES"),
+    )
+    dataset_presets: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("SEARCH_DATASET_PRESETS", "SEARCH__DATASET_PRESETS"),
+    )
+    classification_presets: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("SEARCH_CLASSIFICATION_PRESETS", "SEARCH__CLASSIFICATION_PRESETS"),
+    )
+    time_presets: list[str] = Field(
+        default_factory=lambda: ["7d", "30d", "90d"],
+        validation_alias=AliasChoices("SEARCH_TIME_PRESETS", "SEARCH__TIME_PRESETS"),
+    )
+    loss_buckets: list[str] = Field(
+        default_factory=lambda: ["<10k", "10k-50k", ">50k"],
+        validation_alias=AliasChoices("SEARCH_LOSS_BUCKETS", "SEARCH__LOSS_BUCKETS"),
+    )
+    schema_entity_example_limit: int = Field(
+        default=5,
+        validation_alias=AliasChoices("SEARCH_SCHEMA_ENTITY_EXAMPLE_LIMIT", "SEARCH__SCHEMA_ENTITY_EXAMPLE_LIMIT"),
+    )
+    saved_search: SavedSearchSettings = Field(default_factory=SavedSearchSettings)
+
+    @model_validator(mode="after")
+    def _validate_weights(self) -> SearchSettings:
+        """Ensure semantic/structured weights fall within acceptable bounds."""
+
+        for field_name in ("semantic_weight", "structured_weight"):
+            value = getattr(self, field_name)
+            if value < 0 or value > 1:
+                raise ValueError(f"{field_name} must be between 0 and 1 inclusive (got {value})")
+        if self.semantic_weight == 0 and self.structured_weight == 0:
+            raise ValueError("At least one of semantic_weight or structured_weight must be greater than zero.")
+        return self
+
+
+class ReportSettings(BaseSettings):
+    """Agentic dossier/report configuration."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    drive_parent_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("REPORT_DRIVE_PARENT_ID", "REPORT__DRIVE_PARENT_ID"),
+    )
+    min_loss_usd: float = Field(
+        default=50000.0,
+        validation_alias=AliasChoices("REPORT_MIN_LOSS_USD", "REPORT__MIN_LOSS_USD"),
+    )
+    recency_days: int = Field(
+        default=30,
+        validation_alias=AliasChoices("REPORT_RECENCY_DAYS", "REPORT__RECENCY_DAYS"),
+    )
+    max_cases_per_dossier: int = Field(
+        default=5,
+        validation_alias=AliasChoices("REPORT_MAX_CASES_PER_DOSSIER", "REPORT__MAX_CASES_PER_DOSSIER"),
+    )
+    require_cross_border: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("REPORT_REQUIRE_CROSS_BORDER", "REPORT__REQUIRE_CROSS_BORDER"),
+    )
+    hash_algorithm: str = Field(
+        default="sha256",
+        validation_alias=AliasChoices("REPORT_HASH_ALGORITHM", "REPORT__HASH_ALGORITHM"),
+    )
+    tool_timeout_seconds: float | None = Field(
+        default=None,
+        validation_alias=AliasChoices("REPORT_TOOL_TIMEOUT_SECONDS", "REPORT__TOOL_TIMEOUT_SECONDS"),
+        description="Per-tool timeout for LangChain dossier tools; None disables timeouts.",
+    )
+    batch_limit: int = Field(
+        default=25,
+        validation_alias=AliasChoices("REPORT_BATCH_LIMIT", "REPORT__BATCH_LIMIT"),
+        description="Maximum number of reviews to process per report batch.",
+    )
+    target_status: str = Field(
+        default="accepted",
+        validation_alias=AliasChoices("REPORT_TARGET_STATUS", "REPORT__TARGET_STATUS"),
+        description="Queue status filter when auto-resolving review IDs.",
+    )
+    review_ids: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("REPORT_REVIEW_IDS", "REPORT__REVIEW_IDS"),
+        description="Comma-separated explicit review IDs (overrides queue lookup).",
+    )
+    dry_run: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("REPORT_DRY_RUN", "REPORT__DRY_RUN"),
+        description="When True, log actions without generating reports.",
+    )
+
+
+class AccountJobSettings(BaseSettings):
+    """Cloud Run job overrides for account list extraction."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    output_formats: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("ACCOUNT_JOB_OUTPUT_FORMATS", "ACCOUNT_JOB__OUTPUT_FORMATS"),
+        description="Comma-separated output formats (e.g. pdf,xlsx). Overrides account_list.default_formats.",
+    )
+    start_time: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ACCOUNT_JOB_START_TIME", "ACCOUNT_JOB__START_TIME"),
+        description="ISO-8601 start of the extraction window. Defaults to end_time minus window_days.",
+    )
+    end_time: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ACCOUNT_JOB_END_TIME", "ACCOUNT_JOB__END_TIME"),
+        description="ISO-8601 end of the extraction window. Defaults to now (UTC).",
+    )
+    window_days: int = Field(
+        default=15,
+        validation_alias=AliasChoices("ACCOUNT_JOB_WINDOW_DAYS", "ACCOUNT_JOB__WINDOW_DAYS"),
+        description="Number of days in the extraction window when start_time is not set.",
+    )
+    categories: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("ACCOUNT_JOB_CATEGORIES", "ACCOUNT_JOB__CATEGORIES"),
+        description="Comma-separated fraud categories to include (e.g. bank,crypto,payments).",
+    )
+    top_k: int = Field(
+        default=200,
+        validation_alias=AliasChoices("ACCOUNT_JOB_TOP_K", "ACCOUNT_JOB__TOP_K"),
+        description="Maximum number of accounts to extract per run.",
+    )
+    include_sources: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("ACCOUNT_JOB_INCLUDE_SOURCES", "ACCOUNT_JOB__INCLUDE_SOURCES"),
+        description="Whether to include source evidence references in output.",
+    )
+    dry_run: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("ACCOUNT_JOB_DRY_RUN", "ACCOUNT_JOB__DRY_RUN"),
+        description="Run extraction without persisting results.",
+    )
+
+
+class IntakeJobSettings(BaseSettings):
+    """Cloud Run job overrides for intake processing."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("INTAKE_ID", "INTAKE__ID"),
+        description="Intake submission ID to process.",
+    )
+    job_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("INTAKE_JOB_ID", "INTAKE__JOB_ID"),
+        description="Intake job ID for tracking.",
+    )
+    api_base: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("INTAKE_API_BASE", "INTAKE__API_BASE"),
+        description="Base URL for the intake API (if processing via HTTP rather than direct service call).",
+    )
+    api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("INTAKE_API_KEY", "INTAKE__API_KEY"),
+        description="API key for authenticating intake API calls. Falls back to api.key.",
+    )

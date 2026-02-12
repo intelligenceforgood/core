@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
+from collections.abc import Mapping, Sequence
 
-from i4g.reports.bundle_builder import BundleBuilder, BundleCriteria, DossierCandidate
+from i4g.reports.bundle_builder import BundleBuilder, BundleCriteria
 from i4g.reports.bundle_candidates import BundleCandidateProvider
 from i4g.services.factories import (
     build_bundle_builder,
@@ -46,7 +47,7 @@ class PilotCaseSpec:
     notes: str | None = None
 
     @classmethod
-    def from_dict(cls, payload: Mapping[str, Any]) -> "PilotCaseSpec":
+    def from_dict(cls, payload: Mapping[str, Any]) -> PilotCaseSpec:
         """Instantiate a :class:`PilotCaseSpec` from a JSON payload."""
 
         return cls(

@@ -7,7 +7,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 
 
 @dataclass(frozen=True)
@@ -37,7 +37,7 @@ class SignatureManifest:
     algorithm: str
     generated_at: datetime
     artifacts: Sequence[ArtifactSignature]
-    uploads: Sequence["UploadedArtifactSignature"] = field(default_factory=tuple)
+    uploads: Sequence[UploadedArtifactSignature] = field(default_factory=tuple)
     warnings: Sequence[str] = field(default_factory=tuple)
 
     def to_dict(self) -> dict:
@@ -53,10 +53,10 @@ class SignatureManifest:
 
     def with_uploads(
         self,
-        uploads: Sequence["UploadedArtifactSignature"],
+        uploads: Sequence[UploadedArtifactSignature],
         *,
         warnings: Sequence[str] | None = None,
-    ) -> "SignatureManifest":
+    ) -> SignatureManifest:
         merged_warnings = list(self.warnings)
         if warnings:
             merged_warnings.extend(warnings)

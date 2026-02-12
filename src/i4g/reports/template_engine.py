@@ -8,7 +8,7 @@ simple rendering utilities and a small stub for future template-learning.
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
 
@@ -22,7 +22,7 @@ class TemplateEngine:
         templates_dir: Directory where templates live (default: ./templates).
     """
 
-    def __init__(self, templates_dir: Optional[str] = None) -> None:
+    def __init__(self, templates_dir: str | None = None) -> None:
         self.templates_dir = templates_dir or DEFAULT_TEMPLATES_DIR
         loader = FileSystemLoader(self.templates_dir)
         self.env = Environment(
@@ -32,14 +32,14 @@ class TemplateEngine:
             lstrip_blocks=True,
         )
 
-    def list_templates(self) -> List[str]:
+    def list_templates(self) -> list[str]:
         """Return a list of template names available in the templates directory."""
         try:
             return list(self.env.list_templates())
         except Exception:
             return []
 
-    def render(self, template_name: str, context: Dict[str, Any]) -> str:
+    def render(self, template_name: str, context: dict[str, Any]) -> str:
         """Render a named template with the provided context.
 
         Args:
@@ -59,7 +59,7 @@ class TemplateEngine:
         return template.render(**context)
 
     # --- Stub: template learning (future work) ---
-    def learn_templates_from_examples(self, example_report_paths: List[str]) -> None:
+    def learn_templates_from_examples(self, example_report_paths: list[str]) -> None:
         """Stub: Analyze example reports and generate/update templates.
 
         This is intentionally a stub. Future work will:

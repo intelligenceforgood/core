@@ -1,6 +1,5 @@
 import typer
 from pathlib import Path
-from typing import Optional
 from i4g.settings import get_settings
 
 settings_app = typer.Typer(help="Inspect and export configuration manifests.")
@@ -15,7 +14,7 @@ def settings_export_manifest(
         "--proto-docs-dir",
         help="Directory in the core repo to write manifest artifacts.",
     ),
-    docs_repo: Optional[Path] = typer.Option(
+    docs_repo: Path | None = typer.Option(
         None,
         "--docs-repo",
         help="Optional docs repo path to mirror outputs (writes to book/config).",

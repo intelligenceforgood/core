@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import typer
 
@@ -40,7 +39,7 @@ def admin_seed_campaigns() -> None:
 @admin_app.command("query", help="Run scam-detection RAG query using the configured vector backend.")
 def admin_query(
     question: str = typer.Option(..., "--question", "-q", help="Free-text question to analyze."),
-    backend: Optional[str] = typer.Option(
+    backend: str | None = typer.Option(
         None,
         "--backend",
         case_sensitive=False,
@@ -58,8 +57,8 @@ def admin_query(
 @admin_app.command("vertex-search", help="Query Vertex AI Search (Discovery) data store.")
 def admin_vertex_search(
     query: str = typer.Argument(..., help="Free-text query string to execute."),
-    project: Optional[str] = typer.Option(None, "--project", help="GCP project hosting the Discovery data store."),
-    location: Optional[str] = typer.Option(None, "--location", help="Discovery location (default: global)."),
+    project: str | None = typer.Option(None, "--project", help="GCP project hosting the Discovery data store."),
+    location: str | None = typer.Option(None, "--location", help="Discovery location (default: global)."),
     data_store_id: str = typer.Option(..., "--data-store-id", help="Discovery data store identifier."),
     serving_config_id: str = typer.Option(
         "default_search",
@@ -67,8 +66,8 @@ def admin_vertex_search(
         help="Serving config identifier (default: default_search).",
     ),
     page_size: int = typer.Option(5, "--page-size", help="Maximum number of results to return."),
-    filter_expression: Optional[str] = typer.Option(None, "--filter", help="Discovery filter expression."),
-    boost_json: Optional[str] = typer.Option(None, "--boost-json", help="Optional BoostSpec payload as JSON."),
+    filter_expression: str | None = typer.Option(None, "--filter", help="Discovery filter expression."),
+    boost_json: str | None = typer.Option(None, "--boost-json", help="Optional BoostSpec payload as JSON."),
     raw: bool = typer.Option(False, "--raw", help="Print raw JSON response instead of a formatted summary."),
 ) -> None:
     """Run Vertex Search helper."""
@@ -93,15 +92,15 @@ def admin_vertex_search(
 def admin_export_saved_searches(
     limit: int = typer.Option(100, "--limit", help="Max entries to export."),
     include_all: bool = typer.Option(False, "--all", help="Include shared searches along with personal ones."),
-    owner: Optional[str] = typer.Option(None, "--owner", help="Filter by owner username (ignored if --all)."),
-    output: Optional[Path] = typer.Option(None, "--output", help="Output file; omit for stdout."),
+    owner: str | None = typer.Option(None, "--owner", help="Filter by owner username (ignored if --all)."),
+    output: Path | None = typer.Option(None, "--output", help="Output file; omit for stdout."),
     split: bool = typer.Option(False, "--split", help="When writing to a folder, create one file per owner."),
-    include_tags: Optional[list[str]] = typer.Option(
+    include_tags: list[str] | None = typer.Option(
         None,
         "--include-tags",
         help="Only export saved searches with these tags.",
     ),
-    schema_version: Optional[str] = typer.Option(
+    schema_version: str | None = typer.Option(
         None,
         "--schema-version",
         help="Optional schema version to inject into exported search params.",
@@ -122,10 +121,10 @@ def admin_export_saved_searches(
 
 @admin_app.command("import-saved-searches", help="Import saved searches from JSON.")
 def admin_import_saved_searches(
-    input_path: Optional[Path] = typer.Option(None, "--input", help="JSON file path (defaults to stdin)."),
-    owner: Optional[str] = typer.Option(None, "--owner", help="Owner username (default: current user)."),
+    input_path: Path | None = typer.Option(None, "--input", help="JSON file path (defaults to stdin)."),
+    owner: str | None = typer.Option(None, "--owner", help="Owner username (default: current user)."),
     shared: bool = typer.Option(False, "--shared", help="Import into shared scope (owner=NULL)."),
-    include_tags: Optional[list[str]] = typer.Option(
+    include_tags: list[str] | None = typer.Option(
         None,
         "--include-tags",
         help="Only import searches with these tags.",
@@ -143,8 +142,8 @@ def admin_import_saved_searches(
 
 @admin_app.command("prune-saved-searches", help="Delete saved searches by owner/tag filters.")
 def admin_prune_saved_searches(
-    owner: Optional[str] = typer.Option(None, "--owner", help="Delete saved searches belonging to this owner."),
-    tags: Optional[list[str]] = typer.Option(
+    owner: str | None = typer.Option(None, "--owner", help="Delete saved searches belonging to this owner."),
+    tags: list[str] | None = typer.Option(
         None,
         "--tags",
         help="Only delete saved searches containing these tags.",
@@ -158,24 +157,24 @@ def admin_prune_saved_searches(
 
 @admin_app.command("bulk-update-tags", help="Add, remove, or replace saved-search tags in bulk.")
 def admin_bulk_update_tags(
-    owner: Optional[str] = typer.Option(None, "--owner", help="Filter saved searches to this owner."),
-    tags: Optional[list[str]] = typer.Option(
+    owner: str | None = typer.Option(None, "--owner", help="Filter saved searches to this owner."),
+    tags: list[str] | None = typer.Option(
         None,
         "--tags",
         help="Only target saved searches containing these tags.",
     ),
-    search_id: Optional[list[str]] = typer.Option(
+    search_id: list[str] | None = typer.Option(
         None,
         "--search-id",
         help="Explicit saved search IDs to update.",
     ),
-    add: Optional[list[str]] = typer.Option(None, "--add", help="Tags to add to each matched saved search."),
-    remove: Optional[list[str]] = typer.Option(
+    add: list[str] | None = typer.Option(None, "--add", help="Tags to add to each matched saved search."),
+    remove: list[str] | None = typer.Option(
         None,
         "--remove",
         help="Tags to remove from each matched saved search.",
     ),
-    replace: Optional[list[str]] = typer.Option(
+    replace: list[str] | None = typer.Option(
         None,
         "--replace",
         help="Replace the existing tag set with this list (overrides --add/--remove).",
@@ -199,8 +198,8 @@ def admin_bulk_update_tags(
 
 @admin_app.command("export-tag-presets", help="Export tag presets derived from saved searches.")
 def admin_export_tag_presets(
-    owner: Optional[str] = typer.Option(None, "--owner", help="Filter presets to this owner (omit for shared)."),
-    output: Optional[Path] = typer.Option(None, "--output", help="File to write JSON (stdout if omitted)."),
+    owner: str | None = typer.Option(None, "--owner", help="Filter presets to this owner (omit for shared)."),
+    output: Path | None = typer.Option(None, "--output", help="File to write JSON (stdout if omitted)."),
 ) -> None:
     """Proxy to tag preset export helper."""
 
@@ -209,7 +208,7 @@ def admin_export_tag_presets(
 
 @admin_app.command("import-tag-presets", help="Import tag presets and append as filter presets.")
 def admin_import_tag_presets(
-    input_path: Optional[Path] = typer.Option(None, "--input", help="JSON file path (defaults to stdin)."),
+    input_path: Path | None = typer.Option(None, "--input", help="JSON file path (defaults to stdin)."),
 ) -> None:
     """Proxy to tag preset import helper."""
 
@@ -219,9 +218,9 @@ def admin_import_tag_presets(
 @admin_app.command("build-dossiers", help="Group accepted cases into dossier queue entries.")
 def admin_build_dossiers(
     limit: int = typer.Option(200, "--limit", help="Number of accepted cases to inspect."),
-    min_loss: Optional[float] = typer.Option(None, "--min-loss", help="Minimum loss threshold in USD."),
-    recency_days: Optional[int] = typer.Option(None, "--recency-days", help="Accepted-within window in days."),
-    max_cases: Optional[int] = typer.Option(None, "--max-cases", help="Maximum number of cases per dossier."),
+    min_loss: float | None = typer.Option(None, "--min-loss", help="Minimum loss threshold in USD."),
+    recency_days: int | None = typer.Option(None, "--recency-days", help="Accepted-within window in days."),
+    max_cases: int | None = typer.Option(None, "--max-cases", help="Maximum number of cases per dossier."),
     jurisdiction_mode: str = typer.Option(
         "single",
         "--jurisdiction-mode",
@@ -254,12 +253,12 @@ def admin_process_dossiers(
     batch_size: int = typer.Option(5, "--batch-size", help="Number of queue entries to lease this run."),
     preview: int = typer.Option(5, "--preview", help="How many plan results to display after processing."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Inspect queue entries without generating artifacts."),
-    task_id: Optional[str] = typer.Option(
+    task_id: str | None = typer.Option(
         None,
         "--task-id",
         help="Optional task identifier for Task_STATUS updates.",
     ),
-    task_status_url: Optional[str] = typer.Option(
+    task_status_url: str | None = typer.Option(
         None,
         "--task-status-url",
         help="FastAPI /tasks base URL.",
@@ -283,20 +282,20 @@ def admin_pilot_dossiers(
         "--cases-file",
         help="Path to JSON file containing pilot case specs.",
     ),
-    cases: Optional[list[str]] = typer.Option(
+    cases: list[str] | None = typer.Option(
         None,
         "--case",
         help="Specific case_id(s) to include (repeat flag or comma-separated).",
     ),
-    case_count: Optional[int] = typer.Option(
+    case_count: int | None = typer.Option(
         None,
         "--case-count",
         help="Limit the number of pilot cases after filtering.",
     ),
     seed_only: bool = typer.Option(False, "--seed-only", help="Seed pilot data without generating dossier plans."),
-    min_loss: Optional[float] = typer.Option(None, "--min-loss", help="Minimum loss threshold in USD."),
-    recency_days: Optional[int] = typer.Option(None, "--recency-days", help="Accepted-within window in days."),
-    max_cases: Optional[int] = typer.Option(None, "--max-cases", help="Maximum number of cases per dossier."),
+    min_loss: float | None = typer.Option(None, "--min-loss", help="Minimum loss threshold in USD."),
+    recency_days: int | None = typer.Option(None, "--recency-days", help="Accepted-within window in days."),
+    max_cases: int | None = typer.Option(None, "--max-cases", help="Maximum number of cases per dossier."),
     jurisdiction_mode: str = typer.Option(
         "single",
         "--jurisdiction-mode",

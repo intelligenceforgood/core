@@ -5,7 +5,6 @@ Used by downstream indexing and retrieval systems.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional
 
 
 @dataclass
@@ -23,11 +22,11 @@ class NormalizedRecord:
         source_text: Optional original text for reference or debugging.
     """
 
-    people: List[str]
-    organizations: List[str]
-    crypto_assets: List[str]
-    wallet_addresses: List[str]
-    contact_channels: List[str]
-    locations: List[str]
-    scam_indicators: List[str]
-    source_text: Optional[str] = None
+    people: list[str]
+    organizations: list[str]
+    crypto_assets: list[str]
+    wallet_addresses: list[str]
+    contact_channels: list[str]
+    locations: list[str]
+    scam_indicators: list[str]
+    source_text: str | None = None

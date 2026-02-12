@@ -7,7 +7,6 @@ import sys
 from datetime import datetime, timezone
 
 from i4g.services.factories import build_structured_store, build_tokenization_service
-from i4g.settings import get_settings
 from i4g.store.schema import ScamRecord
 from i4g.task_status import TaskStatusReporter
 from i4g.utils.coerce import env_bool

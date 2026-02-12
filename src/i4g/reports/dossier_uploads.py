@@ -6,7 +6,8 @@ import hashlib
 import logging
 import mimetypes
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
+from collections.abc import Mapping, Sequence
 
 from i4g.reports.bundle_builder import DossierPlan
 from i4g.settings import get_settings
@@ -23,8 +24,15 @@ class _FallbackMediaUpload:
 
 
 def _safe_int(value: object) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        value = text
     try:
-        return int(value)  # type: ignore[arg-type]
+        return int(value)
     except (TypeError, ValueError):
         return None
 
@@ -113,11 +121,12 @@ class DossierUploader:
             self._drive_service = self._build_drive_client()
         if self._drive_service is None:
             return None, ["Drive client unavailable"]
+        drive_service = self._drive_service
 
         folder_meta: dict[str, object] | None = None
         try:
             folder_meta = (
-                self._drive_service.files()  # type: ignore[union-attr]
+                drive_service.files()
                 .get(
                     fileId=target_id,
                     fields="id,name,webViewLink,driveId,parents",
@@ -131,7 +140,7 @@ class DossierUploader:
         permissions: list[dict[str, object]] = []
         try:
             perm_response = (
-                self._drive_service.permissions()  # type: ignore[union-attr]
+                drive_service.permissions()
                 .list(
                     fileId=target_id,
                     supportsAllDrives=True,
@@ -167,9 +176,10 @@ class DossierUploader:
     def _upload_to_drive(self, *, path: Path, parent_id: str) -> dict[str, object]:
         if not self._drive_service:
             raise RuntimeError("Drive service not initialized")
+        drive_service = self._drive_service
         content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         media = self._build_media_upload(path=path, content_type=content_type)
-        request = self._drive_service.files().create(  # type: ignore[union-attr]
+        request = drive_service.files().create(
             body={"name": path.name, "parents": [parent_id]},
             media_body=media,
             fields="id,webViewLink,webContentLink,md5Checksum,size",

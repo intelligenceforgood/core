@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Callable, Iterable
+from collections.abc import Callable, Iterable
 
 import sqlalchemy as sa
 from cryptography.fernet import Fernet, InvalidToken

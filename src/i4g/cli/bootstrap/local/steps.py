@@ -7,7 +7,6 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Optional
 
 from .constants import (
     BUNDLES_DIR,
@@ -90,7 +89,7 @@ def build_bundles() -> None:
     )
 
 
-def ingest_bundles(skip_vector: bool, limit: Optional[int] = None) -> None:
+def ingest_bundles(skip_vector: bool, limit: int | None = None) -> None:
     """Ingest JSONL bundles into the local SQLite store."""
 
     bundles = sorted(BUNDLES_DIR.glob("**/*.jsonl"))

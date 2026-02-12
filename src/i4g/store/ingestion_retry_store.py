@@ -7,7 +7,8 @@ import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any
+from collections.abc import Iterator
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session, sessionmaker
@@ -29,7 +30,7 @@ class RetryItem:
     retry_id: str
     case_id: str
     backend: str
-    payload: Dict[str, Any]
+    payload: dict[str, Any]
     attempt_count: int
     next_attempt_at: datetime
 
@@ -57,7 +58,7 @@ class IngestionRetryStore:
         *,
         case_id: str,
         backend: str,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         delay_seconds: int = 0,
     ) -> str:
         """Insert or update a retry entry for ``case_id``/``backend``."""
@@ -108,7 +109,7 @@ class IngestionRetryStore:
             LOGGER.info("Queued retry retry_id=%s backend=%s case_id=%s", retry_id, backend, case_id)
         return retry_id
 
-    def fetch_ready(self, *, limit: int = 25) -> List[RetryItem]:
+    def fetch_ready(self, *, limit: int = 25) -> list[RetryItem]:
         """Return retry entries whose ``next_attempt_at`` has elapsed."""
 
         now = _utcnow()
@@ -120,7 +121,7 @@ class IngestionRetryStore:
                 .limit(limit)
             ).fetchall()
 
-        items: List[RetryItem] = []
+        items: list[RetryItem] = []
         for row in rows:
             items.append(
                 RetryItem(
@@ -149,7 +150,7 @@ class IngestionRetryStore:
         retry_id: str,
         *,
         delay_seconds: int,
-    ) -> Optional[int]:
+    ) -> int | None:
         """Increment ``attempt_count`` and push ``next_attempt_at`` into the future."""
 
         with self._session_scope() as session:

@@ -5,7 +5,6 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 import typer
 
@@ -29,22 +28,22 @@ def _run_script(relative_path: str, args: list[str] | None = None) -> None:
 
 
 @app.command("azure-blob-to-gcs", help="Sync Azure Blob Storage containers into GCS.")
-def azure_blob_to_gcs(extra_args: Optional[list[str]] = typer.Argument(None)) -> None:
+def azure_blob_to_gcs(extra_args: list[str] | None = typer.Argument(None)) -> None:
     _run_script("scripts/migration/azure_blob_to_gcs.py", extra_args or [])
 
 
 @app.command("azure-search-export", help="Export Azure Cognitive Search indexes.")
-def azure_search_export(extra_args: Optional[list[str]] = typer.Argument(None)) -> None:
+def azure_search_export(extra_args: list[str] | None = typer.Argument(None)) -> None:
     _run_script("scripts/migration/azure_search_export.py", extra_args or [])
 
 
 @app.command("azure-search-to-vertex", help="Transform Azure search exports into Vertex ingest payloads.")
-def azure_search_to_vertex(extra_args: Optional[list[str]] = typer.Argument(None)) -> None:
+def azure_search_to_vertex(extra_args: list[str] | None = typer.Argument(None)) -> None:
     _run_script("scripts/migration/azure_search_to_vertex.py", extra_args or [])
 
 
 @app.command("import-vertex-documents", help="Import transformed Vertex documents.")
-def import_vertex_documents(extra_args: Optional[list[str]] = typer.Argument(None)) -> None:
+def import_vertex_documents(extra_args: list[str] | None = typer.Argument(None)) -> None:
     _run_script("scripts/migration/import_vertex_documents.py", extra_args or [])
 
 

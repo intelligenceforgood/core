@@ -2,10 +2,10 @@
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import desc, func, select, text, case as sa_case
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from i4g.api.auth import require_token
@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/analytics", tags=["analytics"], dependencies=[Depends(require_token)])
 
 
-def _calculate_trend(current: float, previous: float) -> Tuple[str, str]:
+def _calculate_trend(current: float, previous: float) -> tuple[str, str]:
     """Calculate trend direction and human-readable change string."""
     if previous == 0:
         if current == 0:
@@ -43,7 +43,7 @@ def _calculate_trend(current: float, previous: float) -> Tuple[str, str]:
     return direction, f"{diff:+.1f} ({pct_change:+.1f}%) vs prev"
 
 
-def _get_metric_detection_rate(session: Session, now: datetime) -> Dict[str, Any]:
+def _get_metric_detection_rate(session: Session, now: datetime) -> dict[str, Any]:
     """Calculate detection rate (Risky Cases / Total Cases)."""
     # Time windows
     window_days = 30
@@ -90,7 +90,7 @@ def _get_metric_detection_rate(session: Session, now: datetime) -> Dict[str, Any
     }
 
 
-def _get_metric_time_to_action(session: Session, now: datetime) -> Dict[str, Any]:
+def _get_metric_time_to_action(session: Session, now: datetime) -> dict[str, Any]:
     """Calculate median time to action (Action Time - Case Creation)."""
     # Join review actions to cases to get time difference
     window_days = 7
@@ -144,7 +144,7 @@ def _get_metric_time_to_action(session: Session, now: datetime) -> Dict[str, Any
     }
 
 
-def _get_metric_proactive(session: Session, now: datetime) -> Dict[str, Any]:
+def _get_metric_proactive(session: Session, now: datetime) -> dict[str, Any]:
     """Count proactive interventions (non-user-reports)."""
     window_days = 7
     current_start = now - timedelta(days=window_days)
@@ -175,16 +175,117 @@ def _get_metric_proactive(session: Session, now: datetime) -> Dict[str, Any]:
     }
 
 
-def _get_metric_sla(session: Session, now: datetime) -> Dict[str, Any]:
-    """SLA adherence (Mock logic for now, or based on priority)."""
-    # Assuming SLA is 24h for high priority, 48h for others.
+# SLA thresholds (hours): high/critical → 24 h, medium/low → 48 h
+_SLA_HOURS = {"critical": 24, "high": 24, "medium": 48, "low": 48}
+
+
+def _get_metric_sla(session: Session, now: datetime) -> dict[str, Any]:
+    """SLA adherence — percentage of reviews actioned within their SLA window.
+
+    Computes from ``review_queue`` join ``review_actions`` over the last 30 days.
+    """
+    window_start = now - timedelta(days=30)
+
+    rows = session.execute(
+        select(
+            review_queue.c.priority,
+            review_queue.c.queued_at,
+            func.min(review_actions.c.created_at).label("first_action_at"),
+        )
+        .select_from(
+            review_queue.outerjoin(
+                review_actions, review_queue.c.review_id == review_actions.c.review_id
+            )
+        )
+        .where(review_queue.c.queued_at >= window_start)
+        .group_by(review_queue.c.review_id, review_queue.c.priority, review_queue.c.queued_at)
+    ).all()
+
+    if not rows:
+        return {
+            "id": "metric-sla",
+            "label": "SLA adherence",
+            "value": "N/A",
+            "change": "No data",
+            "trend": "flat",
+        }
+
+    met = 0
+    total = len(rows)
+    for row in rows:
+        prio = row.priority or "medium"
+        threshold_h = _SLA_HOURS.get(prio, 48)
+        first_action = row.first_action_at
+        queued = row.queued_at
+        if first_action and queued:
+            if first_action.tzinfo is None:
+                first_action = first_action.replace(tzinfo=timezone.utc)
+            if queued.tzinfo is None:
+                queued = queued.replace(tzinfo=timezone.utc)
+            if (first_action - queued).total_seconds() <= threshold_h * 3600:
+                met += 1
+        elif first_action is None:
+            # No action yet — check if still within window
+            if queued.tzinfo is None:
+                queued = queued.replace(tzinfo=timezone.utc)
+            if (now - queued).total_seconds() <= threshold_h * 3600:
+                met += 1
+
+    pct = (met / total) * 100 if total else 0
+    trend = "up" if pct >= 90 else "down" if pct < 70 else "flat"
+
     return {
         "id": "metric-sla",
         "label": "SLA adherence",
-        "value": "100%",  # Placeholder until we have clear SLA logic
-        "change": "0 pts vs target",
-        "trend": "flat",
+        "value": f"{pct:.0f}%",
+        "change": f"{met}/{total} within target",
+        "trend": trend,
     }
+
+
+# Country-code → region mapping for geography breakdown
+_REGION_MAP: dict[str, str] = {
+    "US": "North America", "CA": "North America", "MX": "North America",
+    "GB": "Europe", "DE": "Europe", "FR": "Europe", "ES": "Europe",
+    "IT": "Europe", "NL": "Europe", "SE": "Europe", "NO": "Europe",
+    "CH": "Europe", "AT": "Europe", "PL": "Europe", "BE": "Europe",
+    "BR": "LATAM", "AR": "LATAM", "CO": "LATAM", "CL": "LATAM",
+    "PE": "LATAM", "EC": "LATAM", "VE": "LATAM",
+    "CN": "Asia-Pacific", "JP": "Asia-Pacific", "KR": "Asia-Pacific",
+    "IN": "Asia-Pacific", "AU": "Asia-Pacific", "NZ": "Asia-Pacific",
+    "SG": "Asia-Pacific", "PH": "Asia-Pacific", "TH": "Asia-Pacific",
+    "ID": "Asia-Pacific", "MY": "Asia-Pacific", "VN": "Asia-Pacific",
+    "NG": "Africa", "ZA": "Africa", "KE": "Africa", "GH": "Africa",
+    "EG": "Africa", "ET": "Africa",
+}
+_ALL_REGIONS = ["North America", "Europe", "LATAM", "Asia-Pacific", "Africa"]
+
+
+def _get_geography_breakdown(session: Session) -> list[dict[str, Any]]:
+    """Derive geography from ``victim_country`` in scam_records metadata."""
+    from i4g.store.sql import scam_records
+
+    rows = session.execute(select(scam_records.c.metadata)).all()
+    region_counts: dict[str, int] = {r: 0 for r in _ALL_REGIONS}
+
+    for (meta_raw,) in rows:
+        if not meta_raw:
+            continue
+        meta = meta_raw
+        if isinstance(meta, str):
+            try:
+                import json
+                meta = json.loads(meta)
+            except (ValueError, TypeError):
+                continue
+        if not isinstance(meta, dict):
+            continue
+        country = meta.get("victim_country", "")
+        region = _REGION_MAP.get(country, "")
+        if region:
+            region_counts[region] += 1
+
+    return [{"region": r, "value": region_counts[r]} for r in _ALL_REGIONS]
 
 
 @router.get("/overview", summary="Return live analytics trends", response_model=AnalyticsOverviewResponse)
@@ -265,14 +366,8 @@ def get_analytics_overview(session: Session = Depends(get_db_session)) -> dict[s
         week_label = f"W{start_of_week.isocalendar()[1]}"
         weekly.append({"week": week_label, "incidents": incidents, "interventions": interventions})
 
-    # 5. Geography (Mock/Placeholder)
-    geography = [
-        {"region": "North America", "value": 0},
-        {"region": "Europe", "value": 0},
-        {"region": "LATAM", "value": 0},
-        {"region": "Asia-Pacific", "value": 0},
-        {"region": "Africa", "value": 0},
-    ]
+    # 5. Geography — derive from victim_country in case metadata
+    geography = _get_geography_breakdown(session)
 
     return {
         "metrics": metrics,

@@ -5,10 +5,9 @@ structured store and vectors. This dataclass is intended to be simple and
 JSON-serializable so it can be stored in SQLite without additional DB layers.
 """
 
-import json
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -28,17 +27,17 @@ class ScamRecord:
 
     case_id: str
     text: str
-    entities: Dict[str, List[str]]
+    entities: dict[str, list[str]]
     classification: str
     confidence: float
     classification_status: str = "pending"
-    classification_result: Optional[Dict[str, Any]] = None
-    tags: Optional[List[str]] = None
+    classification_result: dict[str, Any] | None = None
+    tags: list[str] | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    embedding: Optional[List[float]] = None
-    metadata: Optional[Dict[str, Any]] = None
+    embedding: list[float] | None = None
+    metadata: dict[str, Any] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize the ScamRecord to a JSON-safe dictionary.
 
         Returns:
@@ -51,7 +50,7 @@ class ScamRecord:
         return d
 
     @staticmethod
-    def from_dict(d: Dict[str, Any]) -> "ScamRecord":
+    def from_dict(d: dict[str, Any]) -> "ScamRecord":
         """Deserialize a ScamRecord from a dictionary.
 
         Args:

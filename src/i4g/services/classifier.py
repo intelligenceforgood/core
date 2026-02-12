@@ -9,7 +9,7 @@ import json
 import yaml
 import logging
 import requests
-from typing import Optional, Protocol, List, Dict, Any
+from typing import Protocol, Any
 
 try:
     import vertexai
@@ -119,7 +119,7 @@ class MockLLMClient:
 class FraudClassifier:
     """Service for classifying fraud attempts using LLM."""
 
-    def __init__(self, llm_client: Optional[LLMClient] = None):
+    def __init__(self, llm_client: LLMClient | None = None):
         """Initialize the classifier with resources and LLM client.
 
         Args:
@@ -143,7 +143,7 @@ class FraudClassifier:
         if not self.definitions_path.exists():
             raise FileNotFoundError(f"Taxonomy definitions not found at {self.definitions_path}")
 
-        with open(self.definitions_path, "r") as f:
+        with open(self.definitions_path) as f:
             self.definitions = yaml.safe_load(f)
 
         # Build risk weight map
@@ -159,13 +159,13 @@ class FraudClassifier:
         if not self.examples_path.exists():
             raise FileNotFoundError(f"Golden examples not found at {self.examples_path}")
 
-        with open(self.examples_path, "r") as f:
+        with open(self.examples_path) as f:
             self.examples = json.load(f)
 
         if not self.prompt_template_path.exists():
             raise FileNotFoundError(f"Prompt template not found at {self.prompt_template_path}")
 
-        with open(self.prompt_template_path, "r") as f:
+        with open(self.prompt_template_path) as f:
             self.prompt_template = f.read()
 
     def _calculate_risk_score(self, result: FraudClassificationResult) -> float:
@@ -215,7 +215,7 @@ class FraudClassifier:
 
         return prompt
 
-    def _construct_batch_prompt(self, texts: List[str]) -> str:
+    def _construct_batch_prompt(self, texts: list[str]) -> str:
         """Construct the prompt for batch classification."""
         # Format definitions as YAML string
         definitions_str = yaml.dump(self.definitions, sort_keys=False)
@@ -299,7 +299,7 @@ class FraudClassifier:
         result.risk_score = self._calculate_risk_score(result)
         return result
 
-    def classify_batch(self, texts: List[str]) -> List[Optional[FraudClassificationResult]]:
+    def classify_batch(self, texts: list[str]) -> list[FraudClassificationResult | None]:
         """Classify a batch of texts using the LLM.
 
         Args:
@@ -318,7 +318,7 @@ class FraudClassifier:
         prompt = self._construct_batch_prompt(texts)
 
         max_retries = 3
-        results: List[Optional[FraudClassificationResult]] = [None] * len(texts)
+        results: list[FraudClassificationResult | None] = [None] * len(texts)
         raw_list = []
 
         for attempt in range(max_retries):
@@ -369,7 +369,7 @@ class FraudClassifier:
 
         return final_results
 
-    def _classify_serial_fallback(self, texts: List[str]) -> List[Optional[FraudClassificationResult]]:
+    def _classify_serial_fallback(self, texts: list[str]) -> list[FraudClassificationResult | None]:
         """Fallback method to classify items one by one if batch fails."""
         results = []
         for i, text in enumerate(texts):
@@ -382,11 +382,11 @@ class FraudClassifier:
                 results.append(None)
         return results
 
-    def _merge_signals(self, result: FraudClassificationResult, signals: Dict[str, List[ScoredLabel]]) -> None:
+    def _merge_signals(self, result: FraudClassificationResult, signals: dict[str, list[ScoredLabel]]) -> None:
         """Merge deterministic signals into the classification result."""
 
         # Helper to merge a list of signals into a list of existing labels
-        def merge_list(existing_labels: List[ScoredLabel], new_signals: List[ScoredLabel]):
+        def merge_list(existing_labels: list[ScoredLabel], new_signals: list[ScoredLabel]):
             existing_map = {item.label: item for item in existing_labels}
 
             for signal in new_signals:
@@ -430,7 +430,7 @@ class FraudClassifier:
             # For now, we raise the error to be handled by the caller
             raise ValueError(f"Failed to parse LLM response: {e}. Response was: {response_text}")
 
-    def _parse_batch_response(self, response_text: str) -> List[Dict[str, Any]]:
+    def _parse_batch_response(self, response_text: str) -> list[dict[str, Any]]:
         """Parse and validate the LLM batch response."""
         data = self._clean_and_parse_json(response_text)
 

@@ -7,7 +7,6 @@ import logging
 import os
 import subprocess
 import sys
-from pathlib import Path
 
 from i4g.cli.bootstrap.common import download_bundles as common_download_bundles, get_bundles
 from i4g.cli.utils import stage_bundle

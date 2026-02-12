@@ -3,13 +3,14 @@
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 from pydantic import Field
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from i4g.api.auth import require_token
 from i4g.api.camel import CamelModel
+from i4g.api.response_models import CasesListResponse
 from i4g.services.factories import build_review_store
 
 logger = logging.getLogger(__name__)
@@ -23,15 +24,15 @@ class CaseArtifact(CamelModel):
     id: str
     type: str = Field(..., description="Type of artifact (document, image, etc.)")
     name: str = Field(..., description="Display name of the artifact")
-    url: Optional[str] = Field(None, description="Link to the artifact content")
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    url: str | None = Field(None, description="Link to the artifact content")
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class CaseTimelineEvent(CamelModel):
     id: str
     timestamp: datetime
     description: str
-    actor: Optional[str] = Field(None, description="User or system actor")
+    actor: str | None = Field(None, description="User or system actor")
     type: str = Field(..., description="Type of event (comment, status_change, alert)")
 
 
@@ -39,7 +40,7 @@ class CaseGraphNode(CamelModel):
     id: str
     label: str
     type: str
-    data: Dict[str, Any] = Field(default_factory=dict)
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class CaseGraphLink(CamelModel):
@@ -60,118 +61,35 @@ class CaseDetail(CamelModel):
     title: str
     status: CaseStatus
     priority: CasePriority
-    assignee: Optional[str] = None
-    updated_at: Optional[str] = None
-    queue: Optional[str] = None
-    tags: List[str] = Field(default_factory=list)
-    progress: Optional[int] = None
-    due_at: Optional[str] = None
-    classification: Optional[Dict[str, Any]] = Field(
+    assignee: str | None = None
+    updated_at: str | None = None
+    queue: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    progress: int | None = None
+    due_at: str | None = None
+    classification: dict[str, Any] | None = Field(
         None,
         description="Fraud classification result (intent, channel, techniques, actions, persona, risk_score, etc.)",
     )
     description: str = Field("", description="Detailed narrative of the case")
-    artifacts: List[CaseArtifact] = Field(default_factory=list)
-    timeline: List[CaseTimelineEvent] = Field(default_factory=list)
-    graph_nodes: List[CaseGraphNode] = Field(default_factory=list)
-    graph_links: List[CaseGraphLink] = Field(default_factory=list)
+    artifacts: list[CaseArtifact] = Field(default_factory=list)
+    timeline: list[CaseTimelineEvent] = Field(default_factory=list)
+    graph_nodes: list[CaseGraphNode] = Field(default_factory=list)
+    graph_links: list[CaseGraphLink] = Field(default_factory=list)
 
 
 # --- Data ---
-
-CASES_RESPONSE: dict[str, Any] = {
-    "summary": {
-        "active": 18,
-        "dueToday": 4,
-        "pendingReview": 7,
-        "escalations": 3,
-    },
-    "cases": [
-        {
-            "id": "case-482",
-            "title": "Suspected Imposter Network",
-            "priority": "critical",
-            "status": "in_review",
-            "updatedAt": "2026-01-09T08:41:00Z",
-            "assignee": "J. Alvarez",
-            "queue": "Rapid Response",
-            "tags": ["INTENT.IMPOSTER", "CHANNEL.SMS", "SE.URGENCY"],
-            "progress": 68,
-            "dueAt": "2026-01-11T17:00:00Z",
-        },
-        {
-            "id": "case-417",
-            "title": "Crypto Investment Scheme",
-            "priority": "high",
-            "status": "new",
-            "updatedAt": "2026-01-08T15:20:00Z",
-            "assignee": "A. Chen",
-            "queue": "Policy Review",
-            "tags": ["INTENT.INVESTMENT", "ACTION.CRYPTO", "SE.SCARCITY"],
-            "progress": 42,
-            "dueAt": "2026-01-12T12:00:00Z",
-        },
-        {
-            "id": "case-399",
-            "title": "Romance Scam Escalation",
-            "priority": "medium",
-            "status": "in_review",
-            "updatedAt": "2026-01-08T11:05:00Z",
-            "assignee": "M. Singh",
-            "queue": "Financial Intelligence",
-            "tags": ["INTENT.ROMANCE", "PERSONA.ROMANTIC", "SE.TRUST_BUILDING"],
-            "progress": 54,
-            "dueAt": None,
-        },
-        {
-            "id": "case-364",
-            "title": "Partner intake review backlog",
-            "priority": "low",
-            "status": "awaiting_input",
-            "updatedAt": "2026-01-06T09:37:00Z",
-            "assignee": "D. Rivera",
-            "queue": "NGO Coordination",
-            "tags": ["INTENT.CHARITY", "CHANNEL.SOCIAL"],
-            "progress": 17,
-            "dueAt": None,
-        },
-    ],
-    "queues": [
-        {
-            "id": "queue-rapid-response",
-            "name": "Rapid Response",
-            "description": "Emergent escalations requiring 24h turnaround",
-            "count": 5,
-        },
-        {
-            "id": "queue-policy",
-            "name": "Policy Review",
-            "description": "Cases pending adjudication by policy team",
-            "count": 7,
-        },
-        {
-            "id": "queue-finance",
-            "name": "Financial Intelligence",
-            "description": "Cross-border payment analysis and tracing",
-            "count": 4,
-        },
-        {
-            "id": "queue-ngo",
-            "name": "NGO Coordination",
-            "description": "Partner intake triage and follow-up",
-            "count": 6,
-        },
-    ],
-}
+# Mock case data moved to i4g.fixtures.sample_cases (E26).
+# The get_case() endpoint now returns 404 for cases not in the DB.
 
 
-@router.get("", summary="List active cases")
+@router.get("", summary="List active cases", response_model=CasesListResponse)
 def list_cases(
     limit: int = 50,
-    status: Optional[str] = None,
-    priority: Optional[str] = None,
-    queue: Optional[str] = None,
-    due_date: Optional[str] = None,
+    status: str | None = None,
+    priority: str | None = None,
+    queue: str | None = None,
+    due_date: str | None = None,
 ) -> dict[str, Any]:
     """Return summaries for the Cases console view (from Live DB)."""
     store = build_review_store()
@@ -185,12 +103,6 @@ def get_case(case_id: str) -> CaseDetail:
     data = store.get_extended_case(case_id)
 
     if not data:
-        # Fallback to canned response if not in DB (during migration phase)
-        # This preserves behavior for existing "cases" in the mock list if they haven't been seeded yet.
-        case_basics = next((c for c in CASES_RESPONSE["cases"] if c["id"] == case_id), None)
-        if case_basics:
-            return _build_mock_case(case_basics)
-
         raise HTTPException(status_code=404, detail="Case not found")
 
     # DB Mapping
@@ -296,44 +208,3 @@ def get_case(case_id: str) -> CaseDetail:
     if classification_result is not None:
         case_kwargs["classification"] = classification_result
     return CaseDetail(**case_kwargs)
-
-
-def _build_mock_case(case_basics: Dict[str, Any]) -> CaseDetail:
-    """Helper to reconstruct the mock response for legacy/unseeded cases."""
-    return CaseDetail(
-        id=case_basics["id"],
-        title=case_basics["title"],
-        status=case_basics["status"],
-        priority=case_basics["priority"],
-        assignee=case_basics.get("assignee"),
-        updatedAt=case_basics.get("updatedAt"),
-        queue=case_basics.get("queue"),
-        tags=case_basics.get("tags", []),
-        progress=case_basics.get("progress"),
-        dueAt=case_basics.get("dueAt"),
-        description="[Backend Served - Mock Fallback] This case was not found in the DB, so we are serving the static mock.",
-        artifacts=[
-            CaseArtifact(
-                id="art-1",
-                type="document",
-                name="Suspicious Transaction Report",
-                url="/api/artifacts/docs/1",
-                metadata={"file_size": "1.2MB"},
-            ),
-        ],
-        timeline=[
-            CaseTimelineEvent(
-                id="evt-1",
-                timestamp=datetime.now(timezone.utc),
-                description="Case created automatically (Mock)",
-                type="system",
-            ),
-        ],
-        graph_nodes=[
-            CaseGraphNode(id="n1", label="Subject A", type="person"),
-            CaseGraphNode(id="n2", label="Account 123", type="account"),
-        ],
-        graph_links=[
-            CaseGraphLink(source="n1", target="n2", relation="owns"),
-        ],
-    )

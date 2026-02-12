@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable
+from collections.abc import Iterable
 
 
 @dataclass(frozen=True)
@@ -42,7 +42,7 @@ prepaid, or other), and "number" (identifier, handle, or masked card number). In
 explicitly provided values.
 """.strip()
 
-_DEFAULT_QUERIES: Dict[str, IndicatorQuery] = {
+_DEFAULT_QUERIES: dict[str, IndicatorQuery] = {
     "bank": IndicatorQuery(
         slug="bank",
         display_name="Bank Accounts",

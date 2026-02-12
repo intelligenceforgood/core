@@ -2,7 +2,6 @@
 Embedding generation using Ollama local embedding models.
 """
 
-from typing import List
 
 from langchain_ollama import OllamaEmbeddings
 
@@ -12,6 +11,6 @@ def get_embedder(model_name: str = "mxbai-embed-large") -> OllamaEmbeddings:
     return OllamaEmbeddings(model=model_name)
 
 
-def embed_documents(embedder, texts: List[str]) -> List[List[float]]:
+def embed_documents(embedder, texts: list[str]) -> list[list[float]]:
     """Generate embeddings for a list of text chunks."""
     return embedder.embed_documents(texts)

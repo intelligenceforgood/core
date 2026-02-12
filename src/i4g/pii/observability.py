@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping
+from collections.abc import Mapping
 
 from i4g.observability import Observability, get_observability
 from i4g.settings import Settings
@@ -16,7 +16,7 @@ class PiiVaultObservability:
     observability: Observability
 
     @classmethod
-    def build(cls, *, component: str = "pii_vault", settings: Settings | None = None) -> "PiiVaultObservability":
+    def build(cls, *, component: str = "pii_vault", settings: Settings | None = None) -> PiiVaultObservability:
         """Create a ``PiiVaultObservability`` wired to the shared Observability backend."""
 
         return cls(observability=get_observability(component=component, settings=settings))

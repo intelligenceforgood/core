@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Dict, List, Tuple
 from uuid import uuid4
 
 from i4g.services.factories import build_review_store
@@ -39,7 +38,7 @@ DEFAULT_CAMPAIGNS = [
     },
 ]
 
-CASE_TEMPLATES: List[Dict[str, str]] = [
+CASE_TEMPLATES: list[dict[str, str]] = [
     {
         "code": "CRYPTO",
         "priority": "high",
@@ -62,7 +61,7 @@ CASE_TEMPLATES: List[Dict[str, str]] = [
     },
 ]
 
-STATUS_NOTES: Dict[str, List[str]] = {
+STATUS_NOTES: dict[str, list[str]] = {
     "new": [
         "Auto-triage pending analyst assignment.",
         "Classifier confidence above threshold; needs verification.",
@@ -130,7 +129,7 @@ def seed_reviews(
         LOGGER.info("Resetting review store...")
         _reset_store(store)
 
-    plan: List[str] = []
+    plan: list[str] = []
     # Map counts to new statuses
     for status, count in [
         ("new", queued),

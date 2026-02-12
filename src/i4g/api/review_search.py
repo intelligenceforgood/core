@@ -6,13 +6,21 @@ by the main ``review.py`` orchestrator.
 
 import logging
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Literal, Optional
+from datetime import datetime
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, ValidationError
 
 from i4g.api.auth import require_token
+from i4g.api.review_search_utils import (
+    clean_text_value,
+    coerce_entities,
+    coerce_positive_int,
+    coerce_string_list,
+    coerce_time_range,
+    first_value,
+)
 from i4g.api.review_deps import (
     SEARCH_AUDIT_REVIEW_ID,
     SETTINGS,
@@ -28,6 +36,7 @@ from i4g.api.response_models import (
     ItemListResponse,
     MutationResponse,
     PresetListResponse,
+    SavedSearchExportResponse,
     SearchResultsResponse,
     SearchSchemaResponse,
 )
@@ -56,36 +65,36 @@ class EntityFilterModel(BaseModel):
 
 
 class HybridSearchRequest(BaseModel):
-    text: Optional[str] = None
-    classifications: List[str] = Field(default_factory=list)
-    datasets: List[str] = Field(default_factory=list)
-    loss_buckets: List[str] = Field(default_factory=list)
-    case_ids: List[str] = Field(default_factory=list)
-    entities: List[EntityFilterModel] = Field(default_factory=list)
-    time_range: Optional[TimeRangeModel] = None
-    limit: Optional[int] = Field(default=None, ge=1, le=100)
-    vector_limit: Optional[int] = Field(default=None, ge=1, le=100)
-    structured_limit: Optional[int] = Field(default=None, ge=1, le=100)
+    text: str | None = None
+    classifications: list[str] = Field(default_factory=list)
+    datasets: list[str] = Field(default_factory=list)
+    loss_buckets: list[str] = Field(default_factory=list)
+    case_ids: list[str] = Field(default_factory=list)
+    entities: list[EntityFilterModel] = Field(default_factory=list)
+    time_range: TimeRangeModel | None = None
+    limit: int | None = Field(default=None, ge=1, le=100)
+    vector_limit: int | None = Field(default=None, ge=1, le=100)
+    structured_limit: int | None = Field(default=None, ge=1, le=100)
     offset: int = Field(default=0, ge=0)
-    saved_search_id: Optional[str] = None
-    saved_search_name: Optional[str] = None
-    saved_search_owner: Optional[str] = None
-    saved_search_tags: List[str] = Field(default_factory=list)
+    saved_search_id: str | None = None
+    saved_search_name: str | None = None
+    saved_search_owner: str | None = None
+    saved_search_tags: list[str] = Field(default_factory=list)
 
 
 class SavedSearchRequest(BaseModel):
     name: str
-    params: Dict[str, Any]
-    search_id: Optional[str] = None
-    favorite: Optional[bool] = False
-    tags: Optional[List[str]] = None
+    params: dict[str, Any]
+    search_id: str | None = None
+    favorite: bool | None = False
+    tags: list[str] | None = None
 
 
 class SavedSearchUpdate(BaseModel):
-    name: Optional[str] = None
-    params: Optional[Dict[str, Any]] = None
-    favorite: Optional[bool] = None
-    tags: Optional[List[str]] = None
+    name: str | None = None
+    params: dict[str, Any] | None = None
+    favorite: bool | None = None
+    tags: list[str] | None = None
 
 
 class SavedSearchCloneRequest(BaseModel):
@@ -94,17 +103,17 @@ class SavedSearchCloneRequest(BaseModel):
 
 class SavedSearchImportRequest(BaseModel):
     name: str
-    params: Dict[str, Any]
-    favorite: Optional[bool] = False
-    search_id: Optional[str] = None
-    tags: Optional[List[str]] = None
+    params: dict[str, Any]
+    favorite: bool | None = False
+    search_id: str | None = None
+    tags: list[str] | None = None
 
 
 class BulkTagUpdateRequest(BaseModel):
-    search_ids: List[str]
-    add: Optional[List[str]] = None
-    remove: Optional[List[str]] = None
-    replace: Optional[List[str]] = None
+    search_ids: list[str]
+    add: list[str] | None = None
+    remove: list[str] | None = None
+    replace: list[str] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -114,18 +123,18 @@ class BulkTagUpdateRequest(BaseModel):
 
 @router.get("/search", summary="Search cases across structured/vector stores", response_model=SearchResultsResponse)
 def search_cases(
-    text: Optional[str] = Query(None, description="Free-text search for semantic similarity"),
-    classification: Optional[str] = Query(None, description="Filter by classification label"),
-    case_id: Optional[str] = Query(None, description="Filter by exact case ID"),
+    text: str | None = Query(None, description="Free-text search for semantic similarity"),
+    classification: str | None = Query(None, description="Filter by classification label"),
+    case_id: str | None = Query(None, description="Filter by exact case ID"),
     limit: int = Query(5, ge=1, le=50),
-    vector_limit: Optional[int] = Query(None, ge=1, le=50),
-    structured_limit: Optional[int] = Query(None, ge=1, le=50),
+    vector_limit: int | None = Query(None, ge=1, le=50),
+    structured_limit: int | None = Query(None, ge=1, le=50),
     offset: int = Query(0, ge=0),
-    page_size: Optional[int] = Query(None, ge=1, le=100, description="Maximum number of merged results to return"),
+    page_size: int | None = Query(None, ge=1, le=100, description="Maximum number of merged results to return"),
     search_service: HybridSearchService = Depends(get_hybrid_search_service),
-    user: Dict[str, Any] = Depends(require_token),
+    user: dict[str, Any] = Depends(require_token),
     store: ReviewStore = Depends(get_store),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Combine semantic and structured search for analyst triage.
 
     Args:
@@ -203,7 +212,7 @@ def search_cases_advanced(
     diagnostics = query_result.get("diagnostics")
     diag_counts = diagnostics.get("counts", {}) if isinstance(diagnostics, dict) else {}
     saved_search_descriptor = _build_saved_search_descriptor(payload)
-    log_payload: Dict[str, Any] = {
+    log_payload: dict[str, Any] = {
         "search_id": search_id,
         "request": payload.model_dump(),
         "results_count": query_result["count"],
@@ -420,7 +429,7 @@ def share_saved_search(
     return {"search_id": shared_id}
 
 
-@router.get("/search/saved/{search_id}/export", summary="Export a saved search configuration")
+@router.get("/search/saved/{search_id}/export", summary="Export a saved search configuration", response_model=SavedSearchExportResponse)
 def export_saved_search(
     search_id: str,
     store: ReviewStore = Depends(get_store),
@@ -493,18 +502,18 @@ def _build_hybrid_query_from_request(payload: HybridSearchRequest) -> HybridSear
     )
 
 
-def _build_saved_search_descriptor(payload: HybridSearchRequest) -> Dict[str, Any] | None:
+def _build_saved_search_descriptor(payload: HybridSearchRequest) -> dict[str, Any] | None:
     """Build a saved-search descriptor from the request payload."""
-    tags: List[str] = []
+    tags: list[str] = []
     for tag in payload.saved_search_tags or []:
-        text = _clean_text_value(tag)
+        text = clean_text_value(tag)
         if text:
             tags.append(text)
 
-    descriptor: Dict[str, Any] = {
-        "id": _clean_text_value(payload.saved_search_id),
-        "name": _clean_text_value(payload.saved_search_name),
-        "owner": _clean_text_value(payload.saved_search_owner),
+    descriptor: dict[str, Any] = {
+        "id": clean_text_value(payload.saved_search_id),
+        "name": clean_text_value(payload.saved_search_name),
+        "owner": clean_text_value(payload.saved_search_owner),
         "tags": tags,
     }
 
@@ -513,7 +522,7 @@ def _build_saved_search_descriptor(payload: HybridSearchRequest) -> Dict[str, An
     return None
 
 
-def _normalize_saved_search_params(params: Dict[str, Any], *, strict: bool = True) -> Dict[str, Any]:
+def _normalize_saved_search_params(params: dict[str, Any], *, strict: bool = True) -> dict[str, Any]:
     """Normalise saved-search params into a canonical form."""
     if not isinstance(params, dict):
         if strict:
@@ -546,49 +555,49 @@ def _saved_search_schema_version_default() -> str | None:
     return fallback or None
 
 
-def _build_saved_search_request(params: Dict[str, Any]) -> HybridSearchRequest:
+def _build_saved_search_request(params: dict[str, Any]) -> HybridSearchRequest:
     """Construct a ``HybridSearchRequest`` from raw saved-search params."""
-    payload: Dict[str, Any] = {}
+    payload: dict[str, Any] = {}
 
-    payload["text"] = _clean_text_value(params.get("text"))
-    payload["classifications"] = _coerce_string_list(params.get("classifications"), params.get("classification"))
-    payload["datasets"] = _coerce_string_list(params.get("datasets"))
-    payload["loss_buckets"] = _coerce_string_list(params.get("loss_buckets"))
-    payload["case_ids"] = _coerce_string_list(params.get("case_ids"), params.get("case_id"))
-    payload["entities"] = _coerce_entities(params.get("entities"))
+    payload["text"] = clean_text_value(params.get("text"))
+    payload["classifications"] = coerce_string_list(params.get("classifications"), params.get("classification"))
+    payload["datasets"] = coerce_string_list(params.get("datasets"))
+    payload["loss_buckets"] = coerce_string_list(params.get("loss_buckets"))
+    payload["case_ids"] = coerce_string_list(params.get("case_ids"), params.get("case_id"))
+    payload["entities"] = coerce_entities(params.get("entities"))
 
-    time_range = _coerce_time_range(params.get("time_range"))
+    time_range = coerce_time_range(params.get("time_range"))
     if time_range:
         payload["time_range"] = time_range
 
-    limit = _coerce_positive_int(params.get("limit"), max_value=100)
+    limit = coerce_positive_int(params.get("limit"), max_value=100)
     if not limit:
-        limit = _coerce_positive_int(params.get("page_size"), max_value=100)
+        limit = coerce_positive_int(params.get("page_size"), max_value=100)
     if not limit:
         limit = min(SETTINGS.search.default_limit, 100)
     payload["limit"] = limit
-    payload["vector_limit"] = _coerce_positive_int(params.get("vector_limit"), max_value=100) or limit
-    payload["structured_limit"] = _coerce_positive_int(params.get("structured_limit"), max_value=100) or limit
-    payload["offset"] = _coerce_positive_int(params.get("offset"), allow_zero=True, max_value=10_000) or 0
+    payload["vector_limit"] = coerce_positive_int(params.get("vector_limit"), max_value=100) or limit
+    payload["structured_limit"] = coerce_positive_int(params.get("structured_limit"), max_value=100) or limit
+    payload["offset"] = coerce_positive_int(params.get("offset"), allow_zero=True, max_value=10_000) or 0
 
     return HybridSearchRequest(**payload)
 
 
-def _post_process_saved_search_params(normalized: Dict[str, Any], original: Dict[str, Any]) -> Dict[str, Any]:
+def _post_process_saved_search_params(normalized: dict[str, Any], original: dict[str, Any]) -> dict[str, Any]:
     """Enrich normalised params with legacy convenience fields."""
     result = dict(normalized)
 
     # Preserve legacy scalar fields for older clients
-    classification_value = _first_value(result.get("classifications"), original.get("classification"))
+    classification_value = first_value(result.get("classifications"), original.get("classification"))
     if classification_value:
         result["classification"] = classification_value
 
-    case_value = _first_value(result.get("case_ids"), original.get("case_id"))
+    case_value = first_value(result.get("case_ids"), original.get("case_id"))
     if case_value:
         result["case_id"] = case_value
 
     # Align limit/page size defaults
-    provided_page_size = _coerce_positive_int(original.get("page_size"), max_value=100)
+    provided_page_size = coerce_positive_int(original.get("page_size"), max_value=100)
     if provided_page_size:
         result["page_size"] = provided_page_size
         result.setdefault("limit", provided_page_size)
@@ -612,7 +621,7 @@ def _post_process_saved_search_params(normalized: Dict[str, Any], original: Dict
     return result
 
 
-def _apply_saved_search_schema_version(params: Dict[str, Any], provided: Any | None = None) -> Dict[str, Any]:
+def _apply_saved_search_schema_version(params: dict[str, Any], provided: Any | None = None) -> dict[str, Any]:
     """Stamp the schema-version field on saved-search params."""
     normalized = dict(params)
     candidates = []
@@ -641,117 +650,3 @@ def _apply_saved_search_schema_version(params: Dict[str, Any], provided: Any | N
     return normalized
 
 
-# ---------------------------------------------------------------------------
-# Coercion / parsing utilities
-# ---------------------------------------------------------------------------
-
-
-def _coerce_string_list(*values: Any) -> List[str]:
-    """Coerce one or more raw values into a deduplicated string list."""
-    result: List[str] = []
-    for value in values:
-        if value is None:
-            continue
-        if isinstance(value, (list, tuple, set)):
-            for item in value:
-                text = _clean_text_value(item)
-                if text:
-                    result.append(text)
-        else:
-            text = _clean_text_value(value)
-            if text:
-                result.append(text)
-    # Remove duplicates while preserving order
-    seen: set[str] = set()
-    unique: List[str] = []
-    for item in result:
-        lowered = item.lower()
-        if lowered in seen:
-            continue
-        seen.add(lowered)
-        unique.append(item)
-    return unique
-
-
-def _coerce_entities(raw: Any) -> List[Dict[str, str]]:
-    """Normalise raw entity filter input into a list of entity dicts."""
-    if not raw:
-        return []
-    normalized: List[Dict[str, str]] = []
-    match_modes = {"exact", "prefix", "contains"}
-    candidates = raw if isinstance(raw, list) else [raw]
-    for entry in candidates:
-        if isinstance(entry, dict):
-            entity_type = _clean_text_value(entry.get("type"))
-            entity_value = _clean_text_value(entry.get("value"))
-            if not entity_type or not entity_value:
-                continue
-            match_mode = _clean_text_value(entry.get("match_mode")) or "exact"
-            if match_mode not in match_modes:
-                match_mode = "exact"
-            normalized.append({"type": entity_type, "value": entity_value, "match_mode": match_mode})
-        elif isinstance(entry, (list, tuple)) and len(entry) >= 2:
-            entity_type = _clean_text_value(entry[0])
-            entity_value = _clean_text_value(entry[1])
-            if not entity_type or not entity_value:
-                continue
-            normalized.append({"type": entity_type, "value": entity_value, "match_mode": "exact"})
-    return normalized
-
-
-def _coerce_time_range(raw: Any) -> Dict[str, datetime] | None:
-    """Parse a time-range dict with ``start``/``end`` (or ``from``/``to``)."""
-    if not isinstance(raw, dict):
-        return None
-    start_value = raw.get("start") or raw.get("from")
-    end_value = raw.get("end") or raw.get("to")
-    if not start_value or not end_value:
-        return None
-    start_dt = _parse_datetime(start_value)
-    end_dt = _parse_datetime(end_value)
-    if not start_dt or not end_dt or end_dt < start_dt:
-        return None
-    return {"start": start_dt, "end": end_dt}
-
-
-def _parse_datetime(value: Any) -> datetime | None:
-    """Best-effort ISO-8601 datetime parser."""
-    from i4g.utils.datetime_parse import parse_datetime
-
-    return parse_datetime(value, on_error="none")
-
-
-def _coerce_positive_int(value: Any, *, allow_zero: bool = False, max_value: int | None = None) -> Optional[int]:
-    """Coerce a value to a positive integer; return ``None`` on failure."""
-    if value is None:
-        return None
-    try:
-        number = int(value)
-    except (TypeError, ValueError):
-        return None
-    if number < 0 or (number == 0 and not allow_zero):
-        return None
-    if max_value is not None and number > max_value:
-        return max_value
-    return number
-
-
-def _first_value(*candidates: Any) -> Optional[str]:
-    """Return the first non-empty cleaned text value from *candidates*."""
-    for candidate in candidates:
-        text = _clean_text_value(candidate)
-        if text:
-            return text
-    return None
-
-
-def _clean_text_value(value: Any) -> Optional[str]:
-    """Sanitise a value to a stripped string or ``None``."""
-    if value is None:
-        return None
-    if isinstance(value, str):
-        stripped = value.strip()
-        return stripped or None
-    if isinstance(value, (int, float)):
-        return str(value)
-    return None

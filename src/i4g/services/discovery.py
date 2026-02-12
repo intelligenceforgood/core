@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
+from collections.abc import Sequence
 
 from google.cloud import discoveryengine_v1beta as discoveryengine
 from google.protobuf import json_format
@@ -33,10 +34,10 @@ class DiscoverySearchParams:
     data_store_id: str
     serving_config_id: str = "default_search"
     page_size: int = 10
-    page_token: Optional[str] = None
+    page_token: str | None = None
     offset: int = 0
-    filter_expression: Optional[str] = None
-    boost_json: Optional[str] = None
+    filter_expression: str | None = None
+    boost_json: str | None = None
 
 
 def _load_defaults() -> DiscoveryDefaults:
@@ -63,7 +64,7 @@ def _load_defaults() -> DiscoveryDefaults:
 
 
 def get_default_discovery_params(
-    query: str, page_size: int = 10, page_token: Optional[str] = None, offset: int = 0
+    query: str, page_size: int = 10, page_token: str | None = None, offset: int = 0
 ) -> DiscoverySearchParams:
     """Return a populated :class:`DiscoverySearchParams` using environment defaults."""
 
@@ -99,7 +100,7 @@ def _search_client() -> discoveryengine.SearchServiceClient:
     return discoveryengine.SearchServiceClient()
 
 
-def _parse_boost_spec(boost_json: Optional[str]) -> Optional[discoveryengine.SearchRequest.BoostSpec]:
+def _parse_boost_spec(boost_json: str | None) -> discoveryengine.SearchRequest.BoostSpec | None:
     """Convert BoostSpec JSON into the protobuf type Discovery expects."""
 
     if not boost_json:
@@ -115,7 +116,7 @@ def _parse_boost_spec(boost_json: Optional[str]) -> Optional[discoveryengine.Sea
     return boost_spec
 
 
-def run_discovery_search(params: DiscoverySearchParams) -> Dict[str, Any]:
+def run_discovery_search(params: DiscoverySearchParams) -> dict[str, Any]:
     """Execute a Discovery search and return structured results.
 
     Args:
@@ -155,11 +156,11 @@ def run_discovery_search(params: DiscoverySearchParams) -> Dict[str, Any]:
     except Exception as exc:  # pragma: no cover - network/backend failure
         raise RuntimeError(f"Discovery search failed: {exc}") from exc
 
-    formatted: List[Dict[str, Any]] = []
+    formatted: list[dict[str, Any]] = []
     raw_results = list(search_response)
     for rank, result in enumerate(raw_results, start=1):
         document = result.document
-        struct_data: Dict[str, Any] = {}
+        struct_data: dict[str, Any] = {}
 
         if document.json_data:
             try:

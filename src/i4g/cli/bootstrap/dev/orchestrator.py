@@ -7,7 +7,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 from i4g.cli.bootstrap.common import (
     DossierSmokeResult,
@@ -278,9 +278,9 @@ def run_dev(
     *,
     project: str,
     region: str,
-    bundle: Optional[str] = None,
-    bundle_uri: Optional[str],
-    dataset: Optional[str],
+    bundle: str | None = None,
+    bundle_uri: str | None,
+    dataset: str | None,
     wif_service_account: str,
     ingest_job: str = DEFAULT_JOBS["ingest"],
     vertex_job: str,
@@ -305,10 +305,10 @@ def run_dev(
     run_smoke: bool,
     run_dossier_smoke: bool,
     run_search_smoke: bool,
-    search_project: Optional[str],
-    search_location: Optional[str],
-    search_data_store_id: Optional[str],
-    search_serving_config_id: Optional[str],
+    search_project: str | None,
+    search_location: str | None,
+    search_data_store_id: str | None,
+    search_serving_config_id: str | None,
     search_query: str,
     search_page_size: int,
     report_dir: Path,

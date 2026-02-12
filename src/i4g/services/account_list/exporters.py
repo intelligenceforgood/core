@@ -8,7 +8,8 @@ import logging
 import mimetypes
 from datetime import timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any
+from collections.abc import Iterable
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
@@ -89,11 +90,11 @@ class AccountListExporter:
         }
         self._drive_service = drive_service or self._build_drive_client()
 
-    def export(self, result: AccountListResult, formats: Iterable[str]) -> tuple[Dict[str, str], List[str]]:
+    def export(self, result: AccountListResult, formats: Iterable[str]) -> tuple[dict[str, str], list[str]]:
         """Write artifacts for the requested formats and return their paths/warnings."""
 
-        artifacts: Dict[str, str] = {}
-        warnings: List[str] = []
+        artifacts: dict[str, str] = {}
+        warnings: list[str] = []
         for fmt in formats:
             normalized = fmt.lower().strip()
             if not normalized:
@@ -234,7 +235,7 @@ class AccountListExporter:
         filename = f"{safe_request_id}_{timestamp}.{suffix}"
         return self.base_dir / filename
 
-    def _finalize_artifact(self, local_path: Path, warnings: List[str], *, format_name: str) -> str:
+    def _finalize_artifact(self, local_path: Path, warnings: list[str], *, format_name: str) -> str:
         content_type = self._content_types.get(local_path.suffix.lstrip(".").lower())
         content_type = content_type or mimetypes.guess_type(local_path.name)[0] or "application/octet-stream"
 
@@ -264,7 +265,9 @@ class AccountListExporter:
 
     def _upload_to_gcs(self, local_path: Path, content_type: str) -> str:
         blob_path = f"{self._artifact_prefix}/{local_path.name}"
-        blob = self._bucket.blob(blob_path)  # type: ignore[union-attr]
+        bucket = self._bucket
+        assert bucket is not None, "_upload_to_gcs called without configured bucket"
+        blob = bucket.blob(blob_path)
         with local_path.open("rb") as handle:
             blob.upload_from_file(handle, rewind=True, content_type=content_type)
         return f"gs://{self._report_bucket}/{blob_path}"
@@ -302,7 +305,9 @@ class AccountListExporter:
             "name": local_path.name,
             "parents": [self._drive_folder_id],
         }
-        request = self._drive_service.files().create(  # type: ignore[union-attr]
+        drive = self._drive_service
+        assert drive is not None, "_upload_to_drive called without configured Drive client"
+        request = drive.files().create(
             body=metadata,
             media_body=media,
             fields="id,webViewLink,webContentLink",

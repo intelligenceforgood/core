@@ -3,7 +3,6 @@ OCR module using Tesseract for text extraction from screenshots or PDFs.
 """
 
 from pathlib import Path
-from typing import Dict, List
 
 import pypdfium2 as pdfium
 import pytesseract
@@ -44,7 +43,7 @@ def extract_text(image_path: str) -> str:
         return f"Error processing image {path.name}: {e}"
 
 
-def batch_extract_text(image_dir: str) -> List[Dict[str, str]]:
+def batch_extract_text(image_dir: str) -> list[dict[str, str]]:
     """
     OCR for all images in a directory.
     Args:

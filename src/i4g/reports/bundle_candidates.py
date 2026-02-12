@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from typing import Iterable, List, Sequence
+from collections.abc import Iterable, Sequence
 
 from i4g.reports.bundle_builder import DossierCandidate
 from i4g.reports.bundle_metrics import compute_bundle_metrics
@@ -27,7 +27,7 @@ class BundleCandidateProvider:
         self._review_store = review_store or build_review_store()
         self._structured_store = structured_store or build_structured_store()
 
-    def list_candidates(self, *, limit: int = 200) -> List[DossierCandidate]:
+    def list_candidates(self, *, limit: int = 200) -> list[DossierCandidate]:
         """Return accepted review entries mapped to dossier candidates."""
 
         metrics_rows = self._list_metrics_rows(limit=limit)
@@ -37,7 +37,7 @@ class BundleCandidateProvider:
         rows = self._review_store.get_queue(status="accepted", limit=limit)
         return self._map_queue_rows(rows)
 
-    def _list_metrics_rows(self, *, limit: int) -> List[dict]:
+    def _list_metrics_rows(self, *, limit: int) -> list[dict]:
         view_fn = getattr(self._review_store, "list_dossier_candidates", None)
         if not callable(view_fn):
             return []
@@ -48,8 +48,8 @@ class BundleCandidateProvider:
         except Exception:
             return []
 
-    def _map_metric_rows(self, rows: Iterable[dict]) -> List[DossierCandidate]:
-        candidates: List[DossierCandidate] = []
+    def _map_metric_rows(self, rows: Iterable[dict]) -> list[DossierCandidate]:
+        candidates: list[DossierCandidate] = []
         for row in rows:
             case_id = str(row.get("case_id") or "").strip()
             if not case_id:
@@ -69,8 +69,8 @@ class BundleCandidateProvider:
             )
         return candidates
 
-    def _map_queue_rows(self, rows: Iterable[dict]) -> List[DossierCandidate]:
-        candidates: List[DossierCandidate] = []
+    def _map_queue_rows(self, rows: Iterable[dict]) -> list[DossierCandidate]:
+        candidates: list[DossierCandidate] = []
         for row in rows:
             case_id = str(row.get("case_id") or "").strip()
             if not case_id:
@@ -110,7 +110,7 @@ def _loss_amount_from_value(value: object | None) -> Decimal:
 
 
 def _primary_entities(entities: dict[str, Sequence[str]]) -> Sequence[str]:
-    collected: List[str] = []
+    collected: list[str] = []
     if not isinstance(entities, dict):
         return tuple()
     for values in entities.values():

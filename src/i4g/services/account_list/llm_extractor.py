@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import Any, Iterable, List
+from collections.abc import Iterable
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -48,7 +48,7 @@ class AccountEntityExtractor:
         *,
         query: IndicatorQuery,
         documents: Iterable[SourceDocument],
-    ) -> List[FinancialIndicator]:
+    ) -> list[FinancialIndicator]:
         doc_list = list(documents)
         if not doc_list:
             return []
@@ -78,9 +78,9 @@ class AccountEntityExtractor:
         indicators = self._parse_payload(payload, query)
         return indicators
 
-    def _mock_extract(self, *, query: IndicatorQuery, documents: List[SourceDocument]) -> List[FinancialIndicator]:
+    def _mock_extract(self, *, query: IndicatorQuery, documents: list[SourceDocument]) -> list[FinancialIndicator]:
         text = "\n".join(doc.content or "" for doc in documents)
-        indicators: List[FinancialIndicator] = []
+        indicators: list[FinancialIndicator] = []
         seen: set[tuple[str, str, str]] = set()
 
         def _add(item: str, indicator_type: str, number: str) -> None:
@@ -142,9 +142,9 @@ class AccountEntityExtractor:
 
         return indicators
 
-    def _build_context(self, documents: List[SourceDocument]) -> str:
+    def _build_context(self, documents: list[SourceDocument]) -> str:
         remaining = self.max_chars
-        parts: List[str] = []
+        parts: list[str] = []
         for doc in documents:
             chunk = doc.content.strip()
             if not chunk:
@@ -159,7 +159,7 @@ class AccountEntityExtractor:
                 break
         return "\n".join(parts)
 
-    def _parse_payload(self, payload: str, query: IndicatorQuery) -> List[FinancialIndicator]:
+    def _parse_payload(self, payload: str, query: IndicatorQuery) -> list[FinancialIndicator]:
         try:
             data = json.loads(payload)
         except json.JSONDecodeError:
@@ -168,7 +168,7 @@ class AccountEntityExtractor:
         if not isinstance(data, list):
             LOGGER.warning("Extractor payload is not a list for %s", query.slug)
             return []
-        indicators: List[FinancialIndicator] = []
+        indicators: list[FinancialIndicator] = []
         seen: set[tuple[str, str, str]] = set()
         for item in data:
             if not isinstance(item, dict):

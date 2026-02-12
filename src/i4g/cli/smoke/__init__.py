@@ -1,5 +1,4 @@
 import os
-from typing import Optional
 
 import typer
 
@@ -13,10 +12,10 @@ smoke_app = typer.Typer(help="Run smoketests against local or remote services.")
 @smoke_app.command("dossiers", help="Verify dossier artifacts and signature manifests via API.")
 def smoke_dossiers(
     api_url: str = typer.Option("http://localhost:8000", "--api-url", help="FastAPI base URL."),
-    token: Optional[str] = typer.Option(None, "--token", help="API key for authenticated endpoints."),
+    token: str | None = typer.Option(None, "--token", help="API key for authenticated endpoints."),
     status: str = typer.Option("completed", "--status", help="Queue status filter."),
     limit: int = typer.Option(10, "--limit", help="Max dossiers to inspect."),
-    plan_id: Optional[str] = typer.Option(None, "--plan-id", help="Specific dossier plan_id to verify."),
+    plan_id: str | None = typer.Option(None, "--plan-id", help="Specific dossier plan_id to verify."),
 ) -> None:
     """Run dossier smoke verification and hash checks."""
 
@@ -34,7 +33,7 @@ def smoke_dossiers(
 
 
 @smoke_app.command("vertex-search", help="Run vertex retrieval smoke script.")
-def smoke_vertex_search(extra_args: Optional[list[str]] = typer.Argument(None)) -> None:
+def smoke_vertex_search(extra_args: list[str] | None = typer.Argument(None)) -> None:
     """Run Vertex smoke: dry-run ingest then query."""
 
     project: str | None = None
@@ -80,7 +79,7 @@ def smoke_vertex_search(extra_args: Optional[list[str]] = typer.Argument(None)) 
 
 
 @smoke_app.command("cloud-run", help="Run Cloud Run smoke script.")
-def smoke_cloud_run(extra_args: Optional[list[str]] = typer.Argument(None)) -> None:
+def smoke_cloud_run(extra_args: list[str] | None = typer.Argument(None)) -> None:
     """Run the dev Cloud Run intake smoke end-to-end."""
 
     api_url: str | None = None

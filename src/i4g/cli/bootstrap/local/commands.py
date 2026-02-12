@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 import typer
 
@@ -23,19 +22,19 @@ def _exit_from_return(code: int | None) -> None:
 @local_app.command("reset", help="Wipe and reload local sandbox artifacts.")
 def bootstrap_local_reset(
     skip_vector: bool = typer.Option(False, "--skip-vector", help="Skip rebuilding vector/structured stores."),
-    bundle_uri: Optional[str] = typer.Option(
+    bundle_uri: str | None = typer.Option(
         None, "--bundle-uri", help="Optional bundle JSONL path/URI to place into data/bundles."
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print planned actions without mutating disk."),
     report_dir: Path = typer.Option(REPORTS_DIR, "--report-dir", help="Verification report directory."),
     smoke_search: bool = typer.Option(False, "--smoke-search", help="Run Vertex search smoke after verification."),
-    search_project: Optional[str] = typer.Option(
+    search_project: str | None = typer.Option(
         None, "--search-project", help="Vertex project for search smoke (defaults to settings/env)."
     ),
-    search_location: Optional[str] = typer.Option(
+    search_location: str | None = typer.Option(
         None, "--search-location", help="Vertex location for search smoke (default from settings/env)."
     ),
-    search_data_store_id: Optional[str] = typer.Option(
+    search_data_store_id: str | None = typer.Option(
         None, "--search-data-store-id", help="Vertex data store id for search smoke."
     ),
     search_serving_config_id: str = typer.Option(
@@ -44,19 +43,19 @@ def bootstrap_local_reset(
     search_query: str = typer.Option("wallet address verification", "--search-query", help="Search smoke query."),
     search_page_size: int = typer.Option(5, "--search-page-size", help="Search smoke page size."),
     smoke_dossiers: bool = typer.Option(False, "--smoke-dossiers", help="Run dossier verification smoke."),
-    smoke_api_url: Optional[str] = typer.Option(
+    smoke_api_url: str | None = typer.Option(
         None, "--smoke-api-url", help="API base URL for dossier smoke (defaults to env or localhost)."
     ),
-    smoke_token: Optional[str] = typer.Option(None, "--smoke-token", help="API token for dossier smoke."),
+    smoke_token: str | None = typer.Option(None, "--smoke-token", help="API token for dossier smoke."),
     smoke_dossier_status: str = typer.Option(
         "completed", "--smoke-dossier-status", help="Queue status filter for dossier smoke."
     ),
     smoke_dossier_limit: int = typer.Option(5, "--smoke-dossier-limit", help="Maximum dossiers to inspect."),
-    smoke_dossier_plan_id: Optional[str] = typer.Option(
+    smoke_dossier_plan_id: str | None = typer.Option(
         None, "--smoke-dossier-plan-id", help="Specific dossier plan_id to verify during smoke."
     ),
     skip_ingest: bool = typer.Option(False, "--skip-ingest", help="Skip the potentially long bundle ingestion phase."),
-    limit: Optional[int] = typer.Option(None, "--limit", help="Limit number of records ingested per bundle."),
+    limit: int | None = typer.Option(None, "--limit", help="Limit number of records ingested per bundle."),
     force: bool = typer.Option(False, "--force", help="Allow running when I4G_ENV is not local."),
 ) -> None:
     """Reset local sandbox then reload sample data."""
@@ -92,19 +91,19 @@ def bootstrap_local_reset(
 @local_app.command("load", help="Refresh local sandbox without wiping artifacts.")
 def bootstrap_local_load(
     skip_vector: bool = typer.Option(False, "--skip-vector", help="Skip rebuilding vector/structured stores."),
-    bundle_uri: Optional[str] = typer.Option(
+    bundle_uri: str | None = typer.Option(
         None, "--bundle-uri", help="Optional bundle JSONL path/URI to place into data/bundles."
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print planned actions without mutating disk."),
     report_dir: Path = typer.Option(REPORTS_DIR, "--report-dir", help="Verification report directory."),
     smoke_search: bool = typer.Option(False, "--smoke-search", help="Run Vertex search smoke after verification."),
-    search_project: Optional[str] = typer.Option(
+    search_project: str | None = typer.Option(
         None, "--search-project", help="Vertex project for search smoke (defaults to settings/env)."
     ),
-    search_location: Optional[str] = typer.Option(
+    search_location: str | None = typer.Option(
         None, "--search-location", help="Vertex location for search smoke (default from settings/env)."
     ),
-    search_data_store_id: Optional[str] = typer.Option(
+    search_data_store_id: str | None = typer.Option(
         None, "--search-data-store-id", help="Vertex data store id for search smoke."
     ),
     search_serving_config_id: str = typer.Option(
@@ -113,15 +112,15 @@ def bootstrap_local_load(
     search_query: str = typer.Option("wallet address verification", "--search-query", help="Search smoke query."),
     search_page_size: int = typer.Option(5, "--search-page-size", help="Search smoke page size."),
     smoke_dossiers: bool = typer.Option(False, "--smoke-dossiers", help="Run dossier verification smoke."),
-    smoke_api_url: Optional[str] = typer.Option(
+    smoke_api_url: str | None = typer.Option(
         None, "--smoke-api-url", help="API base URL for dossier smoke (defaults to env or localhost)."
     ),
-    smoke_token: Optional[str] = typer.Option(None, "--smoke-token", help="API token for dossier smoke."),
+    smoke_token: str | None = typer.Option(None, "--smoke-token", help="API token for dossier smoke."),
     smoke_dossier_status: str = typer.Option(
         "completed", "--smoke-dossier-status", help="Queue status filter for dossier smoke."
     ),
     smoke_dossier_limit: int = typer.Option(5, "--smoke-dossier-limit", help="Maximum dossiers to inspect."),
-    smoke_dossier_plan_id: Optional[str] = typer.Option(
+    smoke_dossier_plan_id: str | None = typer.Option(
         None, "--smoke-dossier-plan-id", help="Specific dossier plan_id to verify during smoke."
     ),
     force: bool = typer.Option(False, "--force", help="Allow running when I4G_ENV is not local."),
@@ -156,18 +155,18 @@ def bootstrap_local_load(
 
 @local_app.command("verify", help="Run verification only for the local sandbox.")
 def bootstrap_local_verify(
-    bundle_uri: Optional[str] = typer.Option(
+    bundle_uri: str | None = typer.Option(
         None, "--bundle-uri", help="Optional bundle JSONL path/URI to place into data/bundles."
     ),
     report_dir: Path = typer.Option(REPORTS_DIR, "--report-dir", help="Verification report directory."),
     smoke_search: bool = typer.Option(False, "--smoke-search", help="Run Vertex search smoke after verification."),
-    search_project: Optional[str] = typer.Option(
+    search_project: str | None = typer.Option(
         None, "--search-project", help="Vertex project for search smoke (defaults to settings/env)."
     ),
-    search_location: Optional[str] = typer.Option(
+    search_location: str | None = typer.Option(
         None, "--search-location", help="Vertex location for search smoke (default from settings/env)."
     ),
-    search_data_store_id: Optional[str] = typer.Option(
+    search_data_store_id: str | None = typer.Option(
         None, "--search-data-store-id", help="Vertex data store id for search smoke."
     ),
     search_serving_config_id: str = typer.Option(
@@ -176,15 +175,15 @@ def bootstrap_local_verify(
     search_query: str = typer.Option("wallet address verification", "--search-query", help="Search smoke query."),
     search_page_size: int = typer.Option(5, "--search-page-size", help="Search smoke page size."),
     smoke_dossiers: bool = typer.Option(False, "--smoke-dossiers", help="Run dossier verification smoke."),
-    smoke_api_url: Optional[str] = typer.Option(
+    smoke_api_url: str | None = typer.Option(
         None, "--smoke-api-url", help="API base URL for dossier smoke (defaults to env or localhost)."
     ),
-    smoke_token: Optional[str] = typer.Option(None, "--smoke-token", help="API token for dossier smoke."),
+    smoke_token: str | None = typer.Option(None, "--smoke-token", help="API token for dossier smoke."),
     smoke_dossier_status: str = typer.Option(
         "completed", "--smoke-dossier-status", help="Queue status filter for dossier smoke."
     ),
     smoke_dossier_limit: int = typer.Option(5, "--smoke-dossier-limit", help="Maximum dossiers to inspect."),
-    smoke_dossier_plan_id: Optional[str] = typer.Option(
+    smoke_dossier_plan_id: str | None = typer.Option(
         None, "--smoke-dossier-plan-id", help="Specific dossier plan_id to verify during smoke."
     ),
     force: bool = typer.Option(False, "--force", help="Allow running when I4G_ENV is not local."),
@@ -219,21 +218,21 @@ def bootstrap_local_verify(
 
 @local_app.command("smoke", help="Alias for local verification-only checks.")
 def bootstrap_local_smoke(
-    bundle_uri: Optional[str] = typer.Option(
+    bundle_uri: str | None = typer.Option(
         None, "--bundle-uri", help="Optional bundle JSONL path/URI to place into data/bundles."
     ),
     report_dir: Path = typer.Option(REPORTS_DIR, "--report-dir", help="Verification report directory."),
     smoke_search: bool = typer.Option(False, "--smoke-search", help="Run Vertex search smoke after verification."),
     smoke_dossiers: bool = typer.Option(False, "--smoke-dossiers", help="Run dossier verification smoke."),
-    smoke_api_url: Optional[str] = typer.Option(
+    smoke_api_url: str | None = typer.Option(
         None, "--smoke-api-url", help="API base URL for dossier smoke (defaults to env or localhost)."
     ),
-    smoke_token: Optional[str] = typer.Option(None, "--smoke-token", help="API token for dossier smoke."),
+    smoke_token: str | None = typer.Option(None, "--smoke-token", help="API token for dossier smoke."),
     smoke_dossier_status: str = typer.Option(
         "completed", "--smoke-dossier-status", help="Queue status filter for dossier smoke."
     ),
     smoke_dossier_limit: int = typer.Option(5, "--smoke-dossier-limit", help="Maximum dossiers to inspect."),
-    smoke_dossier_plan_id: Optional[str] = typer.Option(
+    smoke_dossier_plan_id: str | None = typer.Option(
         None, "--smoke-dossier-plan-id", help="Specific dossier plan_id to verify during smoke."
     ),
     force: bool = typer.Option(False, "--force", help="Allow running when I4G_ENV is not local."),

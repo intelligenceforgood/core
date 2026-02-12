@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Optional, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from google.api_core.client_options import ClientOptions
 from google.cloud import discoveryengine_v1 as discoveryengine
@@ -51,9 +52,9 @@ class _VertexAIBackend:
     def add_texts(
         self,
         texts: Sequence[str],
-        metadatas: Sequence[Dict[str, Any]],
+        metadatas: Sequence[dict[str, Any]],
         ids: Sequence[str],
-    ) -> List[str]:
+    ) -> list[str]:
         """Import documents into Vertex AI Search."""
         # Vertex AI Search expects documents in a specific format
         # We'll map our texts and metadata to Discovery Engine Documents
@@ -215,7 +216,7 @@ class _VertexAIBackend:
                 return False
         return True
 
-    def list_collections(self) -> List[str]:
+    def list_collections(self) -> list[str]:
         return [self.data_store_id]
 
     def count(self) -> int:

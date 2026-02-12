@@ -1,7 +1,7 @@
 """Service for managing campaigns and mapping classifications to them."""
 
 import uuid
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -17,7 +17,7 @@ class CampaignService:
     def __init__(self, session: Session):
         self.session = session
 
-    def resolve_campaign(self, classification: FraudClassificationResult) -> Optional[str]:
+    def resolve_campaign(self, classification: FraudClassificationResult) -> str | None:
         """
         Attempt to map a classification result to an existing campaign.
         Returns the campaign_id if a match is found.
@@ -38,7 +38,7 @@ class CampaignService:
 
         return None
 
-    def _matches_criteria(self, classification: FraudClassificationResult, criteria: Dict[str, Any] | None) -> bool:
+    def _matches_criteria(self, classification: FraudClassificationResult, criteria: dict[str, Any] | None) -> bool:
         """
         Check if the classification matches the campaign criteria.
         Criteria is expected to be a dict like:
@@ -80,12 +80,12 @@ class CampaignService:
 
         return True
 
-    def list_active_campaigns(self) -> List[Dict[str, Any]]:
+    def list_active_campaigns(self) -> list[dict[str, Any]]:
         """List all active campaigns with their basic info."""
         query = sa.select(campaigns).where(campaigns.c.status == "active")
         results = self.session.execute(query).fetchall()
 
-        def _sanitize_labels(val: Any) -> Optional[Dict[str, Any]]:
+        def _sanitize_labels(val: Any) -> dict[str, Any] | None:
             if isinstance(val, dict):
                 return val
             # Handle case where JSON array [] is stored instead of null/dict
@@ -93,7 +93,7 @@ class CampaignService:
                 return None
             return None
 
-        def _sanitize_rollup(val: Any) -> List[str]:
+        def _sanitize_rollup(val: Any) -> list[str]:
             if not isinstance(val, list):
                 return []
             # Ensure all elements are strings; filter out oddities
@@ -114,8 +114,8 @@ class CampaignService:
         self,
         name: str,
         description: str,
-        taxonomy_labels: Dict[str, Any],
-        associated_taxonomy_ids: Optional[List[str]] = None,
+        taxonomy_labels: dict[str, Any],
+        associated_taxonomy_ids: list[str] | None = None,
     ) -> str:
         """Create a new campaign."""
         if associated_taxonomy_ids:
@@ -139,13 +139,13 @@ class CampaignService:
     def update_campaign(
         self,
         campaign_id: str,
-        name: Optional[str] = None,
-        description: Optional[str] = None,
-        taxonomy_labels: Optional[Dict[str, Any]] = None,
-        associated_taxonomy_ids: Optional[List[str]] = None,
+        name: str | None = None,
+        description: str | None = None,
+        taxonomy_labels: dict[str, Any] | None = None,
+        associated_taxonomy_ids: list[str] | None = None,
     ) -> None:
         """Update an existing campaign."""
-        values: Dict[str, Any] = {
+        values: dict[str, Any] = {
             "updated_at": sa.func.now(),
         }
         if name is not None:
@@ -165,14 +165,14 @@ class CampaignService:
         if result.rowcount == 0:
             raise ValueError(f"Campaign {campaign_id} not found.")
 
-    def _validate_taxonomy_ids(self, taxonomy_ids: List[str]) -> None:
+    def _validate_taxonomy_ids(self, taxonomy_ids: list[str]) -> None:
         """Validate that all taxonomy IDs exist in the current taxonomy tree."""
         valid_ids = self._get_all_taxonomy_ids()
         invalid_ids = set(taxonomy_ids) - valid_ids
         if invalid_ids:
             raise ValueError(f"Invalid taxonomy IDs: {invalid_ids}")
 
-    def _get_all_taxonomy_ids(self) -> Set[str]:
+    def _get_all_taxonomy_ids(self) -> set[str]:
         """Traverse the taxonomy axes and collect all item codes."""
         ids = set()
         for axis in TAXONOMY_DEFINITIONS.get("axes", []):

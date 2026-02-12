@@ -155,7 +155,6 @@ def test_upsert_queue_entry_sets_custom_timestamps(tmp_path):
     assert updated_str.startswith("2025-12-01T10:45:00")
 
 
-@pytest.mark.xfail(reason="bulk_update_tags not yet implemented on SQLAlchemy ReviewStore")
 def test_bulk_update_tags_add_remove(tmp_path):
     """Bulk add/remove tags across multiple saved searches."""
     db_path = tmp_path / "bulk_tags.db"
@@ -183,7 +182,6 @@ def test_bulk_update_tags_add_remove(tmp_path):
     assert record_b["tags"] == ["review"]
 
 
-@pytest.mark.xfail(reason="bulk_update_tags not yet implemented on SQLAlchemy ReviewStore")
 def test_bulk_update_tags_replace(tmp_path):
     """Replacing tags should ignore add/remove lists."""
     db_path = tmp_path / "bulk_tags_replace.db"
@@ -203,7 +201,6 @@ def test_bulk_update_tags_replace(tmp_path):
     assert record["tags"] == ["primary"]
 
 
-@pytest.mark.xfail(reason="list_dossier_candidates not yet implemented on SQLAlchemy ReviewStore")
 def test_list_dossier_candidates_returns_metrics(tmp_path):
     db_path = tmp_path / "dossier_metrics.db"
     store = _make_review_store(db_path)

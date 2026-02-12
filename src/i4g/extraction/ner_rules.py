@@ -6,10 +6,9 @@ useful entities (wallet addresses, URLs, crypto terms, etc.).
 """
 
 import re
-from typing import Dict, List
 
 
-def extract_wallets(text: str) -> List[str]:
+def extract_wallets(text: str) -> list[str]:
     """Find crypto wallet addresses (Ethereum, BTC, etc.)."""
     patterns = [
         r"0x[a-fA-F0-9]{40}",  # Ethereum
@@ -22,7 +21,7 @@ def extract_wallets(text: str) -> List[str]:
     return list(set(wallets))
 
 
-def extract_urls(text: str) -> List[str]:
+def extract_urls(text: str) -> list[str]:
     """Find URLs or Telegram/WhatsApp links."""
     urls = re.findall(r"(https?://[^\s]+)", text)
     tgram = re.findall(r"t\.me/[A-Za-z0-9_]+", text)
@@ -30,13 +29,13 @@ def extract_urls(text: str) -> List[str]:
     return list(set(urls + tgram + wa))
 
 
-def extract_phone_numbers(text: str) -> List[str]:
+def extract_phone_numbers(text: str) -> list[str]:
     """Find phone numbers."""
     phone_pattern = re.compile(r"(\+?\d{1,2}[-.\s]??\(?\d{2,4}\)?[-.\s]??\d{3,4}[-.\s]??\d{3,4})")
     return list(set(phone_pattern.findall(text)))
 
 
-def extract_names(text: str) -> List[str]:
+def extract_names(text: str) -> list[str]:
     """
     Very lightweight name extraction — not full NLP.
     Looks for capitalized 2-word sequences (e.g. John Doe).
@@ -44,7 +43,7 @@ def extract_names(text: str) -> List[str]:
     return re.findall(r"\b[A-Z][a-z]+\s[A-Z][a-z]+\b", text)
 
 
-def extract_crypto_keywords(text: str) -> List[str]:
+def extract_crypto_keywords(text: str) -> list[str]:
     """Detect crypto-related terms."""
     keywords = [
         "bitcoin",
@@ -60,7 +59,7 @@ def extract_crypto_keywords(text: str) -> List[str]:
     return list(set(found))
 
 
-def extract_entities(text: str) -> Dict[str, List[str]]:
+def extract_entities(text: str) -> dict[str, list[str]]:
     """
     Aggregate all extraction results into a single dictionary.
     """

@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Iterable, List, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 
 from i4g.reports.bundle_builder import DossierPlan
 from i4g.reports.dossier_agent_payload import build_agent_payload
@@ -73,7 +73,7 @@ class DossierGenerator:
         payload["case_count"] = len(plan.cases)
         analysis = analyze_plan(plan)
         payload["analysis"] = analysis.to_dict()
-        warnings: List[str] = []
+        warnings: list[str] = []
         assets: DossierVisualAssets | None = None
         asset_view: dict | None = None
         context: DossierContextResult | None = None

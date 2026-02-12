@@ -8,7 +8,8 @@ order while deduplicating.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Iterable, List
+from typing import TYPE_CHECKING
+from collections.abc import Iterable
 
 if TYPE_CHECKING:
     from i4g.pii.observability import PiiVaultObservability
@@ -17,10 +18,10 @@ if TYPE_CHECKING:
 _TOKEN_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9@._'-]*")
 
 
-def _dedupe_preserve_order(tokens: Iterable[str]) -> List[str]:
+def _dedupe_preserve_order(tokens: Iterable[str]) -> list[str]:
     """Return a list with duplicates removed while preserving first-seen order."""
     seen = set()
-    ordered: List[str] = []
+    ordered: list[str] = []
     for token in tokens:
         if token not in seen:
             seen.add(token)
@@ -32,12 +33,12 @@ def tokenize_text(
     text: str | None,
     min_len: int = 1,
     *,
-    pii_observability: "PiiVaultObservability | None" = None,
+    pii_observability: PiiVaultObservability | None = None,
     source: str = "text",
     detector: str | None = None,
     prefix: str | None = None,
     case_id: str | None = None,
-) -> List[str]:
+) -> list[str]:
     """Tokenize a string into lowercase, deduplicated tokens.
 
     Args:
@@ -81,12 +82,12 @@ def tokenize_fields(
     fields: Iterable[str],
     min_len: int = 1,
     *,
-    pii_observability: "PiiVaultObservability | None" = None,
+    pii_observability: PiiVaultObservability | None = None,
     source: str = "fields",
     detector: str | None = None,
     prefix: str | None = None,
     case_id: str | None = None,
-) -> List[str]:
+) -> list[str]:
     """Tokenize multiple string fields into a single deduplicated token list.
 
     Args:
@@ -103,7 +104,7 @@ def tokenize_fields(
     Returns:
         Ordered list of lowercase tokens aggregated across all fields.
     """
-    tokens: List[str] = []
+    tokens: list[str] = []
     raw_bytes = 0
     field_count = 0
 

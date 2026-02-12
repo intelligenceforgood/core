@@ -1,9 +1,7 @@
 import re
-from typing import Optional
 
 class NormalizationError(ValueError):
     """Raised when a value cannot be normalized for the given type."""
-    pass
 
 def normalize_email(value: str) -> str:
     """

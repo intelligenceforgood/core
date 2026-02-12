@@ -9,8 +9,9 @@ from __future__ import annotations
 import json
 import os
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 from uuid import uuid4
 
 from langchain_chroma import Chroma
@@ -29,9 +30,9 @@ def _default_backend() -> str:
     return backend
 
 
-def _sanitize_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def _sanitize_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
     """Ensure metadata is JSON-safe for vector backends."""
-    sanitized: Dict[str, Any] = {}
+    sanitized: dict[str, Any] = {}
     if not metadata:
         return sanitized
     for key, value in metadata.items():
@@ -60,9 +61,9 @@ class _ChromaBackend:
     def add_texts(
         self,
         texts: Sequence[str],
-        metadatas: Sequence[Dict[str, Any]],
+        metadatas: Sequence[dict[str, Any]],
         ids: Sequence[str],
-    ) -> List[str]:
+    ) -> list[str]:
         self.store.add_texts(texts=texts, metadatas=metadatas, ids=ids)
         self.persist()
         return list(ids)
@@ -75,7 +76,7 @@ class _ChromaBackend:
         self.persist()
         return True
 
-    def list_collections(self) -> List[str]:
+    def list_collections(self) -> list[str]:
         return [self.collection_name]
 
     def count(self) -> int:
@@ -88,7 +89,7 @@ class _ChromaBackend:
         if hasattr(self.store, "persist"):
             self.store.persist()
 
-    def as_retriever(self, search_kwargs: Optional[Dict[str, Any]] = None):
+    def as_retriever(self, search_kwargs: dict[str, Any] | None = None):
         return self.store.as_retriever(search_kwargs=search_kwargs)
 
 
@@ -98,7 +99,7 @@ class _FaissBackend:
     def __init__(self, persist_dir: str, embeddings: OllamaEmbeddings) -> None:
         self.persist_dir = Path(persist_dir)
         self.embeddings = embeddings
-        self.store: Optional[FAISS] = None
+        self.store: FAISS | None = None
 
         os.makedirs(self.persist_dir, exist_ok=True)
         self._load_if_available()
@@ -115,9 +116,9 @@ class _FaissBackend:
     def add_texts(
         self,
         texts: Sequence[str],
-        metadatas: Sequence[Dict[str, Any]],
+        metadatas: Sequence[dict[str, Any]],
         ids: Sequence[str],
-    ) -> List[str]:
+    ) -> list[str]:
         if not texts:
             return []
         if self.store is None:
@@ -144,7 +145,7 @@ class _FaissBackend:
         self.persist()
         return True
 
-    def list_collections(self) -> List[str]:
+    def list_collections(self) -> list[str]:
         return ["faiss_index"]
 
     def count(self) -> int:
@@ -156,7 +157,7 @@ class _FaissBackend:
         if self.store:
             self.store.save_local(str(self.persist_dir))
 
-    def as_retriever(self, search_kwargs: Optional[Dict[str, Any]] = None):
+    def as_retriever(self, search_kwargs: dict[str, Any] | None = None):
         if not self.store:
             raise ValueError("FAISS store is empty; add documents before creating a retriever.")
         return self.store.as_retriever(search_kwargs=search_kwargs)
@@ -167,10 +168,10 @@ class VectorStore:
 
     def __init__(
         self,
-        persist_dir: Optional[str] = None,
-        embedding_model: Optional[str] = None,
-        backend: Optional[str] = None,
-        collection_name: Optional[str] = None,
+        persist_dir: str | None = None,
+        embedding_model: str | None = None,
+        backend: str | None = None,
+        collection_name: str | None = None,
         reset: bool = False,
     ) -> None:
         """Initialize the vector store.
@@ -225,14 +226,14 @@ class VectorStore:
     # Core CRUD methods
     # ------------------------------------------------------------------
 
-    def add_records(self, records: Sequence[ScamRecord]) -> List[str]:
+    def add_records(self, records: Sequence[ScamRecord]) -> list[str]:
         """Add ScamRecord objects and their embeddings to the vector store."""
         if not records:
             return []
 
-        texts: List[str] = []
-        metadatas: List[Dict[str, Any]] = []
-        ids: List[str] = []
+        texts: list[str] = []
+        metadatas: list[dict[str, Any]] = []
+        ids: list[str] = []
 
         for record in records:
             texts.append(record.text)
@@ -244,9 +245,9 @@ class VectorStore:
     def add_texts(
         self,
         texts: Sequence[str],
-        metadatas: Optional[Sequence[Optional[Dict[str, Any]]]] = None,
-        ids: Optional[Sequence[str]] = None,
-    ) -> List[str]:
+        metadatas: Sequence[dict[str, Any] | None] | None = None,
+        ids: Sequence[str] | None = None,
+    ) -> list[str]:
         """Add raw texts with metadata (used by CLI tooling)."""
         if not texts:
             return []
@@ -268,15 +269,15 @@ class VectorStore:
 
         return self._backend.add_texts(texts=truncated_texts, metadatas=sanitized, ids=ids)
 
-    def query_similar(self, query_text: str, top_k: int = 5) -> List[Dict[str, Any]]:
+    def query_similar(self, query_text: str, top_k: int = 5) -> list[dict[str, Any]]:
         """Perform semantic similarity search."""
         results = self._backend.similarity_search_with_score(query_text, top_k)
-        formatted: List[Dict[str, Any]] = []
+        formatted: list[dict[str, Any]] = []
         for doc, score in results:
             meta = doc.metadata or {}
 
             entities_raw = meta.get("entities")
-            entities: Dict[str, Any] = {}
+            entities: dict[str, Any] = {}
             if isinstance(entities_raw, str):
                 try:
                     parsed = json.loads(entities_raw)
@@ -323,7 +324,7 @@ class VectorStore:
         except Exception:
             return False
 
-    def list_collections(self) -> List[str]:
+    def list_collections(self) -> list[str]:
         """Return list of available vector collections or indexes."""
         return self._backend.list_collections()
 
@@ -331,7 +332,7 @@ class VectorStore:
         """Return the number of stored embeddings."""
         return self._backend.count()
 
-    def as_retriever(self, search_kwargs: Optional[Dict[str, Any]] = None):
+    def as_retriever(self, search_kwargs: dict[str, Any] | None = None):
         """Return a retriever object for the vector store."""
         return self._backend.as_retriever(search_kwargs=search_kwargs)
 

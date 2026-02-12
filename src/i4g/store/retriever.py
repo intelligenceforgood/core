@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from collections.abc import Iterable, Sequence
+from typing import TYPE_CHECKING, Any
 
 from i4g.services.factories import build_entity_store, build_structured_store, build_vector_store
 from i4g.store.schema import ScamRecord
@@ -21,9 +22,9 @@ class HybridRetriever:
 
     def __init__(
         self,
-        structured_store: Optional["StructuredStore"] = None,
-        vector_store: Optional["VectorStore"] = None,
-        entity_store: Optional["EntityStore"] = None,
+        structured_store: StructuredStore | None = None,
+        vector_store: VectorStore | None = None,
+        entity_store: EntityStore | None = None,
         *,
         enable_vector: bool = True,
     ) -> None:
@@ -52,13 +53,13 @@ class HybridRetriever:
 
     def query(
         self,
-        text: Optional[str] = None,
-        filters: Optional[Iterable[Tuple[str, Any]] | Dict[str, Any]] = None,
+        text: str | None = None,
+        filters: Iterable[tuple[str, Any]] | dict[str, Any] | None = None,
         vector_top_k: int = 5,
         structured_top_k: int = 5,
         offset: int = 0,
-        limit: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        limit: int | None = None,
+    ) -> dict[str, Any]:
         """Query semantic and structured stores and merge results.
 
         Args:
@@ -72,7 +73,7 @@ class HybridRetriever:
         Returns:
             Dictionary containing merged results and hit counters for each backend.
         """
-        aggregated: Dict[str, Dict[str, Any]] = {}
+        aggregated: dict[str, dict[str, Any]] = {}
         vector_hits_total = 0
         structured_hits_total = 0
 
@@ -119,7 +120,7 @@ class HybridRetriever:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _semantic_results(self, text: str, top_k: int) -> Tuple[Dict[str, Dict[str, Any]], int]:
+    def _semantic_results(self, text: str, top_k: int) -> tuple[dict[str, dict[str, Any]], int]:
         """Run semantic vector search and normalize results."""
         if not self.vector_store:
             return {}, 0
@@ -131,7 +132,7 @@ class HybridRetriever:
             LOGGER.warning("Vector similarity search failed; falling back to text search: %s", exc, exc_info=True)
             self._vector_error = True
             return {}, 0
-        aggregated: Dict[str, Dict[str, Any]] = {}
+        aggregated: dict[str, dict[str, Any]] = {}
 
         for idx, hit in enumerate(vector_hits):
             case_id = hit.get("case_id") or f"vector_{idx}"
@@ -164,8 +165,8 @@ class HybridRetriever:
 
     def _merge_structured_filters(
         self,
-        aggregated: Dict[str, Dict[str, Any]],
-        filters: Dict[str, Any],
+        aggregated: dict[str, dict[str, Any]],
+        filters: dict[str, Any],
         top_k: int,
     ) -> int:
         """Merge structured results into the aggregated map."""
@@ -182,7 +183,7 @@ class HybridRetriever:
 
     def _merge_text_fallback(
         self,
-        aggregated: Dict[str, Dict[str, Any]],
+        aggregated: dict[str, dict[str, Any]],
         query: str,
         top_k: int,
     ) -> int:
@@ -201,7 +202,7 @@ class HybridRetriever:
         return len(records)
 
     @staticmethod
-    def _iter_filters(filters: Iterable[Tuple[str, Any]] | Dict[str, Any]) -> Iterable[Tuple[str, Any]]:
+    def _iter_filters(filters: Iterable[tuple[str, Any]] | dict[str, Any]) -> Iterable[tuple[str, Any]]:
         """Normalize filters input to an iterable of ``(field, value)`` tuples."""
         if isinstance(filters, dict):
             return filters.items()
@@ -218,7 +219,7 @@ class HybridRetriever:
 
     def _merge_entity_filter(
         self,
-        aggregated: Dict[str, Dict[str, Any]],
+        aggregated: dict[str, dict[str, Any]],
         field: str,
         value: Any,
         top_k: int,
@@ -251,7 +252,7 @@ class HybridRetriever:
         return hits
 
     @staticmethod
-    def _normalize_entity_descriptor(field: str, payload: Any) -> Dict[str, Any] | None:
+    def _normalize_entity_descriptor(field: str, payload: Any) -> dict[str, Any] | None:
         if isinstance(payload, dict):
             entity_value = payload.get("value")
             entity_type = payload.get("entity_type") or payload.get("type") or field
@@ -277,7 +278,7 @@ class HybridRetriever:
         }
 
     @staticmethod
-    def _normalize_string_sequence(value: Any) -> List[str] | None:
+    def _normalize_string_sequence(value: Any) -> list[str] | None:
         if not value:
             return None
         if isinstance(value, str):
@@ -289,7 +290,7 @@ class HybridRetriever:
         return None
 
     @staticmethod
-    def _add_structured_record(aggregated: Dict[str, Dict[str, Any]], record: ScamRecord) -> None:
+    def _add_structured_record(aggregated: dict[str, dict[str, Any]], record: ScamRecord) -> None:
         """Insert a structured record into the aggregated map."""
         entry = aggregated.setdefault(
             record.case_id,
@@ -302,7 +303,7 @@ class HybridRetriever:
     # Convenience helpers
     # ------------------------------------------------------------------
 
-    def get_case(self, case_id: str) -> Optional[Dict[str, Any]]:
+    def get_case(self, case_id: str) -> dict[str, Any] | None:
         """Fetch a single case by ID from the structured store."""
         record = self.structured_store.get_by_id(case_id)
         return record.to_dict() if record else None

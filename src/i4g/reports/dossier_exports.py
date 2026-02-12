@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from html import escape
 from pathlib import Path
-from typing import Iterable, List, Sequence
+from collections.abc import Iterable, Sequence
 
 from reportlab.lib.pagesizes import LETTER
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -40,7 +40,7 @@ class DossierExporter:
     def export(self, *, markdown: str, base_name: str) -> ExportArtifacts:
         """Render markdown into PDF and HTML, returning artifact paths and warnings."""
 
-        warnings: List[str] = []
+        warnings: list[str] = []
         pdf_path: Path | None = self._base_dir / f"{base_name}.pdf"
         html_path: Path | None = self._base_dir / f"{base_name}.html"
         self._base_dir.mkdir(parents=True, exist_ok=True)
@@ -61,14 +61,14 @@ class DossierExporter:
 
     def _render_pdf(self, *, markdown: str, destination: Path) -> None:
         document = SimpleDocTemplate(str(destination), pagesize=LETTER)
-        story: List[Paragraph | Spacer] = []
+        story: list[Paragraph | Spacer] = []
         for block in self._split_blocks(markdown):
             story.extend(self._block_to_flowables(block))
             story.append(Spacer(1, 8))
         document.build(story)
 
     def _render_html(self, *, markdown: str, destination: Path) -> None:
-        html_lines: List[str] = [
+        html_lines: list[str] = [
             "<html><head><meta charset='utf-8'>",
             "<style>"
             "body{font-family:Arial,Helvetica,sans-serif;line-height:1.5;margin:16px;}"
@@ -113,8 +113,8 @@ class DossierExporter:
         html_lines.append("</body></html>")
         destination.write_text("\n".join(html_lines))
 
-    def _block_to_flowables(self, block: str) -> List[Paragraph | Spacer]:
-        flowables: List[Paragraph | Spacer] = []
+    def _block_to_flowables(self, block: str) -> list[Paragraph | Spacer]:
+        flowables: list[Paragraph | Spacer] = []
         for line in block.splitlines():
             stripped = line.strip()
             if not stripped:

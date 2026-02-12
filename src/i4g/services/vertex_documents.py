@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any
 
 try:  # pragma: no cover - import guard for optional dependency
     from google.cloud import discoveryengine_v1beta as discoveryengine
@@ -16,8 +16,8 @@ class VertexDocumentBuilderError(RuntimeError):
 
 
 def build_vertex_document(
-    record: Dict[str, Any], *, default_dataset: Optional[str] = None
-) -> "discoveryengine.Document":
+    record: dict[str, Any], *, default_dataset: str | None = None
+) -> discoveryengine.Document:
     """Convert a normalized ingestion payload into a Vertex document."""
 
     if discoveryengine is None:  # pragma: no cover - dependency guard

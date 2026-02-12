@@ -5,11 +5,11 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from i4g.api.camel import CamelModel
 
@@ -19,7 +19,6 @@ except ImportError:
     gcs_storage = None
 
 from i4g.services.account_list import AccountListRequest, AccountListResult, AccountListService, log_account_list_run
-from i4g.services.account_list.exporters import AccountListExporter
 from i4g.settings import Settings, get_settings
 from i4g.store.review_store import ReviewStore
 
@@ -43,16 +42,16 @@ class AccountListRunSummary(CamelModel):
     generated_at: datetime
     indicator_count: int = 0
     source_count: int = 0
-    warnings: List[str] = Field(default_factory=list)
-    artifacts: Dict[str, str] = Field(default_factory=dict)
-    categories: List[str] = Field(default_factory=list)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    artifacts: dict[str, str] = Field(default_factory=dict)
+    categories: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class AccountListRunResponse(CamelModel):
     """Envelope returned by the run-history endpoint."""
 
-    runs: List[AccountListRunSummary]
+    runs: list[AccountListRunSummary]
     count: int
 
 
@@ -123,7 +122,7 @@ def _resolve_actor(request: Request) -> str:
     return "accounts_api"
 
 
-def _transform_artifacts(artifacts: Dict[str, str], request: Request) -> Dict[str, str]:
+def _transform_artifacts(artifacts: dict[str, str], request: Request) -> dict[str, str]:
     """Convert local filesystem paths to download URLs for the client."""
     transformed = {}
 
@@ -253,7 +252,7 @@ def _parse_datetime(value: Any) -> datetime | None:
     return parse_datetime(value, on_error="none")
 
 
-def _parse_run_action(record: Dict[str, Any], request: Request) -> AccountListRunSummary | None:
+def _parse_run_action(record: dict[str, Any], request: Request) -> AccountListRunSummary | None:
     payload = record.get("payload")
     if not isinstance(payload, dict):
         return None

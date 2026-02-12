@@ -359,7 +359,7 @@ intake_jobs = sa.Table(
 )
 
 
-def dialect_insert(session: "Session", table: sa.Table):
+def dialect_insert(session: Session, table: sa.Table):
     """Return a dialect-aware INSERT construct that supports ``on_conflict_do_update``.
 
     Both SQLite and PostgreSQL dialects offer ``insert(...).on_conflict_do_update()``.
@@ -448,17 +448,22 @@ def build_engine(
         if not all([instance_connection_name, db_user, db_name]) or (not enable_iam_auth and not db_pass):
             raise ValueError("Missing Cloud SQL configuration (instance, user, [password], database)")
 
+        resolved_instance_connection_name = str(instance_connection_name)
+        resolved_db_user = str(db_user)
+        resolved_db_name = str(db_name)
+        resolved_db_pass = str(db_pass) if db_pass is not None else None
+
         # Initialize Connector object
         # Note: Connector must be long-lived to avoid excessive API calls and thread creation
         connector = Connector()
 
         def getconn():
             conn = connector.connect(
-                instance_connection_name,  # type: ignore
+                resolved_instance_connection_name,
                 "pg8000",
-                user=db_user,  # type: ignore
-                password=db_pass,  # type: ignore
-                db=db_name,  # type: ignore
+                user=resolved_db_user,
+                password=resolved_db_pass,
+                db=resolved_db_name,
                 ip_type=IPTypes.PUBLIC,
                 enable_iam_auth=enable_iam_auth,
             )

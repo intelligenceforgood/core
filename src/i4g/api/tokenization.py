@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -22,17 +21,17 @@ class TokenizeRequest(BaseModel):
     """Request body for tokenization."""
 
     value: str = Field(..., description="Raw PII value to tokenize")
-    prefix: Optional[str] = Field(None, description="PII prefix code (e.g., EID, PHN)")
-    entity_type: Optional[str] = Field(None, description="Entity type used to derive the prefix")
-    detector: Optional[str] = Field(None, description="Detector identifier for observability")
-    case_id: Optional[str] = Field(None, description="Optional case identifier")
+    prefix: str | None = Field(None, description="PII prefix code (e.g., EID, PHN)")
+    entity_type: str | None = Field(None, description="Entity type used to derive the prefix")
+    detector: str | None = Field(None, description="Detector identifier for observability")
+    case_id: str | None = Field(None, description="Optional case identifier")
 
 
 class DetokenizeRequest(BaseModel):
     """Request body for detokenization."""
 
     token: str = Field(..., description="Previously issued token")
-    case_id: Optional[str] = Field(None, description="Optional case identifier")
+    case_id: str | None = Field(None, description="Optional case identifier")
 
 
 def get_tokenization_service() -> TokenizationService:

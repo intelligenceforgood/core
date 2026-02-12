@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List
 
 from i4g.observability import Observability, get_observability
 from i4g.reports.bundle_builder import DossierPlan
@@ -21,7 +20,7 @@ class QueueProcessSummary:
     completed: int
     failed: int
     dry_run: bool
-    plans: List[dict] = field(default_factory=list)
+    plans: list[dict] = field(default_factory=list)
 
 
 class DossierQueueProcessor:
@@ -50,7 +49,7 @@ class DossierQueueProcessor:
         processed = 0
         completed = 0
         failed = 0
-        plan_summaries: List[dict] = []
+        plan_summaries: list[dict] = []
 
         for _ in range(batch_size):
             leased = self._queue_store.lease_next()

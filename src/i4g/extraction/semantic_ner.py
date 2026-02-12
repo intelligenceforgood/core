@@ -9,7 +9,7 @@ Semantic Named Entity Extraction (chat-style) using a local Ollama LLM via LangC
 
 import json
 import re
-from typing import Any, Dict, List, Union
+from typing import Any
 
 from langchain_ollama import OllamaLLM
 
@@ -155,7 +155,7 @@ def _format_chat_prompt(text: str) -> str:
     return prompt
 
 
-def _safe_parse_json(resp_text: str) -> Dict[str, Any]:
+def _safe_parse_json(resp_text: str) -> dict[str, Any]:
     """
     Safely parse a JSON object from a string that may contain other text.
 
@@ -182,7 +182,7 @@ def _safe_parse_json(resp_text: str) -> Dict[str, Any]:
             return {"raw_output": resp_text}
 
 
-def _merge_results(llm_result: Dict[str, Any], rule_result: Dict[str, Any]) -> Dict[str, Any]:
+def _merge_results(llm_result: dict[str, Any], rule_result: dict[str, Any]) -> dict[str, Any]:
     """
     Merge entities from LLM and rule-based results.
 
@@ -205,7 +205,7 @@ def _merge_results(llm_result: Dict[str, Any], rule_result: Dict[str, Any]) -> D
     return merged
 
 
-def _add_confidence_scores(result: Dict[str, Any], base_score: float = 0.7) -> Dict[str, Any]:
+def _add_confidence_scores(result: dict[str, Any], base_score: float = 0.7) -> dict[str, Any]:
     """
     Transform a dictionary of entity lists into a list of scored objects.
 
@@ -234,7 +234,7 @@ def _add_confidence_scores(result: Dict[str, Any], base_score: float = 0.7) -> D
 # ------------------------------
 
 
-def extract_semantic_entities(text: str, llm: OllamaLLM) -> Dict[str, Any]:
+def extract_semantic_entities(text: str, llm: OllamaLLM) -> dict[str, Any]:
     """
     Extract structured entities from text using an LLM with a rule-based fallback.
 
@@ -254,6 +254,7 @@ def extract_semantic_entities(text: str, llm: OllamaLLM) -> Dict[str, Any]:
     """
     prompt = _format_chat_prompt(text)
     llm_result = {}
+    parsed: dict[str, Any] = {}
     fallback_reason = None
 
     try:

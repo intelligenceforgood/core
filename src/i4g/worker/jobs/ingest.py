@@ -10,7 +10,8 @@ import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any
+from collections.abc import Iterator
 
 from google.cloud import storage
 
@@ -31,14 +32,14 @@ from i4g.worker.logging import configure_job_logging
 LOGGER = logging.getLogger("i4g.worker.jobs.ingest")
 
 
-def _download_and_yield(blob: storage.Blob) -> Iterator[Dict[str, Any]]:
+def _download_and_yield(blob: storage.Blob) -> Iterator[dict[str, Any]]:
     """Downloads a JSONL blob to a temp file and yields records."""
     fd, tmp_path = tempfile.mkstemp(suffix=".jsonl")
     os.close(fd)
     try:
         LOGGER.info("Downloading dataset from gs://%s/%s to %s", blob.bucket.name, blob.name, tmp_path)
         blob.download_to_filename(tmp_path)
-        with open(tmp_path, "r", encoding="utf-8") as handle:
+        with open(tmp_path, encoding="utf-8") as handle:
             yield from _yield_from_handle(handle)
     finally:
         if os.path.exists(tmp_path):
@@ -46,8 +47,8 @@ def _download_and_yield(blob: storage.Blob) -> Iterator[Dict[str, Any]]:
 
 
 def _process_images_and_yield(
-    image_paths: List[Union[str, Path]], is_gcs: bool = False, bucket: Optional[storage.Bucket] = None
-) -> Iterator[Dict[str, Any]]:
+    image_paths: list[str | Path], is_gcs: bool = False, bucket: storage.Bucket | None = None
+) -> Iterator[dict[str, Any]]:
     """
     Runs OCR on a list of images and yields the results.
 
@@ -115,7 +116,7 @@ def _process_images_and_yield(
             yield record
 
 
-def _load_data(path: Union[Path, str]) -> Iterator[Dict[str, Any]]:
+def _load_data(path: Path | str) -> Iterator[dict[str, Any]]:
     """
     Loads data from a path (local or GCS).
     Supports .jsonl files and image files (via OCR).
@@ -186,7 +187,7 @@ def _load_data(path: Union[Path, str]) -> Iterator[Dict[str, Any]]:
                 LOGGER.warning("Unsupported file type: %s", path)
 
 
-def _yield_from_handle(handle: Iterator[str]) -> Iterator[Dict[str, Any]]:
+def _yield_from_handle(handle: Iterator[str]) -> Iterator[dict[str, Any]]:
     """Yields parsed JSON objects from a file handle."""
     for line_no, raw in enumerate(handle, start=1):
         raw = raw.strip()
@@ -198,7 +199,7 @@ def _yield_from_handle(handle: Iterator[str]) -> Iterator[Dict[str, Any]]:
             raise ValueError(f"failed to parse JSON on line {line_no}: {exc}") from exc
 
 
-def _clone_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+def _clone_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Deep clones a payload dictionary."""
     try:
         return json.loads(json.dumps(payload, default=str))
@@ -206,7 +207,7 @@ def _clone_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         return dict(payload)
 
 
-def _serialise_sql_result(result: Optional[SqlWriterResult]) -> Optional[Dict[str, Any]]:
+def _serialise_sql_result(result: SqlWriterResult | None) -> dict[str, Any] | None:
     """Serialises a SqlWriterResult to a dictionary."""
     if result is None:
         return None
@@ -224,11 +225,11 @@ def _maybe_enqueue_retry(
     backend: str,
     attempted: bool,
     succeeded: bool,
-    payload: Dict[str, Any],
+    payload: dict[str, Any],
     retry_delay: int,
     max_retries: int,
-    error: Optional[str] = None,
-    sql_result: Optional[SqlWriterResult] = None,
+    error: str | None = None,
+    sql_result: SqlWriterResult | None = None,
 ) -> int:
     """Enqueues a retry if the operation failed and retries are enabled."""
     if not retry_store or not attempted or succeeded:
@@ -244,8 +245,8 @@ def _maybe_enqueue_retry(
     case_id = payload.get("case_id") or "unknown"
     try:
         cloned = _clone_payload(payload)
-        queue_payload: Dict[str, Any] = {"record": cloned}
-        context: Dict[str, Any] = {}
+        queue_payload: dict[str, Any] = {"record": cloned}
+        context: dict[str, Any] = {}
         serialised_sql = _serialise_sql_result(sql_result)
         if serialised_sql:
             context["sql_result"] = serialised_sql

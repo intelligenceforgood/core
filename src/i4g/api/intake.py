@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
 from pydantic import BaseModel, Field, ValidationError
@@ -12,7 +12,9 @@ from i4g.api.auth import require_token
 from i4g.api.response_models import (
     IntakeCaseAttachResponse,
     IntakeCreateResponse,
+    IntakeJobResponse,
     IntakeJobUpdateResponse,
+    IntakeRecordResponse,
     IntakeStatusUpdateResponse,
     ItemListResponse,
 )
@@ -27,31 +29,31 @@ class IntakeSubmission(BaseModel):
     reporter_name: str
     summary: str
     details: str
-    submitted_by: Optional[str] = None
-    contact_email: Optional[str] = None
-    contact_phone: Optional[str] = None
-    contact_handle: Optional[str] = None
-    preferred_contact: Optional[str] = None
-    incident_date: Optional[str] = None
-    loss_amount: Optional[float] = None
+    submitted_by: str | None = None
+    contact_email: str | None = None
+    contact_phone: str | None = None
+    contact_handle: str | None = None
+    preferred_contact: str | None = None
+    incident_date: str | None = None
+    loss_amount: float | None = None
     source: str = "unknown"
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class IntakeJobUpdate(BaseModel):
     status: str
-    message: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    message: str | None = None
+    metadata: dict[str, Any] | None = None
 
 
 class IntakeStatusUpdate(BaseModel):
     status: str
-    message: Optional[str] = None
+    message: str | None = None
 
 
 class IntakeCaseAttachment(BaseModel):
-    case_id: Optional[str] = None
-    review_id: Optional[str] = None
+    case_id: str | None = None
+    review_id: str | None = None
 
 
 def get_service() -> IntakeService:
@@ -62,7 +64,7 @@ def get_service() -> IntakeService:
 async def submit_intake(
     background_tasks: BackgroundTasks,
     payload: str = Form(..., description="JSON payload describing the intake metadata"),
-    files: List[UploadFile] = File(default_factory=list, description="Evidence attachments"),
+    files: list[UploadFile] = File(default_factory=list, description="Evidence attachments"),
     user=Depends(require_token),
     service: IntakeService = Depends(get_service),
 ):
@@ -78,7 +80,7 @@ async def submit_intake(
     if not submission["submitted_by"]:
         raise HTTPException(status_code=400, detail="submitted_by is required")
 
-    attachments: List[AttachmentPayload] = []
+    attachments: list[AttachmentPayload] = []
     for upload in files:
         data = await upload.read()
         attachments.append(
@@ -118,7 +120,7 @@ def list_intakes(
     return {"items": items, "count": len(items)}
 
 
-@router.get("/{intake_id}", summary="Fetch intake details")
+@router.get("/{intake_id}", summary="Fetch intake details", response_model=IntakeRecordResponse)
 def get_intake(intake_id: str, user=Depends(require_token), service: IntakeService = Depends(get_service)):
     record = service.get_intake(intake_id)
     if not record:
@@ -126,7 +128,7 @@ def get_intake(intake_id: str, user=Depends(require_token), service: IntakeServi
     return record
 
 
-@router.get("/jobs/{job_id}", summary="Fetch intake job status")
+@router.get("/jobs/{job_id}", summary="Fetch intake job status", response_model=IntakeJobResponse)
 def get_job(job_id: str, user=Depends(require_token), service: IntakeService = Depends(get_service)):
     job = service.get_job(job_id)
     if not job:

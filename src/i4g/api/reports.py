@@ -6,7 +6,8 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping
+from typing import Any
+from collections.abc import Iterable, Mapping
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -53,7 +54,7 @@ def list_dossiers(
     status: str = Query("completed", description="Queue status to filter (use 'all' for every entry)."),
     limit: int = Query(20, ge=1, le=200, description="Maximum number of dossier rows to return."),
     include_manifest: bool = Query(False, description="Include the full dossier manifest payload when true."),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Return dossier queue entries along with manifest + signature metadata."""
 
     normalized_status = status.strip().lower()
@@ -62,7 +63,7 @@ def list_dossiers(
     try:
         store = build_dossier_queue_store()
         entries = store.list_plans(status=status_filter, limit=limit)
-        records: List[Dict[str, Any]] = []
+        records: list[dict[str, Any]] = []
         for entry in entries:
             plan_id = entry.get("plan_id")
             manifest_info = _load_manifest_details(plan_id, include_manifest=include_manifest)
@@ -90,7 +91,7 @@ def list_dossiers(
 
 
 @router.post("/dossiers/{plan_id}/verify", response_model=DossierVerifyResponse)
-def verify_dossier(plan_id: str) -> Dict[str, Any]:
+def verify_dossier(plan_id: str) -> dict[str, Any]:
     """Run an artifact verification pass for the provided dossier plan."""
 
     plan_id = _validate_plan_id(plan_id)
@@ -149,7 +150,7 @@ def verify_dossier(plan_id: str) -> Dict[str, Any]:
 
 
 @router.get("/dossiers/{plan_id}/drive_acl", response_model=DriveAclResponse)
-def fetch_drive_acl(plan_id: str) -> Dict[str, Any]:
+def fetch_drive_acl(plan_id: str) -> dict[str, Any]:
     """Return Drive folder metadata + permissions for portal ACL previews."""
 
     plan_id = _validate_plan_id(plan_id)
@@ -180,7 +181,7 @@ def fetch_drive_acl(plan_id: str) -> Dict[str, Any]:
 
 
 @router.get("/dossiers/{plan_id}/signature_manifest")
-def fetch_signature_manifest(plan_id: str) -> Dict[str, Any]:
+def fetch_signature_manifest(plan_id: str) -> dict[str, Any]:
     """Return the raw signature manifest for client-side verification flows."""
 
     plan_id = _validate_plan_id(plan_id)
@@ -227,13 +228,13 @@ def download_dossier_artifact(plan_id: str, artifact: str) -> FileResponse:
     return FileResponse(path)
 
 
-def _load_manifest_details(plan_id: str, *, include_manifest: bool) -> Dict[str, Any]:
+def _load_manifest_details(plan_id: str, *, include_manifest: bool) -> dict[str, Any]:
     """Return manifest + signature metadata for ``plan_id``."""
 
-    warnings: List[str] = []
+    warnings: list[str] = []
     manifest_path = ARTIFACTS_DIR / f"{plan_id}.json"
-    manifest_preview: Dict[str, Any] | None = None
-    manifest_payload: Dict[str, Any] | None = None
+    manifest_preview: dict[str, Any] | None = None
+    manifest_payload: dict[str, Any] | None = None
     manifest_path_str: str | None = None
 
     if manifest_path.exists():
@@ -271,8 +272,8 @@ def _load_manifest_details(plan_id: str, *, include_manifest: bool) -> Dict[str,
 
 
 def _load_signature_manifest(
-    manifest_path: Path, manifest_preview: Dict[str, Any] | None
-) -> tuple[Dict[str, Any] | None, str | None]:
+    manifest_path: Path, manifest_preview: dict[str, Any] | None
+) -> tuple[dict[str, Any] | None, str | None]:
     """Load the signature manifest referenced by ``manifest_preview`` (if any)."""
 
     signature_path: Path | None = None
@@ -302,7 +303,7 @@ def _build_downloads(
     signature_manifest: Mapping[str, Any] | None,
     manifest_path: Path | None,
     signature_path: Path | None,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Return download metadata for local and uploaded artifacts."""
 
     base_dir = manifest_path.parent if manifest_path else ARTIFACTS_DIR
@@ -323,10 +324,9 @@ def _build_downloads(
             for api_label, label in _ALLOWED_ARTIFACTS.items()
             if local.get(label)
         }
-    remote: List[Dict[str, Any]] = []
-    uploads: Iterable[Mapping[str, Any]] | None = None
-    if signature_manifest:
-        uploads = signature_manifest.get("uploads")  # type: ignore[assignment]
+    remote: list[dict[str, Any]] = []
+    uploads_raw = signature_manifest.get("uploads") if signature_manifest else None
+    uploads: Iterable[Mapping[str, Any]] | None = uploads_raw if isinstance(uploads_raw, list) else None
     if uploads:
         for upload in uploads:
             if not isinstance(upload, Mapping):

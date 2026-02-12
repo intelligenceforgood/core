@@ -13,7 +13,7 @@ from pathlib import Path
 from i4g.reports.bundle_builder import DossierCandidate, DossierPlan
 from i4g.settings import get_settings
 from i4g.store.dossier_queue_store import DossierQueueStore
-from i4g.api.cases import CASES_RESPONSE
+from i4g.fixtures.sample_cases import CASES_RESPONSE
 from i4g.services.factories import build_review_store, build_structured_store
 from i4g.store.schema import ScamRecord
 

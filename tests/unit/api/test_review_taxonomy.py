@@ -53,7 +53,8 @@ def test_enqueue_with_taxonomy(client):
     assert response.status_code == 200
     review = response.json()
 
-    assert review["case_id"] == "CASE-123"
+    assert review["caseId"] == "CASE-123"
+    # Extra fields (not defined on ReviewItemResponse) pass through with original snake_case names
     assert review["classification_result"]["intent"][0]["label"] == "INTENT.IMPOSTER"
     assert review["classification_result"]["explanation"] == "This looks like an imposter scam."
     assert review["tags"] == ["scam", "urgent"]

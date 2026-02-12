@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Sequence
+from collections.abc import Sequence
 
 from i4g.reports.dossier_signatures import verify_manifest_file
 from i4g.settings import get_settings
 
 
-def _find_manifests(targets: Sequence[Path]) -> List[Path]:
-    manifests: List[Path] = []
+def _find_manifests(targets: Sequence[Path]) -> list[Path]:
+    manifests: list[Path] = []
     for target in targets:
         if target.is_file() and target.name.endswith(".signatures.json"):
             manifests.append(target)

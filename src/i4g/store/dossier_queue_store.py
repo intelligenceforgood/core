@@ -10,7 +10,8 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
+from typing import TYPE_CHECKING, Any
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
@@ -62,7 +63,7 @@ class DossierQueueStore:
     # Public API
     # ------------------------------------------------------------------
 
-    def enqueue_plan(self, plan: "DossierPlan", *, priority: str = "normal") -> str:
+    def enqueue_plan(self, plan: DossierPlan, *, priority: str = "normal") -> str:
         """Insert or replace a dossier plan in the queue."""
 
         now = datetime.now(timezone.utc)
@@ -96,7 +97,7 @@ class DossierQueueStore:
 
         return plan.plan_id
 
-    def list_pending(self, *, limit: int = 25) -> List[Dict[str, Any]]:
+    def list_pending(self, *, limit: int = 25) -> list[dict[str, Any]]:
         """Return pending queue entries along with their serialized plans."""
 
         stmt = (
@@ -111,7 +112,7 @@ class DossierQueueStore:
 
         return [self._row_to_dict(row) for row in rows]
 
-    def list_plans(self, *, status: str | None = None, limit: int = 50) -> List[Dict[str, Any]]:
+    def list_plans(self, *, status: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         """Return queue entries filtered by ``status`` (or all entries when omitted)."""
 
         stmt = (
@@ -127,7 +128,7 @@ class DossierQueueStore:
 
         return [self._row_to_dict(row) for row in rows]
 
-    def get_plan(self, plan_id: str) -> Optional[Dict[str, Any]]:
+    def get_plan(self, plan_id: str) -> dict[str, Any] | None:
         """Return a single queue entry regardless of status."""
 
         stmt = sa.select(sql_schema.dossier_queue).where(sql_schema.dossier_queue.c.plan_id == plan_id)
@@ -139,7 +140,7 @@ class DossierQueueStore:
             return None
         return self._row_to_dict(row)
 
-    def mark_complete(self, plan_id: str, *, warnings: Optional[Sequence[str]] = None) -> None:
+    def mark_complete(self, plan_id: str, *, warnings: Sequence[str] | None = None) -> None:
         """Mark a queued plan as completed and persist optional warnings."""
         self._update_status(plan_id, status="completed", warnings=warnings)
 
@@ -151,7 +152,7 @@ class DossierQueueStore:
         """Return a leased plan to the pending state (used for dry runs)."""
         self._update_status(plan_id, status="pending", warnings=None)
 
-    def lease_next(self) -> Optional[Dict[str, Any]]:
+    def lease_next(self) -> dict[str, Any] | None:
         """Atomically lease the next pending entry for processing."""
 
         now = datetime.now(timezone.utc)
@@ -206,13 +207,13 @@ class DossierQueueStore:
         plan_id: str,
         *,
         status: str,
-        error: Optional[str] = None,
-        warnings: Optional[Sequence[str]] = None,
+        error: str | None = None,
+        warnings: Sequence[str] | None = None,
     ) -> None:
         now = datetime.now(timezone.utc)
         warnings_payload = json.dumps(list(warnings)) if warnings is not None else None
 
-        values: Dict[str, Any] = {"status": status, "updated_at": now}
+        values: dict[str, Any] = {"status": status, "updated_at": now}
         if error is not None:
             values["error"] = error
         elif status == "pending":
@@ -233,7 +234,7 @@ class DossierQueueStore:
             session.execute(stmt)
             session.commit()
 
-    def _row_to_dict(self, row: Any) -> Dict[str, Any]:
+    def _row_to_dict(self, row: Any) -> dict[str, Any]:
         """Convert a SQLAlchemy Row to a JSON-friendly dict."""
         payload_raw = row.payload
         payload = json.loads(payload_raw) if payload_raw else {}

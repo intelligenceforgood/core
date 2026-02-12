@@ -6,7 +6,6 @@ post-review operations such as report generation and export.
 """
 
 import logging
-from typing import Optional
 
 from i4g.reports.generator import ReportGenerator
 from i4g.services.factories import (
@@ -19,7 +18,7 @@ from i4g.store.review_store import ReviewStore
 logger = logging.getLogger(__name__)
 
 
-def _resolve_review_store(candidate: Optional[ReviewStore]) -> ReviewStore:
+def _resolve_review_store(candidate: ReviewStore | None) -> ReviewStore:
     """Return a review store honoring patched mocks when supplied."""
 
     if candidate is not None:
@@ -34,7 +33,7 @@ def _resolve_review_store(candidate: Optional[ReviewStore]) -> ReviewStore:
 
 def generate_report_for_case(
     review_id: str,
-    store: Optional[ReviewStore] = None,
+    store: ReviewStore | None = None,
 ) -> str:
     """Generate and export a report for a specific accepted review case.
 
