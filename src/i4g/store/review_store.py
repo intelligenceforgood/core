@@ -115,7 +115,7 @@ def _summarize_dashboard_rows(
                 if isinstance(raw_tags, str):
                     try:
                         tags = json.loads(raw_tags)
-                    except:
+                    except (json.JSONDecodeError, TypeError, ValueError):
                         tags = []
                 elif isinstance(raw_tags, list):
                     tags = raw_tags

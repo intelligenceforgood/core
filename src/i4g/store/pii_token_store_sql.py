@@ -1,4 +1,4 @@
-"""SQLAlchemy-backed token store for Cloud SQL (PostgreSQL)."""
+"""SQLAlchemy-backed token store for the PII vault (SQLite + Cloud SQL)."""
 
 from __future__ import annotations
 
@@ -10,11 +10,11 @@ from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy.orm import Session
 
 from i4g.store.pii_token_store import StoredToken
-from i4g.store.sql import pii_tokens
+from i4g.store.sql import audit_log, dialect_insert, pii_tokens
 
 
 class SqlAlchemyPiiTokenStore:
-    """PostgreSQL-backed store for tokenized PII using SQLAlchemy Core/ORM."""
+    """Unified SQLAlchemy-backed store for tokenized PII (SQLite and PostgreSQL)."""
 
     def __init__(self, session_factory: Callable[[], Session], *, fernet: Fernet | None = None) -> None:
         self.session_factory = session_factory
@@ -37,29 +37,29 @@ class SqlAlchemyPiiTokenStore:
         encrypted_value = self._encrypt(canonical_value)
         created_at = datetime.now(timezone.utc)
 
-        stmt = sa.dialects.postgresql.insert(pii_tokens).values(
-            token=token,
-            prefix=prefix,
-            digest=digest,
-            normalized_value=normalized_value,
-            canonical_value=None if encrypted_value is not None else canonical_value,
-            encrypted_value=encrypted_value,
-            pepper_version=pepper_version,
-            detector=detector,
-            case_id=case_id,
-            created_at=created_at,
-        )
-        
-        # On conflict, update mutable fields
-        stmt = stmt.on_conflict_do_update(
-            index_elements=[pii_tokens.c.token],
-            set_={
-                "detector": stmt.excluded.detector,
-                "case_id": stmt.excluded.case_id,
-            },
-        )
-
         with self.session_factory() as session:
+            stmt = dialect_insert(session, pii_tokens).values(
+                token=token,
+                prefix=prefix,
+                digest=digest,
+                normalized_value=normalized_value,
+                canonical_value=None if encrypted_value is not None else canonical_value,
+                encrypted_value=encrypted_value,
+                pepper_version=pepper_version,
+                detector=detector,
+                case_id=case_id,
+                created_at=created_at,
+            )
+
+            # On conflict, update mutable fields
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[pii_tokens.c.token],
+                set_={
+                    "detector": stmt.excluded.detector,
+                    "case_id": stmt.excluded.case_id,
+                },
+            )
+
             session.execute(stmt)
             session.commit()
 
@@ -125,6 +125,35 @@ class SqlAlchemyPiiTokenStore:
                 )
             )
         return tokens
+
+    def log_access(
+        self,
+        *,
+        actor: str,
+        action: str,
+        token: str | None = None,
+        prefix: str | None = None,
+        outcome: str,
+        reason: str | None = None,
+        case_id: str | None = None,
+    ) -> None:
+        """Record an audit log entry for a sensitive operation."""
+
+        timestamp = datetime.now(timezone.utc)
+        with self.session_factory() as session:
+            session.execute(
+                sa.insert(audit_log).values(
+                    timestamp=timestamp,
+                    actor=actor,
+                    action=action,
+                    token=token,
+                    prefix=prefix,
+                    outcome=outcome,
+                    reason=reason,
+                    case_id=case_id,
+                )
+            )
+            session.commit()
 
     def _encrypt(self, value: str) -> bytes | None:
         if self.fernet is None:

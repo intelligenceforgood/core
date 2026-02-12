@@ -25,10 +25,11 @@ from i4g.store.entity_store import EntityStore
 from i4g.store.ingestion_retry_store import IngestionRetryStore
 from i4g.store.ingestion_run_tracker import IngestionRunTracker
 from i4g.store.intake_store import IntakeStore
-from i4g.store.pii_token_store import PiiTokenStore
+from i4g.store.pii_token_store import PiiTokenStore  # noqa: F401 — kept for backward compat
 from i4g.store.pii_token_store_sql import SqlAlchemyPiiTokenStore
 from i4g.store.review_store import ReviewStore
 from i4g.store.sql import METADATA
+from i4g.store.sql import build_vault_session_factory
 from i4g.store.sql import session_factory as build_sql_session_factory
 from i4g.store.sql_writer import SqlWriter
 from i4g.store.structured import StructuredStore
@@ -214,12 +215,15 @@ def build_tokenization_service() -> TokenizationService:
     settings = get_settings()
     backend = settings.pii.backend
 
-    store = None
-    if backend == "sqlite":
-        store = PiiTokenStore()
-    elif backend == "cloudsql":
-        # Pass tokenization-specific connection details if present
-        connection_details = {}
+    fernet = None
+    if settings.crypto.pii_key and Fernet:
+        try:
+            fernet = Fernet(settings.crypto.pii_key.encode("utf-8"))
+        except Exception:
+            pass
+
+    connection_details: dict[str, str | bool] = {}
+    if backend == "cloudsql":
         if settings.pii.cloudsql_instance:
             connection_details["instance"] = settings.pii.cloudsql_instance
         if settings.pii.cloudsql_database:
@@ -231,20 +235,11 @@ def build_tokenization_service() -> TokenizationService:
         if settings.pii.cloudsql_enable_iam_auth:
             connection_details["enable_iam_auth"] = settings.pii.cloudsql_enable_iam_auth
 
-        fernet = None
-        if settings.crypto.pii_key and Fernet:
-            try:
-                fernet = Fernet(settings.crypto.pii_key.encode("utf-8"))
-            except Exception:
-                pass
-
-        session_factory = build_sql_session_factory(
-            backend_override="cloudsql",
-            connection_details=connection_details,
-        )
-        store = SqlAlchemyPiiTokenStore(session_factory=session_factory, fernet=fernet)
-    else:
-        raise NotImplementedError(f"Unsupported tokenization backend '{backend}'")
+    vault_session_factory = build_vault_session_factory(
+        backend_override=backend,
+        connection_details=connection_details or None,
+    )
+    store = SqlAlchemyPiiTokenStore(session_factory=vault_session_factory, fernet=fernet)
 
     return TokenizationService(store=store)
 

@@ -1,13 +1,16 @@
 """Test audit logging for PII vault operations."""
 
-import sqlite3
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import sqlalchemy as sa
 import pytest
+from sqlalchemy.orm import sessionmaker
 
 from i4g.pii.tokenization import TokenizationService
-from i4g.store.pii_token_store import PiiTokenStore
+from i4g.store.pii_token_store import StoredToken
+from i4g.store.pii_token_store_sql import SqlAlchemyPiiTokenStore
+from i4g.store.sql import VAULT_METADATA, audit_log
 
 
 @pytest.fixture
@@ -16,8 +19,19 @@ def temp_db(tmp_path):
 
 
 @pytest.fixture
-def store(temp_db):
-    return PiiTokenStore(db_path=temp_db)
+def vault_session_factory(temp_db):
+    engine = sa.create_engine(
+        f"sqlite:///{temp_db.as_posix()}",
+        future=True,
+        connect_args={"check_same_thread": False},
+    )
+    VAULT_METADATA.create_all(engine, checkfirst=True)
+    return sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+
+
+@pytest.fixture
+def store(vault_session_factory):
+    return SqlAlchemyPiiTokenStore(session_factory=vault_session_factory)
 
 
 @pytest.fixture
@@ -31,7 +45,16 @@ def service(store):
     )
 
 
-def test_detokenize_logs_access(service, store):
+def _query_audit_log(session_factory, token_val):
+    """Helper to query audit_log for a specific token."""
+    with session_factory() as session:
+        row = session.execute(
+            sa.select(audit_log).where(audit_log.c.token == token_val)
+        ).fetchone()
+        return row._mapping if row else None
+
+
+def test_detokenize_logs_access(service, store, vault_session_factory):
     # 1. Tokenize a value
     result = service.tokenize("sensitive@example.com", "EID")
     token = result.token
@@ -40,8 +63,7 @@ def test_detokenize_logs_access(service, store):
     service.detokenize(token, actor="analyst-alice", case_id="case-123")
     
     # 3. Verify Audit Log
-    with store._connect() as conn:
-        row = conn.execute("SELECT * FROM audit_log WHERE token = ?", (token,)).fetchone()
+    row = _query_audit_log(vault_session_factory, token)
         
     assert row is not None
     assert row["actor"] == "analyst-alice"
@@ -51,13 +73,12 @@ def test_detokenize_logs_access(service, store):
     assert row["prefix"] == "EID"
 
 
-def test_detokenize_missing_token_logs_failure(service, store):
+def test_detokenize_missing_token_logs_failure(service, store, vault_session_factory):
     token = "EID-MISSING1"
     
     service.detokenize(token, actor="analyst-bob")
     
-    with store._connect() as conn:
-        row = conn.execute("SELECT * FROM audit_log WHERE token = ?", (token,)).fetchone()
+    row = _query_audit_log(vault_session_factory, token)
         
     assert row is not None
     assert row["actor"] == "analyst-bob"

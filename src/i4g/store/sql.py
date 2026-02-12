@@ -75,6 +75,22 @@ pii_tokens = sa.Table(
 sa.Index("idx_pii_tokens_digest", pii_tokens.c.digest)
 sa.Index("idx_pii_tokens_prefix", pii_tokens.c.prefix)
 
+audit_log = sa.Table(
+    "audit_log",
+    VAULT_METADATA,
+    sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+    sa.Column("timestamp", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("actor", sa.Text(), nullable=False),
+    sa.Column("action", sa.Text(), nullable=False),
+    sa.Column("token", sa.Text(), nullable=True),
+    sa.Column("prefix", sa.Text(), nullable=True),
+    sa.Column("outcome", sa.Text(), nullable=False),
+    sa.Column("reason", sa.Text(), nullable=True),
+    sa.Column("case_id", sa.Text(), nullable=True),
+)
+sa.Index("idx_audit_log_token", audit_log.c.token)
+sa.Index("idx_audit_log_actor", audit_log.c.actor)
+
 cases = sa.Table(
     "cases",
     METADATA,
@@ -259,6 +275,10 @@ review_queue = sa.Table(
     sa.Column("classification_result", JSON_TYPE, nullable=True),
     sa.Column("tags", JSON_TYPE, nullable=True),
 )
+sa.Index("idx_review_queue_status", review_queue.c.status)
+sa.Index("idx_review_queue_priority", review_queue.c.priority)
+sa.Index("idx_review_queue_case_id", review_queue.c.case_id)
+sa.Index("idx_review_queue_queued_at", review_queue.c.queued_at)
 
 review_actions = sa.Table(
     "review_actions",
@@ -270,6 +290,8 @@ review_actions = sa.Table(
     sa.Column("payload", JSON_TYPE, nullable=True),
     sa.Column("created_at", TIMESTAMP, nullable=True),
 )
+sa.Index("idx_review_actions_review_id", review_actions.c.review_id)
+sa.Index("idx_review_actions_created_at", review_actions.c.created_at)
 
 saved_searches = sa.Table(
     "saved_searches",
@@ -479,4 +501,46 @@ def session_factory(
         backend_override=backend_override,
         connection_details=connection_details,
     )
+    return sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+
+
+def build_vault_session_factory(
+    *,
+    settings: Settings | None = None,
+    backend_override: str | None = None,
+    connection_details: dict[str, Any] | None = None,
+) -> sessionmaker:
+    """Return a sessionmaker for the PII vault database.
+
+    For SQLite, the vault database lives alongside the main store as
+    ``vault.db``.  For Cloud SQL, the caller passes explicit connection
+    details pointing to the isolated PII project.
+    """
+
+    resolved = settings or get_settings()
+    backend = backend_override or resolved.pii.backend
+
+    if backend == "cloudsql":
+        engine = build_engine(
+            settings=settings,
+            backend_override="cloudsql",
+            connection_details=connection_details,
+        )
+    else:
+        # SQLite: vault.db lives next to the main SQLite store
+        sqlite_path = Path(resolved.storage.sqlite_path)
+        if not sqlite_path.is_absolute():
+            sqlite_path = (Path(resolved.project_root) / sqlite_path).resolve()
+        vault_path = sqlite_path.parent / "vault.db"
+        vault_path.parent.mkdir(parents=True, exist_ok=True)
+        url = f"sqlite:///{vault_path.as_posix()}"
+        engine = sa.create_engine(
+            url,
+            future=True,
+            pool_pre_ping=True,
+            connect_args={"check_same_thread": False},
+        )
+        # Ensure vault tables exist for local development
+        VAULT_METADATA.create_all(engine, checkfirst=True)
+
     return sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)

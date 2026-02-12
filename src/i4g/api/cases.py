@@ -179,7 +179,7 @@ def list_cases(
 
 
 @router.get("/{case_id}", response_model=CaseDetail, response_model_exclude_unset=True, summary="Get case details")
-async def get_case(case_id: str) -> CaseDetail:
+def get_case(case_id: str) -> CaseDetail:
     """Get full details for a specific case (Live DB)."""
     store = build_review_store()
     data = store.get_extended_case(case_id)

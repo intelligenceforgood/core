@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 
 from i4g.api.auth import require_token
 from i4g.api.response_models import DashboardOverviewResponse
+from i4g.api.review_deps import get_db_session
 from i4g.store.sql import (
-    session_factory,
     cases,
     review_queue,
     review_actions,
@@ -164,36 +164,34 @@ def _get_alerts(session: Session) -> List[Dict[str, str]]:
 
 
 @router.get("/overview", response_model=DashboardOverviewResponse)
-def get_dashboard_overview():
+def get_dashboard_overview(session: Session = Depends(get_db_session)):
     """Return live dashboard metrics from the database."""
-    make_session = session_factory()
-    with make_session() as session:
-        metrics = [
-            _get_active_investigations(session),
-            _get_new_leads(session),
-            _get_cases_at_risk(session),
-        ]
+    metrics = [
+        _get_active_investigations(session),
+        _get_new_leads(session),
+        _get_cases_at_risk(session),
+    ]
 
-        activity = _get_recent_activity(session)
-        alerts = _get_alerts(session)
+    activity = _get_recent_activity(session)
+    alerts = _get_alerts(session)
 
-        # Reminders are static for now as we don't have a task/reminder system
-        reminders = [
-            {
-                "id": "rem-1",
-                "text": "Review weekly refresh metrics",
-                "category": "data",
-            },
-            {
-                "id": "rem-2",
-                "text": "Check pending high priority cases",
-                "category": "alert",
-            },
-        ]
+    # Reminders are static for now as we don't have a task/reminder system
+    reminders = [
+        {
+            "id": "rem-1",
+            "text": "Review weekly refresh metrics",
+            "category": "data",
+        },
+        {
+            "id": "rem-2",
+            "text": "Check pending high priority cases",
+            "category": "alert",
+        },
+    ]
 
-        return {
-            "metrics": metrics,
-            "alerts": alerts,
-            "activity": activity,
-            "reminders": reminders,
-        }
+    return {
+        "metrics": metrics,
+        "alerts": alerts,
+        "activity": activity,
+        "reminders": reminders,
+    }

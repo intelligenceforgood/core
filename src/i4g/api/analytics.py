@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 
 from i4g.api.auth import require_token
 from i4g.api.response_models import AnalyticsOverviewResponse
+from i4g.api.review_deps import get_db_session
 from i4g.store.sql import (
-    session_factory,
     cases,
     review_queue,
     review_actions,
@@ -188,98 +188,96 @@ def _get_metric_sla(session: Session, now: datetime) -> Dict[str, Any]:
 
 
 @router.get("/overview", summary="Return live analytics trends", response_model=AnalyticsOverviewResponse)
-def get_analytics_overview() -> dict[str, object]:
+def get_analytics_overview(session: Session = Depends(get_db_session)) -> dict[str, object]:
     """Return the analytics payload populated from the database."""
 
     now = datetime.now(timezone.utc)
-    make_session = session_factory()
 
-    with make_session() as session:
-        # 1. Top Metrics
-        metrics = [
-            _get_metric_detection_rate(session, now),
-            _get_metric_time_to_action(session, now),
-            _get_metric_proactive(session, now),
-            _get_metric_sla(session, now),
-        ]
+    # 1. Top Metrics
+    metrics = [
+        _get_metric_detection_rate(session, now),
+        _get_metric_time_to_action(session, now),
+        _get_metric_proactive(session, now),
+        _get_metric_sla(session, now),
+    ]
 
-        # 2. Daily Series (Last 7 days)
-        series = []
-        for i in range(6, -1, -1):
-            day_start = now - timedelta(days=i)
-            day_start = day_start.replace(hour=0, minute=0, second=0, microsecond=0)
-            next_day = day_start + timedelta(days=1)
+    # 2. Daily Series (Last 7 days)
+    series = []
+    for i in range(6, -1, -1):
+        day_start = now - timedelta(days=i)
+        day_start = day_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        next_day = day_start + timedelta(days=1)
 
-            # Count risky cases
-            val = (
-                session.scalar(
-                    select(func.count(cases.c.case_id))
-                    .where(cases.c.created_at >= day_start)
-                    .where(cases.c.created_at < next_day)
-                    .where(cases.c.classification != "benign")
-                )
-                or 0
+        # Count risky cases
+        val = (
+            session.scalar(
+                select(func.count(cases.c.case_id))
+                .where(cases.c.created_at >= day_start)
+                .where(cases.c.created_at < next_day)
+                .where(cases.c.classification != "benign")
             )
+            or 0
+        )
 
-            series.append({"label": day_start.strftime("%a"), "value": val})
+        series.append({"label": day_start.strftime("%a"), "value": val})
 
-        # 3. Pipeline Breakdown
-        # Intake -> Data fusion -> Human review -> Policy -> Action
-        cnt_intake = session.scalar(select(func.count(intake_records.c.intake_id))) or 0
-        cnt_fusion = session.scalar(select(func.count(ingestion_runs.c.run_id))) or 0  # Proxy
-        cnt_review = session.scalar(select(func.count(review_queue.c.review_id))) or 0
-        cnt_action = session.scalar(select(func.count(review_actions.c.action_id))) or 0
+    # 3. Pipeline Breakdown
+    # Intake -> Data fusion -> Human review -> Policy -> Action
+    cnt_intake = session.scalar(select(func.count(intake_records.c.intake_id))) or 0
+    cnt_fusion = session.scalar(select(func.count(ingestion_runs.c.run_id))) or 0  # Proxy
+    cnt_review = session.scalar(select(func.count(review_queue.c.review_id))) or 0
+    cnt_action = session.scalar(select(func.count(review_actions.c.action_id))) or 0
 
-        pipeline = [
-            {"label": "Intake", "value": cnt_intake},
-            {"label": "Data fusion", "value": cnt_fusion},
-            {"label": "Human review", "value": cnt_review},
-            {"label": "Policy", "value": cnt_review},  # Proxy
-            {"label": "Action", "value": cnt_action},
-        ]
+    pipeline = [
+        {"label": "Intake", "value": cnt_intake},
+        {"label": "Data fusion", "value": cnt_fusion},
+        {"label": "Human review", "value": cnt_review},
+        {"label": "Policy", "value": cnt_review},  # Proxy
+        {"label": "Action", "value": cnt_action},
+    ]
 
-        # 4. Weekly Incidents (Last 5 weeks)
-        weekly = []
-        for i in range(4, -1, -1):  # 5 weeks
-            week_start = now - timedelta(weeks=i)
-            # Find start of week
-            start_of_week = week_start - timedelta(days=week_start.weekday())
-            next_week = start_of_week + timedelta(weeks=1)
+    # 4. Weekly Incidents (Last 5 weeks)
+    weekly = []
+    for i in range(4, -1, -1):  # 5 weeks
+        week_start = now - timedelta(weeks=i)
+        # Find start of week
+        start_of_week = week_start - timedelta(days=week_start.weekday())
+        next_week = start_of_week + timedelta(weeks=1)
 
-            incidents = (
-                session.scalar(
-                    select(func.count(cases.c.case_id))
-                    .where(cases.c.created_at >= start_of_week)
-                    .where(cases.c.created_at < next_week)
-                )
-                or 0
+        incidents = (
+            session.scalar(
+                select(func.count(cases.c.case_id))
+                .where(cases.c.created_at >= start_of_week)
+                .where(cases.c.created_at < next_week)
             )
+            or 0
+        )
 
-            interventions = (
-                session.scalar(
-                    select(func.count(review_actions.c.action_id))
-                    .where(review_actions.c.created_at >= start_of_week)
-                    .where(review_actions.c.created_at < next_week)
-                )
-                or 0
+        interventions = (
+            session.scalar(
+                select(func.count(review_actions.c.action_id))
+                .where(review_actions.c.created_at >= start_of_week)
+                .where(review_actions.c.created_at < next_week)
             )
+            or 0
+        )
 
-            week_label = f"W{start_of_week.isocalendar()[1]}"
-            weekly.append({"week": week_label, "incidents": incidents, "interventions": interventions})
+        week_label = f"W{start_of_week.isocalendar()[1]}"
+        weekly.append({"week": week_label, "incidents": incidents, "interventions": interventions})
 
-        # 5. Geography (Mock/Placeholder)
-        geography = [
-            {"region": "North America", "value": 0},
-            {"region": "Europe", "value": 0},
-            {"region": "LATAM", "value": 0},
-            {"region": "Asia-Pacific", "value": 0},
-            {"region": "Africa", "value": 0},
-        ]
+    # 5. Geography (Mock/Placeholder)
+    geography = [
+        {"region": "North America", "value": 0},
+        {"region": "Europe", "value": 0},
+        {"region": "LATAM", "value": 0},
+        {"region": "Asia-Pacific", "value": 0},
+        {"region": "Africa", "value": 0},
+    ]
 
-        return {
-            "metrics": metrics,
-            "detectionRateSeries": series,
-            "pipelineBreakdown": pipeline,
-            "geographyBreakdown": geography,
-            "weeklyIncidents": weekly,
-        }
+    return {
+        "metrics": metrics,
+        "detectionRateSeries": series,
+        "pipelineBreakdown": pipeline,
+        "geographyBreakdown": geography,
+        "weeklyIncidents": weekly,
+    }

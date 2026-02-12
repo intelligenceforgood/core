@@ -15,6 +15,7 @@ from i4g.pii.normalization import normalize
 from i4g.pii.observability import PiiVaultObservability
 from i4g.settings import Settings, get_settings
 from i4g.store.pii_token_store import PiiTokenStore, StoredToken
+from i4g.store.pii_token_store_sql import SqlAlchemyPiiTokenStore
 
 _TOKEN_PATTERN = re.compile(r"[A-Z]{3}-[0-9A-F]{8}")
 
@@ -52,7 +53,7 @@ class TokenizationService:
         self,
         *,
         settings: Settings | None = None,
-        store: PiiTokenStore | None = None,
+        store: PiiTokenStore | SqlAlchemyPiiTokenStore | None = None,
         observability: PiiVaultObservability | None = None,
         pepper: str | None = None,
         encryption_key: str | None = None,
