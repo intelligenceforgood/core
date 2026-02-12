@@ -20,6 +20,14 @@ This catalog is assembled by `i4g settings export-manifest` directly from `src/i
 
 | Section | Setting | Env Vars | Type | Default | Description |
 | --- | --- | --- | --- | --- | --- |
+| account_job | `account_job.categories` | `I4G_ACCOUNT_JOB__CATEGORIES`<br />`ACCOUNT_JOB_CATEGORIES`<br />`ACCOUNT_JOB__CATEGORIES` | `list[str]` | `[]` | Comma-separated fraud categories to include (e.g. bank,crypto,payments). |
+| account_job | `account_job.dry_run` | `I4G_ACCOUNT_JOB__DRY_RUN`<br />`ACCOUNT_JOB_DRY_RUN`<br />`ACCOUNT_JOB__DRY_RUN` | `bool` | `False` | Run extraction without persisting results. |
+| account_job | `account_job.end_time` | `I4G_ACCOUNT_JOB__END_TIME`<br />`ACCOUNT_JOB_END_TIME`<br />`ACCOUNT_JOB__END_TIME` | `str &#124; NoneType` | `None` | ISO-8601 end of the extraction window. Defaults to now (UTC). |
+| account_job | `account_job.include_sources` | `I4G_ACCOUNT_JOB__INCLUDE_SOURCES`<br />`ACCOUNT_JOB_INCLUDE_SOURCES`<br />`ACCOUNT_JOB__INCLUDE_SOURCES` | `bool` | `True` | Whether to include source evidence references in output. |
+| account_job | `account_job.output_formats` | `I4G_ACCOUNT_JOB__OUTPUT_FORMATS`<br />`ACCOUNT_JOB_OUTPUT_FORMATS`<br />`ACCOUNT_JOB__OUTPUT_FORMATS` | `list[str]` | `[]` | Comma-separated output formats (e.g. pdf,xlsx). Overrides account_list.default_formats. |
+| account_job | `account_job.start_time` | `I4G_ACCOUNT_JOB__START_TIME`<br />`ACCOUNT_JOB_START_TIME`<br />`ACCOUNT_JOB__START_TIME` | `str &#124; NoneType` | `None` | ISO-8601 start of the extraction window. Defaults to end_time minus window_days. |
+| account_job | `account_job.top_k` | `I4G_ACCOUNT_JOB__TOP_K`<br />`ACCOUNT_JOB_TOP_K`<br />`ACCOUNT_JOB__TOP_K` | `int` | `200` | Maximum number of accounts to extract per run. |
+| account_job | `account_job.window_days` | `I4G_ACCOUNT_JOB__WINDOW_DAYS`<br />`ACCOUNT_JOB_WINDOW_DAYS`<br />`ACCOUNT_JOB__WINDOW_DAYS` | `int` | `15` | Number of days in the extraction window when start_time is not set. |
 | account_list | `account_list.api_key` | `I4G_ACCOUNT_LIST__API_KEY`<br />`ACCOUNT_LIST_API_KEY`<br />`ACCOUNT_LIST__API_KEY` | `str &#124; NoneType` | `None` | Account list extraction configuration. |
 | account_list | `account_list.artifact_prefix` | `I4G_ACCOUNT_LIST__ARTIFACT_PREFIX`<br />`ACCOUNT_LIST_ARTIFACT_PREFIX`<br />`ACCOUNT_LIST__ARTIFACT_PREFIX` | `str` | `account_list` | Account list extraction configuration. |
 | account_list | `account_list.default_formats` | `I4G_ACCOUNT_LIST__DEFAULT_FORMATS`<br />`ACCOUNT_LIST_DEFAULT_FORMATS`<br />`ACCOUNT_LIST__DEFAULT_FORMATS` | `list[str]` | `[]` | Account list extraction configuration. |
@@ -55,6 +63,10 @@ This catalog is assembled by `i4g settings export-manifest` directly from `src/i
 | ingestion | `ingestion.reset_vector` | `I4G_INGESTION__RESET_VECTOR`<br />`INGEST_RESET_VECTOR`<br />`INGEST__RESET_VECTOR`<br />`INGESTION_RESET_VECTOR`<br />`INGESTION__RESET_VECTOR` | `bool` | `False` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.retry_delay_seconds` | `I4G_INGESTION__RETRY_DELAY_SECONDS`<br />`INGEST_RETRY_DELAY_SECONDS`<br />`INGEST__RETRY_DELAY_SECONDS`<br />`INGESTION_RETRY_DELAY_SECONDS`<br />`INGESTION__RETRY_DELAY_SECONDS` | `int` | `60` | Scheduler + job configuration for ingestion workflows. |
 | ingestion | `ingestion.scheduler_project` | `I4G_INGESTION__SCHEDULER_PROJECT`<br />`INGESTION_SCHEDULER_PROJECT`<br />`INGESTION__SCHEDULER_PROJECT` | `str &#124; NoneType` | `None` | Scheduler + job configuration for ingestion workflows. |
+| intake | `intake.api_base` | `I4G_INTAKE__API_BASE`<br />`INTAKE_API_BASE`<br />`INTAKE__API_BASE` | `str &#124; NoneType` | `None` | Base URL for the intake API (if processing via HTTP rather than direct service call). |
+| intake | `intake.api_key` | `I4G_INTAKE__API_KEY`<br />`INTAKE_API_KEY`<br />`INTAKE__API_KEY` | `str &#124; NoneType` | `None` | API key for authenticating intake API calls. Falls back to api.key. |
+| intake | `intake.id` | `I4G_INTAKE__ID`<br />`INTAKE_ID`<br />`INTAKE__ID` | `str &#124; NoneType` | `None` | Intake submission ID to process. |
+| intake | `intake.job_id` | `I4G_INTAKE__JOB_ID`<br />`INTAKE_JOB_ID`<br />`INTAKE__JOB_ID` | `str &#124; NoneType` | `None` | Intake job ID for tracking. |
 | llm | `llm.chat_model` | `I4G_LLM__CHAT_MODEL`<br />`LLM_CHAT_MODEL`<br />`LLM__CHAT_MODEL` | `str` | `llama3` | Primary model identifier (e.g. 'llama3', 'gemini-2.5-flash'). Used for all providers. |
 | llm | `llm.ollama_base_url` | `I4G_LLM__OLLAMA_BASE_URL`<br />`OLLAMA_BASE_URL`<br />`LLM__OLLAMA_BASE_URL` | `str` | `http://127.0.0.1:11434` | Large language model provider settings. |
 | llm | `llm.provider` | `I4G_LLM__PROVIDER`<br />`LLM_PROVIDER`<br />`LLM__PROVIDER` | `Literal['ollama', 'vertex_ai', 'mock']` | `ollama` | Large language model provider settings. |
@@ -86,6 +98,7 @@ This catalog is assembled by `i4g settings export-manifest` directly from `src/i
 | report | `report.recency_days` | `I4G_REPORT__RECENCY_DAYS`<br />`REPORT_RECENCY_DAYS`<br />`REPORT__RECENCY_DAYS` | `int` | `30` | Agentic dossier/report configuration. |
 | report | `report.require_cross_border` | `I4G_REPORT__REQUIRE_CROSS_BORDER`<br />`REPORT_REQUIRE_CROSS_BORDER`<br />`REPORT__REQUIRE_CROSS_BORDER` | `bool` | `False` | Agentic dossier/report configuration. |
 | report | `report.tool_timeout_seconds` | `I4G_REPORT__TOOL_TIMEOUT_SECONDS`<br />`REPORT_TOOL_TIMEOUT_SECONDS`<br />`REPORT__TOOL_TIMEOUT_SECONDS` | `float &#124; NoneType` | `None` | Per-tool timeout for LangChain dossier tools; None disables timeouts. |
+| runtime | `runtime.fallback_dir` | `I4G_RUNTIME__FALLBACK_DIR`<br />`RUNTIME_FALLBACK_DIR`<br />`RUNTIME__FALLBACK_DIR` | `Path` | `/tmp/i4g/evidence` | Fallback directory for local evidence storage when primary path is not writable. |
 | runtime | `runtime.log_level` | `I4G_RUNTIME__LOG_LEVEL`<br />`LOG_LEVEL`<br />`RUNTIME__LOG_LEVEL` | `str` | `INFO` | Process-level runtime controls. |
 | search | `search.classification_presets` | `I4G_SEARCH__CLASSIFICATION_PRESETS`<br />`SEARCH_CLASSIFICATION_PRESETS`<br />`SEARCH__CLASSIFICATION_PRESETS` | `list[str]` | `[]` | Hybrid search tuning parameters and schema presets. |
 | search | `search.dataset_presets` | `I4G_SEARCH__DATASET_PRESETS`<br />`SEARCH_DATASET_PRESETS`<br />`SEARCH__DATASET_PRESETS` | `list[str]` | `[]` | Hybrid search tuning parameters and schema presets. |

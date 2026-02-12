@@ -180,6 +180,11 @@ class RuntimeSettings(BaseSettings):
         default="INFO",
         validation_alias=AliasChoices("LOG_LEVEL", "RUNTIME__LOG_LEVEL"),
     )
+    fallback_dir: Path = Field(
+        default=Path("/tmp/i4g/evidence"),
+        validation_alias=AliasChoices("RUNTIME_FALLBACK_DIR", "RUNTIME__FALLBACK_DIR"),
+        description="Fallback directory for local evidence storage when primary path is not writable.",
+    )
 
 
 class APISettings(BaseSettings):
@@ -787,6 +792,89 @@ class ReportSettings(BaseSettings):
     )
 
 
+class AccountJobSettings(BaseSettings):
+    """Cloud Run job overrides for account list extraction.
+
+    These settings control scheduled account-list job behaviour and are typically
+    injected as env vars on the Cloud Run job container (``I4G_ACCOUNT_JOB__*``).
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    output_formats: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("ACCOUNT_JOB_OUTPUT_FORMATS", "ACCOUNT_JOB__OUTPUT_FORMATS"),
+        description="Comma-separated output formats (e.g. pdf,xlsx). Overrides account_list.default_formats.",
+    )
+    start_time: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ACCOUNT_JOB_START_TIME", "ACCOUNT_JOB__START_TIME"),
+        description="ISO-8601 start of the extraction window. Defaults to end_time minus window_days.",
+    )
+    end_time: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ACCOUNT_JOB_END_TIME", "ACCOUNT_JOB__END_TIME"),
+        description="ISO-8601 end of the extraction window. Defaults to now (UTC).",
+    )
+    window_days: int = Field(
+        default=15,
+        validation_alias=AliasChoices("ACCOUNT_JOB_WINDOW_DAYS", "ACCOUNT_JOB__WINDOW_DAYS"),
+        description="Number of days in the extraction window when start_time is not set.",
+    )
+    categories: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("ACCOUNT_JOB_CATEGORIES", "ACCOUNT_JOB__CATEGORIES"),
+        description="Comma-separated fraud categories to include (e.g. bank,crypto,payments).",
+    )
+    top_k: int = Field(
+        default=200,
+        validation_alias=AliasChoices("ACCOUNT_JOB_TOP_K", "ACCOUNT_JOB__TOP_K"),
+        description="Maximum number of accounts to extract per run.",
+    )
+    include_sources: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("ACCOUNT_JOB_INCLUDE_SOURCES", "ACCOUNT_JOB__INCLUDE_SOURCES"),
+        description="Whether to include source evidence references in output.",
+    )
+    dry_run: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("ACCOUNT_JOB_DRY_RUN", "ACCOUNT_JOB__DRY_RUN"),
+        description="Run extraction without persisting results.",
+    )
+
+
+class IntakeJobSettings(BaseSettings):
+    """Cloud Run job overrides for intake processing.
+
+    These settings are injected as env vars on the intake job container
+    (``I4G_INTAKE__*``). The ``id`` and ``job_id`` fields identify which
+    intake submission to process.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("INTAKE_ID", "INTAKE__ID"),
+        description="Intake submission ID to process.",
+    )
+    job_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("INTAKE_JOB_ID", "INTAKE__JOB_ID"),
+        description="Intake job ID for tracking.",
+    )
+    api_base: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("INTAKE_API_BASE", "INTAKE__API_BASE"),
+        description="Base URL for the intake API (if processing via HTTP rather than direct service call).",
+    )
+    api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("INTAKE_API_KEY", "INTAKE__API_KEY"),
+        description="API key for authenticating intake API calls. Falls back to api.key.",
+    )
+
+
 class Settings(BaseSettings):
     """Top-level configuration model with nested sections for each subsystem."""
 
@@ -814,6 +902,8 @@ class Settings(BaseSettings):
     ingestion: IngestionSettings = Field(default_factory=IngestionSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     account_list: AccountListSettings = Field(default_factory=AccountListSettings)
+    account_job: AccountJobSettings = Field(default_factory=AccountJobSettings)
+    intake: IntakeJobSettings = Field(default_factory=IntakeJobSettings)
     search: SearchSettings = Field(default_factory=SearchSettings)
     report: ReportSettings = Field(default_factory=ReportSettings)
     env_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)

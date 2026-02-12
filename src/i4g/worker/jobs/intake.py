@@ -14,6 +14,7 @@ from google.oauth2 import id_token
 
 from i4g.services.intake import IntakeService
 from i4g.services.intake_job_runner import LocalPipelineIntakeJobRunner
+from i4g.settings import get_settings
 
 LOGGER = logging.getLogger("i4g.worker.jobs.intake")
 
@@ -186,17 +187,24 @@ def main() -> int:
 
     _configure_logging()
 
-    intake_id = os.getenv("I4G_INTAKE__ID")
-    job_id = os.getenv("I4G_INTAKE__JOB_ID")
+    try:
+        settings = get_settings()
+    except Exception:
+        LOGGER.exception("Unable to load settings for intake job")
+        return 1
+
+    intake_cfg = settings.intake
+    intake_id = intake_cfg.id
+    job_id = intake_cfg.job_id
     if not intake_id or not job_id:
         LOGGER.error("Both I4G_INTAKE__ID and I4G_INTAKE__JOB_ID environment variables are required")
         return 1
 
     LOGGER.info("Processing intake job: intake_id=%s job_id=%s", intake_id, job_id)
 
-    api_base = os.getenv("I4G_INTAKE__API_BASE")
+    api_base = intake_cfg.api_base
     if api_base:
-        api_key = os.getenv("I4G_INTAKE__API_KEY") or os.getenv("I4G_API__KEY")
+        api_key = intake_cfg.api_key or settings.api.key
         return _process_via_api(intake_id, job_id, api_base, api_key)
 
     service = IntakeService()

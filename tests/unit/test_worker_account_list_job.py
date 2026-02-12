@@ -13,9 +13,20 @@ from i4g.worker.jobs import account_list as account_job
 def _settings(default_formats: list[str] | None = None, max_top_k: int = 250, env: str = "local") -> SimpleNamespace:
     return SimpleNamespace(
         env=env,
+        runtime=SimpleNamespace(log_level="INFO"),
         account_list=SimpleNamespace(
             default_formats=default_formats or ["pdf"],
             max_top_k=max_top_k,
+        ),
+        account_job=SimpleNamespace(
+            output_formats=[],
+            start_time=None,
+            end_time=None,
+            window_days=15,
+            categories=[],
+            top_k=200,
+            include_sources=True,
+            dry_run=False,
         ),
     )
 
@@ -36,15 +47,19 @@ def test_build_request_defaults(monkeypatch):
 
 
 def test_build_request_env_overrides(monkeypatch):
-    monkeypatch.setenv("I4G_ACCOUNT_JOB__START_TIME", "2025-11-01T00:00:00Z")
-    monkeypatch.setenv("I4G_ACCOUNT_JOB__END_TIME", "2025-11-15T12:00:00+00:00")
-    monkeypatch.setenv("I4G_ACCOUNT_JOB__WINDOW_DAYS", "10")
-    monkeypatch.setenv("I4G_ACCOUNT_JOB__CATEGORIES", "bank, crypto , payments")
-    monkeypatch.setenv("I4G_ACCOUNT_JOB__TOP_K", "999")
-    monkeypatch.setenv("I4G_ACCOUNT_JOB__INCLUDE_SOURCES", "false")
-    monkeypatch.setenv("I4G_ACCOUNT_JOB__OUTPUT_FORMATS", "csv,pdf")
+    settings = _settings(default_formats=[], max_top_k=500)
+    settings.account_job = SimpleNamespace(
+        output_formats=["csv", "pdf"],
+        start_time="2025-11-01T00:00:00Z",
+        end_time="2025-11-15T12:00:00+00:00",
+        window_days=10,
+        categories=["bank", "crypto", "payments"],
+        top_k=999,
+        include_sources=False,
+        dry_run=False,
+    )
 
-    request = account_job._build_request_from_env(_settings(default_formats=[], max_top_k=500))
+    request = account_job._build_request_from_env(settings)
 
     assert request.start_time == datetime(2025, 11, 1, 0, 0, tzinfo=timezone.utc)
     assert request.end_time == datetime(2025, 11, 15, 12, 0, tzinfo=timezone.utc)
@@ -65,8 +80,10 @@ def test_main_dry_run_skips_service(monkeypatch):
         output_formats=["pdf"],
     )
 
-    monkeypatch.setenv("I4G_ACCOUNT_JOB__DRY_RUN", "true")
-    monkeypatch.setattr(account_job, "get_settings", lambda: _settings())
+    monkeypatch.delenv("I4G_ACCOUNT_JOB__DRY_RUN", raising=False)
+    dry_settings = _settings()
+    dry_settings.account_job.dry_run = True
+    monkeypatch.setattr(account_job, "get_settings", lambda: dry_settings)
     monkeypatch.setattr(account_job, "_build_request_from_env", lambda settings: request)
 
     build_called = SimpleNamespace(value=False)

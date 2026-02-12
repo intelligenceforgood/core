@@ -9,15 +9,14 @@ from datetime import datetime, timedelta, timezone
 
 from i4g.services.account_list import AccountListRequest, AccountListResult, AccountListService, log_account_list_run
 from i4g.settings import Settings, get_settings
-from i4g.utils.coerce import env_bool, env_int, env_list
 from i4g.utils.datetime_parse import parse_datetime
 
 LOGGER = logging.getLogger("i4g.worker.jobs.account_list")
 _DEFAULT_FORMATS = ["xlsx", "pdf"]
 
 
-def _configure_logging() -> None:
-    level_name = os.getenv("I4G_RUNTIME__LOG_LEVEL", "INFO").upper()
+def _configure_logging(settings: Settings | None = None) -> None:
+    level_name = (settings.runtime.log_level if settings else os.getenv("I4G_RUNTIME__LOG_LEVEL", "INFO")).upper()
     level = getattr(logging, level_name, logging.INFO)
     logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
@@ -27,22 +26,10 @@ def _parse_datetime(value: str) -> datetime:  # noqa: D103 — thin wrapper arou
     return result.astimezone(timezone.utc)
 
 
-def _env_bool(name: str, default: bool) -> bool:  # noqa: D103 — re-export of shared env_bool
-    return env_bool(name, default)
-
-
-def _env_int(name: str, default: int) -> int:  # noqa: D103 — re-export of shared env_int
-    return env_int(name, default)
-
-
-def _env_list(name: str) -> list[str]:  # noqa: D103 — re-export of shared env_list
-    return env_list(name)
-
-
 def _resolve_formats(settings: Settings) -> list[str]:
-    formats = _env_list("I4G_ACCOUNT_JOB__OUTPUT_FORMATS")
-    if formats:
-        return formats
+    job = settings.account_job
+    if job.output_formats:
+        return job.output_formats
     if settings.account_list.default_formats:
         return [item.lower() for item in settings.account_list.default_formats if item]
     return list(_DEFAULT_FORMATS)
@@ -50,28 +37,24 @@ def _resolve_formats(settings: Settings) -> list[str]:
 
 def _build_request_from_env(settings: Settings, *, now: datetime | None = None) -> AccountListRequest:
     reference = now or datetime.now(timezone.utc)
+    job = settings.account_job
 
-    start_env = os.getenv("I4G_ACCOUNT_JOB__START_TIME")
-    end_env = os.getenv("I4G_ACCOUNT_JOB__END_TIME")
-    window_days = _env_int("I4G_ACCOUNT_JOB__WINDOW_DAYS", 15)
+    window_days = job.window_days
     if window_days <= 0:
         raise ValueError("I4G_ACCOUNT_JOB__WINDOW_DAYS must be positive")
 
-    end_time = _parse_datetime(end_env) if end_env else reference
-    start_time = _parse_datetime(start_env) if start_env else end_time - timedelta(days=window_days)
+    end_time = _parse_datetime(job.end_time) if job.end_time else reference
+    start_time = _parse_datetime(job.start_time) if job.start_time else end_time - timedelta(days=window_days)
 
-    categories = _env_list("I4G_ACCOUNT_JOB__CATEGORIES")
-    top_k_raw = _env_int("I4G_ACCOUNT_JOB__TOP_K", 200)
-    top_k = min(top_k_raw, settings.account_list.max_top_k)
-    include_sources = _env_bool("I4G_ACCOUNT_JOB__INCLUDE_SOURCES", True)
+    top_k = min(job.top_k, settings.account_list.max_top_k)
     output_formats = _resolve_formats(settings)
 
     return AccountListRequest(
         start_time=start_time,
         end_time=end_time,
-        categories=categories,
+        categories=job.categories,
         top_k=top_k,
-        include_sources=include_sources,
+        include_sources=job.include_sources,
         output_formats=output_formats,
     )
 
@@ -105,6 +88,7 @@ def main() -> int:
     except Exception:
         LOGGER.exception("Unable to load settings for account job")
         return 1
+    _configure_logging(settings)  # re-apply with loaded settings
     actor = f"account_job:{getattr(settings, 'env', 'unknown')}"
 
     try:
@@ -113,7 +97,7 @@ def main() -> int:
         LOGGER.error("Invalid account job configuration: %s", exc)
         return 1
 
-    dry_run = _env_bool("I4G_ACCOUNT_JOB__DRY_RUN", False)
+    dry_run = settings.account_job.dry_run
     LOGGER.info(
         "Starting account list job: top_k=%s window=%s→%s categories=%s formats=%s dry_run=%s",
         request.top_k,

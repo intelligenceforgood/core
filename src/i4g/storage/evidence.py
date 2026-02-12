@@ -51,7 +51,7 @@ class EvidenceStorage:
             try:
                 base_dir.mkdir(parents=True, exist_ok=True)
             except PermissionError:
-                fallback_dir = Path(os.getenv("I4G_RUNTIME__FALLBACK_DIR", "/tmp/i4g/evidence"))
+                fallback_dir = self._settings.runtime.fallback_dir
                 fallback_dir.mkdir(parents=True, exist_ok=True)
                 base_dir = fallback_dir
             self._local_dir = base_dir

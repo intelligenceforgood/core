@@ -431,3 +431,105 @@ def test_observability_statsd_env_overrides(monkeypatch: object) -> None:
     assert overridden.observability.statsd_port == 18125
     assert overridden.observability.statsd_prefix == "core"
     assert overridden.observability.service_name == "hybrid-search"
+
+
+# ── D66: AccountJobSettings ────────────────────────────────────────────
+
+
+def test_account_job_defaults(monkeypatch: object) -> None:
+    """Verify AccountJobSettings defaults when no env vars are set."""
+
+    for name in (
+        "I4G_ACCOUNT_JOB__WINDOW_DAYS",
+        "I4G_ACCOUNT_JOB__TOP_K",
+        "I4G_ACCOUNT_JOB__DRY_RUN",
+        "I4G_ACCOUNT_JOB__OUTPUT_FORMATS",
+        "I4G_ACCOUNT_JOB__CATEGORIES",
+        "I4G_ACCOUNT_JOB__INCLUDE_SOURCES",
+        "I4G_ACCOUNT_JOB__START_TIME",
+        "I4G_ACCOUNT_JOB__END_TIME",
+    ):
+        _clear_env(monkeypatch, name)
+
+    settings = reload_settings(env="dev")
+    assert settings.account_job.window_days == 15
+    assert settings.account_job.top_k == 200
+    assert settings.account_job.dry_run is False
+    assert settings.account_job.include_sources is True
+    assert settings.account_job.output_formats == []
+    assert settings.account_job.categories == []
+    assert settings.account_job.start_time is None
+    assert settings.account_job.end_time is None
+
+
+def test_account_job_env_overrides(monkeypatch: object) -> None:
+    """Verify AccountJobSettings respects env var overrides."""
+
+    _set_env(monkeypatch, "I4G_ACCOUNT_JOB__WINDOW_DAYS", "30")
+    _set_env(monkeypatch, "I4G_ACCOUNT_JOB__TOP_K", "50")
+    _set_env(monkeypatch, "I4G_ACCOUNT_JOB__DRY_RUN", "true")
+    _set_env(monkeypatch, "I4G_ACCOUNT_JOB__INCLUDE_SOURCES", "false")
+    _set_env(monkeypatch, "I4G_ACCOUNT_JOB__CATEGORIES", '["bank","crypto"]')
+
+    settings = reload_settings(env="dev")
+    assert settings.account_job.window_days == 30
+    assert settings.account_job.top_k == 50
+    assert settings.account_job.dry_run is True
+    assert settings.account_job.include_sources is False
+
+
+# ── D67: IntakeJobSettings ─────────────────────────────────────────────
+
+
+def test_intake_job_defaults(monkeypatch: object) -> None:
+    """Verify IntakeJobSettings defaults when no env vars are set."""
+
+    for name in (
+        "I4G_INTAKE__ID",
+        "I4G_INTAKE__JOB_ID",
+        "I4G_INTAKE__API_BASE",
+        "I4G_INTAKE__API_KEY",
+    ):
+        _clear_env(monkeypatch, name)
+
+    settings = reload_settings(env="dev")
+    assert settings.intake.id is None
+    assert settings.intake.job_id is None
+    assert settings.intake.api_base is None
+    assert settings.intake.api_key is None
+
+
+def test_intake_job_env_overrides(monkeypatch: object) -> None:
+    """Verify IntakeJobSettings respects env var overrides."""
+
+    _set_env(monkeypatch, "I4G_INTAKE__ID", "intake-123")
+    _set_env(monkeypatch, "I4G_INTAKE__JOB_ID", "job-456")
+    _set_env(monkeypatch, "I4G_INTAKE__API_BASE", "https://api.example.com")
+    _set_env(monkeypatch, "I4G_INTAKE__API_KEY", "secret-key")
+
+    settings = reload_settings(env="dev")
+    assert settings.intake.id == "intake-123"
+    assert settings.intake.job_id == "job-456"
+    assert settings.intake.api_base == "https://api.example.com"
+    assert settings.intake.api_key == "secret-key"
+
+
+# ── D67: RuntimeSettings fallback_dir ──────────────────────────────────
+
+
+def test_runtime_fallback_dir_default(monkeypatch: object) -> None:
+    """Verify runtime fallback_dir defaults to /tmp/i4g/evidence."""
+
+    _clear_env(monkeypatch, "I4G_RUNTIME__FALLBACK_DIR")
+
+    settings = reload_settings(env="dev")
+    assert settings.runtime.fallback_dir == Path("/tmp/i4g/evidence")
+
+
+def test_runtime_fallback_dir_override(monkeypatch: object, tmp_path: Path) -> None:
+    """Verify runtime fallback_dir respects env override."""
+
+    _set_env(monkeypatch, "I4G_RUNTIME__FALLBACK_DIR", str(tmp_path / "custom"))
+
+    settings = reload_settings(env="dev")
+    assert settings.runtime.fallback_dir == tmp_path / "custom"

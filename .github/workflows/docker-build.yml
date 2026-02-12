@@ -1,0 +1,88 @@
+name: Docker Build & Push
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "VERSION.txt"
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  REGISTRY_DEV: us-central1-docker.pkg.dev/${{ vars.GCP_DEV_PROJECT_ID }}/applications
+  REGISTRY_PROD: us-central1-docker.pkg.dev/${{ vars.GCP_PROD_PROJECT_ID }}/applications
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - fastapi
+          - account-job
+          - dossier-job
+          - ingest-job
+          - intake-job
+          - report-job
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: echo "value=$(cat VERSION.txt | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.TF_GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TF_GCP_SERVICE_ACCOUNT }}
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Create empty smoke data dir (production images don't include test data)
+      - name: Prepare build context
+        run: mkdir -p /tmp/empty-smoke-data
+
+      - name: Build and push (dev)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/${{ matrix.image }}.Dockerfile
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            SMOKER=false
+          build-contexts: |
+            smoke_data=/tmp/empty-smoke-data
+          tags: |
+            ${{ env.REGISTRY_DEV }}/${{ matrix.image }}:${{ steps.version.outputs.value }}
+            ${{ env.REGISTRY_DEV }}/${{ matrix.image }}:latest
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+      - name: Build and push (prod)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/${{ matrix.image }}.Dockerfile
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            SMOKER=false
+          build-contexts: |
+            smoke_data=/tmp/empty-smoke-data
+          tags: |
+            ${{ env.REGISTRY_PROD }}/${{ matrix.image }}:${{ steps.version.outputs.value }}
+            ${{ env.REGISTRY_PROD }}/${{ matrix.image }}:latest
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}

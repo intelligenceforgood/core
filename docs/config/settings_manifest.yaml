@@ -1,7 +1,80 @@
-generated_at: '2026-02-07T20:48:30.275585+00:00'
+generated_at: '2026-02-12T00:43:18.739673+00:00'
 source: src/i4g/settings/config.py
 env_prefix: I4G_
 fields:
+- path: account_job.categories
+  section: account_job
+  type: list[str]
+  default: []
+  env_vars:
+  - I4G_ACCOUNT_JOB__CATEGORIES
+  - ACCOUNT_JOB_CATEGORIES
+  - ACCOUNT_JOB__CATEGORIES
+  description: Comma-separated fraud categories to include (e.g. bank,crypto,payments).
+- path: account_job.dry_run
+  section: account_job
+  type: bool
+  default: false
+  env_vars:
+  - I4G_ACCOUNT_JOB__DRY_RUN
+  - ACCOUNT_JOB_DRY_RUN
+  - ACCOUNT_JOB__DRY_RUN
+  description: Run extraction without persisting results.
+- path: account_job.end_time
+  section: account_job
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_ACCOUNT_JOB__END_TIME
+  - ACCOUNT_JOB_END_TIME
+  - ACCOUNT_JOB__END_TIME
+  description: ISO-8601 end of the extraction window. Defaults to now (UTC).
+- path: account_job.include_sources
+  section: account_job
+  type: bool
+  default: true
+  env_vars:
+  - I4G_ACCOUNT_JOB__INCLUDE_SOURCES
+  - ACCOUNT_JOB_INCLUDE_SOURCES
+  - ACCOUNT_JOB__INCLUDE_SOURCES
+  description: Whether to include source evidence references in output.
+- path: account_job.output_formats
+  section: account_job
+  type: list[str]
+  default: []
+  env_vars:
+  - I4G_ACCOUNT_JOB__OUTPUT_FORMATS
+  - ACCOUNT_JOB_OUTPUT_FORMATS
+  - ACCOUNT_JOB__OUTPUT_FORMATS
+  description: Comma-separated output formats (e.g. pdf,xlsx). Overrides account_list.default_formats.
+- path: account_job.start_time
+  section: account_job
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_ACCOUNT_JOB__START_TIME
+  - ACCOUNT_JOB_START_TIME
+  - ACCOUNT_JOB__START_TIME
+  description: ISO-8601 start of the extraction window. Defaults to end_time minus
+    window_days.
+- path: account_job.top_k
+  section: account_job
+  type: int
+  default: 200
+  env_vars:
+  - I4G_ACCOUNT_JOB__TOP_K
+  - ACCOUNT_JOB_TOP_K
+  - ACCOUNT_JOB__TOP_K
+  description: Maximum number of accounts to extract per run.
+- path: account_job.window_days
+  section: account_job
+  type: int
+  default: 15
+  env_vars:
+  - I4G_ACCOUNT_JOB__WINDOW_DAYS
+  - ACCOUNT_JOB_WINDOW_DAYS
+  - ACCOUNT_JOB__WINDOW_DAYS
+  description: Number of days in the extraction window when start_time is not set.
 - path: account_list.api_key
   section: account_list
   type: str | NoneType
@@ -339,6 +412,43 @@ fields:
   - INGESTION_SCHEDULER_PROJECT
   - INGESTION__SCHEDULER_PROJECT
   description: Scheduler + job configuration for ingestion workflows.
+- path: intake.api_base
+  section: intake
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_INTAKE__API_BASE
+  - INTAKE_API_BASE
+  - INTAKE__API_BASE
+  description: Base URL for the intake API (if processing via HTTP rather than direct
+    service call).
+- path: intake.api_key
+  section: intake
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_INTAKE__API_KEY
+  - INTAKE_API_KEY
+  - INTAKE__API_KEY
+  description: API key for authenticating intake API calls. Falls back to api.key.
+- path: intake.id
+  section: intake
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_INTAKE__ID
+  - INTAKE_ID
+  - INTAKE__ID
+  description: Intake submission ID to process.
+- path: intake.job_id
+  section: intake
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_INTAKE__JOB_ID
+  - INTAKE_JOB_ID
+  - INTAKE__JOB_ID
+  description: Intake job ID for tracking.
 - path: llm.chat_model
   section: llm
   type: str
@@ -620,6 +730,16 @@ fields:
   - REPORT_TOOL_TIMEOUT_SECONDS
   - REPORT__TOOL_TIMEOUT_SECONDS
   description: Per-tool timeout for LangChain dossier tools; None disables timeouts.
+- path: runtime.fallback_dir
+  section: runtime
+  type: Path
+  default: /tmp/i4g/evidence
+  env_vars:
+  - I4G_RUNTIME__FALLBACK_DIR
+  - RUNTIME_FALLBACK_DIR
+  - RUNTIME__FALLBACK_DIR
+  description: Fallback directory for local evidence storage when primary path is
+    not writable.
 - path: runtime.log_level
   section: runtime
   type: str

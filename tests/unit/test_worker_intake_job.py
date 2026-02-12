@@ -12,12 +12,32 @@ def _reset_env(monkeypatch):
         monkeypatch.delenv(key, raising=False)
 
 
+def _mock_settings(
+    intake_id=None, job_id=None, api_base=None, api_key=None, api_global_key="dev-analyst-token",
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        env="local",
+        runtime=SimpleNamespace(log_level="INFO"),
+        api=SimpleNamespace(key=api_global_key),
+        intake=SimpleNamespace(
+            id=intake_id,
+            job_id=job_id,
+            api_base=api_base,
+            api_key=api_key,
+        ),
+    )
+
+
 def test_main_uses_api_when_configured(monkeypatch):
     _reset_env(monkeypatch)
-    monkeypatch.setenv("I4G_INTAKE__ID", "intake-123")
-    monkeypatch.setenv("I4G_INTAKE__JOB_ID", "job-123")
-    monkeypatch.setenv("I4G_INTAKE__API_BASE", "https://example.test/api/intakes")
-    monkeypatch.setenv("I4G_INTAKE__API_KEY", "secret")
+
+    settings = _mock_settings(
+        intake_id="intake-123",
+        job_id="job-123",
+        api_base="https://example.test/api/intakes",
+        api_key="secret",
+    )
+    monkeypatch.setattr(intake_job, "get_settings", lambda: settings)
 
     calls = SimpleNamespace(called=False, args=None)
 
@@ -35,8 +55,9 @@ def test_main_uses_api_when_configured(monkeypatch):
 
 def test_main_processes_locally_without_api(monkeypatch):
     _reset_env(monkeypatch)
-    monkeypatch.setenv("I4G_INTAKE__ID", "intake-456")
-    monkeypatch.setenv("I4G_INTAKE__JOB_ID", "job-456")
+
+    settings = _mock_settings(intake_id="intake-456", job_id="job-456")
+    monkeypatch.setattr(intake_job, "get_settings", lambda: settings)
 
     processed = SimpleNamespace(called=False, args=None)
 
