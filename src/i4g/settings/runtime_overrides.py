@@ -49,8 +49,16 @@ def resolve_paths(settings: Settings) -> Settings:
 
 
 def normalize_ingestion_paths(settings: Settings) -> None:
-    """Ensure ingestion paths resolve relative to the project root."""
+    """Ensure ingestion paths resolve relative to the project root.
+
+    GCS URIs (``gs://…``) are left untouched — they are not local paths.
+    """
     dataset_path = settings.ingestion.dataset_path
+
+    # GCS URIs must not be coerced into Path objects.
+    if isinstance(dataset_path, str) and dataset_path.startswith("gs://"):
+        return
+
     normalized = dataset_path
     if dataset_path and not isinstance(dataset_path, Path):
         normalized = Path(dataset_path)

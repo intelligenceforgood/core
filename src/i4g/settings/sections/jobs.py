@@ -58,7 +58,7 @@ class IngestionSettings(BaseSettings):
             "INGESTION__ENABLE_VECTOR",
         ),
     )
-    dataset_path: Path = Field(
+    dataset_path: str | Path = Field(
         default=PROJECT_ROOT / "data" / "retrieval_poc" / "cases.jsonl",
         validation_alias=AliasChoices(
             "INGEST_JSONL_PATH",

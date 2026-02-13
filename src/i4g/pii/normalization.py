@@ -1,41 +1,76 @@
+import logging
 import re
+
+LOGGER = logging.getLogger(__name__)
+
 
 class NormalizationError(ValueError):
     """Raised when a value cannot be normalized for the given type."""
 
+
 def normalize_email(value: str) -> str:
-    """
-    Normalize email address: lowercase, trim whitespace.
-    TODO: Punycode handling.
+    """Normalize email address: lowercase, trim, and encode IDN domains via Punycode.
+
+    International domain names (IDN) like ``user@münchen.de`` are converted to
+    their ASCII-compatible encoding (ACE) so that downstream HMAC digests are
+    deterministic regardless of the Unicode representation the caller supplies.
     """
     if not value:
         raise NormalizationError("Email cannot be empty")
-    
+
     value = value.strip().lower()
     if "@" not in value:
         raise NormalizationError(f"Invalid email format: {value}")
-    
-    return value
+
+    local, domain = value.rsplit("@", 1)
+    try:
+        # Encode each label independently so that mixed ASCII/IDN labels work.
+        ace_domain = ".".join(
+            label.encode("idna").decode("ascii") if not label.isascii() else label for label in domain.split(".")
+        )
+    except (UnicodeError, UnicodeDecodeError):
+        # If IDNA encoding fails, keep the original domain.
+        LOGGER.debug("IDNA encoding failed for domain '%s'; keeping original.", domain)
+        ace_domain = domain
+
+    return f"{local}@{ace_domain}"
+
 
 def normalize_phone(value: str) -> str:
-    """
-    Normalize phone number to E.164 format (basic implementation).
-    Strips non-digit characters (except leading +).
+    """Normalize phone number to E.164 format using ``python-phonenumbers``.
+
+    Falls back to basic digit stripping when the library is unavailable or
+    parsing fails.
     """
     if not value:
         raise NormalizationError("Phone number cannot be empty")
-    
-    # Remove all whitespace, parens, dashes
-    cleaned = re.sub(r'[^\d+]', '', value)
-    
+
+    try:
+        import phonenumbers
+
+        parsed = phonenumbers.parse(value, "US")  # default region for 10-digit numbers
+        if phonenumbers.is_valid_number(parsed):
+            return phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)
+    except ImportError:
+        LOGGER.debug("python-phonenumbers not installed; using basic normalization.")
+    except Exception:  # noqa: BLE001 — phonenumbers can raise NumberParseException
+        pass
+
+    # Fallback: strip non-digit chars (keep leading +)
+    cleaned = re.sub(r"[^\d+]", "", value)
     if not cleaned:
         raise NormalizationError(f"Invalid phone format: {value}")
-        
-    # Basic E.164 check (must start with + or be convertible)
-    # For now, we just return the cleaned version.
-    # TODO: Use python-phonenumbers for robust E.164 formatting
-    
     return cleaned
+
+
+def normalize_credit_card(value: str) -> str:
+    """Normalize credit card number: strip all non-digit characters."""
+    if not value:
+        raise NormalizationError("Credit card number cannot be empty")
+    digits = re.sub(r"[^\d]", "", value)
+    if not digits:
+        raise NormalizationError(f"Invalid credit card format: {value}")
+    return digits
 
 def normalize_name(value: str) -> str:
     """
@@ -70,17 +105,8 @@ NORMALIZERS = {
     "PHN": normalize_phone,
     "NAM": normalize_name,
     "TIN": normalize_tin,
+    "CCN": normalize_credit_card,
     "UNK": normalize_generic,
-    # Add other types mapping to generic or specific normalizers
-    "ADR": normalize_generic,
-    "DOB": normalize_generic,
-    "PID": normalize_generic,
-    "SID": normalize_generic,
-    "EMP": normalize_generic,
-    "ETX": normalize_generic,
-    "STX": normalize_generic,
-    "GOV": normalize_generic,
-    "CCN": normalize_generic, # Should probably strip spaces/dashes
     "BAN": normalize_generic,
     "IBN": normalize_generic,
     "RTN": normalize_generic,

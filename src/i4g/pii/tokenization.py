@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import logging
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -12,11 +13,15 @@ from collections.abc import Iterable, Mapping
 
 from cryptography.fernet import Fernet, InvalidToken
 
+from i4g.pii.detectors import PiiMatch, detect_all
+from i4g.pii.llm_detector import LlmPiiDetector
 from i4g.pii.normalization import normalize
 from i4g.pii.observability import PiiVaultObservability
 from i4g.settings import Settings, get_settings
 from i4g.store.pii_token_store import PiiTokenStore, StoredToken
 from i4g.store.pii_token_store_sql import SqlAlchemyPiiTokenStore
+
+LOGGER = logging.getLogger(__name__)
 
 _TOKEN_PATTERN = re.compile(r"[A-Z]{3}-[0-9A-F]{8}")
 
@@ -48,6 +53,35 @@ class TokenizationService:
         "name": "NAM",
         "address": "ADR",
         "dob": "DOB",
+        # Government / identity
+        "ssn": "TIN",
+        "tax_id": "TIN",
+        "tin": "TIN",
+        "passport": "PID",
+        "drivers_license": "SID",
+        "employee_id": "EMP",
+        "government_id": "GOV",
+        # Financial
+        "credit_card": "CCN",
+        "iban": "IBN",
+        "routing_number": "RTN",
+        "swift": "SWF",
+        "ach": "ACH",
+        "bitcoin": "BTC",
+        "ethereum": "ETH",
+        # Network / device
+        "mac_address": "MAC",
+        "device_id": "DID",
+        "cookie_id": "CID",
+        # Health
+        "health_id": "HID",
+        "medical_record": "MRN",
+        # Vehicle / legal
+        "vin": "VIN",
+        "license_plate": "LPL",
+        # Location
+        "location": "LOC",
+        "place": "PLC",
     }
 
     def __init__(
@@ -152,27 +186,70 @@ class TokenizationService:
         *,
         detector: str | None = None,
         case_id: str | None = None,
+        enable_llm: bool = True,
     ) -> str:
-        """Scan text for PII patterns and replace with tokens."""
+        """Scan text for PII patterns and replace with tokens.
+
+        **Hybrid pipeline (F3):**
+
+        1. Run all regex detectors (email, IPv4, SSN, phone, credit card,
+           DOB, address).  These are fast and high-precision.
+        2. Optionally invoke the LLM detector on the *residual* text
+           (spans not already claimed by regex) to catch contextual PII
+           such as "my social is nine one two …".
+
+        Replacement proceeds right-to-left so that span offsets remain
+        valid after prior substitutions.
+
+        Args:
+            text: Free-form text to scan.
+            detector: Override detector label for audit.
+            case_id: Optional case identifier.
+            enable_llm: If ``True`` (default), the LLM detector runs on
+                residual text when the provider is not ``mock``.
+        """
         if not text:
             return text
 
-        # Email
-        # Simple regex, can be improved
-        text = re.sub(
-            r"[\w\.-]+@[\w\.-]+\.\w+",
-            lambda m: self.tokenize(m.group(0), "EID", detector=detector, case_id=case_id).token,
-            text
-        )
+        # ---- Phase 1: regex detection ------------------------------------
+        regex_matches: list[PiiMatch] = detect_all(text)
 
-        # IPv4
-        text = re.sub(
-            r"\b(?:\d{1,3}\.){3}\d{1,3}\b",
-            lambda m: self.tokenize(m.group(0), "IPA", detector=detector, case_id=case_id).token,
-            text
-        )
+        # ---- Phase 2: LLM detection on residual text ---------------------
+        llm_matches: list[PiiMatch] = []
+        if enable_llm and self.settings.llm.provider != "mock":
+            try:
+                claimed_spans = [(m.start, m.end) for m in regex_matches]
+                llm_det = LlmPiiDetector(settings=self.settings)
+                llm_matches = llm_det.detect(text, already_detected_spans=claimed_spans)
+            except Exception:
+                LOGGER.exception("LLM PII detection failed; continuing with regex-only results.")
 
-        return text
+        # Merge and sort all matches right-to-left for safe replacement
+        all_matches = regex_matches + llm_matches
+        all_matches.sort(key=lambda m: m.start, reverse=True)
+
+        # ---- Phase 3: replace matches with tokens ------------------------
+        result = text
+        for match in all_matches:
+            det_label = detector or match.detector
+            token_result = self.tokenize(
+                match.value, match.prefix, detector=det_label, case_id=case_id
+            )
+            # Record detector confidence for observability / tuning
+            self.observability.record_detector_confidence(
+                detector=match.detector,
+                prefix=match.prefix,
+                confidence=match.confidence,
+                verdict="tokenized",
+                case_id=case_id,
+            )
+            if match.start >= 0 and match.end > match.start and match.end <= len(result):
+                result = result[: match.start] + token_result.token + result[match.end :]
+            else:
+                # Fallback for LLM matches without valid span: simple string replace
+                result = result.replace(match.value, token_result.token, 1)
+
+        return result
 
     def tokenize_tree(
         self,
@@ -222,10 +299,30 @@ class TokenizationService:
             return "IPA"
         if "wallet" in key_lower:
             return "WLT"
-        if "dob" in key_lower or "birth" in key_lower:
+        if "dob" in key_lower or "birth" in key_lower or "date_of_birth" in key_lower:
             return "DOB"
-        if "ssn" in key_lower or "tax_id" in key_lower:
+        if "ssn" in key_lower or "tax_id" in key_lower or "social_security" in key_lower:
             return "TIN"
+        if "credit_card" in key_lower or "card_number" in key_lower or "cc_num" in key_lower:
+            return "CCN"
+        if "address" in key_lower or "street" in key_lower:
+            return "ADR"
+        if "name" in key_lower and "file" not in key_lower:
+            return "NAM"
+        if "passport" in key_lower:
+            return "PID"
+        if "license" in key_lower and "plate" not in key_lower:
+            return "SID"
+        if "license_plate" in key_lower:
+            return "LPL"
+        if "vin" in key_lower and "province" not in key_lower:
+            return "VIN"
+        if "iban" in key_lower:
+            return "IBN"
+        if "routing" in key_lower:
+            return "RTN"
+        if "mac_address" in key_lower or key_lower == "mac":
+            return "MAC"
 
         return "UNK"
 

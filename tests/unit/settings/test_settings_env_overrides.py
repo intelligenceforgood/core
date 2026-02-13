@@ -533,3 +533,15 @@ def test_runtime_fallback_dir_override(monkeypatch: object, tmp_path: Path) -> N
 
     settings = reload_settings(env="dev")
     assert settings.runtime.fallback_dir == tmp_path / "custom"
+
+
+def test_gcs_dataset_path_preserved(monkeypatch: object) -> None:
+    """GCS URIs (gs://…) must not be coerced into local Path objects."""
+
+    gcs_uri = "gs://i4g-dev-data-bundles/2025-12-17/legacy_azure/search_exports/vertex"
+    _clear_env(monkeypatch, "I4G_INGEST__JSONL_PATH", "I4G_ENV")
+    _set_env(monkeypatch, "I4G_ENV", "dev")
+    _set_env(monkeypatch, "I4G_INGEST__JSONL_PATH", gcs_uri)
+
+    settings = reload_settings(env="dev")
+    assert str(settings.ingestion.dataset_path) == gcs_uri

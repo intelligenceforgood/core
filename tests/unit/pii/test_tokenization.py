@@ -87,16 +87,92 @@ def test_tokenize_tree(service):
     assert result["list"][0]["ip_address"].startswith("IPA-")
     assert result["list"][1] == "not-pii"
 
-def test_tokenize_text_content(service):
+def test_tokenize_text_content_email_and_ip(service):
+    """Original test: email + IPv4 detection still works."""
     text = "Contact me at test@example.com or 192.168.1.1 for info."
     
-    result = service.tokenize_text_content(text)
+    result = service.tokenize_text_content(text, enable_llm=False)
     
     assert "test@example.com" not in result
     assert "192.168.1.1" not in result
     assert "EID-" in result
     assert "IPA-" in result
     assert "Contact me at " in result
+
+
+def test_tokenize_text_content_ssn(service):
+    """F1: SSN detection in free text."""
+    text = "My SSN is 123-45-6789 and that's private."
+    result = service.tokenize_text_content(text, enable_llm=False)
+
+    assert "123-45-6789" not in result
+    assert "TIN-" in result
+
+
+def test_tokenize_text_content_credit_card(service):
+    """F1: Credit card detection (Luhn-valid number)."""
+    text = "Charge card 4111 1111 1111 1111 please."
+    result = service.tokenize_text_content(text, enable_llm=False)
+
+    assert "4111 1111 1111 1111" not in result
+    assert "CCN-" in result
+
+
+def test_tokenize_text_content_dob(service):
+    """F1: Date of birth detection."""
+    text = "Born on 1990-05-15. Happy birthday!"
+    result = service.tokenize_text_content(text, enable_llm=False)
+
+    assert "1990-05-15" not in result
+    assert "DOB-" in result
+
+
+def test_tokenize_text_content_phone(service):
+    """F1: Phone number detection."""
+    text = "Call me at (555) 012-3456 anytime."
+    result = service.tokenize_text_content(text, enable_llm=False)
+
+    assert "(555) 012-3456" not in result
+    assert "PHN-" in result
+
+
+def test_tokenize_text_content_address(service):
+    """F6: Street address detection."""
+    text = "I live at 123 Main Street in Springfield."
+    result = service.tokenize_text_content(text, enable_llm=False)
+
+    assert "123 Main Street" not in result
+    assert "ADR-" in result
+
+
+def test_tokenize_text_content_mixed(service):
+    """Multiple PII types in a single text."""
+    text = (
+        "Name: John Doe, SSN: 123-45-6789, "
+        "Email: john@example.com, "
+        "IP: 10.0.0.1, "
+        "Card: 4111 1111 1111 1111"
+    )
+    result = service.tokenize_text_content(text, enable_llm=False)
+
+    assert "123-45-6789" not in result
+    assert "john@example.com" not in result
+    assert "10.0.0.1" not in result
+    assert "4111 1111 1111 1111" not in result
+
+
+def test_tokenize_text_content_empty(service):
+    """Empty text returns empty string."""
+    assert service.tokenize_text_content("", enable_llm=False) == ""
+    assert service.tokenize_text_content(None, enable_llm=False) is None
+
+
+def test_tokenize_text_content_no_pii(service):
+    """Text without PII is returned unchanged."""
+    text = "This is a normal sentence without any sensitive data."
+    result = service.tokenize_text_content(text, enable_llm=False)
+    assert result == text
+
 
 def test_detokenize(service, mock_store):
     mock_token_record = MagicMock()
@@ -112,3 +188,50 @@ def test_is_token():
     assert TokenizationService.is_token("EID-1A2B3C4D")
     assert not TokenizationService.is_token("invalid")
     assert not TokenizationService.is_token("EID-123") # Too short
+
+
+# ---------------------------------------------------------------------------
+# F7: Prefix catalog coverage
+# ---------------------------------------------------------------------------
+
+
+class TestPrefixCatalog:
+    """Verify the entity-prefix map covers all active TDD prefixes."""
+
+    EXPECTED_PREFIXES = {
+        "EID", "PHN", "IPA", "ASN", "BAN", "WLT", "DOC", "BFP", "NAM", "ADR",
+        "DOB", "TIN", "PID", "SID", "EMP", "GOV", "CCN", "IBN", "RTN", "SWF",
+        "ACH", "BTC", "ETH", "MAC", "DID", "CID", "HID", "MRN", "VIN", "LPL",
+        "LOC", "PLC",
+    }
+
+    def test_entity_prefix_map_coverage(self):
+        mapped_prefixes = set(TokenizationService._ENTITY_PREFIX_MAP.values())
+        missing = self.EXPECTED_PREFIXES - mapped_prefixes
+        assert not missing, f"Missing prefixes in _ENTITY_PREFIX_MAP: {missing}"
+
+    def test_infer_prefix_variations(self):
+        svc = TokenizationService.__new__(TokenizationService)
+        # Verify key-name heuristics work for common field names
+        cases = {
+            "email_address": "EID",
+            "phone_number": "PHN",
+            "mobile": "PHN",
+            "ip_address": "IPA",
+            "ssn": "TIN",
+            "social_security": "TIN",
+            "credit_card": "CCN",
+            "card_number": "CCN",
+            "home_address": "ADR",
+            "street_address": "ADR",
+            "date_of_birth": "DOB",
+            "passport": "PID",
+            "drivers_license": "SID",
+            "license_plate": "LPL",
+            "mac_address": "MAC",
+            "iban": "IBN",
+            "routing_number": "RTN",
+        }
+        for key, expected_prefix in cases.items():
+            result = svc._infer_prefix(key)
+            assert result == expected_prefix, f"_infer_prefix('{key}') = '{result}', expected '{expected_prefix}'"

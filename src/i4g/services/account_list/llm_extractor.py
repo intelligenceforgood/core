@@ -9,6 +9,7 @@ from collections.abc import Iterable
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from i4g.patterns import BTC_ALL_RE, EMAIL_RE, ETH_WALLET_RE
 from i4g.settings import Settings, get_settings
 
 from .models import FinancialIndicator, SourceDocument
@@ -126,14 +127,14 @@ class AccountEntityExtractor:
 
         elif query.slug == "crypto":
             # Bitcoin (legacy & bech32)
-            for match in re.findall(r"\b(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}\b", text):
+            for match in BTC_ALL_RE.findall(text):
                 _add("Bitcoin Wallet", "crypto_wallet", match)
             # Ethereum
-            for match in re.findall(r"\b0x[a-fA-F0-9]{40}\b", text):
+            for match in ETH_WALLET_RE.findall(text):
                 _add("Ethereum Wallet", "crypto_wallet", match)
 
         elif query.slug == "payments":
-            for email in re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", text):
+            for email in EMAIL_RE.findall(text):
                 # Filter out likely false positives if needed
                 label = "PayPal" if "paypal" in email.lower() else "Payment Handle"
                 _add(label, "payment_service", email)

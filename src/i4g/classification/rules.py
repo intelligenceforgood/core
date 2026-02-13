@@ -2,24 +2,20 @@ import re
 from i4g.taxonomy.models import ScoredLabel
 from i4g.taxonomy.enums import RequestedAction, DeliveryChannel
 
-# Regex Patterns
-# Note: These are simplified patterns for demonstration. 
-# Production systems would use more robust libraries or patterns.
+from i4g.patterns import (
+    BTC_ALL_RE,
+    EMAIL_RE,
+    ETH_WALLET_RE,
+    PHONE_RE,
+    URL_RE,
+)
 
-# Bitcoin (Legacy, Segwit, Bech32)
-BTC_PATTERN = r"\b(bc1|[13])[a-zA-HJ-NP-Z0-9]{25,39}\b"
-# Ethereum (0x + 40 hex chars)
-ETH_PATTERN = r"\b0x[a-fA-F0-9]{40}\b"
-
-# URLs (http/https)
-URL_PATTERN = r"https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+"
-
-# Phone Numbers (US-centric but flexible)
-# Matches: 123-456-7890, (123) 456-7890, 123.456.7890, +1 123 456 7890
-PHONE_PATTERN = r"(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}"
-
-# Email Addresses
-EMAIL_PATTERN = r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
+# Re-export compiled patterns under the original names for backward compatibility.
+BTC_PATTERN = BTC_ALL_RE
+ETH_PATTERN = ETH_WALLET_RE
+URL_PATTERN = URL_RE
+PHONE_PATTERN = PHONE_RE
+EMAIL_PATTERN = EMAIL_RE
 
 
 def detect_signals(text: str) -> dict[str, list[ScoredLabel]]:
@@ -35,7 +31,7 @@ def detect_signals(text: str) -> dict[str, list[ScoredLabel]]:
     }
     
     # Crypto Detection
-    if re.search(BTC_PATTERN, text) or re.search(ETH_PATTERN, text):
+    if BTC_ALL_RE.search(text) or ETH_WALLET_RE.search(text):
         signals["actions"].append(
             ScoredLabel(
                 label=RequestedAction.CRYPTO.value,
@@ -45,7 +41,7 @@ def detect_signals(text: str) -> dict[str, list[ScoredLabel]]:
         )
 
     # URL Detection
-    if re.search(URL_PATTERN, text):
+    if URL_RE.search(text):
         signals["actions"].append(
             ScoredLabel(
                 label=RequestedAction.CLICK_LINK.value,
@@ -55,7 +51,7 @@ def detect_signals(text: str) -> dict[str, list[ScoredLabel]]:
         )
 
     # Phone Number Detection
-    if re.search(PHONE_PATTERN, text):
+    if PHONE_RE.search(text):
         signals["channel"].append(
             ScoredLabel(
                 label=DeliveryChannel.PHONE.value,
@@ -65,7 +61,7 @@ def detect_signals(text: str) -> dict[str, list[ScoredLabel]]:
         )
 
     # Email Detection
-    if re.search(EMAIL_PATTERN, text):
+    if EMAIL_RE.search(text):
         signals["channel"].append(
             ScoredLabel(
                 label=DeliveryChannel.EMAIL.value,

@@ -7,32 +7,34 @@ useful entities (wallet addresses, URLs, crypto terms, etc.).
 
 import re
 
+from i4g.patterns import (
+    BTC_BECH32_RE,
+    BTC_LEGACY_RE,
+    ETH_WALLET_RE,
+    PHONE_RE,
+    TELEGRAM_RE,
+    URL_FULL_RE,
+    WHATSAPP_RE,
+)
+
 
 def extract_wallets(text: str) -> list[str]:
     """Find crypto wallet addresses (Ethereum, BTC, etc.)."""
-    patterns = [
-        r"0x[a-fA-F0-9]{40}",  # Ethereum
-        r"bc1[a-zA-HJ-NP-Z0-9]{25,39}",  # Bitcoin bech32
-        r"[13][a-km-zA-HJ-NP-Z1-9]{25,34}",  # Bitcoin legacy
-    ]
-    wallets = []
-    for pat in patterns:
-        wallets.extend(re.findall(pat, text))
+    wallets = ETH_WALLET_RE.findall(text) + BTC_BECH32_RE.findall(text) + BTC_LEGACY_RE.findall(text)
     return list(set(wallets))
 
 
 def extract_urls(text: str) -> list[str]:
     """Find URLs or Telegram/WhatsApp links."""
-    urls = re.findall(r"(https?://[^\s]+)", text)
-    tgram = re.findall(r"t\.me/[A-Za-z0-9_]+", text)
-    wa = re.findall(r"wa\.me/\d+", text)
+    urls = URL_FULL_RE.findall(text)
+    tgram = TELEGRAM_RE.findall(text)
+    wa = WHATSAPP_RE.findall(text)
     return list(set(urls + tgram + wa))
 
 
 def extract_phone_numbers(text: str) -> list[str]:
     """Find phone numbers."""
-    phone_pattern = re.compile(r"(\+?\d{1,2}[-.\s]??\(?\d{2,4}\)?[-.\s]??\d{3,4}[-.\s]??\d{3,4})")
-    return list(set(phone_pattern.findall(text)))
+    return list(set(PHONE_RE.findall(text)))
 
 
 def extract_names(text: str) -> list[str]:
