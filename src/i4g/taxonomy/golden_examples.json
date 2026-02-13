@@ -3,51 +3,276 @@
     "input": "URGENT: Your Wells Fargo account has been locked due to suspicious activity. Click here to verify your identity: http://bit.ly/fake-link",
     "output": {
       "intent": [
-        {
-          "label": "INTENT.IMPOSTER",
-          "confidence": 0.95,
-          "explanation": "The sender is pretending to be Wells Fargo."
-        }
+        {"label": "INTENT.IMPOSTER", "confidence": 0.95, "explanation": "Pretending to be Wells Fargo."}
       ],
       "channel": [
-        {
-          "label": "CHANNEL.SMS",
-          "confidence": 1.0,
-          "explanation": "Short message with a link, typical of SMS phishing."
-        }
+        {"label": "CHANNEL.SMS", "confidence": 1.0, "explanation": "Short message with a link, typical of SMS phishing."}
       ],
       "techniques": [
-        {
-          "label": "SE.URGENCY",
-          "confidence": 0.9,
-          "explanation": "Uses 'URGENT' and 'locked' to create panic."
-        },
-        {
-          "label": "SE.AUTHORITY",
-          "confidence": 0.8,
-          "explanation": "Impersonates a bank (Wells Fargo)."
-        }
+        {"label": "SE.URGENCY", "confidence": 0.9, "explanation": "Uses 'URGENT' and 'locked' to create panic."},
+        {"label": "SE.AUTHORITY", "confidence": 0.8, "explanation": "Impersonates a bank."}
       ],
       "actions": [
-        {
-          "label": "ACTION.CLICK_LINK",
-          "confidence": 1.0,
-          "explanation": "Explicitly asks to 'Click here'."
-        },
-        {
-          "label": "ACTION.CREDENTIALS",
-          "confidence": 0.8,
-          "explanation": "Implied goal of 'verifying identity' on a fake site."
-        }
+        {"label": "ACTION.CLICK_LINK", "confidence": 1.0, "explanation": "Asks to 'Click here'."},
+        {"label": "ACTION.CREDENTIALS", "confidence": 0.8, "explanation": "Goal is 'verifying identity' on a fake site."}
       ],
       "persona": [
-        {
-          "label": "PERSONA.BANK",
-          "confidence": 1.0,
-          "explanation": "Claims to be Wells Fargo."
-        }
+        {"label": "PERSONA.BANK", "confidence": 1.0, "explanation": "Claims to be Wells Fargo."}
       ],
       "risk_score": 90.0,
+      "taxonomy_version": "1.0"
+    }
+  },
+  {
+    "input": "Hey grandma, it's me! I'm stuck in Mexico and lost my wallet. Can you wire $2,000 to this Western Union? Please don't tell mom. I'm scared.",
+    "output": {
+      "intent": [
+        {"label": "INTENT.IMPOSTER", "confidence": 0.95, "explanation": "Impersonating a grandchild to extract money."}
+      ],
+      "channel": [
+        {"label": "CHANNEL.PHONE", "confidence": 0.85, "explanation": "Grandparent scams are typically delivered by phone."}
+      ],
+      "techniques": [
+        {"label": "SE.URGENCY", "confidence": 0.9, "explanation": "Emergency scenario requiring immediate action."},
+        {"label": "SE.FEAR", "confidence": 0.8, "explanation": "'Stuck in Mexico' and 'scared' create fear."}
+      ],
+      "actions": [
+        {"label": "ACTION.SEND_MONEY", "confidence": 1.0, "explanation": "Asks to wire $2,000 via Western Union."}
+      ],
+      "persona": [
+        {"label": "PERSONA.GOVERNMENT", "confidence": 0.1, "explanation": "No government claim."}
+      ],
+      "risk_score": 85.0,
+      "taxonomy_version": "1.0"
+    }
+  },
+  {
+    "input": "Guaranteed 20% weekly returns on our exclusive crypto platform! Join now with a minimum deposit of 0.5 BTC to wallet bc1q...xyz. Limited spots available!",
+    "output": {
+      "intent": [
+        {"label": "INTENT.INVESTMENT", "confidence": 0.95, "explanation": "Promises unrealistic returns on crypto."}
+      ],
+      "channel": [
+        {"label": "CHANNEL.SOCIAL", "confidence": 0.7, "explanation": "Crypto scams spread via social media."}
+      ],
+      "techniques": [
+        {"label": "SE.SCARCITY", "confidence": 0.85, "explanation": "'Limited spots available' creates scarcity."},
+        {"label": "SE.URGENCY", "confidence": 0.7, "explanation": "'Join now' implies time pressure."}
+      ],
+      "actions": [
+        {"label": "ACTION.CRYPTO", "confidence": 1.0, "explanation": "Asks to deposit BTC."}
+      ],
+      "persona": [
+        {"label": "PERSONA.MARKETPLACE", "confidence": 0.6, "explanation": "Presents as an investment platform."}
+      ],
+      "risk_score": 88.0,
+      "taxonomy_version": "1.0"
+    }
+  },
+  {
+    "input": "I've been talking to this wonderful man online for 3 months. He says he's a US Army soldier deployed in Syria. He wants to come visit me but needs $5,000 for leave paperwork.",
+    "output": {
+      "intent": [
+        {"label": "INTENT.ROMANCE", "confidence": 0.95, "explanation": "Classic romance scam with fabricated relationship."}
+      ],
+      "channel": [
+        {"label": "CHANNEL.SOCIAL", "confidence": 0.8, "explanation": "Online relationship via social/dating platform."}
+      ],
+      "techniques": [
+        {"label": "SE.TRUST_BUILDING", "confidence": 0.95, "explanation": "3 months of rapport building."},
+        {"label": "SE.AUTHORITY", "confidence": 0.6, "explanation": "Claims military authority."}
+      ],
+      "actions": [
+        {"label": "ACTION.SEND_MONEY", "confidence": 0.95, "explanation": "Requests $5,000 for leave paperwork."}
+      ],
+      "persona": [
+        {"label": "PERSONA.ROMANTIC", "confidence": 1.0, "explanation": "Poses as romantic interest / deployed soldier."}
+      ],
+      "risk_score": 82.0,
+      "taxonomy_version": "1.0"
+    }
+  },
+  {
+    "input": "Congratulations! You have been selected as the winner of our $500,000 International Lottery! To claim your prize, please pay a $200 processing fee via iTunes gift cards.",
+    "output": {
+      "intent": [
+        {"label": "INTENT.PRIZE", "confidence": 0.95, "explanation": "Fake lottery requiring advance fee."}
+      ],
+      "channel": [
+        {"label": "CHANNEL.EMAIL", "confidence": 0.8, "explanation": "Lottery scams commonly sent via email."}
+      ],
+      "techniques": [
+        {"label": "SE.RECIPROCITY", "confidence": 0.7, "explanation": "Offering a 'prize' to justify payment."}
+      ],
+      "actions": [
+        {"label": "ACTION.GIFT_CARDS", "confidence": 1.0, "explanation": "Requests iTunes gift cards."}
+      ],
+      "persona": [
+        {"label": "PERSONA.GOVERNMENT", "confidence": 0.3, "explanation": "Loosely presents as official lottery."}
+      ],
+      "risk_score": 75.0,
+      "taxonomy_version": "1.0"
+    }
+  },
+  {
+    "input": "ALERT: We detected a virus on your computer. Call Microsoft Support immediately at 1-800-555-0199. Install TeamViewer so our technician can help.",
+    "output": {
+      "intent": [
+        {"label": "INTENT.TECH_SUPPORT", "confidence": 0.95, "explanation": "Fake tech support claiming virus detected."}
+      ],
+      "channel": [
+        {"label": "CHANNEL.WEB", "confidence": 0.85, "explanation": "Browser pop-up warning."}
+      ],
+      "techniques": [
+        {"label": "SE.FEAR", "confidence": 0.9, "explanation": "'Virus detected' creates alarm."},
+        {"label": "SE.AUTHORITY", "confidence": 0.85, "explanation": "Impersonates Microsoft Support."},
+        {"label": "SE.URGENCY", "confidence": 0.8, "explanation": "'Call immediately' creates urgency."}
+      ],
+      "actions": [
+        {"label": "ACTION.INSTALL", "confidence": 1.0, "explanation": "Asks to install TeamViewer."}
+      ],
+      "persona": [
+        {"label": "PERSONA.TECH", "confidence": 1.0, "explanation": "Claims to be Microsoft Support."}
+      ],
+      "risk_score": 80.0,
+      "taxonomy_version": "1.0"
+    }
+  },
+  {
+    "input": "Earn $5,000/week working from home! No experience needed. Process payments through your personal bank account. Send your bank details and a photo of your ID to get started.",
+    "output": {
+      "intent": [
+        {"label": "INTENT.EMPLOYMENT", "confidence": 0.95, "explanation": "Fake job offer recruiting a money mule."}
+      ],
+      "channel": [
+        {"label": "CHANNEL.EMAIL", "confidence": 0.7, "explanation": "Job scam offers commonly sent via email."}
+      ],
+      "techniques": [
+        {"label": "SE.RECIPROCITY", "confidence": 0.6, "explanation": "Promising high pay for easy work."}
+      ],
+      "actions": [
+        {"label": "ACTION.CREDENTIALS", "confidence": 0.9, "explanation": "Requests bank details."},
+        {"label": "ACTION.PROVIDE_PII", "confidence": 0.95, "explanation": "Requests photo of personal ID."}
+      ],
+      "persona": [
+        {"label": "PERSONA.EMPLOYER", "confidence": 0.95, "explanation": "Poses as recruiter offering employment."}
+      ],
+      "risk_score": 78.0,
+      "taxonomy_version": "1.0"
+    }
+  },
+  {
+    "input": "I have recorded you through your webcam. Send 0.5 BTC to this wallet within 48 hours or I will send the video to all your contacts.",
+    "output": {
+      "intent": [
+        {"label": "INTENT.EXTORTION", "confidence": 0.98, "explanation": "Sextortion threatening to expose material."}
+      ],
+      "channel": [
+        {"label": "CHANNEL.EMAIL", "confidence": 0.9, "explanation": "Sextortion emails are common delivery method."}
+      ],
+      "techniques": [
+        {"label": "SE.FEAR", "confidence": 0.95, "explanation": "Threatens to expose sensitive material."},
+        {"label": "SE.URGENCY", "confidence": 0.9, "explanation": "'Within 48 hours' creates deadline."}
+      ],
+      "actions": [
+        {"label": "ACTION.CRYPTO", "confidence": 1.0, "explanation": "Demands 0.5 BTC."}
+      ],
+      "persona": [
+        {"label": "PERSONA.GOVERNMENT", "confidence": 0.1, "explanation": "No government impersonation."}
+      ],
+      "risk_score": 95.0,
+      "taxonomy_version": "1.0"
+    }
+  },
+  {
+    "input": "PS5 for only $150! Brand new sealed box. Payment through Zelle Friends & Family only. Will ship after payment confirmed. No returns.",
+    "output": {
+      "intent": [
+        {"label": "INTENT.SHOPPING", "confidence": 0.9, "explanation": "Too-good-to-be-true price on electronics."}
+      ],
+      "channel": [
+        {"label": "CHANNEL.SOCIAL", "confidence": 0.8, "explanation": "Marketplace listing on social platform."}
+      ],
+      "techniques": [
+        {"label": "SE.SCARCITY", "confidence": 0.7, "explanation": "Implied limited availability at steep discount."}
+      ],
+      "actions": [
+        {"label": "ACTION.SEND_MONEY", "confidence": 0.95, "explanation": "Zelle Friends & Family (no buyer protection)."}
+      ],
+      "persona": [
+        {"label": "PERSONA.MARKETPLACE", "confidence": 0.9, "explanation": "Poses as marketplace seller."}
+      ],
+      "risk_score": 60.0,
+      "taxonomy_version": "1.0"
+    }
+  },
+  {
+    "input": "URGENT: Donate now to help earthquake victims! Send crypto to help immediately. Every dollar counts. Share this message to save lives!",
+    "output": {
+      "intent": [
+        {"label": "INTENT.CHARITY", "confidence": 0.9, "explanation": "Exploits disaster to solicit fraudulent donations."}
+      ],
+      "channel": [
+        {"label": "CHANNEL.SOCIAL", "confidence": 0.8, "explanation": "Charity scams go viral on social media."}
+      ],
+      "techniques": [
+        {"label": "SE.URGENCY", "confidence": 0.9, "explanation": "'URGENT' and 'Donate now' create time pressure."},
+        {"label": "SE.RECIPROCITY", "confidence": 0.6, "explanation": "Appeals to goodwill."}
+      ],
+      "actions": [
+        {"label": "ACTION.CRYPTO", "confidence": 0.9, "explanation": "Crypto donations to unverified address."}
+      ],
+      "persona": [
+        {"label": "PERSONA.CHARITY", "confidence": 0.9, "explanation": "Poses as disaster relief organization."}
+      ],
+      "risk_score": 65.0,
+      "taxonomy_version": "1.0"
+    }
+  },
+  {
+    "input": "This is Agent Williams from the Social Security Administration. Your SSN has been suspended due to suspicious activity. Pay a $500 fine immediately via Target gift cards or a warrant will be issued.",
+    "output": {
+      "intent": [
+        {"label": "INTENT.IMPOSTER", "confidence": 0.95, "explanation": "Impersonating government agent to extract payment."}
+      ],
+      "channel": [
+        {"label": "CHANNEL.PHONE", "confidence": 0.9, "explanation": "Government impersonation scams via phone."}
+      ],
+      "techniques": [
+        {"label": "SE.AUTHORITY", "confidence": 0.95, "explanation": "Claims to be SSA agent."},
+        {"label": "SE.FEAR", "confidence": 0.9, "explanation": "Threatens arrest."},
+        {"label": "SE.URGENCY", "confidence": 0.85, "explanation": "'Pay immediately' creates time pressure."}
+      ],
+      "actions": [
+        {"label": "ACTION.GIFT_CARDS", "confidence": 1.0, "explanation": "Demands Target gift cards."}
+      ],
+      "persona": [
+        {"label": "PERSONA.GOVERNMENT", "confidence": 1.0, "explanation": "Poses as Social Security Administration."}
+      ],
+      "risk_score": 92.0,
+      "taxonomy_version": "1.0"
+    }
+  },
+  {
+    "input": "Hi, I saw your Craigslist listing. I'll send a cashier's check for $3,500 (item plus shipping). Please deposit and wire the extra $1,000 to my shipper.",
+    "output": {
+      "intent": [
+        {"label": "INTENT.SHOPPING", "confidence": 0.85, "explanation": "Overpayment scam using fake check."}
+      ],
+      "channel": [
+        {"label": "CHANNEL.EMAIL", "confidence": 0.7, "explanation": "Response to online classified listing."}
+      ],
+      "techniques": [
+        {"label": "SE.TRUST_BUILDING", "confidence": 0.6, "explanation": "References real listing to build trust."},
+        {"label": "SE.CONFUSION", "confidence": 0.7, "explanation": "Overpayment scheme designed to confuse."}
+      ],
+      "actions": [
+        {"label": "ACTION.SEND_MONEY", "confidence": 0.95, "explanation": "Asks victim to wire money to 'shipper'."}
+      ],
+      "persona": [
+        {"label": "PERSONA.MARKETPLACE", "confidence": 0.9, "explanation": "Poses as Craigslist buyer."}
+      ],
+      "risk_score": 70.0,
       "taxonomy_version": "1.0"
     }
   }

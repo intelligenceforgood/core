@@ -106,6 +106,8 @@ cases = sa.Table(
     sa.Column("classification_result", JSON_TYPE, nullable=True),
     sa.Column("tags", JSON_TYPE, nullable=True),
     sa.Column("confidence", sa.Numeric(5, 4), nullable=False, server_default="0"),
+    sa.Column("risk_score", sa.Numeric(5, 1), nullable=False, server_default="0"),
+    sa.Column("taxonomy_version", sa.Text(), nullable=True),
     sa.Column("detected_at", TIMESTAMP, nullable=True),
     sa.Column("reported_at", TIMESTAMP, nullable=True),
     sa.Column("raw_text_sha256", sa.Text(), nullable=False),
@@ -122,6 +124,7 @@ sa.Index("idx_cases_classification_status", cases.c.classification_status)
 sa.Index("idx_cases_classification", cases.c.classification)
 sa.Index("idx_cases_tags", cases.c.tags, postgresql_using="gin")  # GIN index for tags array
 sa.Index("idx_cases_status", cases.c.status)
+sa.Index("idx_cases_risk_score", cases.c.risk_score)
 
 source_documents = sa.Table(
     "source_documents",

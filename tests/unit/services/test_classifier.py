@@ -18,9 +18,7 @@ def test_classifier_mock_mode():
     assert len(result.intent) > 0
     assert result.intent[0].label == "INTENT.IMPOSTER"
     # Logic in service scales score * 2.5 capped at 100
-    # Note: risk_weights are currently missing in definitions.yaml, so score checks are disabled
-    # assert result.risk_score > 50.0
-    assert result.risk_score >= 0.0
+    assert result.risk_score > 0.0
 
 
 @patch("i4g.llm.client.get_settings")

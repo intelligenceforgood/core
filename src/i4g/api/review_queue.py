@@ -4,7 +4,10 @@ Endpoints for enqueueing, claiming, annotating, and deciding on reviews.
 Mounted by the main ``review.py`` orchestrator.
 """
 
+import json
 import logging
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -20,6 +23,7 @@ from i4g.api.response_models import (
     ItemListResponse,
 )
 from i4g.api.review_deps import get_store
+from i4g.settings import PROJECT_ROOT
 from i4g.store.review_store import ReviewStore
 from i4g.taxonomy.models import AnalystFeedbackRequest, ClassificationResult
 from i4g.worker.tasks import generate_report_for_case
@@ -145,14 +149,93 @@ def submit_feedback(
     user=Depends(require_token),
     store: ReviewStore = Depends(get_store),
 ):
-    """Submit corrections or validations for automated classification."""
+    """Submit corrections or validations for automated classification.
+
+    This endpoint:
+    1. Logs the feedback as an audit action.
+    2. Applies the corrected classification to the case (updates cases + review_queue).
+    3. Writes a golden dataset candidate for curator review.
+    """
+    actor = user.get("username", "unknown")
+
+    # 1. Log feedback as audit trail
     store.log_action(
         review_id,
-        actor=user["username"],
+        actor=actor,
         action="analyst_feedback",
         payload=payload.model_dump(),
     )
+
+    # 2. Apply corrected classification to the case
+    corrected_dict = payload.corrected_classification.model_dump()
+    case_id = store.apply_feedback_classification(review_id, corrected_dict)
+
+    if not case_id:
+        raise HTTPException(status_code=404, detail=f"Review {review_id} not found")
+
+    # 3. Write golden dataset candidate (F17)
+    _write_golden_candidate(
+        case_id=case_id,
+        review_id=review_id,
+        actor=actor,
+        original=payload.original_classification.model_dump() if payload.original_classification else None,
+        corrected=corrected_dict,
+        notes=payload.notes,
+        input_text=store.get_case_text(case_id),
+    )
+
+    logger.info(
+        "Feedback applied: review_id=%s case_id=%s actor=%s",
+        review_id,
+        case_id,
+        actor,
+    )
     return {"review_id": review_id, "feedback_recorded": True}
+
+
+def _write_golden_candidate(
+    *,
+    case_id: str,
+    review_id: str,
+    actor: str,
+    original: dict[str, Any] | None,
+    corrected: dict[str, Any],
+    notes: str | None,
+    input_text: str | None,
+) -> None:
+    """Append a feedback correction to the golden dataset candidates file.
+
+    Candidates require manual curator review before promotion to the
+    official golden_examples.json used for few-shot prompting.
+    """
+    candidates_path = PROJECT_ROOT / "src" / "i4g" / "taxonomy" / "golden_candidates.json"
+
+    candidate = {
+        "case_id": case_id,
+        "review_id": review_id,
+        "actor": actor,
+        "submitted_at": datetime.now(timezone.utc).isoformat(),
+        "notes": notes,
+        "input": input_text or "",
+        "original_classification": original,
+        "corrected_classification": corrected,
+        "status": "pending_review",
+    }
+
+    # Load existing candidates
+    existing: list[dict[str, Any]] = []
+    if candidates_path.exists():
+        try:
+            existing = json.loads(candidates_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            logger.warning("Failed to read golden candidates file; starting fresh.")
+
+    existing.append(candidate)
+
+    try:
+        candidates_path.write_text(json.dumps(existing, indent=2, default=str) + "\n")
+    except OSError:
+        logger.error("Failed to write golden candidate for case %s", case_id)
 
 
 @router.post("/{review_id}/decision", summary="Make a decision on a review", response_model=DecisionResponse)

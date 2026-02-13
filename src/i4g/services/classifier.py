@@ -146,15 +146,15 @@ class FraudClassifier:
         with open(self.definitions_path) as f:
             self.definitions = yaml.safe_load(f)
 
-        # Build risk weight map
-        self.risk_weights = {}
+        # Build risk weight map keyed by taxonomy code (e.g. INTENT.IMPOSTER)
+        self.risk_weights: dict[str, float] = {}
         for category in ["intents", "techniques", "actions"]:
             if category in self.definitions:
                 for item in self.definitions[category]:
-                    label = item.get("label")
+                    code = item.get("code")
                     weight = item.get("risk_weight", 0)
-                    if label:
-                        self.risk_weights[label] = weight
+                    if code:
+                        self.risk_weights[code] = weight
 
         if not self.examples_path.exists():
             raise FileNotFoundError(f"Golden examples not found at {self.examples_path}")

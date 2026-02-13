@@ -3,6 +3,7 @@ intents:
   - code: INTENT.IMPOSTER
     label: Imposter
     description: Pretending to be a trusted entity
+    risk_weight: 8
     examples:
       - "Hi Grandma, it's me, I'm in trouble in Mexico and lost my wallet."
       - "This is IRS agent Smith, you owe back taxes."
@@ -10,6 +11,7 @@ intents:
   - code: INTENT.INVESTMENT
     label: Investment
     description: Promises of financial returns
+    risk_weight: 9
     examples:
       - "Guaranteed 20% weekly returns on our new crypto platform."
       - "Exclusive pre-IPO opportunity for selected investors only."
@@ -17,6 +19,7 @@ intents:
   - code: INTENT.ROMANCE
     label: Romance
     description: Emotional relationship for fraud
+    risk_weight: 8
     examples:
       - "I wish I could meet you but I'm deployed overseas right now."
       - "My camera is broken so we can't video chat yet."
@@ -24,6 +27,7 @@ intents:
   - code: INTENT.EMPLOYMENT
     label: Employment
     description: Fake job or task-based fraud
+    risk_weight: 7
     examples:
       - "Earn $5000/week working from home, no experience needed."
       - "Please pay $200 for your background check equipment shipping."
@@ -31,6 +35,7 @@ intents:
   - code: INTENT.SHOPPING
     label: Shopping
     description: Fake goods or sellers
+    risk_weight: 5
     examples:
       - "PS5 console for $200 - limited time offer!"
       - "Webstore with no physical address or contact info."
@@ -38,6 +43,7 @@ intents:
   - code: INTENT.TECH_SUPPORT
     label: Tech Support
     description: Fake tech assistance
+    risk_weight: 7
     examples:
       - "Your computer has a virus! Call Microsoft Support immediately."
       - "We detected suspicious activity on your IP address."
@@ -45,6 +51,7 @@ intents:
   - code: INTENT.PRIZE
     label: Prize
     description: Fake winnings
+    risk_weight: 6
     examples:
       - "Congratulations! You won a $1000 Walmart Gift Card."
       - "You've been selected for a free iPhone 15."
@@ -52,6 +59,7 @@ intents:
   - code: INTENT.EXTORTION
     label: Extortion
     description: Threat-based coercion
+    risk_weight: 10
     examples:
       - "I recorded you on your webcam, pay BTC or I send it to your contacts."
       - "We have your SSN and will leak it unless you pay."
@@ -59,6 +67,7 @@ intents:
   - code: INTENT.CHARITY
     label: Charity
     description: Fake disaster or cause appeals
+    risk_weight: 6
     examples:
       - "Donate to the victims of the recent earthquake via this personal PayPal."
       - "Help feed hungry children, send crypto now."
@@ -106,42 +115,49 @@ techniques:
   - code: SE.URGENCY
     label: Urgency
     description: Time pressure, deadlines
+    risk_weight: 7
     examples:
       - "Offer expires in 10 minutes!"
       - "Act now or your account will be permanently closed."
   - code: SE.AUTHORITY
     label: Authority
     description: Government, bank, employer tone
+    risk_weight: 8
     examples:
       - "This is Officer Johnson from the local precinct."
       - "CEO requesting immediate action."
   - code: SE.SCARCITY
     label: Scarcity
     description: Limited availability
+    risk_weight: 5
     examples:
       - "Only 2 spots left in the investment pool."
       - "Last chance to buy at this price."
   - code: SE.FEAR
     label: Fear
     description: Threats, loss, legal trouble
+    risk_weight: 9
     examples:
       - "Your social security number has been suspended."
       - "A warrant has been issued for your arrest."
   - code: SE.RECIPROCITY
     label: Reciprocity
     description: Gifts, favors
+    risk_weight: 4
     examples:
       - "I'll give you a free bonus if you sign up now."
       - "I helped you, now you need to help me move this money."
   - code: SE.TRUST_BUILDING
     label: Trust Building
     description: Long-term rapport
+    risk_weight: 6
     examples:
       - "Talking for weeks about daily life and family before mentioning money."
       - "Sending small gifts to build confidence."
   - code: SE.CONFUSION
     label: Confusion
     description: Overwhelming steps
+    risk_weight: 5
     examples:
       - "Complex crypto withdrawal instructions designed to confuse."
       - "Technical jargon used to intimidate the victim."
@@ -150,42 +166,49 @@ actions:
   - code: ACTION.SEND_MONEY
     label: Send Money
     description: Direct money transfer
+    risk_weight: 9
     examples:
       - "Wire transfer to an overseas bank account."
       - "Zelle or Venmo payment to a stranger."
   - code: ACTION.GIFT_CARDS
     label: Gift Cards
     description: Purchase and share gift card codes
+    risk_weight: 8
     examples:
       - "Buy $500 iTunes cards and send me the codes."
       - "Pay your utility bill with Target gift cards."
   - code: ACTION.CRYPTO
     label: Crypto
     description: Send crypto to a wallet address
+    risk_weight: 9
     examples:
       - "Deposit BTC to this wallet address to unlock your account."
       - "Invest USDT in this liquidity mining pool."
   - code: ACTION.CREDENTIALS
     label: Credentials
     description: Provide login details or passwords
+    risk_weight: 8
     examples:
       - "Log in to your bank to verify your identity."
       - "Provide your 2FA code to the 'support agent'."
   - code: ACTION.INSTALL
     label: Install Software
     description: Download and install apps or remote access tools
+    risk_weight: 7
     examples:
       - "Download AnyDesk or TeamViewer for remote support."
       - "Install this 'trading app' (APK file) directly."
   - code: ACTION.CLICK_LINK
     label: Click Link
     description: Visit a specific URL
+    risk_weight: 6
     examples:
       - "Click here to track your package."
       - "Review document via this secure link."
   - code: ACTION.PROVIDE_PII
     label: Provide PII
     description: Share SSN, ID, or other sensitive info
+    risk_weight: 8
     examples:
       - "What is your mother's maiden name?"
       - "Send a photo of your driver's license."

@@ -509,6 +509,71 @@ class ReviewStore:
             ).all()
             return [dict(r._mapping) for r in rows]
 
+    def apply_feedback_classification(
+        self,
+        review_id: str,
+        corrected_classification: dict[str, Any],
+    ) -> str | None:
+        """Apply analyst-corrected classification to the underlying case.
+
+        Updates both the review_queue classification_result and the cases table
+        classification fields (classification, classification_result, risk_score,
+        taxonomy_version, classification_status).
+
+        Returns:
+            The case_id that was updated, or None if the review was not found.
+        """
+        now = datetime.now(timezone.utc)
+        with self._session_factory() as session:
+            case_id = _get_case_id_for_review(session, review_id)
+            if not case_id:
+                return None
+
+            # Update review_queue
+            session.execute(
+                sa.update(sql_schema.review_queue)
+                .where(sql_schema.review_queue.c.review_id == review_id)
+                .values(classification_result=corrected_classification, last_updated=now)
+            )
+
+            # Derive top intent label
+            top_label = "Unspecified"
+            intents = corrected_classification.get("intent", [])
+            if intents:
+                sorted_intents = sorted(intents, key=lambda x: x.get("confidence", 0), reverse=True)
+                top_label = sorted_intents[0].get("label", "Unspecified")
+
+            risk_score = corrected_classification.get("risk_score", 0.0)
+            taxonomy_version = corrected_classification.get("taxonomy_version", "1.0")
+
+            # Update cases table
+            session.execute(
+                sa.update(sql_schema.cases)
+                .where(sql_schema.cases.c.case_id == case_id)
+                .values(
+                    classification=top_label,
+                    classification_result=corrected_classification,
+                    classification_status="analyst_reviewed",
+                    confidence=risk_score / 100.0,
+                    risk_score=risk_score,
+                    taxonomy_version=taxonomy_version,
+                    updated_at=now,
+                )
+            )
+            session.commit()
+            return case_id
+
+    def get_case_text(self, case_id: str) -> str | None:
+        """Retrieve the primary source document text for a case."""
+        with self._session_factory() as session:
+            row = session.execute(
+                sa.select(sql_schema.source_documents.c.text)
+                .where(sql_schema.source_documents.c.case_id == case_id)
+                .where(sql_schema.source_documents.c.text.is_not(None))
+                .limit(1)
+            ).first()
+            return row.text if row else None
+
     def upsert_saved_search(
         self,
         name: str,
@@ -851,6 +916,14 @@ def _loss_band(amount: float | int) -> str:
     if amount < 1_000_000:
         return "250k-1M"
     return "1M+"
+
+
+def _get_case_id_for_review(session: Any, review_id: str) -> str | None:
+    """Look up the case_id associated with a review_id."""
+    row = session.execute(
+        sa.select(sql_schema.review_queue.c.case_id).where(sql_schema.review_queue.c.review_id == review_id)
+    ).first()
+    return row.case_id if row else None
 
 
 # Alias for backward compatibility if needed, though factories.py is updated

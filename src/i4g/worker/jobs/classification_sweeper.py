@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import time
+from collections import Counter
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 import sqlalchemy as sa
@@ -18,6 +20,32 @@ from i4g.taxonomy.models import FraudClassificationResult
 from i4g.worker.logging import configure_job_logging
 
 LOGGER = logging.getLogger("i4g.worker.jobs.classification_sweeper")
+
+
+@dataclass
+class SweeperMetrics:
+    """Accumulated metrics for a sweeper run."""
+
+    total_processed: int = 0
+    classified_count: int = 0
+    error_count: int = 0
+    intent_distribution: Counter = field(default_factory=Counter)
+    batch_durations: list[float] = field(default_factory=list)
+
+    @property
+    def avg_batch_duration(self) -> float:
+        """Average batch classification time in seconds."""
+        return sum(self.batch_durations) / len(self.batch_durations) if self.batch_durations else 0.0
+
+    def summary(self) -> dict:
+        """Return a loggable summary dict."""
+        return {
+            "total_processed": self.total_processed,
+            "classified": self.classified_count,
+            "errors": self.error_count,
+            "avg_batch_seconds": round(self.avg_batch_duration, 2),
+            "top_intents": dict(self.intent_distribution.most_common(5)),
+        }
 
 
 def run() -> None:
@@ -42,7 +70,7 @@ def run() -> None:
     session_factory = default_session_factory()
     classifier = build_fraud_classifier()
 
-    total_processed = 0
+    metrics = SweeperMetrics()
 
     try:
         while True:
@@ -77,20 +105,30 @@ def run() -> None:
                 texts = [row.text or "" for row in rows]
 
                 # Classify batch
+                batch_start = time.time()
                 results = classifier.classify_batch(texts)
+                batch_duration = time.time() - batch_start
+                metrics.batch_durations.append(batch_duration)
 
-                # Update statuses
-                _update_batch(session, case_ids, results)
+                # Update statuses and accumulate metrics
+                _update_batch(session, case_ids, results, metrics)
                 session.commit()
 
-                total_processed += len(rows)
-                LOGGER.info(f"Processed batch. Total so far: {total_processed}")
+                LOGGER.info(
+                    "Batch complete: %d items in %.1fs (classified=%d, errors=%d)",
+                    len(rows),
+                    batch_duration,
+                    metrics.classified_count,
+                    metrics.error_count,
+                )
 
                 if reporter.is_enabled():
                     reporter.update(
                         status="processing",
-                        message=f"Classified {total_processed} cases so far",
-                        processed=total_processed,
+                        message=f"Classified {metrics.total_processed} cases so far",
+                        processed=metrics.total_processed,
+                        classified=metrics.classified_count,
+                        errors=metrics.error_count,
                     )
 
     except Exception as e:
@@ -98,59 +136,68 @@ def run() -> None:
         if reporter.is_enabled():
             reporter.update(
                 status="failed",
-                message=f"Sweeper failed after {total_processed} cases: {e}",
-                processed=total_processed,
+                message=f"Sweeper failed after {metrics.total_processed} cases: {e}",
+                **metrics.summary(),
             )
         raise
 
-    status = "finished" if total_processed > 0 else "no_work"
-    LOGGER.info("Classification sweeper complete. Total processed: %d", total_processed)
+    total_elapsed = time.time() - start_time
+    status = "finished" if metrics.total_processed > 0 else "no_work"
+    LOGGER.info(
+        "Classification sweeper complete: %s",
+        {**metrics.summary(), "total_elapsed_seconds": round(total_elapsed, 1)},
+    )
     if reporter.is_enabled():
         reporter.update(
             status=status,
-            message=f"Sweeper complete: {total_processed} cases classified",
-            processed=total_processed,
+            message=f"Sweeper complete: {metrics.total_processed} cases classified",
+            **metrics.summary(),
+            total_elapsed_seconds=round(total_elapsed, 1),
         )
 
 
-def _update_batch(session: Session, case_ids: list[str], results: list[FraudClassificationResult | None]) -> None:
+def _update_batch(
+    session: Session,
+    case_ids: list[str],
+    results: list[FraudClassificationResult | None],
+    metrics: SweeperMetrics,
+) -> None:
     """Update classification status and results for the batch."""
 
     now = datetime.now(timezone.utc)
 
-    # We can do this in a loop or bulk update. Loop is clearer for mixed results.
     for i, case_id in enumerate(case_ids):
         result = results[i]
+        metrics.total_processed += 1
 
         values = {"updated_at": now}
 
         if result:
-            # Success
+            metrics.classified_count += 1
+
             values.update(
                 {
                     "classification_status": "classified",
-                    "classification": "UNKNOWN",  # Will be refined below based on intent
-                    "classification_result": result.dict(),  # Pydantic v1, or .model_dump() in v2
+                    "classification": "UNKNOWN",
+                    "classification_result": result.model_dump(),
                     "confidence": (
                         result.risk_score / 100.0 if result.risk_score is not None else 0.0
-                    ),  # Approximate mapping
-                    # We could also update tags here based on labels
+                    ),
+                    "risk_score": result.risk_score if result.risk_score is not None else 0.0,
+                    "taxonomy_version": result.taxonomy_version,
                 }
             )
 
-            # Map specific primary label if possible.
-            # The schema expects a single string for 'classification'.
-            # Usually we pick the highest confidence intent.
             if result.intent:
-                # Sort by confidence desc
                 top_intent = sorted(result.intent, key=lambda x: x.confidence, reverse=True)[0]
                 values["classification"] = top_intent.label
+                metrics.intent_distribution[top_intent.label] += 1
             else:
                 values["classification"] = "Unspecified"
+                metrics.intent_distribution["Unspecified"] += 1
 
         else:
-            # Failure (LLM error or parsing error)
-            # We mark as 'error' so it doesn't loop forever.
+            metrics.error_count += 1
             values.update({"classification_status": "error"})
             LOGGER.warning(f"Marking case {case_id} as error due to classification failure.")
 
