@@ -101,13 +101,17 @@ class TestBuildLlmClient:
 
 
 class TestBuildLangchainLlm:
-    def test_mock_returns_none(self) -> None:
-        result = build_langchain_llm(settings=_make_settings(provider="mock"))
-        assert result is None
+    def test_mock_returns_mock_llm(self) -> None:
+        from i4g.llm.client import MockLangChainLLM
 
-    def test_mock_chat_model_returns_none(self) -> None:
+        result = build_langchain_llm(settings=_make_settings(provider="mock"))
+        assert isinstance(result, MockLangChainLLM)
+
+    def test_mock_chat_model_returns_mock_llm(self) -> None:
+        from i4g.llm.client import MockLangChainLLM
+
         result = build_langchain_llm(settings=_make_settings(provider="ollama", chat_model="mock"))
-        assert result is None
+        assert isinstance(result, MockLangChainLLM)
 
     def test_unknown_provider_raises(self) -> None:
         s = _make_settings(provider="unknown")

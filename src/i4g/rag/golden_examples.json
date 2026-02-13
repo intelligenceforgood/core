@@ -1,0 +1,55 @@
+[
+  {
+    "context": "[1] src_001: \"Hi honey, I've been thinking about you all day. I found an amazing crypto investment that doubled my money in a week.\"\n[2] src_002: \"You just need to deposit $500 in Bitcoin to this wallet address: bc1q...xyz. Trust me, it's guaranteed returns.\"",
+    "question": "Is this a scam?",
+    "output": {
+      "is_scam": true,
+      "confidence": 0.95,
+      "reasoning": "The conversation combines romance-building language ('honey', emotional appeals) with unsolicited crypto investment pressure and a request to send Bitcoin to a specific wallet. 'Guaranteed returns' is a hallmark of investment fraud.",
+      "citations": [
+        {
+          "chunk_id": "src_001",
+          "excerpt": "I found an amazing crypto investment that doubled my money in a week."
+        },
+        {
+          "chunk_id": "src_002",
+          "excerpt": "You just need to deposit $500 in Bitcoin to this wallet address"
+        }
+      ]
+    }
+  },
+  {
+    "context": "[1] src_010: \"Dear valued customer, your annual subscription renewal for $49.99 has been processed. If you did not authorize this, contact support@legitimateservice.com.\"\n[2] src_011: \"You can manage your subscription at https://legitimateservice.com/account.\"",
+    "question": "Is this a scam?",
+    "output": {
+      "is_scam": false,
+      "confidence": 0.85,
+      "reasoning": "The message references a specific subscription amount, provides a legitimate-looking support contact, and directs to a consistent domain. No urgency tactics, no requests for unusual payment methods, and no pressure to act immediately.",
+      "citations": [
+        {
+          "chunk_id": "src_010",
+          "excerpt": "your annual subscription renewal for $49.99 has been processed"
+        }
+      ]
+    }
+  },
+  {
+    "context": "[1] src_020: \"Hello grandma, it's me your grandson. I'm in jail and I need bail money urgently. Please don't tell mom and dad.\"\n[2] src_021: \"Wire $3,000 to this Western Union account right away or I'll be stuck here all weekend.\"",
+    "question": "Is this a scam?",
+    "output": {
+      "is_scam": true,
+      "confidence": 0.92,
+      "reasoning": "This is a classic 'grandparent scam' — the caller claims to be a relative in distress, creates urgency ('right away'), requests wire transfer (irreversible), and explicitly asks the victim not to verify with other family members.",
+      "citations": [
+        {
+          "chunk_id": "src_020",
+          "excerpt": "I'm in jail and I need bail money urgently. Please don't tell mom and dad."
+        },
+        {
+          "chunk_id": "src_021",
+          "excerpt": "Wire $3,000 to this Western Union account right away"
+        }
+      ]
+    }
+  }
+]

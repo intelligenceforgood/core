@@ -9,6 +9,7 @@ place instead of being duplicated across ``classifier.py``,
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, Protocol
 
@@ -97,13 +98,15 @@ def build_langchain_llm(*, settings: Settings | None = None) -> Any:
         settings: Optional pre-loaded settings; defaults to ``get_settings()``.
 
     Returns:
-        A LangChain chat model object, or ``None`` for the mock provider.
+        A LangChain chat model object.  For the mock provider, returns a
+        :class:`MockLangChainLLM` that produces a valid ``RagAssessment``
+        JSON string so callers never need a ``None`` fallback.
     """
     s = settings or get_settings()
     provider = s.llm.provider
 
     if provider == "mock" or s.llm.chat_model == "mock":
-        return None
+        return MockLangChainLLM()
 
     if provider == "ollama":
         from langchain_ollama import ChatOllama
@@ -121,6 +124,36 @@ def build_langchain_llm(*, settings: Settings | None = None) -> Any:
         f"Unsupported LLM provider '{provider}'. "
         "Configure 'ollama', 'vertex_ai', or 'mock' via I4G_LLM__PROVIDER."
     )
+
+
+# ---------------------------------------------------------------------------
+# Mock LangChain LLM — returns deterministic RagAssessment JSON
+# ---------------------------------------------------------------------------
+
+_MOCK_ASSESSMENT_JSON = json.dumps(
+    {
+        "is_scam": False,
+        "confidence": 0.5,
+        "reasoning": "Mock LLM: unable to perform real analysis.",
+        "citations": [],
+    }
+)
+
+
+class MockLangChainLLM:
+    """A LangChain-compatible mock that returns a canned ``RagAssessment`` JSON.
+
+    Used when ``settings.llm.provider == "mock"`` so that the RAG pipeline
+    (and any other LangChain consumer) can run end-to-end without a live LLM.
+    """
+
+    def invoke(self, messages: Any) -> Any:  # noqa: ARG002
+        """Return a canned response wrapped in a ``content`` attribute."""
+
+        class _MockResponse:
+            content = _MOCK_ASSESSMENT_JSON
+
+        return _MockResponse()
 
 
 def _build_vertex_langchain(settings: Settings) -> Any:

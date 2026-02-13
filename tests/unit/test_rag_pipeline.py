@@ -1,46 +1,82 @@
-from unittest.mock import MagicMock
+"""Tests for the scam-detection RAG pipeline (structured + legacy modes).
 
-from langchain_core.runnables import Runnable
+Note: comprehensive pipeline integration tests live in
+``tests/unit/rag/test_pipeline.py`` (F14).  These tests predated the WS-2
+changes and are kept as additional coverage.
+"""
 
+import json
+from typing import Any
+from unittest.mock import patch
+
+from i4g.rag.models import RagAssessment
 from i4g.rag.pipeline import build_scam_detection_chain
 
 
-class DummyDoc:
-    def __init__(self, text):
+class _FakeDoc:
+    def __init__(self, text: str, metadata: dict[str, Any] | None = None) -> None:
         self.page_content = text
+        self.metadata = metadata or {}
 
 
-class MockLLM(Runnable):
-    """Mock LLM that conforms to the Runnable interface."""
-
-    def invoke(self, input, config=None):
-        # LangChain's Runnable interface passes both input and config
-        return "Likely a crypto scam."
-
-    def __call__(self, input, config=None):
-        # LangChain uses __call__ to invoke Runnables
-        return self.invoke(input, config)
+class _FakeRetriever:
+    def invoke(self, query: str) -> list[_FakeDoc]:
+        return [_FakeDoc("This looks like a crypto scam.", {"source_id": "doc_1"})]
 
 
-def test_scam_detection_chain_basic(monkeypatch):
-    """Ensure pipeline composes correctly and produces an output string."""
-    # Mock retriever to return dummy documents
-    mock_vectorstore = MagicMock()
-    mock_retriever = MagicMock()
-    mock_vectorstore.as_retriever.return_value = mock_retriever
+class _FakeVectorStore:
+    def as_retriever(self, **kwargs: Any) -> _FakeRetriever:
+        return _FakeRetriever()
 
-    def fake_retrieve(_query):
-        return [DummyDoc("This looks like a crypto scam.")]
 
-    # Patch retriever | lambda composition to simulate retrieval
-    mock_retriever.__or__ = lambda self, fn: lambda _: fake_retrieve(None)
-    mock_retriever.__ror__ = mock_retriever.__or__
+class _MockTextLLM:
+    """Mock LLM returning plain text (legacy path)."""
 
-    # Patch ChatOllama to use MockLLM
-    monkeypatch.setattr("i4g.rag.pipeline.ChatOllama", lambda model="llama3.1": MockLLM())
+    def invoke(self, messages: Any) -> Any:
+        class _Resp:
+            content = "Likely a crypto scam."
 
-    chain = build_scam_detection_chain(mock_vectorstore)
-    response = chain.invoke({"question": "Is this message fraudulent?"})
+        return _Resp()
+
+
+class _MockStructuredLLM:
+    """Mock LLM returning valid RagAssessment JSON."""
+
+    def invoke(self, messages: Any) -> Any:
+        class _Resp:
+            content = json.dumps(
+                {
+                    "is_scam": True,
+                    "confidence": 0.92,
+                    "reasoning": "Message contains typical crypto scam indicators.",
+                    "citations": [
+                        {"chunk_id": "doc_1", "excerpt": "Send BTC to this wallet."},
+                    ],
+                }
+            )
+
+        return _Resp()
+
+
+def test_scam_detection_chain_legacy_unstructured():
+    """Ensure legacy (unstructured) pipeline composes correctly and returns a string."""
+    with patch("i4g.rag.pipeline.build_langchain_llm", return_value=_MockTextLLM()):
+        chain = build_scam_detection_chain(_FakeVectorStore(), structured=False)
+        response = chain.invoke({"question": "Is this message fraudulent?"})
 
     assert isinstance(response, str)
     assert "scam" in response.lower()
+
+
+def test_scam_detection_chain_structured():
+    """Structured pipeline returns a validated RagAssessment."""
+    with patch("i4g.rag.pipeline.build_langchain_llm", return_value=_MockStructuredLLM()):
+        chain = build_scam_detection_chain(_FakeVectorStore(), structured=True)
+        response = chain.invoke({"question": "Is this message fraudulent?"})
+
+    assert isinstance(response, RagAssessment)
+    assert response.is_scam is True
+    assert 0.0 <= response.confidence <= 1.0
+    assert len(response.reasoning) > 0
+    assert len(response.citations) == 1
+    assert response.citations[0].chunk_id == "doc_1"
