@@ -238,11 +238,11 @@ class Settings(BaseSettings):
 
         config_sources = [TomlConfigSettingsSource(settings_cls, path) for path in _config_file_priority()]
         return (
-            *config_sources,
-            dotenv_settings,
-            env_settings,
-            file_secret_settings,
             init_settings,
+            file_secret_settings,
+            env_settings,
+            dotenv_settings,
+            *config_sources,
         )
 
     @model_validator(mode="after")
