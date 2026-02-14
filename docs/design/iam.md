@@ -1,6 +1,6 @@
 # Identity & Access Management Strategy
 
-**Status:** Active (v1.1) — February 8, 2026
+**Status:** Active (v2.0) — February 14, 2026
 **Audience:** Engineering, security reviewers, product stakeholders across `core`, `planning`, and `ui`
 
 This document is the single source of truth for how we authenticate users, authorize workloads, and evolve IAM across the i4g platform. It consolidates IAM content from `architecture.md`, planning artifacts, and the UI books so every repository references one canonical strategy. Updates to IAM MUST originate here.
@@ -42,64 +42,126 @@ All application services currently reuse the shared runtime service account (`sa
 
 ## 4. Authentication Strategy
 
-### 4.1 Current State — Two-Layer Authentication
+### 4.1 Current State — Three-Layer Authentication
 
-Authentication operates at two distinct layers:
+Authentication operates at three complementary layers:
 
-**Infrastructure layer — IAP via Load Balancer (production)**
+**Layer 1 — IAP via Global Load Balancer (infrastructure)**
 
-- **Global External Load Balancer (ALB)**: We use a Global ALB as the single ingress point for `app.intelligenceforgood.org` and `api.intelligenceforgood.org`.
-- **Identity-Aware Proxy (IAP)**: Enabled on the ALB's backend services. This enforces authentication _before_ traffic reaches Cloud Run.
-- **Cloud Run Configuration**: Services are deployed with `--allow-unauthenticated` (to accept traffic from the LB), but the LB is the only path that users can traverse. (Future hardening: use "Ingress: Internal and Cloud Load Balancing" to strictly block direct access).
-- **Browser experience**: Users hit `https://app.intelligenceforgood.org`, are redirected to Google Sign-In by the LB/IAP, and upon success, the request is forwarded to Cloud Run with `X-Goog-Authenticated-User-Email`.
-- **Access Control**: Terraform manages the `roles/iap.httpsResourceAccessor` binding on the _Backend Service_, granting access to `group:gcp-i4g-analyst@intelligenceforgood.org`.
+- A Global External Application Load Balancer is the single ingress point for `app.intelligenceforgood.org` (console) and `api.intelligenceforgood.org` (FastAPI).
+- Identity-Aware Proxy (IAP) is enabled on both backend services and enforces Google Sign-In _before_ traffic reaches Cloud Run.
+- Cloud Run services use `ingress: internal-and-cloud-load-balancing` so direct access bypassing the LB is blocked.
+- Terraform manages `roles/iap.httpsResourceAccessor` bindings via Google Groups (`gcp-i4g-analyst@intelligenceforgood.org`).
 
-**Application layer — API-key tokens (prototype)**
+**Layer 2 — IAP JWT / Bearer token verification (application)**
 
-- The FastAPI application currently uses a lightweight `X-API-KEY` header-based mechanism defined in `src/i4g/api/auth.py`. This is an **MVP stub** — two hardcoded tokens (`dev-analyst-token`, `dev-admin-token`) map to roles (`analyst`, `admin`).
-- Protected endpoints use the `require_token` or `require_role("analyst")` FastAPI dependencies.
-- **This layer does NOT verify IAP headers or Google identity.** It exists to enable local development and testing without requiring IAP. In production, IAP provides the real perimeter authentication; the API-key layer is defense-in-depth until it is replaced with IAP header verification (Phase 1 roadmap item).
-- **Action item:** Replace the hardcoded token map with IAP JWT verification and map `X-Goog-Authenticated-User-Email` to application-level roles.
+The FastAPI `require_token()` dependency in `src/i4g/api/auth.py` validates credentials in priority order:
 
-### 4.2 Medium-Term Enhancements (in parallel)
+| Priority | Method        | Header                          | Behaviour                                                                                                                                                                                   |
+| -------- | ------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1        | Auth disabled | —                               | `settings.identity.disable_auth` → returns mock `local-dev` admin. Used for local development only.                                                                                         |
+| 2        | IAP JWT       | `X-Goog-IAP-JWT-Assertion`      | Verified using Google's IAP-specific signing keys (`/iap/verify/public_key-jwk`). Audience matched against `I4G_IDENTITY__AUDIENCE`. Email extracted → role resolved from `accounts` table. |
+| 3        | Bearer token  | `Authorization: Bearer <token>` | Verified as a standard Google ID token (OIDC certs). Used for service-to-service calls (e.g., Cloud Run → Cloud Run).                                                                       |
+| 4        | API key       | `X-API-KEY`                     | Compared against `settings.api.key` (`I4G_API__KEY` env var). Falls back to `username: "service"` if no forwarded user.                                                                     |
 
-- Replace per-user bindings with Google Group bindings (`group:gcp-i4g-analyst@intelligenceforgood.org`, `group:gcp-i4g-leo@intelligenceforgood.org`) so onboarding/offboarding requires only Workspace group membership changes.
-- Add device-based checks by pairing IAP with BeyondCorp Enterprise or Context-Aware Access policies (post-Milestone 3).
-- Introduce per-persona Cloud Run services, each with its own IAP policy and rate limits, to isolate analyst vs. LEO experiences.
+**Layer 3 — Forwarded user identity (SSR bridge)**
 
-### 4.3 Future-State Principles
+The Next.js console runs as a Cloud Run service and makes SSR (server-side) API calls on behalf of the browser user. Because the API sits behind its own IAP backend, the console cannot forward the raw `X-Goog-IAP-JWT-Assertion` (IAP strips/replaces it on the second hop). Instead:
 
-- **Role-specific endpoints:** separate Cloud Run services (or distinct URL paths) for Victim, Analyst, and LEO experiences, each with unique IAM claims and throttling settings.
-- **VPN / Zero-Trust Network Access for Analysts:** use BeyondCorp Enterprise, Cloud VPN + Identity-Aware Proxy, or another certificate-based solution. Documented as TBD; decision deferred until load justifies the investment.
-- **Non-Google identity options:** evaluate passkeys or external IdPs (Auth0 for Nonprofits, Okta) to accommodate victims without Google accounts.
+1. The console's `getIapHeaders()` decodes the incoming IAP assertion from the browser request and extracts the user's email.
+2. It sends the email as `X-I4G-Forwarded-User` alongside a service-to-service Bearer token or API key.
+3. The API's `_maybe_resolve_forwarded_user()` trusts this header when the authenticated identity is a service account (`*.iam.gserviceaccount.com`), and resolves the forwarded email's role from the `accounts` table.
+4. Direct end-user hits (non-SA identity) are never overridden.
+
+This ensures the API always knows the real browser user's identity, even through the double-IAP hop.
+
+### 4.2 Local Development
+
+When `I4G_ENV=local` or `settings.identity.disable_auth=true`, authentication is bypassed entirely. The API returns a mock admin user (`local-dev`). The UI's `getIapHeaders()` skips IAP token generation for localhost targets.
+
+### 4.3 Future Enhancements
+
+- **Device-based checks:** Pair IAP with BeyondCorp Enterprise or Context-Aware Access policies to enforce device posture.
+- **Non-Google identity options:** Evaluate passkeys or external IdPs (Auth0 for Nonprofits, Okta) to accommodate victims without Google accounts.
+- **Per-persona endpoints:** Separate Cloud Run services for victim intake, analyst tools, and LEO portal with distinct IAP policies and rate limits.
 
 ---
 
-## 5. Authorization & Service Accounts
+## 5. Authorization
+
+### 5.1 Application-Level RBAC (WS-5)
+
+The platform enforces role-based access control at the application layer via the `accounts` table and FastAPI dependencies.
+
+**Role hierarchy** (defined in `src/i4g/api/roles.py`):
+
+```
+user  <  analyst  <  leo  ≤  admin
+```
+
+| Role      | Capabilities                                               | Default for                         |
+| --------- | ---------------------------------------------------------- | ----------------------------------- |
+| `user`    | Read-only access to public case summaries                  | First-time login (auto-provisioned) |
+| `analyst` | Full case review, annotation, search, report generation    | Promoted by admin                   |
+| `leo`     | All analyst capabilities plus LEO-specific reports         | Promoted by admin                   |
+| `admin`   | All capabilities plus user management, campaigns, bulk ops | Manually assigned                   |
+
+**`require_role()` dependency:** FastAPI routes declare a minimum role. The `has_role()` function checks whether the user's role satisfies the requirement via the hierarchy (e.g., `admin` satisfies any role check). Invalid role strings are rejected.
+
+**Accounts table** (`email` PK, `role`, `display_name`, `is_active`, `created_at`, `updated_at`):
+
+- Auto-provisioned on first authenticated request via `AccountStore.get_or_create_account()` with `DEFAULT_ROLE = user`.
+- Deactivated accounts receive HTTP 403 at the auth layer.
+- All role changes and deactivations are audited to the `review_actions` table with actor attribution.
+
+**Accounts management API** (`/accounts` router, admin-only except `/me`):
+
+| Endpoint                           | Auth              | Purpose                                           |
+| ---------------------------------- | ----------------- | ------------------------------------------------- |
+| `GET /accounts/me`                 | Any authenticated | Returns current user identity + effective role    |
+| `GET /accounts`                    | `admin`           | Lists all accounts (optional `?active_only=true`) |
+| `PUT /accounts/{email}/role`       | `admin`           | Change role (self-demotion blocked)               |
+| `PUT /accounts/{email}/deactivate` | `admin`           | Soft-disable (self-deactivation blocked)          |
+| `PUT /accounts/{email}/reactivate` | `admin`           | Re-enable a deactivated account                   |
+
+**UI enforcement:** The analyst console mirrors the role hierarchy client-side via `AuthProvider` / `useAuth()`. Navigation items are filtered by `minRole` (e.g., User Management and Campaigns require `admin`). The admin accounts table prevents self-demotion and self-deactivation in the UI as well.
+
+**Route-level auth coverage:**
+
+| Route group                    | Auth requirement                                     |
+| ------------------------------ | ---------------------------------------------------- |
+| `/accounts/*`                  | `require_token` (me), `require_role("admin")` (CRUD) |
+| `/campaigns/*` (create/update) | `require_role("admin")`                              |
+| `/tasks/*` (update)            | `require_role("admin")`                              |
+| `/tokenization/detokenize`     | `require_role("analyst")`                            |
+| `/reviews/*`, `/intakes/*`     | `require_token`                                      |
+| Other read endpoints           | `require_token`                                      |
+
+### 5.2 Infrastructure-Level Authorization
 
 1. **Runtime Service Accounts**
-   - `sa-app`: shared by FastAPI and the Next.js analyst console. Roles: `roles/storage.objectViewer`, `roles/secretmanager.secretAccessor`, `roles/run.invoker` (self), `roles/logging.logWriter`, `roles/cloudsql.client`, plus Discovery search role.
-   - `sa-ingest`, `sa-report`, `sa-vault`, `sa-infra`: keep existing least-privilege grants (see Terraform modules).
+   - `sa-app`: shared by FastAPI and the Next.js console. Roles: `roles/storage.objectViewer`, `roles/secretmanager.secretAccessor`, `roles/run.invoker` (self), `roles/logging.logWriter`, `roles/cloudsql.client`, plus Discovery search role.
+   - `sa-ingest`, `sa-report`, `sa-vault`, `sa-infra`: per-job least-privilege grants (see Terraform modules).
 
 2. **Workspace Groups & Human Roles**
-   - `gcp-i4g-admin@intelligenceforgood.org` holds the break-glass administrator role. Terraform variable `i4g_admin_members` grants this group `roles/owner` on each project so we can rotate humans without touching IAM bindings.
-   - `gcp-i4g-analyst@intelligenceforgood.org` represents the analyst persona. Terraform variable `i4g_analyst_members` feeds this group into Cloud Run and IAP so onboarding/offboarding happens via Workspace membership only.
-   - Law-enforcement and partner cohorts will receive their own Google Groups before we ship those personas.
+   - `gcp-i4g-admin@intelligenceforgood.org` — break-glass administrator group. Terraform grants `roles/owner` on each project.
+   - `gcp-i4g-analyst@intelligenceforgood.org` — analyst cohort. Terraform feeds this group into Cloud Run invoker and IAP accessor policies so onboarding requires only Google Workspace membership changes.
+   - Law-enforcement and partner groups will be created before shipping those personas.
 
 3. **Cloud Run + IAP Policy Management**
-   - Terraform now manages both the Cloud Run `roles/run.invoker` binding (runtime service account + IAP service agent + any extra service accounts) _and_ the IAP `roles/iap.httpsResourceAccessor` policy for each service. Both derive from `i4g_analyst_members` plus optional per-service overrides.
-   - Requirement: maintain this list via tfvars or Google Groups; avoid manual IAM edits so Terraform remains authoritative.
+   - Terraform manages both the Cloud Run `roles/run.invoker` binding and the IAP `roles/iap.httpsResourceAccessor` policy, both derived from `i4g_analyst_members`. Avoid manual IAM edits so Terraform remains authoritative.
 
 4. **Data Plane Permissions**
    - Cloud SQL: analysts read only assigned cases; PII vault locked to backend service account.
    - Cloud Storage: uniform bucket-level access; signed URLs for user downloads/uploads.
-   - Vertex AI Search / future vector stores: custom roles bound to runtime SAs.
+   - Vertex AI Search: custom roles bound to runtime SAs.
    - Secret Manager: versioned secrets per service account; rotate quarterly.
 
 5. **Audit & Monitoring**
+   - Application-level audit: role changes, account deactivation, and review actions written to `review_actions` table with actor + timestamp.
    - Cloud Audit Logs retained ≥400 days.
    - Daily Terraform drift check (planned).
-   - Streaming alerts for IAM policy changes, authentication failures, and Quick Auth Portal usage anomalies.
+   - Streaming alerts for IAM policy changes and authentication failures (planned).
 
 ---
 
@@ -146,25 +208,25 @@ Terraform is the source of truth, but if we need an emergency change before a pl
 
 ### 6.3 Consuming identity inside the app
 
-- **Current state (MVP):** The FastAPI application uses `X-API-KEY` header tokens validated by `src/i4g/api/auth.py`. This provides role-based access control (`analyst`, `admin`) via the `require_token` and `require_role()` dependencies. See §4.1 for details.
-- **Target state:** FastAPI should trust IAP headers (`X-Goog-Authenticated-User-Email`) for lightweight auditing and map the authenticated email to application roles. If cryptographic verification is needed, enable signed headers in IAP and verify the JWT using the documented audience.
-- Command-line scripts can continue to call Cloud Run directly with `gcloud auth print-identity-token` as long as the caller account is part of the IAP policy.
+- **IAP JWT verification (implemented):** The FastAPI `require_token()` dependency verifies `X-Goog-IAP-JWT-Assertion` using Google's IAP-specific signing keys and the configured audience (`I4G_IDENTITY__AUDIENCE`). The authenticated email is mapped to an application role via the `accounts` table.
+- **Forwarded user identity (implemented):** When the Next.js SSR layer calls the API, it forwards the browser user's email via `X-I4G-Forwarded-User`. The API trusts this header only when the authenticated caller is a service account. See §4.1 for the full flow.
+- **CLI access:** Scripts call Cloud Run directly with `gcloud auth print-identity-token --audiences=<IAP_CLIENT_ID>` as long as the caller account is part of the IAP policy.
 
 ---
 
-## 7. Future IAM Roadmap
+## 7. IAM Roadmap
 
-| Phase             | Timeline (est.) | Deliverables                                                                                                                                                                          |
-| ----------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Phase 0 (Now)** | Dec 2025        | Publish this IAM strategy, remove the Quick Auth helper, gate every Cloud Run service behind Terraform-managed IAP, document troubleshooting.                                         |
-| **Phase 1**       | Q1 2026         | Integrate GIS + Authorization headers directly into the Next.js UI; remove reliance on GAIA cookies; add low-risk law-enforcement read-only views.                                    |
-| **Phase 2**       | Q2 2026         | Introduce role-specific Cloud Run services (victim intake, analyst tools, LEO portal). Enforce analyst access through VPN/Zero-Trust access, log device posture, and expand auditing. |
-| **Phase 3**       | Q3 2026         | Evaluate non-Google identity options (passkeys, Auth0 for Nonprofits), finalize automation for IAM drift detection, and implement signed report attestations for legal workflows.     |
+| Phase       | Status                 | Deliverables                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------- | ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Phase 0** | ✅ Complete (Dec 2025) | IAM strategy published, Quick Auth helper removed, every Cloud Run service gated behind Terraform-managed IAP.                                                                                                                                                                                                                                                                                        |
+| **Phase 1** | ✅ Complete (Feb 2026) | IAP JWT verification in FastAPI (`_verify_iap_jwt` with IAP certs). Forwarded-user identity bridge (`X-I4G-Forwarded-User`). DB-backed RBAC with `accounts` table, 4-role hierarchy (`user < analyst < leo ≤ admin`), `require_role()` dependency. Admin UI for user/role management (`/admin/users`). Audit logging for role changes and deactivation. Role-aware navigation in the analyst console. |
+| **Phase 2** | Planned (Q2 2026)      | Introduce role-specific endpoints or Cloud Run services (victim intake, LEO portal). Add device-posture checks via BeyondCorp / Context-Aware Access. Expand audit trail to cover case-level access.                                                                                                                                                                                                  |
+| **Phase 3** | Planned (Q3 2026)      | Evaluate non-Google identity options (passkeys, Auth0 for Nonprofits). Automate IAM drift detection. Implement signed report attestations for legal workflows.                                                                                                                                                                                                                                        |
 
-Open questions to track:
+Open questions:
 
-1. Which VPN / ZTNA solution best balances cost and volunteer usability? (BeyondCorp, AppGate, Cloudflare Zero Trust, etc.)
-2. How do we onboard law-enforcement partners who cannot use Google accounts? Need alternative IdP integration plan.
+1. Which VPN / ZTNA solution best balances cost and volunteer usability?
+2. How do we onboard law-enforcement partners who cannot use Google accounts?
 3. What compliance requirements (CJIS, HIPAA, etc.) apply, and how do they influence log retention and MFA policies?
 
 ---
@@ -180,9 +242,13 @@ Open questions to track:
 
 ## 9. References
 
-- [design/architecture.md](architecture.md) — system overview (now defers IAM details to this document).
+- [design/architecture.md](architecture.md) — system overview (defers IAM details to this document).
 - `planning/future_architecture.md` — long-term blueprint; IAM sections summarized here.
-- `docs/book/api/authentication.md` — references this file for authoritative instructions.
-- `infra/` Terraform modules (`iam/`, `run/service`) — enforce the described policies.
+- `docs/book/api/authentication.md` — API-focused auth guide for developers.
+- `docs/book/security/access-control.md` — end-user guide to requesting access and understanding roles.
+- `infra/` Terraform modules (`iam/`, `run/service`, `iap/`, `lb/`) — enforce the described policies.
+- `src/i4g/api/auth.py` — authentication middleware implementation.
+- `src/i4g/api/roles.py` — role enum, hierarchy, `has_role()` function.
+- `src/i4g/api/accounts.py` — accounts management API endpoints.
 
 _End of document._
