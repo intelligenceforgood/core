@@ -117,6 +117,8 @@ class SourceDocumentPayload:
     chunk_count: int = 1
     score: float | None = None
     captured_at: datetime | None = None
+    file_sha256: str | None = None
+    ingested_at: datetime | None = None
     metadata: dict[str, Any] | None = None
 
 
@@ -332,6 +334,8 @@ class SqlWriter:
                 "chunk_count": doc.chunk_count,
                 "score": _quantize_decimal(doc.score, "0.001") if doc.score is not None else None,
                 "captured_at": doc.captured_at,
+                "file_sha256": doc.file_sha256,
+                "ingested_at": doc.ingested_at or timestamp,
                 "metadata": doc.metadata,
                 "updated_at": timestamp,
             }

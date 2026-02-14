@@ -29,6 +29,18 @@ class StoredAttachment:
     backend: str
 
 
+@dataclass
+class RetrievedEvidence:
+    """Payload returned by :meth:`EvidenceStorage.retrieve`."""
+
+    data: bytes
+    file_name: str
+    content_type: str | None
+    size_bytes: int
+    checksum_sha256: str
+    storage_uri: str
+
+
 class EvidenceStorage:
     """Persist evidence artifacts to the configured storage backend."""
 
@@ -108,6 +120,37 @@ class EvidenceStorage:
             return self._delete_gcs(storage_uri)
         return self._delete_local(storage_uri)
 
+    def retrieve(self, storage_uri: str) -> RetrievedEvidence | None:
+        """Retrieve an evidence artifact by its storage URI.
+
+        Args:
+            storage_uri: The URI returned by :meth:`save` (local path or ``gs://`` URI).
+
+        Returns:
+            :class:`RetrievedEvidence` with file data, or ``None`` if not found.
+        """
+        if storage_uri.startswith("gs://"):
+            return self._retrieve_gcs(storage_uri)
+        return self._retrieve_local(storage_uri)
+
+    def exists(self, storage_uri: str) -> bool:
+        """Check whether an evidence artifact exists at the given URI.
+
+        Args:
+            storage_uri: The URI returned by :meth:`save`.
+
+        Returns:
+            ``True`` if the artifact exists.
+        """
+        if storage_uri.startswith("gs://"):
+            return self._exists_gcs(storage_uri)
+        return Path(storage_uri).is_file()
+
+    @staticmethod
+    def compute_sha256(data: bytes) -> str:
+        """Return the SHA-256 hex digest of *data*."""
+        return hashlib.sha256(data).hexdigest()
+
     def delete_by_prefix(self, prefix: str) -> int:
         """Delete all evidence artifacts under a storage prefix.
 
@@ -158,3 +201,47 @@ class EvidenceStorage:
         for blob in blobs:
             blob.delete()
         return len(blobs)
+
+    # -- retrieve helpers --
+
+    def _retrieve_local(self, path_str: str) -> RetrievedEvidence | None:
+        path = Path(path_str)
+        if not path.is_file():
+            return None
+        data = path.read_bytes()
+        import mimetypes
+
+        content_type, _ = mimetypes.guess_type(path.name)
+        return RetrievedEvidence(
+            data=data,
+            file_name=path.name,
+            content_type=content_type,
+            size_bytes=len(data),
+            checksum_sha256=hashlib.sha256(data).hexdigest(),
+            storage_uri=path_str,
+        )
+
+    def _retrieve_gcs(self, uri: str) -> RetrievedEvidence | None:
+        if self._bucket is None:
+            return None
+        blob_path = uri.split(f"gs://{self._bucket_name}/", 1)[-1]
+        blob = self._bucket.blob(blob_path)
+        if not blob.exists():
+            return None
+        data = blob.download_as_bytes()
+        file_name = blob_path.rsplit("/", 1)[-1] if "/" in blob_path else blob_path
+        return RetrievedEvidence(
+            data=data,
+            file_name=file_name,
+            content_type=blob.content_type,
+            size_bytes=len(data),
+            checksum_sha256=hashlib.sha256(data).hexdigest(),
+            storage_uri=uri,
+        )
+
+    def _exists_gcs(self, uri: str) -> bool:
+        if self._bucket is None:
+            return False
+        blob_path = uri.split(f"gs://{self._bucket_name}/", 1)[-1]
+        blob = self._bucket.blob(blob_path)
+        return blob.exists()

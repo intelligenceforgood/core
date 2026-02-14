@@ -89,3 +89,13 @@ def jobs_retention_purge(
     from i4g.worker.jobs import retention_purge
 
     _exit_from_return(retention_purge.main(dry_run=dry_run))
+
+
+@jobs_app.command("evidence-integrity", help="Run evidence file integrity check.")
+def jobs_evidence_integrity(
+    backfill: bool = typer.Option(False, "--backfill", help="Backfill missing file_sha256 hashes before checking."),
+    limit: int | None = typer.Option(None, "--limit", help="Maximum number of documents to check."),
+) -> None:
+    from i4g.worker.jobs import evidence_integrity
+
+    _exit_from_return(evidence_integrity.main(backfill=backfill, limit=limit))

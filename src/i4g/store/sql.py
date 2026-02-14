@@ -155,6 +155,8 @@ source_documents = sa.Table(
     sa.Column("chunk_count", sa.Integer(), nullable=False, server_default="1"),
     sa.Column("score", sa.Numeric(6, 3), nullable=True),
     sa.Column("captured_at", TIMESTAMP, nullable=True),
+    sa.Column("file_sha256", sa.Text(), nullable=True),
+    sa.Column("ingested_at", TIMESTAMP, nullable=True),
     sa.Column("metadata", JSON_TYPE, nullable=True),
     sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
     sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
