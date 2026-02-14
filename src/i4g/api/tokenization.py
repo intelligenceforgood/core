@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from i4g.api.auth import require_role, require_token
 from i4g.api.response_models import DetokenizeResponse, TokenizationHealthResponse, TokenizeResponse
 from i4g.pii.tokenization import TokenizationService
+from i4g.services.alerting import get_alerting_service
 from i4g.services.factories import build_tokenization_service
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,11 @@ def detokenize(
 ):
     """Return the canonical value for a token, if present in the vault."""
 
-    record = service.detokenize(request.token, actor=user.get("username"), case_id=request.case_id)
+    actor = user.get("username", "unknown")
+    alerting = get_alerting_service()
+    alerting.check_detokenization_rate(actor=actor, case_id=request.case_id)
+
+    record = service.detokenize(request.token, actor=actor, case_id=request.case_id)
     if record is None or record.canonical_value is None:
         logger.debug("detokenize: token not found: %s", request.token)
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Token not found or lacks canonical value")

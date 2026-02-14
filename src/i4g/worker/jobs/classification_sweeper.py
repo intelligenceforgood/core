@@ -12,6 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from i4g.services.factories import build_fraud_classifier
+from i4g.observability import get_observability
 from i4g.settings import get_settings
 from i4g.store import sql as sql_schema
 from i4g.store.sql import session_factory as default_session_factory
@@ -147,6 +148,24 @@ def run() -> None:
         "Classification sweeper complete: %s",
         {**metrics.summary(), "total_elapsed_seconds": round(total_elapsed, 1)},
     )
+
+    # F53: Emit operational metrics for classification accuracy dashboard
+    try:
+        obs = get_observability(component="classification_sweeper", settings=settings)
+        obs.increment("classification.sweeper.processed", value=float(metrics.total_processed))
+        obs.increment("classification.sweeper.classified", value=float(metrics.classified_count))
+        obs.increment("classification.sweeper.errors", value=float(metrics.error_count))
+        obs.record_timing("classification.sweeper.duration", value_ms=total_elapsed * 1000)
+        for intent_label, count in metrics.intent_distribution.most_common():
+            obs.increment("classification.sweeper.intent", value=float(count), tags={"intent": intent_label})
+        obs.emit_event(
+            "classification.sweeper.complete",
+            **metrics.summary(),
+            total_elapsed_seconds=round(total_elapsed, 1),
+        )
+    except Exception:
+        LOGGER.debug("Metrics emission failed; non-critical", exc_info=True)
+
     if reporter.is_enabled():
         reporter.update(
             status=status,

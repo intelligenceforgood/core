@@ -23,6 +23,8 @@ from i4g.services.factories import (
     build_structured_store,
     build_vector_store,
 )
+from i4g.services.alerting import get_alerting_service
+from i4g.observability import get_observability
 from i4g.services.ingest_payloads import prepare_ingest_payload
 from i4g.settings import get_settings
 from i4g.store.ingest import IngestPipeline
@@ -480,6 +482,35 @@ def main() -> int:
             LOGGER.exception("Failed to complete ingestion run metadata run_id=%s", run_id)
 
     LOGGER.info("Ingestion complete: processed=%s failures=%s", processed, failures)
+
+    # F53: Emit operational metrics for dashboard consumption
+    try:
+        obs = get_observability(component="ingestion", settings=settings)
+        obs.increment("ingestion.records.processed", value=float(processed), tags={"dataset": dataset_name})
+        obs.increment("ingestion.records.failed", value=float(failures), tags={"dataset": dataset_name})
+        obs.increment("ingestion.records.retries_scheduled", value=float(scheduled_retries), tags={"dataset": dataset_name})
+        obs.emit_event(
+            "ingestion.batch.complete",
+            processed=processed,
+            failures=failures,
+            retries_scheduled=scheduled_retries,
+            dataset=dataset_name,
+            run_id=run_id,
+        )
+    except Exception:
+        LOGGER.debug("Metrics emission failed; non-critical", exc_info=True)
+
+    # F49: Check ingestion error rate and alert if above threshold
+    try:
+        alerting = get_alerting_service(settings=settings)
+        alerting.check_ingestion_error_rate(
+            processed=processed + failures,
+            failures=failures,
+            dataset=dataset_name,
+            run_id=run_id,
+        )
+    except Exception:
+        LOGGER.debug("Alerting check failed; non-critical", exc_info=True)
 
     return 0 if failures == 0 else 1
 
