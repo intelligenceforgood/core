@@ -94,3 +94,67 @@ class EvidenceStorage:
             storage_uri=storage_uri,
             backend=self._backend,
         )
+
+    def delete(self, storage_uri: str) -> bool:
+        """Delete an evidence artifact by its storage URI.
+
+        Args:
+            storage_uri: The URI returned by :meth:`save` (local path or ``gs://`` URI).
+
+        Returns:
+            ``True`` if the artifact was deleted, ``False`` if not found.
+        """
+        if storage_uri.startswith("gs://"):
+            return self._delete_gcs(storage_uri)
+        return self._delete_local(storage_uri)
+
+    def delete_by_prefix(self, prefix: str) -> int:
+        """Delete all evidence artifacts under a storage prefix.
+
+        For local storage, ``prefix`` is a directory path. For GCS, it is a
+        blob prefix (e.g. ``intake/{intake_id}``).
+
+        Returns:
+            Number of artifacts deleted.
+        """
+        if self._backend == "gcs":
+            return self._delete_gcs_prefix(prefix)
+        return self._delete_local_dir(prefix)
+
+    # -- private helpers --
+
+    def _delete_local(self, path_str: str) -> bool:
+        path = Path(path_str)
+        if path.is_file():
+            path.unlink()
+            return True
+        return False
+
+    def _delete_local_dir(self, dir_path: str) -> int:
+        import shutil
+
+        path = Path(dir_path)
+        if not path.is_dir():
+            return 0
+        count = sum(1 for _ in path.rglob("*") if _.is_file())
+        shutil.rmtree(path)
+        return count
+
+    def _delete_gcs(self, uri: str) -> bool:
+        if self._bucket is None:
+            return False
+        # parse gs://bucket/path → path
+        blob_path = uri.split(f"gs://{self._bucket_name}/", 1)[-1]
+        blob = self._bucket.blob(blob_path)
+        if blob.exists():
+            blob.delete()
+            return True
+        return False
+
+    def _delete_gcs_prefix(self, prefix: str) -> int:
+        if self._bucket is None:
+            return 0
+        blobs = list(self._bucket.list_blobs(prefix=prefix))
+        for blob in blobs:
+            blob.delete()
+        return len(blobs)

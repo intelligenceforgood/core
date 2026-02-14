@@ -1455,6 +1455,42 @@
       "description": "Structured + blob storage configuration."
     },
     {
+      "path": "storage.retention_days",
+      "section": "storage",
+      "type": "int",
+      "default": 90,
+      "env_vars": [
+        "I4G_STORAGE__RETENTION_DAYS",
+        "STORAGE__RETENTION_DAYS",
+        "STORAGE_RETENTION_DAYS"
+      ],
+      "description": "Number of days after resolution before automated purge."
+    },
+    {
+      "path": "storage.retention_enabled",
+      "section": "storage",
+      "type": "bool",
+      "default": true,
+      "env_vars": [
+        "I4G_STORAGE__RETENTION_ENABLED",
+        "STORAGE__RETENTION_ENABLED",
+        "STORAGE_RETENTION_ENABLED"
+      ],
+      "description": "Master switch for automated retention purge."
+    },
+    {
+      "path": "storage.retention_grace_days",
+      "section": "storage",
+      "type": "int",
+      "default": 30,
+      "env_vars": [
+        "I4G_STORAGE__RETENTION_GRACE_DAYS",
+        "STORAGE__RETENTION_GRACE_DAYS",
+        "STORAGE_RETENTION_GRACE_DAYS"
+      ],
+      "description": "Days after soft-delete before hard purge."
+    },
+    {
       "path": "sweep.batch_size",
       "section": "sweep",
       "type": "int",

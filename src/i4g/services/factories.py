@@ -17,6 +17,7 @@ from i4g.reports.bundle_candidates import BundleCandidateProvider
 from i4g.reports.dossier_context import DossierContextLoader
 from i4g.services.vertex_writer import VertexDocumentWriter
 from i4g.services.classifier import FraudClassifier
+from i4g.services.retention import RetentionService
 from i4g.settings import get_settings
 from i4g.storage import EvidenceStorage
 from i4g.store.dossier_queue_store import DossierQueueStore
@@ -307,6 +308,42 @@ def build_langchain_llm(*, settings: Settings | None = None):
     return _build(settings=settings)
 
 
+def build_retention_service() -> RetentionService:
+    """Instantiate a :class:`RetentionService` with all configured stores.
+
+    The service handles automated retention purge and GDPR operations.
+    Optional stores (PII vault, evidence, vector) are attached when
+    available — failures are silently skipped.
+    """
+    sf = build_sql_session_factory()
+
+    vault_token_store = None
+    try:
+        svc = build_tokenization_service()
+        vault_token_store = svc.store
+    except Exception:
+        pass
+
+    evidence_storage = None
+    try:
+        evidence_storage = build_evidence_storage()
+    except Exception:
+        pass
+
+    vector_store = None
+    try:
+        vector_store = build_vector_store()
+    except Exception:
+        pass
+
+    return RetentionService(
+        sf,
+        vault_token_store=vault_token_store,
+        evidence_storage=evidence_storage,
+        vector_store=vector_store,
+    )
+
+
 __all__ = [
     "build_fraud_classifier",
     "build_llm_client",
@@ -325,4 +362,5 @@ __all__ = [
     "build_bundle_builder",
     "build_bundle_candidate_provider",
     "build_dossier_context_loader",
+    "build_retention_service",
 ]

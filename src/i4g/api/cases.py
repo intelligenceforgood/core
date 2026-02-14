@@ -7,11 +7,12 @@ from typing import Any, Literal
 from pydantic import Field
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 
-from i4g.api.auth import require_token
+from i4g.api.auth import require_role, require_token
 from i4g.api.camel import CamelModel
 from i4g.api.response_models import CasesListResponse
-from i4g.services.factories import build_review_store
+from i4g.services.factories import build_retention_service, build_review_store
 
 logger = logging.getLogger(__name__)
 
@@ -208,3 +209,44 @@ def get_case(case_id: str) -> CaseDetail:
     if classification_result is not None:
         case_kwargs["classification"] = classification_result
     return CaseDetail(**case_kwargs)
+
+
+# --- GDPR Compliance Endpoints ---
+
+
+@router.get(
+    "/{case_id}/export",
+    summary="GDPR data export",
+    response_class=JSONResponse,
+    dependencies=[Depends(require_role("admin"))],
+)
+def export_case(case_id: str) -> JSONResponse:
+    """Return all data associated with a case as JSON (GDPR Article 20).
+
+    Requires ``admin`` role.
+    """
+    service = build_retention_service()
+    try:
+        payload = service.export_case_data(case_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return JSONResponse(content=payload)
+
+
+@router.delete(
+    "/{case_id}",
+    summary="GDPR deletion",
+    dependencies=[Depends(require_role("admin"))],
+)
+def delete_case(case_id: str) -> dict[str, Any]:
+    """Hard-delete a case and all associated data (GDPR Article 17).
+
+    Cascades to PII vault tokens, evidence files, and vector embeddings.
+    Requires ``admin`` role.
+    """
+    service = build_retention_service()
+    try:
+        result = service.gdpr_delete_case(case_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return result

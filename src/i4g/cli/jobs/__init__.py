@@ -80,3 +80,12 @@ def jobs_pii_backfill() -> None:
     from i4g.worker.jobs import pii_backfill
 
     _exit_from_return(pii_backfill.main())
+
+
+@jobs_app.command("retention-purge", help="Run data retention purge job.")
+def jobs_retention_purge(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview purge candidates without modifying data."),
+) -> None:
+    from i4g.worker.jobs import retention_purge
+
+    _exit_from_return(retention_purge.main(dry_run=dry_run))

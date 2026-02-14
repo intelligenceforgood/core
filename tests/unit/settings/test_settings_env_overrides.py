@@ -545,3 +545,28 @@ def test_gcs_dataset_path_preserved(monkeypatch: object) -> None:
 
     settings = reload_settings(env="dev")
     assert str(settings.ingestion.dataset_path) == gcs_uri
+
+
+def test_retention_days_override(monkeypatch: object) -> None:
+    """storage.retention_days responds to I4G_STORAGE__RETENTION_DAYS."""
+
+    _clear_env(monkeypatch, "I4G_STORAGE__RETENTION_DAYS", "STORAGE__RETENTION_DAYS", "STORAGE_RETENTION_DAYS")
+    _set_env(monkeypatch, "I4G_STORAGE__RETENTION_DAYS", "45")
+
+    settings = reload_settings(env="dev")
+    assert settings.storage.retention_days == 45
+
+
+def test_retention_grace_days_override(monkeypatch: object) -> None:
+    """storage.retention_grace_days responds to I4G_STORAGE__RETENTION_GRACE_DAYS."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_STORAGE__RETENTION_GRACE_DAYS",
+        "STORAGE__RETENTION_GRACE_DAYS",
+        "STORAGE_RETENTION_GRACE_DAYS",
+    )
+    _set_env(monkeypatch, "I4G_STORAGE__RETENTION_GRACE_DAYS", "14")
+
+    settings = reload_settings(env="dev")
+    assert settings.storage.retention_grace_days == 14

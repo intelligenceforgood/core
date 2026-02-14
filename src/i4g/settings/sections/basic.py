@@ -122,3 +122,18 @@ class StorageSettings(BaseSettings):
         default=False,
         validation_alias=AliasChoices("APP__CLOUDSQL__ENABLE_IAM_AUTH", "I4G_APP__CLOUDSQL__ENABLE_IAM_AUTH"),
     )
+    retention_enabled: bool = Field(
+        default=True,
+        description="Master switch for automated retention purge. Set I4G_STORAGE__RETENTION_ENABLED=false to disable.",
+        validation_alias=AliasChoices("STORAGE__RETENTION_ENABLED", "STORAGE_RETENTION_ENABLED"),
+    )
+    retention_days: int = Field(
+        default=90,
+        description="Number of days after resolution before automated purge. Set via I4G_STORAGE__RETENTION_DAYS.",
+        validation_alias=AliasChoices("STORAGE__RETENTION_DAYS", "STORAGE_RETENTION_DAYS"),
+    )
+    retention_grace_days: int = Field(
+        default=30,
+        description="Days after soft-delete before hard purge. Set via I4G_STORAGE__RETENTION_GRACE_DAYS.",
+        validation_alias=AliasChoices("STORAGE__RETENTION_GRACE_DAYS", "STORAGE_RETENTION_GRACE_DAYS"),
+    )

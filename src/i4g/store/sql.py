@@ -127,6 +127,8 @@ cases = sa.Table(
     sa.Column("metadata", JSON_TYPE, nullable=True),
     sa.Column("is_deleted", sa.Boolean(), nullable=False, server_default=sa.text("false")),
     sa.Column("deleted_at", TIMESTAMP, nullable=True),
+    sa.Column("resolved_at", TIMESTAMP, nullable=True),
+    sa.Column("purged_at", TIMESTAMP, nullable=True),
     sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
     sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
     sa.UniqueConstraint("dataset", "raw_text_sha256", name="uq_cases_dataset_rawsha"),

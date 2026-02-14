@@ -155,6 +155,32 @@ class SqlAlchemyPiiTokenStore:
             )
             session.commit()
 
+    def delete_tokens_for_case(self, case_id: str) -> int:
+        """Delete all PII tokens associated with a case and log the action.
+
+        Args:
+            case_id: The case whose tokens should be purged.
+
+        Returns:
+            Number of tokens deleted.
+        """
+        with self.session_factory() as session:
+            result = session.execute(
+                sa.delete(pii_tokens).where(pii_tokens.c.case_id == case_id)
+            )
+            deleted = result.rowcount
+            session.commit()
+
+        if deleted:
+            self.log_access(
+                actor="system:retention_purge",
+                action="purge_tokens",
+                outcome="success",
+                reason=f"Retention purge: {deleted} tokens removed",
+                case_id=case_id,
+            )
+        return deleted
+
     def _encrypt(self, value: str) -> bytes | None:
         if self.fernet is None:
             return None

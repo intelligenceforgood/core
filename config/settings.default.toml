@@ -66,6 +66,9 @@
 # cloudsql_user = ""
 # cloudsql_password = ""
 # cloudsql_enable_iam_auth = false
+# retention_enabled = true
+# retention_days = 90
+# retention_grace_days = 30
 
 [pii]
 # pepper = ""
