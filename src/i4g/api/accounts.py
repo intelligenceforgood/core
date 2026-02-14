@@ -193,3 +193,17 @@ def deactivate_account(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Account {email!r} not found")
 
     return {"email": email, "deactivated": True}
+
+
+@router.put("/{email}/reactivate", summary="Reactivate account (admin)")
+def reactivate_account(
+    email: str,
+    user: dict[str, str] = Depends(require_role("admin")),
+    store: AccountStore = Depends(get_account_store),
+) -> dict[str, Any]:
+    """Reactivate a previously deactivated user account. Requires admin role."""
+    success = store.reactivate_account(email, actor=user["username"])
+    if not success:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Account {email!r} not found")
+
+    return {"email": email, "reactivated": True}

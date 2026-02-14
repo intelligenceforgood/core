@@ -5,8 +5,8 @@ and provides the per-request role lookup used by ``auth.py``.
 
 Design decision (F31): role is looked up from the ``accounts`` table on
 every request.  The account is auto-provisioned with ``DEFAULT_ROLE`` on
-first authentication to avoid requiring an admin to pre-register every
-user.
+first authentication (``user`` — minimal privilege) to avoid requiring
+an admin to pre-register every user.  Admins can promote via User Management.
 """
 
 from __future__ import annotations
@@ -207,6 +207,37 @@ class AccountStore:
                         review_id="system",
                         actor=actor,
                         action="account_deactivated",
+                        payload={"target_email": email},
+                        created_at=now,
+                    )
+                )
+            session.commit()
+            return result.rowcount > 0
+
+    def reactivate_account(self, email: str, actor: str) -> bool:
+        """Reactivate a previously deactivated account.
+
+        Args:
+            email: Target user's email.
+            actor: Email of the admin performing the action.
+
+        Returns:
+            True if the account was reactivated.
+        """
+        now = datetime.now(timezone.utc)
+        with self._session_factory() as session:
+            result = session.execute(
+                sa.update(sql_schema.accounts)
+                .where(sql_schema.accounts.c.email == email)
+                .values(is_active=True, updated_at=now)
+            )
+            if result.rowcount > 0:
+                session.execute(
+                    sa.insert(sql_schema.review_actions).values(
+                        action_id=f"reactivate-{email}-{now.isoformat()}",
+                        review_id="system",
+                        actor=actor,
+                        action="account_reactivated",
                         payload={"target_email": email},
                         created_at=now,
                     )

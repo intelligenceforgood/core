@@ -215,3 +215,43 @@ class TestDeactivateAccount:
         assert r.status_code == 404
 
         app.dependency_overrides.clear()
+
+
+class TestReactivateAccount:
+    """PUT /accounts/{email}/reactivate — admin-only."""
+
+    def test_admin_can_reactivate(self):
+        mock_store = _mock_store()
+        mock_store.reactivate_account.return_value = True
+        app.dependency_overrides[require_token] = lambda: {"username": "admin@test.io", "role": "admin"}
+        app.dependency_overrides[get_account_store] = lambda: mock_store
+
+        client = TestClient(app)
+        r = client.put("/accounts/analyst@test.io/reactivate")
+        assert r.status_code == 200
+        assert r.json()["reactivated"] is True
+
+        app.dependency_overrides.clear()
+
+    def test_analyst_cannot_reactivate(self):
+        mock_store = _mock_store()
+        app.dependency_overrides[require_token] = lambda: {"username": "analyst@test.io", "role": "analyst"}
+        app.dependency_overrides[get_account_store] = lambda: mock_store
+
+        client = TestClient(app)
+        r = client.put("/accounts/someone@test.io/reactivate")
+        assert r.status_code == 403
+
+        app.dependency_overrides.clear()
+
+    def test_reactivate_nonexistent(self):
+        mock_store = _mock_store()
+        mock_store.reactivate_account.return_value = False
+        app.dependency_overrides[require_token] = lambda: {"username": "admin@test.io", "role": "admin"}
+        app.dependency_overrides[get_account_store] = lambda: mock_store
+
+        client = TestClient(app)
+        r = client.put("/accounts/nobody@test.io/reactivate")
+        assert r.status_code == 404
+
+        app.dependency_overrides.clear()

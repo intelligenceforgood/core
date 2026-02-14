@@ -141,7 +141,7 @@ class TestUpdateRole:
             row = dict(rows[0]._mapping)
             assert row["actor"] == "boss@test.io"
             assert row["payload"]["target_email"] == "target@test.io"
-            assert row["payload"]["old_role"] == "analyst"
+            assert row["payload"]["old_role"] == DEFAULT_ROLE.value
             assert row["payload"]["new_role"] == "admin"
 
     def test_all_valid_roles(self, store: AccountStore):
@@ -193,3 +193,36 @@ class TestDeactivateAccount:
             row = dict(rows[0]._mapping)
             assert row["actor"] == "admin@test.io"
             assert row["payload"]["target_email"] == "victim@test.io"
+
+
+class TestReactivateAccount:
+    """Verify account reactivation."""
+
+    def test_reactivate_deactivated(self, store: AccountStore):
+        store.get_or_create_account("paused@test.io")
+        store.deactivate_account("paused@test.io", actor="admin@test.io")
+        assert store.get_account("paused@test.io")["is_active"] is False
+
+        success = store.reactivate_account("paused@test.io", actor="admin@test.io")
+        assert success is True
+        assert store.get_account("paused@test.io")["is_active"] is True
+
+    def test_reactivate_nonexistent_returns_false(self, store: AccountStore):
+        result = store.reactivate_account("nobody@test.io", actor="admin@test.io")
+        assert result is False
+
+    def test_reactivation_audit_log(self, store: AccountStore, db_session_factory):
+        store.get_or_create_account("paused@test.io")
+        store.deactivate_account("paused@test.io", actor="admin@test.io")
+        store.reactivate_account("paused@test.io", actor="admin@test.io")
+
+        with db_session_factory() as session:
+            rows = session.execute(
+                sa.select(sql_schema.review_actions).where(
+                    sql_schema.review_actions.c.action == "account_reactivated"
+                )
+            ).all()
+            assert len(rows) == 1
+            row = dict(rows[0]._mapping)
+            assert row["actor"] == "admin@test.io"
+            assert row["payload"]["target_email"] == "paused@test.io"

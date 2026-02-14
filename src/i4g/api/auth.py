@@ -7,7 +7,7 @@ developers can iterate without token overhead.  Non-local environments
 
 **RBAC (WS-5):**  After authentication, the user's role is resolved from
 the ``accounts`` table via ``AccountStore.get_or_create_account()``.
-First-time users are auto-provisioned with ``DEFAULT_ROLE`` (analyst).
+First-time users are auto-provisioned with ``DEFAULT_ROLE`` (user).
 """
 
 from __future__ import annotations

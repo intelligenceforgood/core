@@ -14,8 +14,9 @@ class TestRoleEnum:
         assert Role.ADMIN.value == "admin"
         assert Role.LEO.value == "leo"
 
-    def test_default_role_is_analyst(self):
-        assert DEFAULT_ROLE == Role.ANALYST
+    def test_default_role_is_user(self):
+        """New users get minimal privilege (user role)."""
+        assert DEFAULT_ROLE == Role.USER
 
     def test_role_from_string(self):
         assert Role("admin") == Role.ADMIN

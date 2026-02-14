@@ -27,7 +27,8 @@ class Role(str, Enum):
 
 
 #: Default role assigned when a new user authenticates for the first time.
-DEFAULT_ROLE = Role.ANALYST
+#: Set to USER (minimal privilege) — admins can promote via User Management.
+DEFAULT_ROLE = Role.USER
 
 #: Role hierarchy — each role inherits all permissions of the roles listed.
 #: ``admin`` is always a superset of every other role.
