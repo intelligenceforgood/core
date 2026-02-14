@@ -21,6 +21,18 @@ UUID_TYPE = sa.String(length=64)
 METADATA = sa.MetaData()
 VAULT_METADATA = sa.MetaData()
 
+accounts = sa.Table(
+    "accounts",
+    METADATA,
+    sa.Column("email", sa.Text(), primary_key=True),
+    sa.Column("role", sa.Text(), nullable=False, server_default="analyst"),
+    sa.Column("display_name", sa.Text(), nullable=True),
+    sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_accounts_role", accounts.c.role)
+
 ingestion_runs = sa.Table(
     "ingestion_runs",
     METADATA,

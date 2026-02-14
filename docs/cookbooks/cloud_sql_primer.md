@@ -6,12 +6,12 @@ This guide explains how to inspect, query, and manage permissions for the Cloud 
 
 The platform uses two distinct Cloud SQL instances per environment:
 
-| Project | Environment | Instance Name | Database Name | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| **App** | `dev` | `i4g-dev-db` | `i4g_db` | Main application database (cases, reviews, etc.) |
-| **App** | `prod` | `i4g-prod-db` | `i4g_db` | Production application database |
-| **PII Vault** | `dev` | `i4g-vault-dev-db` | `vault_db` | Isolated PII storage (tokens, secrets) |
-| **PII Vault** | `prod` | `i4g-vault-prod-db` | `vault_db` | Production PII storage |
+| Project       | Environment | Instance Name       | Database Name | Description                                      |
+| :------------ | :---------- | :------------------ | :------------ | :----------------------------------------------- |
+| **App**       | `dev`       | `i4g-dev-db`        | `i4g_db`      | Main application database (cases, reviews, etc.) |
+| **App**       | `prod`      | `i4g-prod-db`       | `i4g_db`      | Production application database                  |
+| **PII Vault** | `dev`       | `i4g-vault-dev-db`  | `vault_db`    | Isolated PII storage (tokens, secrets)           |
+| **PII Vault** | `prod`      | `i4g-vault-prod-db` | `vault_db`    | Production PII storage                           |
 
 ---
 
@@ -27,6 +27,7 @@ This allows you to use standard tools (`psql`, DBeaver, Python scripts, Alembic)
 
 1.  **Start the Proxy**:
     Open a dedicated terminal and run:
+
     ```bash
     # Listen on port 5432 for Main DB and 5433 for Vault DB
     cloud-sql-proxy \
@@ -36,6 +37,7 @@ This allows you to use standard tools (`psql`, DBeaver, Python scripts, Alembic)
 
 2.  **Connect via psql**:
     In a separate terminal:
+
     ```bash
     # Connect to Main DB
     psql "host=127.0.0.1 port=5432 sslmode=disable user=postgres dbname=i4g_db"
@@ -67,6 +69,7 @@ If you need to reset the environment to a "virgin" state (e.g., during a full bo
 Connect to each database (using Method B is easiest here) and drop the schema/tables.
 
 **Main DB (`i4g-dev-db`):**
+
 ```sql
 -- Connect to i4g_db first
 \c i4g_db
@@ -79,6 +82,7 @@ GRANT ALL ON SCHEMA public TO public;
 ```
 
 **Vault DB (`i4g-vault-dev-db`):**
+
 ```sql
 -- Connect to vault_db first
 \c vault_db
@@ -97,16 +101,21 @@ Run these commands from the `core/` directory:
 
 ```bash
 # 1. Migrate Main DB (Port 5432)
-ALEMBIC_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5432/i4g_db" \
-alembic upgrade head
+ALEMBIC_DATABASE_URL="postgresql+psycopg2://postgres:YOUR_PASSWORD@127.0.0.1:5432/i4g_db" \
+  conda run -n i4g alembic -c alembic.ini upgrade head
 
 # 2. Migrate Vault DB (Port 5433)
-# Note: Use the correct config file (alembic_vault.ini)
-ALEMBIC_DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:5433/vault_db" \
-alembic -c alembic_vault.ini upgrade head
+ALEMBIC_DATABASE_URL="postgresql+psycopg2://postgres:YOUR_PASSWORD@127.0.0.1:5433/vault_db" \
+  conda run -n i4g alembic -c alembic_vault.ini upgrade head
 ```
 
-*(Note: Replace `postgres:postgres` with your actual DB credentials if different.)*
+> **Important:**
+>
+> - Use `postgresql+psycopg2://` (not bare `postgresql://`) to ensure the
+>   correct driver is loaded.
+> - Always run via `conda run -n i4g` — Alembic's `env.py` imports
+>   `i4g.settings` and `i4g.store.sql`, so the package must be importable.
+> - Replace `YOUR_PASSWORD` with the actual `postgres` user password.
 
 ---
 
@@ -116,16 +125,22 @@ After re-initializing the schema, you must ensure that the application service a
 
 ### Key Accounts
 
-| Role | Account Email | Permissions Needed |
-| :--- | :--- | :--- |
-| **Admins** | `jerry@intelligenceforgood.org`<br>`gcp-i4g-admin@intelligenceforgood.org` | `ALL PRIVILEGES` on tables<br>`CREATE` on schema |
-| **Service Accounts** | `sa-ingest@i4g-dev.iam`<br>`sa-app@i4g-dev.iam`<br>`sa-vault@i4g-pii-vault-dev.iam`<br>`sa-report@i4g-dev.iam` | `SELECT, INSERT, UPDATE, DELETE` |
+| Role                 | Account Email                                                                                                  | Permissions Needed                               |
+| :------------------- | :------------------------------------------------------------------------------------------------------------- | :----------------------------------------------- |
+| **Admins**           | `jerry@intelligenceforgood.org`<br>`gcp-i4g-admin@intelligenceforgood.org`                                     | `ALL PRIVILEGES` on tables<br>`CREATE` on schema |
+| **Service Accounts** | `sa-ingest@i4g-dev.iam`<br>`sa-app@i4g-dev.iam`<br>`sa-vault@i4g-pii-vault-dev.iam`<br>`sa-report@i4g-dev.iam` | `SELECT, INSERT, UPDATE, DELETE`                 |
 
 ### Granting Permissions
 
 Run these commands as the `postgres` user (via `psql` or `gcloud sql connect`).
 
+> **Critical:** You must grant privileges on **both tables and sequences**,
+> and set **default privileges** so that future tables created by `postgres`
+> (e.g. via Alembic migrations) are automatically accessible. Without
+> `ALTER DEFAULT PRIVILEGES`, new tables require re-running the grants.
+
 **Main DB (`i4g_db`):**
+
 ```sql
 \c i4g_db
 
@@ -134,7 +149,7 @@ GRANT USAGE ON SCHEMA public TO "sa-ingest@i4g-dev.iam";
 GRANT USAGE ON SCHEMA public TO "sa-app@i4g-dev.iam";
 GRANT USAGE ON SCHEMA public TO "sa-report@i4g-dev.iam";
 
--- Grant Table Access
+-- Grant Table Access (existing tables)
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "sa-ingest@i4g-dev.iam";
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "sa-app@i4g-dev.iam";
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "sa-report@i4g-dev.iam";
@@ -143,9 +158,31 @@ GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "sa-report@i4g-dev.iam";
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "sa-ingest@i4g-dev.iam";
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "sa-app@i4g-dev.iam";
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "sa-report@i4g-dev.iam";
+
+-- Default privileges for future tables/sequences created by postgres
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "sa-ingest@i4g-dev.iam";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "sa-app@i4g-dev.iam";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "sa-report@i4g-dev.iam";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "sa-ingest@i4g-dev.iam";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "sa-app@i4g-dev.iam";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "sa-report@i4g-dev.iam";
 ```
 
+**IAM User Access (for Cloud SQL Studio and psql via IAM):**
+
+```sql
+-- Grant an IAM user full access (tables, sequences, and defaults)
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "jerry@intelligenceforgood.org";
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "jerry@intelligenceforgood.org";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO "jerry@intelligenceforgood.org";
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "jerry@intelligenceforgood.org";
+```
+
+> **Common mistake:** granting only sequence privileges won't let you query
+> tables. You need `GRANT ... ON ALL TABLES` for SELECT/INSERT/UPDATE/DELETE.
+
 **Vault DB (`vault_db`):**
+
 ```sql
 \c vault_db
 
@@ -167,21 +204,24 @@ GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "sa-app@i4g-dev.iam";
 ## 4. Common Queries
 
 ### Check Ingestion Status
+
 ```sql
-SELECT run_id, dataset, status, case_count, sql_writes, created_at 
-FROM ingestion_runs 
-ORDER BY created_at DESC 
+SELECT run_id, dataset, status, case_count, sql_writes, created_at
+FROM ingestion_runs
+ORDER BY created_at DESC
 LIMIT 5;
 ```
 
 ### Check Deduplication
+
 ```sql
 SELECT dataset, COUNT(*) as total_rows
-FROM cases 
+FROM cases
 GROUP BY dataset;
 ```
 
 ### Deduplicate Source Documents
+
 If `source_documents` has duplicate entries (same text/hash for the same case), use this to keep only the oldest record:
 
 ```sql
@@ -204,14 +244,135 @@ WHERE document_id IN (
 
 ---
 
-## 5. Troubleshooting
+## 5. Alembic Migration Workflow
+
+### Checking Migration Status
+
+Always check the current state before running migrations:
+
+```bash
+ALEMBIC_DATABASE_URL="postgresql+psycopg2://postgres:YOUR_PASSWORD@127.0.0.1:5432/i4g_db" \
+  conda run -n i4g alembic -c alembic.ini current
+```
+
+To see the full migration history:
+
+```bash
+conda run -n i4g alembic -c alembic.ini history
+```
+
+### Writing Migrations
+
+All schema changes **must** go through Alembic migrations. Do not rely on
+`metadata.create_all()` — it works locally with SQLite but does nothing on
+Cloud SQL.
+
+Migrations live in `src/i4g/migrations/versions/`. Follow the naming
+convention: `YYYYMMDD_NN_description.py`.
+
+When a migration adds tables or columns that may already exist (e.g. because
+`create_all()` ran locally), use `inspect()` guards:
+
+```python
+from sqlalchemy import inspect
+
+def upgrade() -> None:
+    conn = op.get_bind()
+    insp = inspect(conn)
+    existing_tables = insp.get_table_names()
+
+    if "my_table" not in existing_tables:
+        op.create_table("my_table", ...)
+
+    existing_columns = {c["name"] for c in insp.get_columns("cases")}
+    if "my_column" not in existing_columns:
+        op.add_column("cases", sa.Column("my_column", ...))
+```
+
+### Fixing a "Stamp Without Schema" Problem
+
+If `alembic current` shows the latest revision but the tables don't actually
+exist (e.g. someone ran `alembic stamp` without running the migration), fix
+it by downgrading and re-upgrading:
+
+```bash
+# Step back to the revision before the missing tables
+ALEMBIC_DATABASE_URL="..." \
+  conda run -n i4g alembic -c alembic.ini downgrade PREVIOUS_REVISION
+
+# Re-run forward
+ALEMBIC_DATABASE_URL="..." \
+  conda run -n i4g alembic -c alembic.ini upgrade head
+```
+
+If the downgrade also fails (trying to drop objects that don't exist), apply
+the SQL directly and leave Alembic's stamp in place:
+
+```sql
+-- Example: manually create a missing table
+CREATE TABLE IF NOT EXISTS accounts (
+    email TEXT PRIMARY KEY,
+    role TEXT NOT NULL DEFAULT 'analyst',
+    display_name TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_accounts_role ON accounts (role);
+
+-- Example: manually add missing columns
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS risk_score NUMERIC(5,1) NOT NULL DEFAULT 0;
+ALTER TABLE cases ADD COLUMN IF NOT EXISTS taxonomy_version TEXT;
+CREATE INDEX IF NOT EXISTS idx_cases_risk_score ON cases (risk_score);
+```
+
+### Seeding Initial Data
+
+After creating tables, seed required records:
+
+```sql
+-- Create an admin account
+INSERT INTO accounts (email, role, display_name, is_active)
+VALUES ('jerry@intelligenceforgood.org', 'admin', 'Jerry', true);
+```
+
+---
+
+## 6. Troubleshooting
 
 ### "FATAL: database '...' does not exist"
+
 Check the **Overview** table above. You might be connecting to `postgres` instead of `i4g_db` or `vault_db`.
 
 ### "FATAL: password authentication failed"
--   **IAM User:** Ensure your OAuth token is fresh (`gcloud auth print-access-token`).
--   **Postgres User:** Ensure you are using the password you just set.
+
+- **IAM User:** Ensure your OAuth token is fresh (`gcloud auth print-access-token`).
+- **Postgres User:** Ensure you are using the password you just set.
 
 ### "Permission denied for table ..."
-Follow the **Permission Management** section above to grant the missing privileges.
+
+Follow the **Permission Management** section above to grant the missing privileges. Remember that granting permissions on **sequences only** does not grant table access — you need separate `GRANT ... ON ALL TABLES` and `GRANT ... ON ALL SEQUENCES` statements.
+
+### Alembic "upgrade head" does nothing
+
+Run `alembic current` to check the stamped revision. If it already shows
+`(head)`, the database thinks the migration already ran. See the
+**Fixing a "Stamp Without Schema" Problem** section above.
+
+### Alembic "table already exists" / "column already exists"
+
+This happens when `create_all()` created objects outside of Alembic (common
+with local SQLite). Migration scripts should use `inspect()` guards to
+check for existing objects before creating them. See **Writing Migrations**
+above.
+
+### Alembic command fails with ImportError
+
+Always run Alembic via `conda run -n i4g alembic ...` — the `env.py` file
+imports `i4g.settings` and `i4g.store.sql`, which require the conda
+environment with the i4g package installed.
+
+### "Driver not found" or wrong connection
+
+Use `postgresql+psycopg2://` as the URL scheme, not bare `postgresql://`.
+The psycopg2 driver must be installed in the conda environment.

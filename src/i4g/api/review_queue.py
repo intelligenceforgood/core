@@ -2,6 +2,11 @@
 
 Endpoints for enqueueing, claiming, annotating, and deciding on reviews.
 Mounted by the main ``review.py`` orchestrator.
+
+**Row-level security (F36):** "Team visibility" model — all analysts can
+*view* all cases, but only the assigned analyst (or an admin) may perform
+actions (annotate, decide, provide feedback) on a review.  Claiming
+assigns the review to the current user.
 """
 
 import json
@@ -23,6 +28,7 @@ from i4g.api.response_models import (
     ItemListResponse,
 )
 from i4g.api.review_deps import get_store
+from i4g.api.roles import has_role
 from i4g.settings import PROJECT_ROOT
 from i4g.store.review_store import ReviewStore
 from i4g.taxonomy.models import AnalystFeedbackRequest, ClassificationResult
@@ -31,6 +37,43 @@ from i4g.worker.tasks import generate_report_for_case
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Row-level security helper (F36)
+# ---------------------------------------------------------------------------
+
+
+def _enforce_assignment(review_id: str, user: dict[str, Any], store: ReviewStore) -> None:
+    """Verify that the user is assigned to the review or is an admin.
+
+    The "team visibility" model allows all authenticated users to *view*
+    cases, but only the assigned analyst (or an admin) may *act* on them.
+
+    Args:
+        review_id: The review to check.
+        user: The authenticated user dict.
+        store: ReviewStore instance.
+
+    Raises:
+        HTTPException: 403 if the user is not assigned and not an admin.
+    """
+    user_role = user.get("role", "")
+    if has_role(user_role, "admin"):
+        return  # Admins can act on any review.
+
+    review = store.get_review(review_id)
+    if review is None:
+        return  # Let the downstream handler raise 404.
+
+    assigned_to = review.get("assigned_to")
+    username = user.get("username", "")
+    if assigned_to and assigned_to != username:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Review is assigned to {assigned_to}. Claim it first or ask an admin.",
+        )
+
 
 # ---------------------------------------------------------------------------
 # Pydantic models
@@ -133,6 +176,7 @@ def annotate_review(
     store: ReviewStore = Depends(get_store),
 ):
     """Attach annotations and notes to a review; logs action."""
+    _enforce_assignment(review_id, user, store)
     store.log_action(
         review_id,
         actor=user["username"],
@@ -156,6 +200,7 @@ def submit_feedback(
     2. Applies the corrected classification to the case (updates cases + review_queue).
     3. Writes a golden dataset candidate for curator review.
     """
+    _enforce_assignment(review_id, user, store)
     actor = user.get("username", "unknown")
 
     # 1. Log feedback as audit trail
@@ -251,7 +296,8 @@ def decision(
     If decision is 'accepted' and auto_generate_report is True,
     schedule background report generation.
     """
-    if payload.decision not in {"accepted", "rejected", "needs_more_info", "in_review"}:
+    _enforce_assignment(review_id, user, store)
+    if payload.decision not in {"accepted", "rejected", "needs_more_info", "in_review"}: 
         raise HTTPException(status_code=400, detail="Invalid decision")
 
     logger.info(

@@ -10,8 +10,9 @@ from pathlib import Path
 from i4g.api.response_models import TaskStatusResponse, TaskUpdateResponse
 
 from i4g.api.account_list import router as account_list_router
+from i4g.api.accounts import router as accounts_router
 from i4g.api.analytics import router as analytics_router
-from i4g.api.auth import require_token
+from i4g.api.auth import require_role, require_token
 from i4g.api.cases import router as cases_router
 from i4g.api.campaigns import router as campaigns_router
 from i4g.api.dashboard import router as dashboard_router
@@ -51,7 +52,11 @@ def get_task_status(task_id: str) -> dict[str, str]:
 
 
 @task_router.post("/{task_id}/update", response_model=TaskUpdateResponse)
-def update_task_status(task_id: str, payload: dict[str, str]) -> dict[str, str | bool]:
+def update_task_status(
+    task_id: str,
+    payload: dict[str, str],
+    user: dict = Depends(require_role("admin")),
+) -> dict[str, str | bool]:
     """Update or register a task status entry.
 
     This simulates what a background worker would do.
@@ -87,6 +92,7 @@ def create_app() -> FastAPI:
 
     app.include_router(review_router, prefix="/reviews", tags=["reviews"])
     app.include_router(account_list_router)
+    app.include_router(accounts_router)
     app.include_router(analytics_router)
     app.include_router(cases_router)
     app.include_router(campaigns_router)

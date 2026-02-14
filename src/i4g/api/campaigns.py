@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from i4g.api.camel import CamelModel
 
-from i4g.api.auth import require_token
+from i4g.api.auth import require_role, require_token
 from i4g.services.campaigns import CampaignService
 from i4g.store.sql import session_factory
 
@@ -60,7 +60,11 @@ def list_campaigns(service: CampaignService = Depends(get_service)):
 
 
 @router.post("", response_model=str)
-def create_campaign(payload: CreateCampaignRequest, service: CampaignService = Depends(get_service)):
+def create_campaign(
+    payload: CreateCampaignRequest,
+    user: dict = Depends(require_role("admin")),
+    service: CampaignService = Depends(get_service),
+):
     logger.info("create_campaign: name=%r", payload.name)
     try:
         return service.create_campaign(
@@ -74,7 +78,12 @@ def create_campaign(payload: CreateCampaignRequest, service: CampaignService = D
 
 
 @router.patch("/{campaign_id}", response_model=dict[str, Any])
-def update_campaign(campaign_id: str, payload: UpdateCampaignRequest, service: CampaignService = Depends(get_service)):
+def update_campaign(
+    campaign_id: str,
+    payload: UpdateCampaignRequest,
+    user: dict = Depends(require_role("admin")),
+    service: CampaignService = Depends(get_service),
+):
     logger.info("update_campaign: campaign_id=%s", campaign_id)
     try:
         service.update_campaign(

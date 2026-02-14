@@ -7,7 +7,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from i4g.api.auth import require_token
+from i4g.api.auth import require_role, require_token
 from i4g.api.response_models import DetokenizeResponse, TokenizationHealthResponse, TokenizeResponse
 from i4g.pii.tokenization import TokenizationService
 from i4g.services.factories import build_tokenization_service
@@ -76,7 +76,7 @@ def tokenize(
 def detokenize(
     request: DetokenizeRequest,
     service: TokenizationService = Depends(get_tokenization_service),
-    user=Depends(require_token),
+    user=Depends(require_role("analyst")),
 ):
     """Return the canonical value for a token, if present in the vault."""
 
