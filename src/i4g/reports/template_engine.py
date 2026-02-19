@@ -12,6 +12,8 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, TemplateNotFound, select_autoescape
 
+from i4g.taxonomy import get_display_label
+
 DEFAULT_TEMPLATES_DIR = os.path.abspath(os.path.join(os.getcwd(), "templates"))
 
 
@@ -31,6 +33,7 @@ class TemplateEngine:
             trim_blocks=True,
             lstrip_blocks=True,
         )
+        self.env.filters["display_label"] = get_display_label
 
     def list_templates(self) -> list[str]:
         """Return a list of template names available in the templates directory."""

@@ -93,12 +93,20 @@ def generate_taxonomy_data(data: dict[str, Any]):
         "axes": axes,
     }
 
+    # Build flat code-to-label lookup map
+    label_map: dict[str, str] = {}
+    for key in ("intents", "channels", "techniques", "actions", "personas"):
+        for item in data.get(key, []):
+            label_map[item["code"]] = item["label"]
+
     lines = [
         '"""Static taxonomy data."""',
         "",
         "from typing import Any, Dict",
         "",
         f"TAXONOMY_DEFINITIONS: Dict[str, Any] = {json.dumps(output_data, indent=4)}",
+        "",
+        f"CODE_TO_LABEL: Dict[str, str] = {json.dumps(label_map, indent=4)}",
         "",
     ]
 

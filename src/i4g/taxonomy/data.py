@@ -1,6 +1,6 @@
 """Static taxonomy data."""
 
-from typing import Any
+from typing import Any, Dict
 
 TAXONOMY_DEFINITIONS: dict[str, Any] = {
     "version": "1.0",
@@ -376,4 +376,43 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
             ]
         }
     ]
+}
+
+CODE_TO_LABEL: Dict[str, str] = {
+    "INTENT.IMPOSTER": "Imposter",
+    "INTENT.INVESTMENT": "Investment",
+    "INTENT.ROMANCE": "Romance",
+    "INTENT.EMPLOYMENT": "Employment",
+    "INTENT.SHOPPING": "Shopping",
+    "INTENT.TECH_SUPPORT": "Tech Support",
+    "INTENT.PRIZE": "Prize",
+    "INTENT.EXTORTION": "Extortion",
+    "INTENT.CHARITY": "Charity",
+    "CHANNEL.EMAIL": "Email",
+    "CHANNEL.SMS": "SMS",
+    "CHANNEL.CHAT": "Chat",
+    "CHANNEL.SOCIAL": "Social Media",
+    "CHANNEL.PHONE": "Phone",
+    "CHANNEL.WEB": "Web",
+    "SE.URGENCY": "Urgency",
+    "SE.AUTHORITY": "Authority",
+    "SE.SCARCITY": "Scarcity",
+    "SE.FEAR": "Fear",
+    "SE.RECIPROCITY": "Reciprocity",
+    "SE.TRUST_BUILDING": "Trust Building",
+    "SE.CONFUSION": "Confusion",
+    "ACTION.SEND_MONEY": "Send Money",
+    "ACTION.GIFT_CARDS": "Gift Cards",
+    "ACTION.CRYPTO": "Crypto",
+    "ACTION.CREDENTIALS": "Credentials",
+    "ACTION.INSTALL": "Install",
+    "ACTION.CLICK_LINK": "Click Link",
+    "ACTION.PROVIDE_PII": "Provide PII",
+    "PERSONA.GOVERNMENT": "Government",
+    "PERSONA.BANK": "Bank",
+    "PERSONA.TECH_COMPANY": "Tech Company",
+    "PERSONA.EMPLOYER": "Employer",
+    "PERSONA.ROMANTIC": "Romantic Partner",
+    "PERSONA.MARKETPLACE": "Marketplace User",
+    "PERSONA.CHARITY": "Charity"
 }
