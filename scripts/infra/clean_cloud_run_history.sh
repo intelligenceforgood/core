@@ -2,7 +2,7 @@
 
 # Define your objects
 region="us-central1"
-jobs="account-list classification-sweeper dossier-queue  generate-reports ingest-bootstrap ingest-network-smoke process-intakes"
+jobs="account-list classification-sweeper dossier-queue  generate-reports ingest-bootstrap ingest-network-smoke process-intakes retention-purge ssi-investigate"
 services="fastapi-gateway i4g-console"
 
 for job in $jobs; do
