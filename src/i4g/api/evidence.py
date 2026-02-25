@@ -5,7 +5,6 @@ Routes are mounted on the cases router at ``/cases/{case_id}/evidence/...``.
 
 from __future__ import annotations
 
-import hashlib
 import io
 import json
 import logging
@@ -316,13 +315,16 @@ def upload_evidence(case_id: str, file: UploadFile) -> EvidenceUploadResponse:
 
     # Read file content
     content = file.file.read()
-    file_sha = hashlib.sha256(content).hexdigest()
     file_name = file.filename or "unknown"
     mime_type = file.content_type or "application/octet-stream"
 
     # Persist via evidence storage backend
-    storage_key = f"cases/{case_id}/{file_name}"
-    evidence.store(storage_key, content)
+    stored = evidence.save(
+        intake_id=case_id,
+        file_name=file_name,
+        data=content,
+        content_type=mime_type,
+    )
 
     # Create source_documents row
     doc_id = str(uuid.uuid4())
@@ -334,9 +336,9 @@ def upload_evidence(case_id: str, file: UploadFile) -> EvidenceUploadResponse:
                 document_id=doc_id,
                 case_id=case_id,
                 title=file_name,
-                source_url=storage_key,
+                source_url=stored.storage_uri,
                 mime_type=mime_type,
-                file_sha256=file_sha,
+                file_sha256=stored.checksum_sha256,
                 ingested_at=now,
                 created_at=now,
                 updated_at=now,
