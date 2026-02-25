@@ -1,19 +1,21 @@
-"""Evidence download and batch-export endpoints (WS-7: F43, F44, F46).
+"""Evidence download, upload, and batch-export endpoints.
 
 Routes are mounted on the cases router at ``/cases/{case_id}/evidence/...``.
 """
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import logging
+import uuid
 import zipfile
 from datetime import datetime, timezone
 from typing import Any
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import Response, StreamingResponse
 
 from i4g.api.auth import require_role, require_token
@@ -57,7 +59,7 @@ class EvidenceListResponse(CamelModel):
 # --- Helpers ---
 
 
-def _get_case_or_404(session, case_id: str) -> None:
+def _get_case_or_404(session: Any, case_id: str) -> None:
     """Raise 404 if *case_id* does not exist."""
     row = session.execute(
         sa.select(cases.c.case_id).where(cases.c.case_id == case_id)
@@ -66,7 +68,7 @@ def _get_case_or_404(session, case_id: str) -> None:
         raise HTTPException(status_code=404, detail="Case not found")
 
 
-def _get_document_row(session, case_id: str, doc_id: str):
+def _get_document_row(session: Any, case_id: str, doc_id: str) -> Any:
     """Fetch source_document row or raise 404."""
     row = session.execute(
         sa.select(source_documents).where(
@@ -278,3 +280,69 @@ def _safe_iso(val: Any) -> str | None:
     if isinstance(val, str):
         return val
     return None
+
+
+# --- Evidence upload endpoint (used by SSI CoreBridge) ---
+
+
+class EvidenceUploadResponse(CamelModel):
+    """Response for evidence file upload."""
+
+    document_id: str
+    case_id: str
+    title: str
+
+
+@router.post("", summary="Upload evidence file", response_model=EvidenceUploadResponse, status_code=201)
+def upload_evidence(case_id: str, file: UploadFile) -> EvidenceUploadResponse:
+    """Upload an evidence file and record it as a source document.
+
+    The file is persisted via the configured evidence storage backend
+    (local filesystem / GCS) and a ``source_documents`` row is created
+    linking the artifact to *case_id*.
+
+    Args:
+        case_id: Parent case.
+        file: Uploaded file.
+
+    Returns:
+        The new ``document_id`` and metadata.
+    """
+    sf = build_sql_session_factory()
+    evidence = build_evidence_storage()
+
+    with sf() as session:
+        _get_case_or_404(session, case_id)
+
+    # Read file content
+    content = file.file.read()
+    file_sha = hashlib.sha256(content).hexdigest()
+    file_name = file.filename or "unknown"
+    mime_type = file.content_type or "application/octet-stream"
+
+    # Persist via evidence storage backend
+    storage_key = f"cases/{case_id}/{file_name}"
+    evidence.store(storage_key, content)
+
+    # Create source_documents row
+    doc_id = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+
+    with sf() as session:
+        session.execute(
+            sa.insert(source_documents).values(
+                document_id=doc_id,
+                case_id=case_id,
+                title=file_name,
+                source_url=storage_key,
+                mime_type=mime_type,
+                file_sha256=file_sha,
+                ingested_at=now,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.commit()
+
+    logger.info("Uploaded evidence %s (%s) to case %s", file_name, doc_id, case_id)
+    return EvidenceUploadResponse(document_id=doc_id, case_id=case_id, title=file_name)

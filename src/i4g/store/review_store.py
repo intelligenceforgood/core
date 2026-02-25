@@ -143,7 +143,7 @@ def _summarize_dashboard_rows(
 
             case_entry: dict[str, Any] = {
                     "id": d_row["case_id"],
-                    "title": meta.get("title", f"Case {d_row['case_id']}"),
+                    "title": meta.get("title", f"Case {d_row['case_id'][:8]}"),
                     "priority": current_priority,
                     "status": ui_status,
                     "updatedAt": updated_at,
