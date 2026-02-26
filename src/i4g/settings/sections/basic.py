@@ -72,6 +72,16 @@ class IdentitySettings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("IDENTITY_CLIENT_ID", "IDENTITY__CLIENT_ID"),
     )
+    iap_backend_audience: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("IDENTITY_IAP_BACKEND_AUDIENCE", "IDENTITY__IAP_BACKEND_AUDIENCE"),
+        description=(
+            "IAP backend-service audience string "
+            "(/projects/PROJECT_NUMBER/global/backendServices/BACKEND_ID). "
+            "Used to verify X-Goog-IAP-JWT-Assertion tokens whose audience "
+            "differs from the OAuth client ID."
+        ),
+    )
     disable_auth: bool = Field(
         default=False,
         validation_alias=AliasChoices("IDENTITY_DISABLE_AUTH", "IDENTITY__DISABLE_AUTH"),

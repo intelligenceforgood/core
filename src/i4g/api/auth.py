@@ -98,8 +98,14 @@ def _verify_iap_jwt(token: str, *, is_iap_assertion: bool = False) -> dict[str, 
             _iap_verify = (g_id_token, g_requests.Request())
 
         id_token_mod, g_request = _iap_verify
-        # IAP tokens use the OAuth client-id as audience.
-        audience = settings.identity.audience or settings.identity.client_id
+        # IAP assertion tokens (X-Goog-IAP-JWT-Assertion) carry an
+        # audience of the form /projects/…/global/backendServices/…
+        # which differs from the OAuth client ID used for regular
+        # Bearer tokens. Use the dedicated setting when available.
+        if is_iap_assertion and settings.identity.iap_backend_audience:
+            audience = settings.identity.iap_backend_audience
+        else:
+            audience = settings.identity.audience or settings.identity.client_id
         verify_kwargs: dict[str, str] = {}
         if is_iap_assertion:
             verify_kwargs["certs_url"] = _IAP_CERTS_URL
@@ -112,7 +118,8 @@ def _verify_iap_jwt(token: str, *, is_iap_assertion: bool = False) -> dict[str, 
     except HTTPException:
         raise
     except Exception:
-        logger.debug("IAP JWT verification failed", exc_info=True)
+        level = logging.WARNING if is_iap_assertion else logging.DEBUG
+        logger.log(level, "IAP JWT verification failed (assertion=%s)", is_iap_assertion, exc_info=True)
         return None
 
 

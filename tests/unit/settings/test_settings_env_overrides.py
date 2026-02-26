@@ -570,3 +570,33 @@ def test_retention_grace_days_override(monkeypatch: object) -> None:
 
     settings = reload_settings(env="dev")
     assert settings.storage.retention_grace_days == 14
+
+
+def test_iap_backend_audience_override(monkeypatch: object) -> None:
+    """identity.iap_backend_audience responds to I4G_IDENTITY__IAP_BACKEND_AUDIENCE."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_IDENTITY__IAP_BACKEND_AUDIENCE",
+        "IDENTITY__IAP_BACKEND_AUDIENCE",
+        "IDENTITY_IAP_BACKEND_AUDIENCE",
+    )
+    aud = "/projects/123456/global/backendServices/789012"
+    _set_env(monkeypatch, "I4G_IDENTITY__IAP_BACKEND_AUDIENCE", aud)
+
+    settings = reload_settings(env="dev")
+    assert settings.identity.iap_backend_audience == aud
+
+
+def test_iap_backend_audience_default_none(monkeypatch: object) -> None:
+    """identity.iap_backend_audience defaults to None when not set."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_IDENTITY__IAP_BACKEND_AUDIENCE",
+        "IDENTITY__IAP_BACKEND_AUDIENCE",
+        "IDENTITY_IAP_BACKEND_AUDIENCE",
+    )
+
+    settings = reload_settings(env="dev")
+    assert settings.identity.iap_backend_audience is None
