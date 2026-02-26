@@ -105,7 +105,7 @@ class TestGetSsiInvestigationStatus:
         resp = client.get("/investigations/ssi/ssi-test123")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["task_id"] == "ssi-test123"
+        assert data["taskId"] == "ssi-test123"
         assert data["status"] == "running"
 
     def test_get_unknown_task(self) -> None:
@@ -133,7 +133,7 @@ class TestCloudRunJobTrigger:
     """Tests for the Cloud Run Job trigger logic."""
 
     @patch("i4g.api.investigations._trigger_cloud_run_job")
-    def test_cloud_trigger_passes_env_overrides(self, mock_trigger: MagicMock) -> None:
+    def test_cloud_trigger_passes_env_overrides(self, mock_trigger: MagicMock, monkeypatch: pytest.MonkeyPatch) -> None:
         """Verify env overrides include task_id and status URL."""
         mock_trigger.return_value = "operations/test-op"
 
@@ -141,22 +141,19 @@ class TestCloudRunJobTrigger:
         from i4g.settings import get_settings
 
         settings = get_settings()
-        original_env = settings.env
-        try:
-            settings.env = "dev"
-            resp = client.post(
-                "/investigations/ssi",
-                json={"url": "https://scam.example.com", "scanType": "full"},
-            )
-            assert resp.status_code == 202
+        monkeypatch.setattr(settings, "env", "dev")
 
-            if mock_trigger.called:
-                call_kwargs = mock_trigger.call_args
-                env_overrides = call_kwargs.kwargs.get("env_overrides", {})
-                assert "SSI_JOB__URL" in env_overrides
-                assert env_overrides["SSI_JOB__URL"] == "https://scam.example.com"
-                assert "I4G_TASK_ID" in env_overrides
-                assert "I4G_TASK_STATUS_URL" in env_overrides
-        finally:
-            settings.env = original_env
+        resp = client.post(
+            "/investigations/ssi",
+            json={"url": "https://scam.example.com", "scanType": "full"},
+        )
+        assert resp.status_code == 202
+        assert mock_trigger.called, "Cloud Run trigger should have been called in non-local env"
+
+        call_kwargs = mock_trigger.call_args
+        env_overrides = call_kwargs.kwargs.get("env_overrides", {})
+        assert "SSI_JOB__URL" in env_overrides
+        assert env_overrides["SSI_JOB__URL"] == "https://scam.example.com"
+        assert "I4G_TASK_ID" in env_overrides
+        assert "I4G_TASK_STATUS_URL" in env_overrides
 

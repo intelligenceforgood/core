@@ -11,6 +11,9 @@ tracks their progress via the shared TASK_STATUS system.
 from __future__ import annotations
 
 import logging
+import os
+import subprocess
+import sys
 import uuid
 from typing import Any, Literal
 
@@ -65,6 +68,14 @@ class SsiInvestigationResponse(CamelModel):
     status: str
     message: str
     job_name: str | None = None
+
+
+class SsiInvestigationStatusResponse(CamelModel):
+    """Response for SSI investigation status queries."""
+
+    task_id: str
+    status: str
+    message: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -164,9 +175,6 @@ def _trigger_local_investigation(
         trigger_dossier: Whether to trigger dossier generation.
         dataset: Dataset label.
     """
-    import subprocess
-    import sys
-
     env_vars = {
         "SSI_JOB__URL": url,
         "SSI_JOB__SCAN_TYPE": scan_type,
@@ -175,8 +183,6 @@ def _trigger_local_investigation(
         "SSI_JOB__DATASET": dataset,
         "I4G_TASK_ID": task_id,
     }
-
-    import os
 
     full_env = {**os.environ, **env_vars}
 
@@ -189,12 +195,12 @@ def _trigger_local_investigation(
             stderr=subprocess.DEVNULL,
         )
         logger.info("Launched local SSI investigation subprocess for task %s", task_id)
-    except FileNotFoundError:
+    except OSError as exc:
         TASK_STATUS[task_id] = {
             "status": "failed",
             "message": "SSI package not available locally. Install ssi to use local investigation mode.",
         }
-        logger.warning("SSI not available locally — cannot run investigation")
+        logger.warning("SSI not available locally — cannot run investigation: %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -250,8 +256,8 @@ def trigger_ssi_investigation(
     )
 
     is_local = settings.env == "local"
-    ssi_job = getattr(settings, "ssi_job", None)
-    job_name = getattr(ssi_job, "job_name", "ssi-investigate") if ssi_job else "ssi-investigate"
+    ssi_job = settings.ssi_job
+    job_name = ssi_job.job_name
 
     if is_local:
         _trigger_local_investigation(
@@ -270,16 +276,10 @@ def trigger_ssi_investigation(
         }
 
     # Cloud environments: trigger Cloud Run Job
-    project = getattr(ssi_job, "project", None) or "i4g-dev"
-    region = getattr(ssi_job, "region", None) or "us-central1"
-    service_account = getattr(ssi_job, "service_account", None)
-
-    # Build the task-status callback URL so the SSI job can POST updates.
-    api_base = getattr(ssi_job, "core_api_url", None) or ""
-    if not api_base:
-        # Derive from the current request context — not available in this
-        # scope, so fall back to the settings-based API URL.
-        api_base = f"https://api.intelligenceforgood.org"
+    project = ssi_job.project
+    region = ssi_job.region
+    service_account = ssi_job.service_account
+    api_base = ssi_job.core_api_url
 
     env_overrides: dict[str, str] = {
         "SSI_JOB__URL": payload.url,
@@ -307,7 +307,7 @@ def trigger_ssi_investigation(
         return {
             "task_id": task_id,
             "status": "running",
-            "message": f"SSI investigation triggered via Cloud Run Job",
+            "message": "SSI investigation triggered via Cloud Run Job",
             "job_name": job_name,
         }
     except Exception as exc:
@@ -322,7 +322,7 @@ def trigger_ssi_investigation(
 @router.get(
     "/ssi/{task_id}",
     summary="Get SSI investigation status",
-    response_model=None,
+    response_model=SsiInvestigationStatusResponse,
 )
 def get_ssi_investigation_status(
     task_id: str,
