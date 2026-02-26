@@ -30,6 +30,7 @@ from i4g.settings.sections import (
     SearchSettings,
     SecretsSettings,
     SmokeSettings,
+    SsiJobSettings,
     StorageSettings,
     SweepSettings,
     VectorSettings,
@@ -206,6 +207,7 @@ class Settings(BaseSettings):
     sweep: SweepSettings = Field(default_factory=SweepSettings)
     dossier_job: DossierJobSettings = Field(default_factory=DossierJobSettings)
     smoke: SmokeSettings = Field(default_factory=SmokeSettings)
+    ssi_job: SsiJobSettings = Field(default_factory=SsiJobSettings)
     env_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
     config_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
 

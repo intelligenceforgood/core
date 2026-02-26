@@ -600,3 +600,41 @@ def test_iap_backend_audience_default_none(monkeypatch: object) -> None:
 
     settings = reload_settings(env="dev")
     assert settings.identity.iap_backend_audience is None
+
+
+def test_ssi_job_name_override(monkeypatch: object) -> None:
+    """ssi_job.job_name responds to I4G_SSI_JOB__JOB_NAME."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_SSI_JOB__JOB_NAME",
+        "SSI_JOB__JOB_NAME",
+        "SSI_JOB_NAME",
+    )
+    _set_env(monkeypatch, "I4G_SSI_JOB__JOB_NAME", "ssi-investigate-custom")
+
+    settings = reload_settings(env="dev")
+    assert settings.ssi_job.job_name == "ssi-investigate-custom"
+
+
+def test_ssi_job_defaults(monkeypatch: object) -> None:
+    """ssi_job settings have sensible defaults."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_SSI_JOB__JOB_NAME",
+        "SSI_JOB__JOB_NAME",
+        "SSI_JOB_NAME",
+        "I4G_SSI_JOB__PROJECT",
+        "SSI_JOB__PROJECT",
+        "SSI_JOB_PROJECT",
+        "I4G_SSI_JOB__REGION",
+        "SSI_JOB__REGION",
+        "SSI_JOB_REGION",
+    )
+
+    settings = reload_settings(env="dev")
+    assert settings.ssi_job.job_name == "ssi-investigate"
+    assert settings.ssi_job.project == "i4g-dev"
+    assert settings.ssi_job.region == "us-central1"
+    assert settings.ssi_job.service_account is None

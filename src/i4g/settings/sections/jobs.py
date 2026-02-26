@@ -545,3 +545,39 @@ class IntakeJobSettings(BaseSettings):
         validation_alias=AliasChoices("INTAKE_API_KEY", "INTAKE__API_KEY"),
         description="API key for authenticating intake API calls. Falls back to api.key.",
     )
+
+
+class SsiJobSettings(BaseSettings):
+    """Configuration for triggering SSI Cloud Run Jobs from the core API.
+
+    Used by ``POST /investigations/ssi`` to launch an SSI investigation
+    job on Cloud Run and track its progress.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    job_name: str = Field(
+        default="ssi-investigate",
+        validation_alias=AliasChoices("SSI_JOB_NAME", "SSI_JOB__JOB_NAME"),
+        description="Cloud Run Job name for the SSI investigate job.",
+    )
+    project: str = Field(
+        default="i4g-dev",
+        validation_alias=AliasChoices("SSI_JOB_PROJECT", "SSI_JOB__PROJECT"),
+        description="GCP project ID where the SSI Cloud Run Job is deployed.",
+    )
+    region: str = Field(
+        default="us-central1",
+        validation_alias=AliasChoices("SSI_JOB_REGION", "SSI_JOB__REGION"),
+        description="GCP region for the Cloud Run Job.",
+    )
+    service_account: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SSI_JOB_SERVICE_ACCOUNT", "SSI_JOB__SERVICE_ACCOUNT"),
+        description="Service account to impersonate when triggering the job.",
+    )
+    core_api_url: str = Field(
+        default="https://api.intelligenceforgood.org",
+        validation_alias=AliasChoices("SSI_JOB_CORE_API_URL", "SSI_JOB__CORE_API_URL"),
+        description="Core API base URL for task status callbacks from the SSI job.",
+    )

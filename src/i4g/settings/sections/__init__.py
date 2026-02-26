@@ -13,6 +13,7 @@ from i4g.settings.sections.jobs import (
     SavedSearchSettings,
     SearchSettings,
     SmokeSettings,
+    SsiJobSettings,
     SweepSettings,
 )
 from i4g.settings.sections.ml import CryptoSettings, LLMSettings, PIISettings, SecretsSettings, VectorSettings
@@ -39,4 +40,5 @@ __all__ = [
     "ReportSettings",
     "AccountJobSettings",
     "IntakeJobSettings",
+    "SsiJobSettings",
 ]

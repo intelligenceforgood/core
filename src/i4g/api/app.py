@@ -20,6 +20,7 @@ from i4g.api.dashboard import router as dashboard_router
 from i4g.api.discovery import router as discovery_router
 from i4g.api.evidence import router as evidence_router
 from i4g.api.intake import router as intake_router
+from i4g.api.investigations import router as investigations_router
 from i4g.api.reports import router as reports_router
 from i4g.api.review import router as review_router
 from i4g.api.taxonomy import router as taxonomy_router
@@ -102,6 +103,7 @@ def create_app() -> FastAPI:
     app.include_router(discovery_router)
     app.include_router(evidence_router)
     app.include_router(intake_router)
+    app.include_router(investigations_router)
     app.include_router(reports_router)
     app.include_router(taxonomy_router)
     app.include_router(tokenization_router)
