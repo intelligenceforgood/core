@@ -581,3 +581,8 @@ class SsiJobSettings(BaseSettings):
         validation_alias=AliasChoices("SSI_JOB_CORE_API_URL", "SSI_JOB__CORE_API_URL"),
         description="Core API base URL for task status callbacks from the SSI job.",
     )
+    playbook_dir: str = Field(
+        default="config/playbooks",
+        validation_alias=AliasChoices("SSI_PLAYBOOK_DIR", "SSI_JOB__PLAYBOOK_DIR"),
+        description="Directory containing SSI playbook JSON files. Resolved relative to project root.",
+    )

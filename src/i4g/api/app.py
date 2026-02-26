@@ -25,6 +25,7 @@ from i4g.api.reports import router as reports_router
 from i4g.api.review import router as review_router
 from i4g.api.ssi_evidence import router as ssi_evidence_router
 from i4g.api.ssi_investigations import router as ssi_investigations_router
+from i4g.api.ssi_playbooks import router as ssi_playbooks_router
 from i4g.api.ssi_wallets import router as ssi_wallets_router
 from i4g.api.taxonomy import router as taxonomy_router
 from i4g.api.tokenization import router as tokenization_router
@@ -111,6 +112,8 @@ def create_app() -> FastAPI:
     # Wallets + evidence must come before ssi_investigations because the
     # ssi_investigations router has a /{scan_id} catch-all that would
     # otherwise swallow /wallets, /*/wallets.csv, etc.
+    # Playbooks have their own prefix (/playbooks/ssi) — no ordering issue.
+    app.include_router(ssi_playbooks_router)
     app.include_router(ssi_wallets_router)
     app.include_router(ssi_evidence_router)
     app.include_router(ssi_investigations_router)
