@@ -32,6 +32,7 @@ from i4g.store.sql import METADATA
 from i4g.store.sql import build_vault_session_factory
 from i4g.store.sql import session_factory as build_sql_session_factory
 from i4g.store.sql_writer import SqlWriter
+from i4g.store.ssi_store import SsiStore
 from i4g.store.structured import StructuredStore
 from i4g.store.vector import VectorStore
 
@@ -209,6 +210,23 @@ def build_dossier_queue_store(db_path: str | Path | None = None) -> DossierQueue
     return DossierQueueStore(db_path=db_path)
 
 
+def build_ssi_store(db_path: str | Path | None = None) -> SsiStore:
+    """Return an :class:`SsiStore` aligned with the structured backend.
+
+    Args:
+        db_path: Optional path override for local SQLite.  Ignored when the
+            configured backend is Cloud SQL.
+
+    Returns:
+        Instantiated :class:`SsiStore`.
+    """
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return SsiStore(session_factory=build_sql_session_factory())
+    return SsiStore(db_path=db_path)
+
+
 def build_tokenization_service() -> TokenizationService:
     """Instantiate the tokenization service with configured secrets."""
 
@@ -359,6 +377,7 @@ __all__ = [
     "build_ingestion_retry_store",
     "build_vertex_writer",
     "build_dossier_queue_store",
+    "build_ssi_store",
     "build_bundle_builder",
     "build_bundle_candidate_provider",
     "build_dossier_context_loader",

@@ -94,23 +94,40 @@ class TestTriggerSsiInvestigation:
 
 
 class TestGetSsiInvestigationStatus:
-    """Tests for GET /investigations/ssi/{task_id}."""
+    """Tests for GET /investigations/ssi/{task_id}.
 
-    def test_get_existing_task(self) -> None:
-        """Known task ID returns its status."""
+    Note: The ``GET /investigations/ssi/{task_id}`` convenience alias in
+    ``investigations.py`` is now shadowed by the ``GET /investigations/ssi/{scan_id}``
+    detail endpoint in ``ssi_investigations.py`` (Phase C).  Callers should use
+    ``GET /tasks/{task_id}`` for task-status polling instead.
+
+    These tests verify the new routing behaviour.
+    """
+
+    def test_task_status_via_tasks_endpoint(self) -> None:
+        """Task polling works via the primary ``/tasks/`` endpoint."""
         TASK_STATUS["ssi-test123"] = {
             "status": "running",
             "message": "Investigation in progress",
         }
-        resp = client.get("/investigations/ssi/ssi-test123")
+        resp = client.get("/tasks/ssi-test123")
         assert resp.status_code == 200
         data = resp.json()
         assert data["taskId"] == "ssi-test123"
         assert data["status"] == "running"
 
-    def test_get_unknown_task(self) -> None:
-        """Unknown task ID returns 'unknown' status."""
-        resp = client.get("/investigations/ssi/nonexistent")
+    def test_ssi_scan_detail_replaces_convenience_alias(self) -> None:
+        """``GET /investigations/ssi/{id}`` now routes to the scan-detail
+        endpoint and returns 404 for task IDs (which are not scan_ids).
+        """
+        TASK_STATUS["ssi-test456"] = {"status": "running", "message": "In progress"}
+        resp = client.get("/investigations/ssi/ssi-test456")
+        # The scan-detail endpoint doesn't find this ID in SsiStore → 404.
+        assert resp.status_code == 404
+
+    def test_get_unknown_via_tasks(self) -> None:
+        """Unknown task ID returns 'unknown' status via ``/tasks/``."""
+        resp = client.get("/tasks/nonexistent")
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "unknown"

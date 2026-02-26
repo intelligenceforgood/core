@@ -23,6 +23,9 @@ from i4g.api.intake import router as intake_router
 from i4g.api.investigations import router as investigations_router
 from i4g.api.reports import router as reports_router
 from i4g.api.review import router as review_router
+from i4g.api.ssi_evidence import router as ssi_evidence_router
+from i4g.api.ssi_investigations import router as ssi_investigations_router
+from i4g.api.ssi_wallets import router as ssi_wallets_router
 from i4g.api.taxonomy import router as taxonomy_router
 from i4g.api.tokenization import router as tokenization_router
 from i4g.settings import get_settings
@@ -103,6 +106,14 @@ def create_app() -> FastAPI:
     app.include_router(discovery_router)
     app.include_router(evidence_router)
     app.include_router(intake_router)
+    # SSI routers registered before investigations_router so static paths
+    # (/history, /active, /wallets) resolve before the catch-all {task_id}.
+    # Wallets + evidence must come before ssi_investigations because the
+    # ssi_investigations router has a /{scan_id} catch-all that would
+    # otherwise swallow /wallets, /*/wallets.csv, etc.
+    app.include_router(ssi_wallets_router)
+    app.include_router(ssi_evidence_router)
+    app.include_router(ssi_investigations_router)
     app.include_router(investigations_router)
     app.include_router(reports_router)
     app.include_router(taxonomy_router)
