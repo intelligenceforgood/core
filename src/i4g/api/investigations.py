@@ -167,8 +167,11 @@ def _trigger_local_investigation(
     """Run an SSI investigation locally via subprocess for local-dev.
 
     Fires ``ssi job investigate`` in a background subprocess so the API
-    returns immediately.  Task status updates flow through the shared
-    ``TASK_STATUS`` dict (in-memory — same process group in local dev).
+    returns immediately.  Task status updates are posted back to the
+    local core API via HTTP (``I4G_TASK_STATUS_URL``) and merged into
+    the in-memory ``TASK_STATUS`` dict.  The DB-backed poll path
+    (``get_task_status`` reads from ``site_scans``) provides the
+    authoritative completion signal.
 
     Args:
         task_id: Task identifier for status tracking.
@@ -186,6 +189,10 @@ def _trigger_local_investigation(
         "SSI_JOB__DATASET": dataset,
         "SSI_JOB__SCAN_ID": scan_id,
         "I4G_TASK_ID": task_id,
+        # Point the TaskStatusReporter at the local core API so the
+        # subprocess can post progress updates (running → completed)
+        # back to the in-memory TASK_STATUS dict via HTTP.
+        "I4G_TASK_STATUS_URL": "http://localhost:8000/tasks",
     }
 
     full_env = {**os.environ, **env_vars}
