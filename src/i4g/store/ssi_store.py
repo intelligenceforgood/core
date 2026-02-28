@@ -67,6 +67,7 @@ class SsiStore:
         domain: str | None = None,
         case_id: str | None = None,
         metadata: dict[str, Any] | None = None,
+        scan_id: str | None = None,
     ) -> str:
         """Insert a new ``site_scans`` row and return the ``scan_id``.
 
@@ -76,11 +77,14 @@ class SsiStore:
             domain: Extracted domain from the URL.
             case_id: Optional linked core case ID.
             metadata: Arbitrary metadata dict.
+            scan_id: Optional pre-generated ID.  When ``None`` a fresh UUID
+                is created.  Pass a known ID so the DB record and the SSI
+                job share the same identifier.
 
         Returns:
-            The generated ``scan_id`` (UUID string).
+            The ``scan_id`` (UUID string).
         """
-        scan_id = str(uuid4())
+        scan_id = scan_id or str(uuid4())
         now = datetime.now(timezone.utc)
         with self._session_factory() as session:
             session.execute(

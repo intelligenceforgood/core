@@ -374,6 +374,34 @@ class TestDownloadEvidenceBundle:
         assert resp.status_code == 307
         assert "signed" in resp.headers["location"]
 
+    def test_gcs_fallback_from_local_path(
+        self, store: SsiStore, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Legacy local evidence_path falls back to GCS via settings."""
+        scan_id = _seed_scan(store)
+        store.update_scan(scan_id, evidence_path="/tmp/ssi/investigations/example-com_a1b2c3d4")
+
+        # Configure SSI evidence bucket/prefix in settings
+        settings = MagicMock()
+        settings.storage.ssi_evidence_bucket = "i4g-dev-ssi-evidence"
+        settings.storage.ssi_evidence_prefix = "investigations"
+        monkeypatch.setattr("i4g.settings.get_settings", lambda: settings)
+
+        monkeypatch.setattr(
+            "i4g.api.ssi_evidence._generate_signed_url",
+            lambda bucket, blob, **kw: f"https://storage.googleapis.com/signed/{bucket}/{blob}",
+        )
+
+        resp = client.get(
+            f"/investigations/ssi/{scan_id}/evidence-bundle",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 307
+        location = resp.headers["location"]
+        assert "i4g-dev-ssi-evidence" in location
+        assert scan_id in location
+        assert "evidence.zip" in location
+
 
 class TestDownloadLeaPackage:
     """Tests for ``GET /investigations/ssi/{scan_id}/lea-package``."""
@@ -478,3 +506,30 @@ class TestDownloadReportPdf:
         )
         assert resp.status_code == 307
         assert "report.pdf" in resp.headers["location"]
+
+    def test_gcs_fallback_from_local_path(
+        self, store: SsiStore, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Legacy local evidence_path falls back to GCS via settings for PDF."""
+        scan_id = _seed_scan(store)
+        store.update_scan(scan_id, evidence_path="/tmp/ssi/investigations/example-com_a1b2c3d4")
+
+        settings = MagicMock()
+        settings.storage.ssi_evidence_bucket = "i4g-dev-ssi-evidence"
+        settings.storage.ssi_evidence_prefix = "investigations"
+        monkeypatch.setattr("i4g.settings.get_settings", lambda: settings)
+
+        monkeypatch.setattr(
+            "i4g.api.ssi_evidence._generate_signed_url",
+            lambda bucket, blob, **kw: f"https://storage.googleapis.com/signed/{bucket}/{blob}",
+        )
+
+        resp = client.get(
+            f"/investigations/ssi/{scan_id}/report.pdf",
+            follow_redirects=False,
+        )
+        assert resp.status_code == 307
+        location = resp.headers["location"]
+        assert "i4g-dev-ssi-evidence" in location
+        assert scan_id in location
+        assert "report.pdf" in location

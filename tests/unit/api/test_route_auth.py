@@ -86,7 +86,7 @@ class TestCampaignRouteAuth:
 
 
 class TestTaskUpdateAuth:
-    """POST /tasks/{id}/update requires admin role."""
+    """POST /tasks/{id}/update requires any valid token (API key or IAP)."""
 
     def test_admin_can_update_task(self):
         app.dependency_overrides[require_token] = lambda: {"username": "admin@test.io", "role": "admin"}
@@ -94,8 +94,9 @@ class TestTaskUpdateAuth:
         r = client.post("/tasks/task-1/update", json={"status": "done", "message": "ok"})
         assert r.status_code == 200
 
-    def test_analyst_cannot_update_task(self):
+    def test_analyst_can_update_task(self):
+        """Any authenticated user can update task status (SSI TaskStatusReporter uses API key)."""
         app.dependency_overrides[require_token] = lambda: {"username": "analyst@test.io", "role": "analyst"}
         client = TestClient(app)
         r = client.post("/tasks/task-1/update", json={"status": "done"})
-        assert r.status_code == 403
+        assert r.status_code == 200

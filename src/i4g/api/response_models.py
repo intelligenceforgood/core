@@ -59,11 +59,19 @@ class BulkTagResponse(CamelModel):
 
 
 class TaskStatusResponse(CamelModel):
-    """Background task status."""
+    """Background task status.
+
+    Includes optional fields populated by Cloud Run Job reporters
+    (e.g. the SSI ``TaskStatusReporter``) when a job completes.
+    """
 
     task_id: str
     status: str
     message: str | None = None
+    investigation_id: str | None = None
+    risk_score: float | None = None
+    case_id: str | None = None
+    duration_seconds: float | None = None
 
 
 class TaskUpdateResponse(CamelModel):

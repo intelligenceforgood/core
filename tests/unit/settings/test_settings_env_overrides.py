@@ -638,3 +638,61 @@ def test_ssi_job_defaults(monkeypatch: object) -> None:
     assert settings.ssi_job.project == "i4g-dev"
     assert settings.ssi_job.region == "us-central1"
     assert settings.ssi_job.service_account is None
+
+
+def test_ssi_evidence_bucket_override(monkeypatch: object) -> None:
+    """storage.ssi_evidence_bucket responds to I4G_STORAGE__SSI_EVIDENCE_BUCKET."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_STORAGE__SSI_EVIDENCE_BUCKET",
+        "STORAGE__SSI_EVIDENCE_BUCKET",
+        "STORAGE_SSI_EVIDENCE_BUCKET",
+    )
+    _set_env(monkeypatch, "I4G_STORAGE__SSI_EVIDENCE_BUCKET", "i4g-dev-ssi-evidence")
+
+    settings = reload_settings(env="dev")
+    assert settings.storage.ssi_evidence_bucket == "i4g-dev-ssi-evidence"
+
+
+def test_ssi_evidence_bucket_default_none(monkeypatch: object) -> None:
+    """storage.ssi_evidence_bucket defaults to None when not set."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_STORAGE__SSI_EVIDENCE_BUCKET",
+        "STORAGE__SSI_EVIDENCE_BUCKET",
+        "STORAGE_SSI_EVIDENCE_BUCKET",
+    )
+
+    settings = reload_settings(env="dev")
+    assert settings.storage.ssi_evidence_bucket is None
+
+
+def test_ssi_evidence_prefix_override(monkeypatch: object) -> None:
+    """storage.ssi_evidence_prefix responds to I4G_STORAGE__SSI_EVIDENCE_PREFIX."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_STORAGE__SSI_EVIDENCE_PREFIX",
+        "STORAGE__SSI_EVIDENCE_PREFIX",
+        "STORAGE_SSI_EVIDENCE_PREFIX",
+    )
+    _set_env(monkeypatch, "I4G_STORAGE__SSI_EVIDENCE_PREFIX", "scans/v2")
+
+    settings = reload_settings(env="dev")
+    assert settings.storage.ssi_evidence_prefix == "scans/v2"
+
+
+def test_ssi_evidence_prefix_default(monkeypatch: object) -> None:
+    """storage.ssi_evidence_prefix defaults to 'investigations'."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_STORAGE__SSI_EVIDENCE_PREFIX",
+        "STORAGE__SSI_EVIDENCE_PREFIX",
+        "STORAGE_SSI_EVIDENCE_PREFIX",
+    )
+
+    settings = reload_settings(env="dev")
+    assert settings.storage.ssi_evidence_prefix == "investigations"

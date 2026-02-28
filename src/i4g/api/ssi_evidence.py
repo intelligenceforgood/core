@@ -12,6 +12,11 @@ standalone ``ssi-api`` service.
 Evidence assets are located via the ``evidence_path`` column on the
 ``site_scans`` table.  In local mode this is a filesystem directory;
 in cloud mode it is a GCS prefix (``gs://bucket/prefix/scan_id/``).
+
+When ``evidence_path`` is a local filesystem path (legacy scans created
+before the SSI orchestrator was updated to write ``gs://`` URIs), the
+endpoints fall back to constructing the GCS location from the
+``ssi_evidence_bucket`` / ``ssi_evidence_prefix`` settings.
 """
 
 from __future__ import annotations
@@ -46,6 +51,12 @@ router = APIRouter(
 def _generate_signed_url(bucket_name: str, blob_name: str, expiry_hours: int = 24) -> str:
     """Generate a time-limited GCS signed URL.
 
+    On Cloud Run the attached service account uses Compute Engine
+    credentials (a token, no private key).  ``blob.generate_signed_url``
+    requires a private key unless we explicitly pass the SA email and
+    let the IAM ``signBlob`` API do the signing.  We detect this case
+    and use the v4 signing method with IAM delegation.
+
     Args:
         bucket_name: GCS bucket name.
         blob_name: Object key within the bucket.
@@ -60,6 +71,7 @@ def _generate_signed_url(bucket_name: str, blob_name: str, expiry_hours: int = 2
     try:
         from datetime import timedelta
 
+        import google.auth
         from google.cloud.storage import Client
     except ImportError as exc:
         raise RuntimeError(
@@ -67,10 +79,28 @@ def _generate_signed_url(bucket_name: str, blob_name: str, expiry_hours: int = 2
             "Install it with: pip install google-cloud-storage"
         ) from exc
 
-    client = Client()
+    credentials, project = google.auth.default()
+    client = Client(credentials=credentials, project=project)
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(blob_name)
-    return blob.generate_signed_url(expiration=timedelta(hours=expiry_hours), method="GET")
+
+    # Compute Engine credentials (Cloud Run) lack a private key.
+    # Use IAM signBlob by passing the SA email explicitly.
+    sign_kwargs: dict[str, Any] = {
+        "expiration": timedelta(hours=expiry_hours),
+        "method": "GET",
+        "version": "v4",
+    }
+    if hasattr(credentials, "service_account_email") and credentials.service_account_email:
+        # Ensure the token is fresh so signBlob succeeds.
+        if not credentials.token or not credentials.valid:
+            import google.auth.transport.requests
+
+            credentials.refresh(google.auth.transport.requests.Request())
+        sign_kwargs["service_account_email"] = credentials.service_account_email
+        sign_kwargs["access_token"] = credentials.token
+
+    return blob.generate_signed_url(**sign_kwargs)
 
 
 def _parse_gcs_uri(uri: str) -> tuple[str, str]:
@@ -116,22 +146,56 @@ def _get_evidence_dir(scan: dict[str, Any]) -> Path | None:
 def _gcs_file_url(scan: dict[str, Any], filename: str) -> str | None:
     """Generate a GCS signed URL for a file within the evidence directory.
 
+    Supports two resolution strategies:
+
+    1. **Explicit ``gs://`` URI in ``evidence_path``** — parse directly.
+    2. **Fallback from settings** — when ``evidence_path`` is a local
+       filesystem path (legacy scans), construct the GCS location from
+       ``ssi_evidence_bucket`` / ``ssi_evidence_prefix`` settings and
+       the ``scan_id``.
+
     Args:
         scan: Scan dict from ``SsiStore``.
         filename: Filename relative to the evidence directory.
 
     Returns:
-        Signed URL string, or ``None`` if evidence_path is not a GCS URI.
+        Signed URL string, or ``None`` if GCS is not configured.
     """
     evidence_path = scan.get("evidence_path")
-    if not evidence_path or not str(evidence_path).startswith("gs://"):
+
+    if evidence_path and str(evidence_path).startswith("gs://"):
+        # Strategy 1: explicit gs:// URI
+        try:
+            bucket, prefix = _parse_gcs_uri(str(evidence_path))
+            blob_name = f"{prefix.rstrip('/')}/{filename}"
+            return _generate_signed_url(bucket, blob_name)
+        except Exception:
+            logger.warning("Failed to generate signed URL for %s/%s", evidence_path, filename, exc_info=True)
+            return None
+
+    # Strategy 2: construct from settings (legacy local-path evidence_path)
+    from i4g.settings import get_settings
+
+    settings = get_settings()
+    bucket = settings.storage.ssi_evidence_bucket
+    prefix = settings.storage.ssi_evidence_prefix
+    if not bucket:
         return None
+
+    scan_id = scan.get("scan_id", "")
+    if not scan_id:
+        return None
+
+    blob_name = f"{prefix.rstrip('/')}/{scan_id}/{filename}"
     try:
-        bucket, prefix = _parse_gcs_uri(str(evidence_path))
-        blob_name = f"{prefix.rstrip('/')}/{filename}"
         return _generate_signed_url(bucket, blob_name)
     except Exception:
-        logger.warning("Failed to generate signed URL for %s/%s", evidence_path, filename, exc_info=True)
+        logger.warning(
+            "Failed to generate signed URL from settings (bucket=%s, key=%s)",
+            bucket,
+            blob_name,
+            exc_info=True,
+        )
         return None
 
 
@@ -171,14 +235,14 @@ def download_evidence_bundle(
     if not scan:
         raise HTTPException(status_code=404, detail="Investigation not found.")
 
-    evidence_path = scan.get("evidence_path")
-    if not evidence_path:
-        raise HTTPException(status_code=404, detail="No evidence path recorded for this investigation.")
-
-    # GCS backend → signed URL redirect
+    # GCS backend → signed URL redirect (works for both gs:// and legacy local paths)
     signed_url = _gcs_file_url(scan, "evidence.zip")
     if signed_url:
         return RedirectResponse(url=signed_url, status_code=307)
+
+    evidence_path = scan.get("evidence_path")
+    if not evidence_path:
+        raise HTTPException(status_code=404, detail="No evidence path recorded for this investigation.")
 
     # Local backend → serve file from disk
     inv_dir = _get_evidence_dir(scan)
@@ -310,14 +374,14 @@ def download_report_pdf(
     if not scan:
         raise HTTPException(status_code=404, detail="Investigation not found.")
 
-    evidence_path = scan.get("evidence_path")
-    if not evidence_path:
-        raise HTTPException(status_code=404, detail="No evidence path recorded for this investigation.")
-
-    # GCS backend → signed URL redirect
+    # GCS backend → signed URL redirect (works for both gs:// and legacy local paths)
     signed_url = _gcs_file_url(scan, "report.pdf")
     if signed_url:
         return RedirectResponse(url=signed_url, status_code=307)
+
+    evidence_path = scan.get("evidence_path")
+    if not evidence_path:
+        raise HTTPException(status_code=404, detail="No evidence path recorded for this investigation.")
 
     # Local backend → serve from disk
     inv_dir = _get_evidence_dir(scan)

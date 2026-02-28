@@ -1,6 +1,8 @@
 """FastAPI app factory for i4g Analyst Review API."""
 
+import logging
 import time
+from typing import Any
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,8 +40,8 @@ from i4g.task_status_store import TASK_STATUS
 
 task_router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(require_token)])
 
-@task_router.get("/{task_id}", response_model=TaskStatusResponse)
-def get_task_status(task_id: str) -> dict[str, str]:
+@task_router.get("/{task_id}", response_model=TaskStatusResponse, response_model_exclude_none=True)
+def get_task_status(task_id: str) -> dict[str, Any]:
     """Retrieve the current status of a background task.
 
     This endpoint is used by the analyst console or external clients to monitor report
@@ -54,18 +56,48 @@ def get_task_status(task_id: str) -> dict[str, str]:
     if task_id not in TASK_STATUS:
         return {"task_id": task_id, "status": "unknown", "message": "Task not found"}
 
-    return {"task_id": task_id, **TASK_STATUS[task_id]}
+    task = TASK_STATUS[task_id]
+    scan_id = task.get("scan_id")
+
+    if scan_id:
+        try:
+            from i4g.services.factories import build_ssi_store
+
+            store = build_ssi_store()
+            scan = store.get_scan(scan_id)
+            if scan:
+                # Update task with latest from DB
+                status = scan["status"]
+                message = f"Investigation {status}: {task.get('url', 'unknown URL')}"
+                if status == "failed" and scan.get("error_message"):
+                    message = scan["error_message"]
+
+                return {
+                    "task_id": task_id,
+                    **task,
+                    "status": status,
+                    "message": message,
+                    "investigation_id": scan_id,
+                    "risk_score": float(scan["risk_score"]) if scan.get("risk_score") is not None else None,
+                    "case_id": scan.get("case_id"),
+                    "duration_seconds": float(scan["duration_seconds"]) if scan.get("duration_seconds") is not None else None,
+                }
+        except Exception as e:
+            logging.getLogger(__name__).warning("Failed to look up SSI scan status for %s: %s", scan_id, e)
+
+    return {"task_id": task_id, **task}
 
 
 @task_router.post("/{task_id}/update", response_model=TaskUpdateResponse)
 def update_task_status(
     task_id: str,
-    payload: dict[str, str],
-    user: dict = Depends(require_role("admin")),
+    payload: dict[str, Any],
+    user: dict = Depends(require_token),
 ) -> dict[str, str | bool]:
     """Update or register a task status entry.
 
-    This simulates what a background worker would do.
+    Called by background workers (Cloud Run Jobs, SSI TaskStatusReporter)
+    to report progress.  Accepts any authenticated token (API key or IAP).
 
     Args:
         task_id: The unique identifier of the task.
@@ -74,7 +106,11 @@ def update_task_status(
     Returns:
         A dictionary confirming the update.
     """
-    TASK_STATUS[task_id] = payload
+    # Merge into existing task data so that fields set at trigger time
+    # (e.g. scan_id, url) are preserved across incremental updates.
+    existing = TASK_STATUS.get(task_id, {})
+    existing.update(payload)
+    TASK_STATUS[task_id] = existing
     return {"task_id": task_id, "updated": True}
 
 

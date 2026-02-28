@@ -142,20 +142,23 @@ def require_token(
 
     1. **Auth disabled** (``settings.identity.disable_auth`` /
        ``I4G_ENV=local``): returns a mock admin user.
-    2. **IAP JWT** — ``X-Goog-IAP-JWT-Assertion`` header set by
+    2. **API key** — ``X-API-KEY`` header matching ``settings.api.key``
+       (set via ``I4G_API__KEY`` env var). Used for service-to-service
+       calls from Cloud Run jobs and CLI.  Checked before IAP JWT so
+       that internal callers (e.g. SSI Cloud Run Job posting task
+       status updates) are not subject to ``_resolve_role`` account
+       lookups that can reject service-account emails.
+    3. **IAP JWT** — ``X-Goog-IAP-JWT-Assertion`` header set by
        Google IAP at the load-balancer level. Verified via Google
        public keys. Role resolved from ``accounts`` table.
-    3. **Bearer token** — ``Authorization: Bearer <token>`` sent by
+    4. **Bearer token** — ``Authorization: Bearer <token>`` sent by
        the UI server or other callers with a Google ID token.
        Role resolved from ``accounts`` table.
-    4. **API key** — ``X-API-KEY`` header matching ``settings.api.key``
-       (set via ``I4G_API__KEY`` env var). Used for service-to-service
-       calls from Cloud Run jobs and CLI.
 
-    For checks 3 and 4 (service credentials), the caller may include
-    ``X-I4G-Forwarded-User`` with the real browser user's email.
-    This header is set by the Next.js SSR layer after reading the
-    incoming IAP assertion from the load balancer.  When present,
+    For checks 2, 3, and 4 (service credentials), the caller may
+    include ``X-I4G-Forwarded-User`` with the real browser user's
+    email.  This header is set by the Next.js SSR layer after reading
+    the incoming IAP assertion from the load balancer.  When present,
     the forwarded email is used as the principal instead of the
     service identity.
 
@@ -176,7 +179,18 @@ def require_token(
     if settings.identity.disable_auth:
         return _LOCAL_USER
 
-    # ── 2. IAP JWT (load-balancer path) ───────────────────────────
+    # ── 2. API key (env-var-configured, for jobs / CLI) ───────────
+    # Checked before IAP JWT so that Cloud Run Jobs (e.g. SSI
+    # investigate) can post task-status updates without going through
+    # _resolve_role, which may reject service-account emails.
+    if x_api_key and x_api_key == settings.api.key:
+        forwarded = request.headers.get("X-I4G-Forwarded-User")
+        if forwarded:
+            role = _resolve_role(forwarded)
+            return {"username": forwarded, "role": role}
+        return {"username": "service", "role": "admin"}
+
+    # ── 3. IAP JWT (load-balancer path) ───────────────────────────
     # The assertion may arrive directly from IAP (Cloud Run behind LB)
     # or forwarded by the Next.js SSR layer via getIapHeaders().
     iap_jwt = request.headers.get("X-Goog-IAP-JWT-Assertion")
@@ -188,20 +202,12 @@ def require_token(
             return _maybe_resolve_forwarded_user(request, user)
         logger.warning("IAP JWT present but verification failed")
 
-    # ── 3. Bearer token (service-to-service via Authorization) ────
+    # ── 4. Bearer token (service-to-service via Authorization) ────
     if authorization and authorization.lower().startswith("bearer "):
         bearer_token = authorization.split(" ", 1)[1]
         user = _verify_iap_jwt(bearer_token)
         if user:
             return _maybe_resolve_forwarded_user(request, user)
-
-    # ── 4. API key (env-var-configured, for jobs / CLI) ───────────
-    if x_api_key and x_api_key == settings.api.key:
-        forwarded = request.headers.get("X-I4G-Forwarded-User")
-        if forwarded:
-            role = _resolve_role(forwarded)
-            return {"username": forwarded, "role": role}
-        return {"username": "service", "role": "admin"}
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,

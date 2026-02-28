@@ -16,12 +16,14 @@ import subprocess
 import sys
 import uuid
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import Field
 
 from i4g.api.auth import require_role, require_token
 from i4g.api.camel import CamelModel
+from i4g.services.factories import build_ssi_store
 from i4g.settings import get_settings
 from i4g.task_status_store import TASK_STATUS
 
@@ -155,6 +157,7 @@ def _trigger_cloud_run_job(
 
 def _trigger_local_investigation(
     task_id: str,
+    scan_id: str,
     url: str,
     scan_type: str,
     push_to_core: bool,
@@ -181,6 +184,7 @@ def _trigger_local_investigation(
         "SSI_JOB__PUSH_TO_CORE": str(push_to_core).lower(),
         "SSI_JOB__TRIGGER_DOSSIER": str(trigger_dossier).lower(),
         "SSI_JOB__DATASET": dataset,
+        "SSI_JOB__SCAN_ID": scan_id,
         "I4G_TASK_ID": task_id,
     }
 
@@ -238,12 +242,37 @@ def trigger_ssi_investigation(
     settings = get_settings()
     task_id = f"ssi-{uuid.uuid4().hex[:12]}"
 
+    # Extract domain slug for the scan record.
+    try:
+        domain = urlparse(payload.url if "://" in payload.url else f"https://{payload.url}").netloc
+        if domain.startswith("www."):
+            domain = domain[4:]
+    except Exception:
+        domain = None
+
+    # Create the scan row *before* launching the job so that:
+    # 1. get_task_status can poll the scan from the DB.
+    # 2. The SSI job uses the same scan_id as its investigation_id.
+    scan_id = str(uuid.uuid4())
+    try:
+        ssi_store = build_ssi_store()
+        ssi_store.create_scan(
+            scan_id=scan_id,
+            url=payload.url,
+            scan_type=payload.scan_type,
+            domain=domain,
+        )
+        logger.info("Pre-created scan %s for %s", scan_id, payload.url)
+    except Exception as exc:
+        logger.warning("Failed to pre-create scan row (will continue): %s", exc)
+
     # Register the task immediately so the UI can poll it.
     TASK_STATUS[task_id] = {
         "status": "queued",
         "message": f"SSI investigation queued for {payload.url}",
         "url": payload.url,
         "scan_type": payload.scan_type,
+        "scan_id": scan_id,
         "triggered_by": user.get("username", "unknown"),
     }
 
@@ -262,6 +291,7 @@ def trigger_ssi_investigation(
     if is_local:
         _trigger_local_investigation(
             task_id=task_id,
+            scan_id=scan_id,
             url=payload.url,
             scan_type=payload.scan_type,
             push_to_core=payload.push_to_core,
@@ -287,6 +317,7 @@ def trigger_ssi_investigation(
         "SSI_JOB__PUSH_TO_CORE": str(payload.push_to_core).lower(),
         "SSI_JOB__TRIGGER_DOSSIER": str(payload.trigger_dossier).lower(),
         "SSI_JOB__DATASET": payload.dataset,
+        "SSI_JOB__SCAN_ID": scan_id,
         "I4G_TASK_ID": task_id,
         "I4G_TASK_STATUS_URL": f"{api_base}/tasks",
     }
@@ -302,6 +333,7 @@ def trigger_ssi_investigation(
         TASK_STATUS[task_id] = {
             "status": "running",
             "message": f"Cloud Run Job triggered for {payload.url}",
+            "scan_id": scan_id,
             "operation": op_name,
         }
         return {

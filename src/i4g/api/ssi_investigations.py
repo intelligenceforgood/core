@@ -172,3 +172,47 @@ def get_investigation(
         "pii_exposures": pii_exposures,
         "agent_actions": agent_actions,
     }
+
+
+@router.patch("/{scan_id}")
+def update_investigation(
+    scan_id: str,
+    payload: dict[str, Any],
+    _user: dict = Depends(require_token),
+) -> dict[str, Any]:
+    """Update a scan row with completion data from the SSI job.
+
+    Called by the SSI Cloud Run Job after investigation completes to
+    write the GCS evidence path, risk score, case ID, and final status
+    back to the pre-created ``site_scans`` row.
+
+    Args:
+        scan_id: UUID of the site_scans row.
+        payload: Fields to update (status, evidence_path, risk_score, etc.).
+
+    Returns:
+        Confirmation dict with the updated scan_id.
+
+    Raises:
+        HTTPException: 404 if the scan does not exist.
+    """
+    store = build_ssi_store()
+    scan = store.get_scan(scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Investigation not found.")
+
+    # Whitelist allowed fields to prevent arbitrary column writes.
+    allowed_fields = {
+        "status", "evidence_path", "evidence_zip_sha256", "risk_score",
+        "case_id", "classification_result", "error_message",
+        "duration_seconds", "passive_result", "active_result",
+        "wallet_count", "total_cost_usd", "llm_input_tokens",
+        "llm_output_tokens", "taxonomy_version",
+    }
+    update_fields = {k: v for k, v in payload.items() if k in allowed_fields and v is not None}
+
+    if update_fields:
+        store.update_scan(scan_id, **update_fields)
+        logger.info("Updated scan %s with fields: %s", scan_id, list(update_fields.keys()))
+
+    return {"scan_id": scan_id, "updated": True}

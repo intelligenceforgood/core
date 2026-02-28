@@ -108,6 +108,16 @@ class StorageSettings(BaseSettings):
         default=PROJECT_ROOT / "data" / "evidence",
         validation_alias=AliasChoices("STORAGE_EVIDENCE_LOCAL_DIR", "STORAGE__EVIDENCE__LOCAL_DIR"),
     )
+    ssi_evidence_bucket: str | None = Field(
+        default=None,
+        description="GCS bucket for SSI investigation evidence artifacts.",
+        validation_alias=AliasChoices("STORAGE__SSI_EVIDENCE_BUCKET", "STORAGE_SSI_EVIDENCE_BUCKET"),
+    )
+    ssi_evidence_prefix: str = Field(
+        default="investigations",
+        description="Key prefix inside the SSI evidence bucket.",
+        validation_alias=AliasChoices("STORAGE__SSI_EVIDENCE_PREFIX", "STORAGE_SSI_EVIDENCE_PREFIX"),
+    )
     report_bucket: str | None = Field(
         default=None,
         validation_alias=AliasChoices("STORAGE_REPORT_BUCKET", "STORAGE__REPORT_BUCKET", "I4G_STORAGE__REPORT_BUCKET"),
