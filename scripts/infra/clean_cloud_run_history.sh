@@ -3,7 +3,7 @@
 # Define your objects
 region="us-central1"
 jobs="account-list classification-sweeper dossier-queue  generate-reports ingest-bootstrap ingest-network-smoke process-intakes retention-purge ssi-investigate"
-services="fastapi-gateway i4g-console"
+services="fastapi-gateway i4g-console ssi-svc"
 
 for job in $jobs; do
     gcloud run jobs executions list \
