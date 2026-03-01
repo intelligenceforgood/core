@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -548,14 +549,28 @@ class IntakeJobSettings(BaseSettings):
 
 
 class SsiJobSettings(BaseSettings):
-    """Configuration for triggering SSI Cloud Run Jobs from the core API.
+    """Configuration for triggering SSI investigations from the core API.
 
     Used by ``POST /investigations/ssi`` to launch an SSI investigation
-    job on Cloud Run and track its progress.
+    via Cloud Run Job (``mode="job"``) or Cloud Run Service
+    (``mode="service"``) and track its progress.
     """
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
+    mode: Literal["job", "service"] = Field(
+        default="job",
+        validation_alias=AliasChoices("SSI_JOB_MODE", "SSI_JOB__MODE"),
+        description=(
+            "Dispatch mode for SSI investigations: 'job' triggers a Cloud Run Job, "
+            "'service' sends an HTTP POST to the SSI Cloud Run Service."
+        ),
+    )
+    service_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("SSI_JOB_SERVICE_URL", "SSI_JOB__SERVICE_URL"),
+        description="Base URL of the SSI Cloud Run Service (used when mode='service').",
+    )
     job_name: str = Field(
         default="ssi-investigate",
         validation_alias=AliasChoices("SSI_JOB_NAME", "SSI_JOB__JOB_NAME"),

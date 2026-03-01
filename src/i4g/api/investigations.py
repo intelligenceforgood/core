@@ -214,6 +214,75 @@ def _trigger_local_investigation(
         logger.warning("SSI not available locally — cannot run investigation: %s", exc)
 
 
+def _trigger_cloud_run_service(
+    *,
+    service_url: str,
+    url: str,
+    scan_type: str,
+    scan_id: str,
+    push_to_core: bool,
+    dataset: str,
+) -> None:
+    """Trigger an SSI investigation via the Cloud Run Service endpoint.
+
+    Sends an HTTP POST to ``{service_url}/jobs/investigate`` with a
+    Google-issued OIDC identity token for service-to-service auth.
+    Cloud Run validates the token automatically.
+
+    Args:
+        service_url: Base URL of the SSI Cloud Run Service.
+        url: Target URL to investigate.
+        scan_type: Investigation mode (passive/active/full).
+        scan_id: Pre-assigned scan ID.
+        push_to_core: Whether to create a case record in core.
+        dataset: Dataset label for the core case.
+
+    Raises:
+        RuntimeError: When the HTTP call fails or the service returns
+            a non-2xx response.
+    """
+    import httpx
+
+    endpoint = f"{service_url.rstrip('/')}/jobs/investigate"
+    payload = {
+        "url": url,
+        "scan_type": scan_type,
+        "scan_id": scan_id,
+        "push_to_core": push_to_core,
+        "dataset": dataset,
+    }
+
+    headers: dict[str, str] = {}
+
+    # Acquire an OIDC identity token for service-to-service auth.
+    # In local/test environments the google.auth libraries may not be
+    # available — skip the token in that case (the service won't
+    # require it locally).
+    try:
+        import google.auth.transport.requests
+        import google.oauth2.id_token
+
+        auth_request = google.auth.transport.requests.Request()
+        token = google.oauth2.id_token.fetch_id_token(auth_request, audience=service_url)
+        headers["Authorization"] = f"Bearer {token}"
+    except Exception as exc:
+        logger.warning("Could not acquire OIDC token for SSI service (will attempt without): %s", exc)
+
+    logger.info("Triggering SSI service at %s for %s (scan_id=%s)", endpoint, url, scan_id)
+
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            response = client.post(endpoint, json=payload, headers=headers)
+            response.raise_for_status()
+            logger.info("SSI service accepted investigation: %s", response.json())
+    except httpx.HTTPStatusError as exc:
+        raise RuntimeError(
+            f"SSI service returned {exc.response.status_code}: {exc.response.text}"
+        ) from exc
+    except httpx.RequestError as exc:
+        raise RuntimeError(f"Failed to reach SSI service at {endpoint}: {exc}") from exc
+
+
 # ---------------------------------------------------------------------------
 # Endpoint
 # ---------------------------------------------------------------------------
@@ -229,11 +298,15 @@ def trigger_ssi_investigation(
     payload: SsiInvestigationRequest,
     user: dict[str, str] = Depends(require_role("analyst")),
 ) -> dict[str, Any]:
-    """Trigger an SSI scam-site investigation via Cloud Run Job.
+    """Trigger an SSI scam-site investigation.
 
     Creates a task entry in the TASK_STATUS store and triggers the SSI
-    Cloud Run Job (or subprocess in local mode).  The client polls
-    ``GET /tasks/{task_id}`` for progress updates.
+    investigation via one of three paths:
+    - **Local:** subprocess (``ssi job investigate``)
+    - **Cloud, mode=service:** HTTP POST to the SSI Cloud Run Service
+    - **Cloud, mode=job:** Cloud Run Jobs API (legacy)
+
+    The client polls ``GET /tasks/{task_id}`` for progress updates.
 
     The SSI job pushes investigation results back to core via the
     ``CoreBridge`` when ``push_to_core=True`` (default), creating a
@@ -312,7 +385,40 @@ def trigger_ssi_investigation(
             "job_name": None,
         }
 
-    # Cloud environments: trigger Cloud Run Job
+    # Cloud environments: dispatch based on ssi_job.mode
+    if ssi_job.mode == "service":
+        # Cloud Run Service path — HTTP POST to SSI service
+        try:
+            _trigger_cloud_run_service(
+                service_url=ssi_job.service_url,
+                url=payload.url,
+                scan_type=payload.scan_type,
+                scan_id=scan_id,
+                push_to_core=payload.push_to_core,
+                dataset=payload.dataset,
+            )
+            TASK_STATUS[task_id] = {
+                "status": "running",
+                "message": f"SSI service triggered for {payload.url}",
+                "scan_id": scan_id,
+            }
+            return {
+                "task_id": task_id,
+                "status": "running",
+                "message": "SSI investigation triggered via Cloud Run Service",
+                "job_name": None,
+            }
+        except Exception as exc:
+            logger.error("Failed to trigger SSI Cloud Run Service: %s", exc, exc_info=True)
+            TASK_STATUS[task_id] = {
+                "status": "failed",
+                "message": f"Failed to trigger SSI service: {exc}",
+            }
+            raise HTTPException(
+                status_code=502, detail=f"Failed to trigger SSI investigation: {exc}"
+            ) from exc
+
+    # Cloud Run Job path (default)
     project = ssi_job.project
     region = ssi_job.region
     service_account = ssi_job.service_account

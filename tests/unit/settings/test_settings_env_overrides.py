@@ -696,3 +696,81 @@ def test_ssi_evidence_prefix_default(monkeypatch: object) -> None:
 
     settings = reload_settings(env="dev")
     assert settings.storage.ssi_evidence_prefix == "investigations"
+
+
+# ---------------------------------------------------------------------------
+# SSI Job mode + service_url settings (Phase 3.0)
+# ---------------------------------------------------------------------------
+
+
+def test_ssi_job_mode_default(monkeypatch: object) -> None:
+    """ssi_job.mode defaults to 'job'."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_SSI_JOB__MODE",
+        "SSI_JOB_MODE",
+        "SSI_JOB__MODE",
+    )
+
+    settings = reload_settings(env="dev")
+    assert settings.ssi_job.mode == "job"
+
+
+def test_ssi_job_mode_override_service(monkeypatch: object) -> None:
+    """ssi_job.mode can be overridden to 'service' via env var."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_SSI_JOB__MODE",
+        "SSI_JOB_MODE",
+        "SSI_JOB__MODE",
+    )
+    _set_env(monkeypatch, "SSI_JOB__MODE", "service")
+
+    settings = reload_settings(env="dev")
+    assert settings.ssi_job.mode == "service"
+
+
+def test_ssi_job_mode_override_with_prefix(monkeypatch: object) -> None:
+    """ssi_job.mode responds to the I4G_ prefixed env var."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_SSI_JOB__MODE",
+        "SSI_JOB_MODE",
+        "SSI_JOB__MODE",
+    )
+    _set_env(monkeypatch, "SSI_JOB_MODE", "service")
+
+    settings = reload_settings(env="dev")
+    assert settings.ssi_job.mode == "service"
+
+
+def test_ssi_job_service_url_default(monkeypatch: object) -> None:
+    """ssi_job.service_url defaults to empty string."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_SSI_JOB__SERVICE_URL",
+        "SSI_JOB_SERVICE_URL",
+        "SSI_JOB__SERVICE_URL",
+    )
+
+    settings = reload_settings(env="dev")
+    assert settings.ssi_job.service_url == ""
+
+
+def test_ssi_job_service_url_override(monkeypatch: object) -> None:
+    """ssi_job.service_url can be set via env var."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_SSI_JOB__SERVICE_URL",
+        "SSI_JOB_SERVICE_URL",
+        "SSI_JOB__SERVICE_URL",
+    )
+    _set_env(monkeypatch, "SSI_JOB__SERVICE_URL", "https://ssi-svc-abc123.run.app")
+
+    settings = reload_settings(env="dev")
+    assert settings.ssi_job.service_url == "https://ssi-svc-abc123.run.app"
