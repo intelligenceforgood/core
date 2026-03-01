@@ -128,6 +128,28 @@ class UpdateCaseRequest(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
+class TimelineEventRequest(BaseModel):
+    """Payload for a single timeline event in ``POST /cases/{case_id}/timeline``."""
+
+    description: str = Field(..., description="Human-readable event description.")
+    actor: str = Field("system", description="User or system actor (e.g. 'ssi-agent').")
+    type: str = Field(..., description="Event type key (e.g. 'investigation_submitted').")
+    timestamp: datetime | None = Field(None, description="Event timestamp; defaults to now.")
+
+
+class BatchTimelineRequest(BaseModel):
+    """Payload for ``POST /cases/{case_id}/timeline``."""
+
+    events: list[TimelineEventRequest]
+
+
+class BatchTimelineResponse(CamelModel):
+    """Response for timeline event batch creation."""
+
+    case_id: str
+    created: int
+
+
 class EntityItem(BaseModel):
     """Single entity in a batch-create request."""
 
@@ -217,11 +239,13 @@ def get_case(case_id: str) -> CaseDetail:
     for action in data.get("timeline", []):
         ts_str = action.get("created_at")
         ts = datetime.fromisoformat(ts_str) if ts_str else datetime.now(timezone.utc)
+        raw_payload = action.get("payload")
+        description = _format_timeline_description(action["action"], raw_payload)
         timeline_events.append(
             CaseTimelineEvent(
                 id=action["action_id"],
                 timestamp=ts,
-                description=f"{action['action']}: {action.get('payload') or ''}",
+                description=description,
                 actor=action["actor"],
                 type=action["action"],
             )
@@ -258,7 +282,7 @@ def get_case(case_id: str) -> CaseDetail:
     elif not tags:
         tags = []
 
-    # Artifacts (Files)
+    # Artifacts — merge metadata.files with uploaded source_documents
     artifacts = []
     files_list = props.get("files")
     if isinstance(files_list, list):
@@ -273,6 +297,56 @@ def get_case(case_id: str) -> CaseDetail:
                         metadata={"size": f.get("size")},
                     )
                 )
+
+    # Also include evidence files from source_documents table
+    sf = build_sql_session_factory()
+    with sf() as session:
+        doc_rows = session.execute(
+            sa.select(
+                sql_schema.source_documents.c.document_id,
+                sql_schema.source_documents.c.title,
+                sql_schema.source_documents.c.mime_type,
+                sql_schema.source_documents.c.source_url,
+            ).where(sql_schema.source_documents.c.case_id == case_id)
+        ).fetchall()
+        for row in doc_rows:
+            mapping = row._mapping
+            doc_id = str(mapping["document_id"])
+            doc_title = mapping.get("title") or doc_id[:12]
+            mime = mapping.get("mime_type") or "application/octet-stream"
+            artifact_type = _mime_to_artifact_type(mime)
+            artifacts.append(
+                CaseArtifact(
+                    id=f"doc-{doc_id}",
+                    type=artifact_type,
+                    name=doc_title,
+                    url=f"/cases/{case_id}/evidence/{doc_id}",
+                    metadata={"mime_type": mime, "source_url": mapping.get("source_url")},
+                )
+            )
+
+        # SSI investigation PDF report (if this case originated from SSI)
+        # Prefer the scan_id from site_scans (authoritative — created by core at
+        # trigger time) over the metadata value which may diverge if the Cloud
+        # Run Job received a different investigation_id.
+        ssi_inv_id = None
+        if data.get("source_type") == "ssi_investigation" or props.get("ssi_investigation_id"):
+            scan_row = session.execute(
+                sa.select(sql_schema.site_scans.c.scan_id).where(
+                    sql_schema.site_scans.c.case_id == case_id
+                ).order_by(sql_schema.site_scans.c.created_at.desc()).limit(1)
+            ).scalar()
+            ssi_inv_id = str(scan_row) if scan_row else props.get("ssi_investigation_id")
+    if ssi_inv_id:
+        artifacts.append(
+            CaseArtifact(
+                id=f"ssi-report-{ssi_inv_id}",
+                type="report",
+                name="Investigation Report (PDF)",
+                url=f"/ssi/report/{ssi_inv_id}",
+                metadata={"mime_type": "application/pdf", "source": "ssi"},
+            )
+        )
 
     # Classification result (D38 alignment)
     classification_result = data.get("classification_result")
@@ -307,6 +381,88 @@ def get_case(case_id: str) -> CaseDetail:
     if classification_result is not None:
         case_kwargs["classification"] = classification_result
     return CaseDetail(**case_kwargs)
+
+
+# --- Helpers ---
+
+
+_MIME_TYPE_MAP: dict[str, str] = {
+    "application/pdf": "document",
+    "application/json": "data",
+    "text/markdown": "document",
+    "text/plain": "document",
+    "text/html": "document",
+    "application/zip": "archive",
+    "application/x-zip-compressed": "archive",
+    "image/png": "screenshot",
+    "image/jpeg": "screenshot",
+    "image/webp": "screenshot",
+}
+
+
+def _mime_to_artifact_type(mime: str) -> str:
+    """Map a MIME type to a human-friendly artifact type label.
+
+    Args:
+        mime: MIME type string.
+
+    Returns:
+        An artifact type like 'document', 'screenshot', 'data', etc.
+    """
+    return _MIME_TYPE_MAP.get(mime, "document")
+
+
+# Human-friendly labels for SSI timeline event types
+_TIMELINE_LABELS: dict[str, str] = {
+    "investigation_submitted": "Investigation submitted",
+    "classification_completed": "Classification completed",
+    "wallets_harvested": "Wallet addresses harvested",
+    "evidence_collected": "Evidence collected",
+    "report_generated": "Report generated",
+    "case_created": "Case created",
+    "enqueued": "Case enqueued for review",
+    "status_change": "Status changed",
+    "comment": "Comment added",
+    "assignment": "Case assigned",
+}
+
+
+def _format_timeline_description(action: str, payload: Any) -> str:
+    """Build a human-readable timeline description from an action + payload.
+
+    For SSI-generated events the payload dict contains a pre-formatted
+    ``description`` key which is used directly.  Legacy review-action rows
+    fall back to ``"{action}: {payload}"``.
+
+    Args:
+        action: The action/type key stored in ``review_actions.action``.
+        payload: The JSON payload column (dict or string).
+
+    Returns:
+        A single-line description string.
+    """
+    # SSI events store a structured payload with a description key
+    if isinstance(payload, dict) and "description" in payload:
+        return payload["description"]
+
+    # JSON-string payloads
+    if isinstance(payload, str):
+        try:
+            parsed = json.loads(payload)
+            if isinstance(parsed, dict) and "description" in parsed:
+                return parsed["description"]
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    label = _TIMELINE_LABELS.get(action, action)
+    detail = ""
+    if isinstance(payload, dict):
+        detail = payload.get("detail", "")
+    elif isinstance(payload, str) and payload:
+        detail = payload
+    if detail:
+        return f"{label}: {detail}"
+    return label
 
 
 # --- Write endpoints (used by SSI CoreBridge) ---
@@ -621,6 +777,60 @@ def batch_create_indicators(case_id: str, body: BatchIndicatorsRequest) -> Batch
 
     logger.info("Upserted %d indicators on case %s", created, case_id)
     return BatchIndicatorsResponse(case_id=case_id, created=created)
+
+
+# --- Timeline Endpoints ---
+
+
+@router.post(
+    "/{case_id}/timeline",
+    summary="Add timeline events to a case",
+    response_model=BatchTimelineResponse,
+    status_code=201,
+)
+def add_timeline_events(case_id: str, body: BatchTimelineRequest) -> BatchTimelineResponse:
+    """Append one or more timeline events to a case's audit trail.
+
+    Each event is inserted as a ``review_actions`` row so it appears in
+    the case detail timeline.  Typically called by SSI's ``CoreBridge``
+    to record investigation milestones (scan started, classification
+    completed, wallets found, report generated, etc.).
+
+    Args:
+        case_id: The parent case.
+        body: Batch of timeline events.
+
+    Returns:
+        Count of events created.
+    """
+    store = build_review_store()
+
+    # Look up review_id for this case
+    sf = build_sql_session_factory()
+    with sf() as session:
+        _get_or_404(session, case_id)
+        review_id = session.execute(
+            sa.select(sql_schema.review_queue.c.review_id).where(
+                sql_schema.review_queue.c.case_id == case_id
+            )
+        ).scalar()
+
+    if not review_id:
+        raise HTTPException(status_code=404, detail="Case has no review queue entry")
+
+    created = 0
+    for event in body.events:
+        ts = event.timestamp or datetime.now(timezone.utc)
+        store.log_action(
+            review_id=review_id,
+            action=event.type,
+            actor=event.actor,
+            payload={"description": event.description, "timestamp": ts.isoformat()},
+        )
+        created += 1
+
+    logger.info("Added %d timeline events to case %s", created, case_id)
+    return BatchTimelineResponse(case_id=case_id, created=created)
 
 
 # --- GDPR Compliance Endpoints ---
