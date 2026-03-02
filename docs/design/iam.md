@@ -31,10 +31,10 @@ This document is the single source of truth for how we authenticate users, autho
 
 ## 3. Service & Endpoint Matrix
 
-| Service                 | Purpose                         | URL (dev)                                          | IAM Owner        | Notes                                                            |
-| ----------------------- | ------------------------------- | -------------------------------------------------- | ---------------- | ---------------------------------------------------------------- |
-| FastAPI Gateway         | API for intake, review, reports | `https://fastapi-gateway-y5jge5w2cq-uc.a.run.app/` | `sa-app` runtime | Protected by Identity-Aware Proxy (IAP). 404 at `/` is expected. |
-| Next.js Analyst Console | Analyst portal                  | `https://i4g-console-y5jge5w2cq-uc.a.run.app/`     | `sa-app` runtime | Protected by IAP; uses FastAPI APIs under the hood.              |
+| Service                 | Purpose                         | URL (dev)                                      | IAM Owner        | Notes                                                            |
+| ----------------------- | ------------------------------- | ---------------------------------------------- | ---------------- | ---------------------------------------------------------------- |
+| Core API (core-svc)     | API for intake, review, reports | `https://core-svc-y5jge5w2cq-uc.a.run.app/`    | `sa-app` runtime | Protected by Identity-Aware Proxy (IAP). 404 at `/` is expected. |
+| Next.js Analyst Console | Analyst portal                  | `https://i4g-console-y5jge5w2cq-uc.a.run.app/` | `sa-app` runtime | Protected by IAP; uses Core API under the hood.                  |
 
 All application services currently reuse the shared runtime service account (`sa-app`). Terraform now owns both the Cloud Run `roles/run.invoker` binding (runtime + IAP service agent) and the IAP `roles/iap.httpsResourceAccessor` policy via the `i4g_analyst_members` input, which now points at the Workspace group `group:gcp-i4g-analyst@intelligenceforgood.org`. Project-level `roles/owner` grants flow through the sister variable `i4g_admin_members`, mapped to `group:gcp-i4g-admin@intelligenceforgood.org`.
 
@@ -48,7 +48,7 @@ Authentication operates at three complementary layers:
 
 **Layer 1 — IAP via Global Load Balancer (infrastructure)**
 
-- A Global External Application Load Balancer is the single ingress point for `app.intelligenceforgood.org` (console) and `api.intelligenceforgood.org` (FastAPI).
+- A Global External Application Load Balancer is the single ingress point for `app.intelligenceforgood.org` (console) and `api.intelligenceforgood.org` (Core API).
 - Identity-Aware Proxy (IAP) is enabled on both backend services and enforces Google Sign-In _before_ traffic reaches Cloud Run.
 - Cloud Run services use `ingress: internal-and-cloud-load-balancing` so direct access bypassing the LB is blocked.
 - Terraform manages `roles/iap.httpsResourceAccessor` bindings via Google Groups (`gcp-i4g-analyst@intelligenceforgood.org`).
@@ -140,7 +140,7 @@ user  <  analyst  <  leo  ≤  admin
 ### 5.2 Infrastructure-Level Authorization
 
 1. **Runtime Service Accounts**
-   - `sa-app`: shared by FastAPI and the Next.js console. Roles: `roles/storage.objectViewer`, `roles/secretmanager.secretAccessor`, `roles/run.invoker` (self), `roles/logging.logWriter`, `roles/cloudsql.client`, plus Discovery search role.
+   - `sa-app`: shared by the Core API and the Next.js console. Roles: `roles/storage.objectViewer`, `roles/secretmanager.secretAccessor`, `roles/run.invoker` (self), `roles/logging.logWriter`, `roles/cloudsql.client`, plus Discovery search role.
    - `sa-ingest`, `sa-report`, `sa-vault`, `sa-infra`: per-job least-privilege grants (see Terraform modules).
 
 2. **Workspace Groups & Human Roles**
@@ -204,7 +204,7 @@ Terraform is the source of truth, but if we need an emergency change before a pl
       --member=group:gcp-i4g-analyst@intelligenceforgood.org \
       --role=roles/iap.httpsResourceAccessor
    ```
-3. **Repeat for FastAPI** as needed; Terraform will reconcile the bindings on the next apply.
+3. **Repeat for core-svc** as needed; Terraform will reconcile the bindings on the next apply.
 
 ### 6.3 Consuming identity inside the app
 

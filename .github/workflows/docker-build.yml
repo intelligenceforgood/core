@@ -22,7 +22,7 @@ jobs:
       fail-fast: false
       matrix:
         image:
-          - fastapi
+          - core-svc
           - account-job
           - dossier-job
           - ingest-job

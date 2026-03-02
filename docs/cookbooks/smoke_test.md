@@ -45,10 +45,10 @@ python scripts/infra/verify_vault_secret_access.py \
   --version latest
 ```
 
-3. Wire secrets into Cloud Run dev (`fastapi-gateway`), pointing at the vault project (swap `i4g-dev` → `i4g-prod` and vault project for prod):
+3. Wire secrets into Cloud Run dev (`core-svc`), pointing at the vault project (swap `i4g-dev` → `i4g-prod` and vault project for prod):
 
 ```bash
-gcloud run services update fastapi-gateway \
+gcloud run services update core-svc \
   --project i4g-dev \
   --region us-central1 \
   --service-account sa-app@i4g-dev.iam.gserviceaccount.com \
@@ -58,7 +58,7 @@ gcloud run services update fastapi-gateway \
 4. Export runtime env for the smoke (dev values shown; swap host/client ID for other envs):
 
 ```bash
-export FASTAPI_BASE=https://api.intelligenceforgood.org
+export CORE_API_BASE=https://api.intelligenceforgood.org
 export IAP_CLIENT_ID=544936845045-a87u04lgc7go7asc4nhed36ka50iqh0h.apps.googleusercontent.com
 export I4G_API_KEY=dev-analyst-token
 ```
@@ -78,18 +78,18 @@ export AUTH_HEADER="Authorization: Bearer $ID_TOKEN"
 ```bash
 PAYLOAD='{ "value": "user@example.com", "prefix": "EID" }'
 curl -s -H "Content-Type: application/json" -H "$AUTH_HEADER" -H "X-API-KEY: $I4G_API_KEY" \
-  -d "$PAYLOAD" "$FASTAPI_BASE/tokenization/tokenize" | tee /tmp/tokenize.json
+  -d "$PAYLOAD" "$CORE_API_BASE/tokenization/tokenize" | tee /tmp/tokenize.json
 TOKEN=$(jq -r '.token' /tmp/tokenize.json)
 curl -s -H "Content-Type: application/json" -H "$AUTH_HEADER" -H "X-API-KEY: $I4G_API_KEY" \
-  -d "{\"token\":\"$TOKEN\"}" "$FASTAPI_BASE/tokenization/detokenize" | jq
-curl -s -H "$AUTH_HEADER" -H "X-API-KEY: $I4G_API_KEY" "$FASTAPI_BASE/tokenization/health" | jq
+  -d "{\"token\":\"$TOKEN\"}" "$CORE_API_BASE/tokenization/detokenize" | jq
+curl -s -H "$AUTH_HEADER" -H "X-API-KEY: $I4G_API_KEY" "$CORE_API_BASE/tokenization/health" | jq
 ```
 
 7. Search redaction check (ensure responses contain no `text` or raw PII; entities should be token strings):
 
 ```bash
 curl -s -H "$AUTH_HEADER" -H "X-API-KEY: $I4G_API_KEY" \
-  "$FASTAPI_BASE/reviews/search?text=token&limit=5" | jq
+  "$CORE_API_BASE/reviews/search?text=token&limit=5" | jq
 ```
 
 Expected: tokenizer returns an `AAA-XXXXXXXX` token; detokenize returns the normalized value; health reports `pepper_configured: true`; search results omit `text` and only include tokenized entities. Fail the smoke if secret access is denied, token is empty, detokenize mismatches, or search returns raw PII.
@@ -110,28 +110,32 @@ The suite opens `/search`, confirms the query box, filter sidebar, and primary a
 ### Prerequisites
 
 1. Apply the latest migrations so the SQLite store matches the dual-write schema:
-  ```bash
-  conda run -n i4g python -m alembic upgrade head
-  ```
-  (Set `I4G_DATABASE_URL` before running the command if you need to target a non-default database.)
-2. Populate local demo artifacts if you have a fresh checkout:
-  ```bash
-  conda run -n i4g I4G_ENV=local i4g bootstrap local reset --report-dir data/reports/bootstrap_local
-  ```
+
+```bash
+conda run -n i4g python -m alembic upgrade head
+```
+
+(Set `I4G_DATABASE_URL` before running the command if you need to target a non-default database.) 2. Populate local demo artifacts if you have a fresh checkout:
+
+```bash
+conda run -n i4g I4G_ENV=local i4g bootstrap local reset --report-dir data/reports/bootstrap_local
+```
+
 3. Launch the FastAPI service in a dedicated terminal. Keep it running while you execute the tests:
    ```bash
    conda run -n i4g uvicorn i4g.api.app:app --host 127.0.0.1 --port 8000
    ```
 4. Ensure the analyst token `dev-analyst-token` exists (it ships with the repo). Adjust commands if you use a different key.
 5. (Optional) Check `data/reports/bootstrap_local/` after running the sandbox bootstrap; the verification report now
-  includes a deterministic bundle manifest hash plus an ingestion-run summary (row count and last start time) so you
-  can spot stale datasets quickly.
+   includes a deterministic bundle manifest hash plus an ingestion-run summary (row count and last start time) so you
+   can spot stale datasets quickly.
 6. (Optional) If the FastAPI API is running, include `--smoke-dossiers` when calling the bootstrap script to validate
-  dossier manifests and signatures via the `/reports/dossiers/.../verify` endpoints.
+   dossier manifests and signatures via the `/reports/dossiers/.../verify` endpoints.
 
 ### 1. FastAPI Intake Submission + Intake Job (API mode)
 
 1. Prepare a JSON payload and simple attachment for the submission. The example below mirrors what the automated smoke script uses:
+
    ```bash
    cat <<'EOF' >/tmp/intake_payload.json
    {
@@ -149,6 +153,7 @@ The suite opens `/search`, confirms the query box, filter sidebar, and primary a
 
    echo "evidence screenshot placeholder" >/tmp/intake_evidence.txt
    ```
+
 2. Submit the intake via the FastAPI endpoint and capture the response:
    ```bash
    curl -s \
@@ -201,6 +206,7 @@ env \
 ```
 
 Expected log excerpts:
+
 ```
 Dry run enabled; would ingest case_id=...
 Ingestion complete: processed=3 failures=0
@@ -271,6 +277,7 @@ Use the ingestion run verification script to confirm retry semantics are working
 
 1. **Validate the ingestion run record.** Use the helper script before and after the replay to confirm the run
    recorded the retries and that the queue drained:
+
    ```bash
    # Before the replay (expect retries > 0)
    conda run -n i4g python scripts/verify_ingestion_run.py \
@@ -285,6 +292,7 @@ Use the ingestion run verification script to confirm retry semantics are working
      --status succeeded \
      --max-retry-count 3
    ```
+
    Adjust the thresholds to match your dataset (for example `--expect-case-count 3`). Re-run the retry worker
    command at the end to confirm it reports `No ingestion retry entries ready`.
 
@@ -355,35 +363,42 @@ Document successful runs (or failures) in `planning/change_log.md` when they dri
 Use this flow to exercise the dossier queue + generator end-to-end on your laptop before enabling the Cloud Run job.
 
 1. **Seed pilot cases and enqueue plans.** The helper writes curated pilot cases into the structured + review stores and
-  drops queue entries ready for processing:
-  ```bash
-  conda run -n i4g i4g-admin pilot-dossiers --case-count 3
-  ```
-  Expect `✅ Enqueued ... pilot plan(s)` along with any warnings for missing pilot case IDs.
-2. **Optional dry run.** Inspect the queue without rendering artifacts by setting the job’s dry-run flag:
-  ```bash
-  env I4G_DOSSIER__BATCH_SIZE=2 I4G_DOSSIER__DRY_RUN=true I4G_RUNTIME__LOG_LEVEL=INFO \
-    conda run -n i4g i4g jobs dossier
-  ```
-  Logs should report `Dossier queue job complete ... dry_run=True` and leave the queue entries untouched.
-3. **Generate dossiers.** Clear the dry-run flag to render markdown + manifest artifacts under
-  `data/reports/dossiers/`:
-  ```bash
-  env I4G_DOSSIER__BATCH_SIZE=2 I4G_RUNTIME__LOG_LEVEL=INFO conda run -n i4g i4g jobs dossier
-  ```
-  Each processed plan emits `{plan_id}.json`, `{plan_id}.md`, and `{plan_id}.signatures.json` plus chart assets in
-  `data/reports/dossiers/assets/`.
-4. **Verify queue + artifacts.** Use the CLI or SQLite shell to confirm the queue rows transitioned to `completed`:
-  ```bash
-  conda run -n i4g i4g-admin process-dossiers --batch-size 3 --dry-run --preview 3
-  ls -1 data/reports/dossiers/*.json
-  ```
-  Inspect a manifest to ensure the signature file path and warnings look reasonable:
-  ```bash
-  jq '{plan_id, signature: .signature_manifest}' data/reports/dossiers/dossier-*.json | head -n 40
-  ```
-  Record the run (case count, warnings, hash highlights) in `planning/change_log.md` so Cloud Run parity checks have a
-  known baseline.
+   drops queue entries ready for processing:
+
+```bash
+conda run -n i4g i4g-admin pilot-dossiers --case-count 3
+```
+
+Expect `✅ Enqueued ... pilot plan(s)` along with any warnings for missing pilot case IDs. 2. **Optional dry run.** Inspect the queue without rendering artifacts by setting the job’s dry-run flag:
+
+```bash
+env I4G_DOSSIER__BATCH_SIZE=2 I4G_DOSSIER__DRY_RUN=true I4G_RUNTIME__LOG_LEVEL=INFO \
+  conda run -n i4g i4g jobs dossier
+```
+
+Logs should report `Dossier queue job complete ... dry_run=True` and leave the queue entries untouched. 3. **Generate dossiers.** Clear the dry-run flag to render markdown + manifest artifacts under
+`data/reports/dossiers/`:
+
+```bash
+env I4G_DOSSIER__BATCH_SIZE=2 I4G_RUNTIME__LOG_LEVEL=INFO conda run -n i4g i4g jobs dossier
+```
+
+Each processed plan emits `{plan_id}.json`, `{plan_id}.md`, and `{plan_id}.signatures.json` plus chart assets in
+`data/reports/dossiers/assets/`. 4. **Verify queue + artifacts.** Use the CLI or SQLite shell to confirm the queue rows transitioned to `completed`:
+
+```bash
+conda run -n i4g i4g-admin process-dossiers --batch-size 3 --dry-run --preview 3
+ls -1 data/reports/dossiers/*.json
+```
+
+Inspect a manifest to ensure the signature file path and warnings look reasonable:
+
+```bash
+jq '{plan_id, signature: .signature_manifest}' data/reports/dossiers/dossier-*.json | head -n 40
+```
+
+Record the run (case count, warnings, hash highlights) in `planning/change_log.md` so Cloud Run parity checks have a
+known baseline.
 
 ## GCP Smoke Tests (Dev Environment)
 
@@ -391,17 +406,21 @@ These steps ensure the deployed services, Cloud Run jobs, and shared storage pat
 
 > **Terraform drift warning**
 > The `process-intakes` and `account-list` jobs are Terraform-managed. It’s fine to temporarily override their container command/args or env vars with `gcloud run jobs update` while running a smoke test, but you must roll those overrides back afterward or Terraform plans will show persistent diffs. Before changing a job, capture the current command/args so you can restore them:
+>
 > ```bash
 > gcloud run jobs describe process-intakes \
 >   --project i4g-dev --region us-central1 \
 >   --format='value(spec.template.spec.template.spec.containers[0].command)'
 > ```
+>
 > After the test, clear any ad-hoc overrides (command/args/env) or re-run the exact `gcloud run jobs update ...` block from Terraform to put the job back into sync. For example, if you set a custom command while debugging:
+>
 > ```bash
 > gcloud run jobs update process-intakes \
 >   --project i4g-dev --region us-central1 \
 >   --clear-command --clear-args
 > ```
+>
 > Repeat the same pattern for `account-list` (swap the job name) so `terraform plan` stays clean for both services.
 
 ### Prerequisites
@@ -412,14 +431,14 @@ These steps ensure the deployed services, Cloud Run jobs, and shared storage pat
      --project i4g-dev \
      --region us-central1 \
      --container=container-0 \
-     --update-env-vars="I4G_INTAKE__API_BASE=https://fastapi-gateway-y5jge5w2cq-uc.a.run.app/intakes,\
+     --update-env-vars="I4G_INTAKE__API_BASE=https://core-svc-y5jge5w2cq-uc.a.run.app/intakes,\
      I4G_API__KEY=dev-analyst-token,\
      I4G_STORAGE__SQLITE_PATH=/tmp/i4g/sqlite/intake.db,\
      I4G_RUNTIME__FALLBACK_DIR=/tmp/i4g,\
      I4G_INGEST__ENABLE_VECTOR=false"
    ```
    Confirm the change with `gcloud run jobs describe process-intakes --format='value(spec.template.spec.template.spec.containers[0].env)'` if needed.
-2. Ensure the remote FastAPI gateway is healthy: https://fastapi-gateway-y5jge5w2cq-uc.a.run.app/ (you should see the default OpenAPI docs).
+2. Ensure the remote Core API is healthy: https://core-svc-y5jge5w2cq-uc.a.run.app/ (you should see the default OpenAPI docs).
 
 ### 1. Automated Cloud Run Smoke (recommended)
 
@@ -447,10 +466,11 @@ If you prefer to run the workflow manually (useful for debugging individual step
 
 ```bash
 curl -sS -L -o /tmp/dev_intake_response.json -w "%{http_code}" \
-  -X POST "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app/intakes/" \
+  -X POST "https://core-svc-y5jge5w2cq-uc.a.run.app/intakes/" \
   -H "X-API-KEY: dev-analyst-token" \
   -F 'payload={"reporter_name":"Dev Smoke","summary":"Dev smoke submission","details":"Automated smoke test run","source":"smoke-test"}'
 ```
+
 Expect `201` as the trailing status code. Capture the dynamic identifiers:
 
 ```bash
@@ -485,7 +505,7 @@ You should see `Execution [...] has successfully completed.` in the CLI output.
 2. Confirm the intake record reflects the processed status:
    ```bash
    curl -sS -H "X-API-KEY: dev-analyst-token" \
-     "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app/intakes/$DEV_INTAKE_ID" | \
+     "https://core-svc-y5jge5w2cq-uc.a.run.app/intakes/$DEV_INTAKE_ID" | \
      jq '{status: .status, job_status: .job.status, case_id: .case_id}'
    ```
    Expected result mirrors the local check (`processed` / `completed`).
@@ -553,56 +573,58 @@ Use this procedure whenever you need to rehydrate the dual-extraction corpus in 
 validate that Vertex throttling is handled by the retry worker.
 
 1. **Run the ingestion job with dev overrides.** Execute the worker against the Retrieval PoC bundle
-  so SQL and Vertex all receive writes:
-  ```bash
-  env \
-    I4G_ENV=dev \
-    I4G_INGEST__JSONL_PATH=$PWD/data/retrieval_poc/cases.jsonl \
-    I4G_INGEST__DATASET_NAME=retrieval_poc_dev \
-    I4G_VERTEX_SEARCH_PROJECT=i4g-dev \
-    I4G_VERTEX_SEARCH_LOCATION=global \
-    I4G_VERTEX_SEARCH_DATA_STORE=retrieval-poc \
-    I4G_RUNTIME__LOG_LEVEL=INFO \
-    conda run -n i4g python -m i4g.worker.jobs.ingest
-  ```
-  Capture the `run_id` from the logs. Expect SQL writes to match the case count (200).
-  Vertex imports may stop early if the "Document batch requests/min" quota is exceeded.
-2. **Verify the ingestion run.** Use the helper script with relaxed retry thresholds when Vertex
-  throttling occurs:
-  ```bash
-  env I4G_ENV=dev conda run -n i4g python scripts/verify_ingestion_run.py \
-    --run-id <run_id> \
-    --expect-case-count 200 \
-    --status succeeded \
-    --max-retry-count 100 \
-    --verbose
-  ```
-  The script prints case/entity counts plus backend write totals so you can snapshot the run
-  before draining retries.
-3. **Drain queued Vertex work.** When Vertex responds with HTTP 429s, run the retry worker
-  in small batches until it reports an empty queue:
-  ```bash
-  env \
-    I4G_ENV=dev \
-    I4G_VERTEX_SEARCH_PROJECT=i4g-dev \
-    I4G_VERTEX_SEARCH_LOCATION=global \
-    I4G_VERTEX_SEARCH_DATA_STORE=retrieval-poc \
-    I4G_INGEST_RETRY__BATCH_LIMIT=10 \
-    I4G_RUNTIME__LOG_LEVEL=INFO \
-    conda run -n i4g python -m i4g.worker.jobs.ingest_retry
-  ```
-  Each pass logs the replayed case IDs plus `successes=/failures=/rescheduled=` totals. Repeat
-  until the worker prints `No ingestion retry entries ready; exiting`.
-4. **Re-verify and log the run.** Re-run the verification helper (same command as step 2) to record
-  the final metrics. `retry_count` remains >0 because the run tracker logs the number of retries
-  consumed, but the empty queue confirms Vertex is consistent. Document the run in
-  `planning/change_log.md` with the `run_id`, write totals, and any quota notes so future backfills
-  have history.
-5. **Plan for quota limits.** If Vertex throttling becomes chronic, either lower the ingestion
-  batch size (`I4G_INGEST__BATCH_LIMIT`) to stretch writes over time or request a higher
-  `Document batch requests per minute` quota before running larger corpora. When tuning these
-  values, also adjust `I4G_INGEST_RETRY__BATCH_LIMIT` so the retry worker respects the same rate
-  envelope.
+   so SQL and Vertex all receive writes:
+
+```bash
+env \
+  I4G_ENV=dev \
+  I4G_INGEST__JSONL_PATH=$PWD/data/retrieval_poc/cases.jsonl \
+  I4G_INGEST__DATASET_NAME=retrieval_poc_dev \
+  I4G_VERTEX_SEARCH_PROJECT=i4g-dev \
+  I4G_VERTEX_SEARCH_LOCATION=global \
+  I4G_VERTEX_SEARCH_DATA_STORE=retrieval-poc \
+  I4G_RUNTIME__LOG_LEVEL=INFO \
+  conda run -n i4g python -m i4g.worker.jobs.ingest
+```
+
+Capture the `run_id` from the logs. Expect SQL writes to match the case count (200).
+Vertex imports may stop early if the "Document batch requests/min" quota is exceeded. 2. **Verify the ingestion run.** Use the helper script with relaxed retry thresholds when Vertex
+throttling occurs:
+
+```bash
+env I4G_ENV=dev conda run -n i4g python scripts/verify_ingestion_run.py \
+  --run-id <run_id> \
+  --expect-case-count 200 \
+  --status succeeded \
+  --max-retry-count 100 \
+  --verbose
+```
+
+The script prints case/entity counts plus backend write totals so you can snapshot the run
+before draining retries. 3. **Drain queued Vertex work.** When Vertex responds with HTTP 429s, run the retry worker
+in small batches until it reports an empty queue:
+
+```bash
+env \
+  I4G_ENV=dev \
+  I4G_VERTEX_SEARCH_PROJECT=i4g-dev \
+  I4G_VERTEX_SEARCH_LOCATION=global \
+  I4G_VERTEX_SEARCH_DATA_STORE=retrieval-poc \
+  I4G_INGEST_RETRY__BATCH_LIMIT=10 \
+  I4G_RUNTIME__LOG_LEVEL=INFO \
+  conda run -n i4g python -m i4g.worker.jobs.ingest_retry
+```
+
+Each pass logs the replayed case IDs plus `successes=/failures=/rescheduled=` totals. Repeat
+until the worker prints `No ingestion retry entries ready; exiting`. 4. **Re-verify and log the run.** Re-run the verification helper (same command as step 2) to record
+the final metrics. `retry_count` remains >0 because the run tracker logs the number of retries
+consumed, but the empty queue confirms Vertex is consistent. Document the run in
+`planning/change_log.md` with the `run_id`, write totals, and any quota notes so future backfills
+have history. 5. **Plan for quota limits.** If Vertex throttling becomes chronic, either lower the ingestion
+batch size (`I4G_INGEST__BATCH_LIMIT`) to stretch writes over time or request a higher
+`Document batch requests per minute` quota before running larger corpora. When tuning these
+values, also adjust `I4G_INGEST_RETRY__BATCH_LIMIT` so the retry worker respects the same rate
+envelope.
 
 ### 7. Network Entities Ingestion Smoke (Dev)
 
@@ -660,6 +682,7 @@ Vertex so UI chips stay in sync with the demo dataset.
    ```
    Typical runs finish in under two minutes because the batch size is pinned to `1`.
 3. **Inspect the execution status and logs.**
+
    ```bash
    gcloud run jobs executions describe "$EXECUTION" \
      --project i4g-dev \
@@ -670,8 +693,10 @@ Vertex so UI chips stay in sync with the demo dataset.
      "resource.type=cloud_run_job AND resource.labels.job_name=ingest-network-smoke AND labels.\"run.googleapis.com/execution_name\"=$EXECUTION" \
      --project i4g-dev --limit 50 --format text
    ```
+
    Expect the `Completed` condition plus `Ingestion run ... dataset=network_smoke` log lines. If the job
    fails, set `I4G_RUNTIME__LOG_LEVEL=DEBUG` via `jobs update` and rerun before filing an incident.
+
 4. **Verify downstream search + UI.** Use the admin helper to confirm the new cases reached Vertex:
    ```bash
    conda run -n i4g i4g-admin vertex-search "network entity" \
@@ -689,32 +714,36 @@ Vertex so UI chips stay in sync with the demo dataset.
 Validate the Cloud Run job that consumes dossier queue entries and publishes artifacts to the shared drive / storage.
 
 1. **Seed pilot data in dev.** Point the admin helper at the dev profile so pilot cases and queue entries exist in the
-  remote database:
-  ```bash
-  env I4G_ENV=dev conda run -n i4g i4g-admin pilot-dossiers --case-count 3
-  ```
-2. **Execute the Cloud Run job.** The Terraform-managed job is named `dossier-queue`. Override the batch size (and
-  optionally enable dry run) per execution:
-  ```bash
-  gcloud run jobs execute dossier-queue \
-    --project i4g-dev \
-    --region us-central1 \
-    --wait \
-    --container=container-0 \
-    --update-env-vars=I4G_DOSSIER__BATCH_SIZE=2,I4G_DOSSIER__DRY_RUN=false
-  ```
-  Expect the CLI to print `Execution [...] has successfully completed.`
-3. **Review logs and queue status.**
-  ```bash
-  gcloud logging read \
-    "resource.type=cloud_run_job AND resource.labels.job_name=dossier-queue" \
-    --project i4g-dev --limit 50 --format text
+   remote database:
 
-  curl -sS -H "X-API-KEY: dev-analyst-token" \
-    "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app/reports/dossiers?status=completed&limit=5" | \
-    jq '{count, plans: [.items[].plan_id]}'
-  ```
-  Logs should show `Dossier queue job complete` along with the processed/completed counts. The API call confirms plan
-  statuses flipped to `completed` and surfaces signature-manifest paths for downstream LEA workflows.
-4. **Capture evidence.** Store the execution name, queue status, and any warnings (missing assets, signature mismatches)
-  in `planning/change_log.md`. Repeat the smoke whenever you change dossier templates, tool outputs, or queue settings.
+```bash
+env I4G_ENV=dev conda run -n i4g i4g-admin pilot-dossiers --case-count 3
+```
+
+2. **Execute the Cloud Run job.** The Terraform-managed job is named `dossier-queue`. Override the batch size (and
+   optionally enable dry run) per execution:
+
+```bash
+gcloud run jobs execute dossier-queue \
+  --project i4g-dev \
+  --region us-central1 \
+  --wait \
+  --container=container-0 \
+  --update-env-vars=I4G_DOSSIER__BATCH_SIZE=2,I4G_DOSSIER__DRY_RUN=false
+```
+
+Expect the CLI to print `Execution [...] has successfully completed.` 3. **Review logs and queue status.**
+
+```bash
+gcloud logging read \
+  "resource.type=cloud_run_job AND resource.labels.job_name=dossier-queue" \
+  --project i4g-dev --limit 50 --format text
+
+curl -sS -H "X-API-KEY: dev-analyst-token" \
+  "https://core-svc-y5jge5w2cq-uc.a.run.app/reports/dossiers?status=completed&limit=5" | \
+  jq '{count, plans: [.items[].plan_id]}'
+```
+
+Logs should show `Dossier queue job complete` along with the processed/completed counts. The API call confirms plan
+statuses flipped to `completed` and surfaces signature-manifest paths for downstream LEA workflows. 4. **Capture evidence.** Store the execution name, queue status, and any warnings (missing assets, signature mismatches)
+in `planning/change_log.md`. Repeat the smoke whenever you change dossier templates, tool outputs, or queue settings.

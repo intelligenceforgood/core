@@ -1376,7 +1376,7 @@
       "path": "smoke.api_url",
       "section": "smoke",
       "type": "str",
-      "default": "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app",
+      "default": "https://core-svc-y5jge5w2cq-uc.a.run.app",
       "env_vars": [
         "I4G_SMOKE__API_URL",
         "SMOKE_API_URL",

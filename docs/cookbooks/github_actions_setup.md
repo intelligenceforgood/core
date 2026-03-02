@@ -285,7 +285,7 @@ Watch Actions. The matrix build should fire, building all 6 images in parallel. 
 Verify all images:
 
 ```bash
-for img in fastapi account-job dossier-job ingest-job intake-job report-job; do
+for img in core-svc account-job dossier-job ingest-job intake-job report-job; do
   echo "=== $img ==="
   gcloud artifacts docker images list us-central1-docker.pkg.dev/i4g-dev/applications/$img --limit 1
 done

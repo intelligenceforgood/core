@@ -23,7 +23,7 @@
 
 8. **Docker Build Reference** – Use `scripts/build_image.sh` (requires `gcloud` auth).
    - UI: `cd ui/ && scripts/build_image.sh i4g-console dev`
-   - Core: `scripts/build_image.sh [fastapi|dossier-job|ingest-job|intake-job|report-job|account-job] dev`
+   - Core: `scripts/build_image.sh [core-svc|dossier-job|ingest-job|intake-job|report-job|account-job] dev`
 
 9. **External Integrations** – The Next.js analyst console calls `/reviews/search`, `/reviews/search/history`, saved-search CRUD endpoints, `/reviews/{id}`, and `/tasks/{task_id}`; keep payloads + audit logging in sync. Report generation uses `i4g/reports` templates plus worker tasks; ensure TASK_STATUS emits progress until Redis replaces the in-memory map. Ingestion enhancements must route through `i4g.ingestion` + `worker/jobs` so CLI and API paths stay aligned.
 

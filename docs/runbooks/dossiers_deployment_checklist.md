@@ -88,7 +88,7 @@ manifest stored in `docs/config/`.
 - **API/Console:**
   ```bash
   curl -sS -H "X-API-KEY: dev-analyst-token" \
-    "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app/reports/dossiers?status=completed&limit=5" | \
+    "https://core-svc-y5jge5w2cq-uc.a.run.app/reports/dossiers?status=completed&limit=5" | \
     jq '{count, plans: [.items[].plan_id]}'
   ```
   Confirm the processed plan IDs appear in the console and that inline signature verification still passes.

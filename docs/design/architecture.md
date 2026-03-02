@@ -13,6 +13,7 @@
 The **Next.js analyst console** on Cloud Run serves victims, volunteer analysts, and law enforcement officers through server-side proxy routes that preserve the privacy guarantees described below.
 
 **Key Design Principles**:
+
 1. **Zero Trust**: No analyst ever sees raw PII
 2. **Serverless**: Zero budget constraint drives Cloud Run deployment
 3. **Scalability**: Handles 20 concurrent users on GCP free tier
@@ -28,17 +29,17 @@ The **Next.js analyst console** on Cloud Run serves victims, volunteer analysts,
 
 ## Deployment Profiles (Managed vs Local)
 
-| Capability / Service | Managed (Cloud Run / GCP) | Local / Laptop Profile | Swap Mechanism |
-|---|---|---|---|
-| Identity | Google Cloud Identity Platform (OIDC) | Local mock OIDC provider or stub JWT signer for development | `settings.identity.provider` (`google_identity`, `authentik`, `firebase`, `dev_stub`); toggle via `I4G_ENV` + `.env.local`. |
-| API Gateway / FastAPI | Cloud Run service with Workload Identity | Docker container running FastAPI with `.env` config | `settings.runtime.mode` (`managed` / `local`); `make run-fastapi` uses local profile. |
-| Analyst UI | Next.js on Cloud Run (authenticated via IAP) | Next.js console run locally with dev auth toggles | `pnpm --filter web dev`; configure `I4G_API_URL` + `I4G_API_KEY`. |
-| Retrieval & Vector Store | Vertex AI Search (default) | Dockerized Postgres + pgvector or local Chroma / FAISS | `settings.vector.backend` (`vertex_ai`, `pgvector`, `chroma`, `faiss`); hot-swappable through `VectorStore` (`i4g.store.vector`). |
-| LLM Inference | Vertex AI Gemini 2.5 Flash | Ollama running locally or mock responses | `settings.llm.provider` (`vertex_ai`, `ollama`, `mock`); pluggable via `build_fraud_classifier()` in `factories.py`. |
-| Storage | Cloud SQL + Cloud Storage buckets | Local SQLite + filesystem folders | `settings.storage.structured_backend` (`sqlite`, `cloudsql`); mounts via `.env.local` paths. |
-| Ingestion Jobs | Cloud Run Jobs + Scheduler | Local scripts invoked via `make ingest-*` with stub schedules | `scripts/ingest/*` honour `settings.jobs.enabled`; local cron disabled by default. |
-| Observability | Cloud Logging/Monitoring with OpenTelemetry exporters | Console logs + optional local OTLP collector (Docker) | `settings.telemetry.otlp_endpoint`; default empty routes to stdout. |
-| Secrets | Secret Manager, Workload Identity | `.env.local` (gitignored) + Pydantic overrides | `settings.secrets.provider` (`secret_manager`, `env`); helper resolves per environment. |
+| Capability / Service     | Managed (Cloud Run / GCP)                             | Local / Laptop Profile                                        | Swap Mechanism                                                                                                                    |
+| ------------------------ | ----------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Identity                 | Google Cloud Identity Platform (OIDC)                 | Local mock OIDC provider or stub JWT signer for development   | `settings.identity.provider` (`google_identity`, `authentik`, `firebase`, `dev_stub`); toggle via `I4G_ENV` + `.env.local`.       |
+| Core API (core-svc)      | Cloud Run service with Workload Identity              | Docker container running FastAPI with `.env` config           | `settings.runtime.mode` (`managed` / `local`); `make run-api` uses local profile.                                                 |
+| Analyst UI               | Next.js on Cloud Run (authenticated via IAP)          | Next.js console run locally with dev auth toggles             | `pnpm --filter web dev`; configure `I4G_API_URL` + `I4G_API_KEY`.                                                                 |
+| Retrieval & Vector Store | Vertex AI Search (default)                            | Dockerized Postgres + pgvector or local Chroma / FAISS        | `settings.vector.backend` (`vertex_ai`, `pgvector`, `chroma`, `faiss`); hot-swappable through `VectorStore` (`i4g.store.vector`). |
+| LLM Inference            | Vertex AI Gemini 2.5 Flash                            | Ollama running locally or mock responses                      | `settings.llm.provider` (`vertex_ai`, `ollama`, `mock`); pluggable via `build_fraud_classifier()` in `factories.py`.              |
+| Storage                  | Cloud SQL + Cloud Storage buckets                     | Local SQLite + filesystem folders                             | `settings.storage.structured_backend` (`sqlite`, `cloudsql`); mounts via `.env.local` paths.                                      |
+| Ingestion Jobs           | Cloud Run Jobs + Scheduler                            | Local scripts invoked via `make ingest-*` with stub schedules | `scripts/ingest/*` honour `settings.jobs.enabled`; local cron disabled by default.                                                |
+| Observability            | Cloud Logging/Monitoring with OpenTelemetry exporters | Console logs + optional local OTLP collector (Docker)         | `settings.telemetry.otlp_endpoint`; default empty routes to stdout.                                                               |
+| Secrets                  | Secret Manager, Workload Identity                     | `.env.local` (gitignored) + Pydantic overrides                | `settings.secrets.provider` (`secret_manager`, `env`); helper resolves per environment.                                           |
 
 > The managed and local profiles share the same configuration contract, so swapping between environments is a matter of
 > setting `I4G_ENV` and the relevant overrides. A sample Docker Compose bundle will accompany Milestone 3 to spin up
@@ -73,7 +74,7 @@ flowchart TB
   end
 
   subgraph CloudRun["Cloud Run Services (us-central1)"]
-    FastAPI["FastAPI API Gateway<br>(RAG, Intake, Reports)"]
+    CoreSvc["Core API (core-svc)<br>(RAG, Intake, Reports)"]
     NextJS["Next.js Analyst Console<br>(OAuth/OIDC via IAP)"]
   end
 
@@ -92,27 +93,27 @@ flowchart TB
     Telemetry[Cloud Logging & Monitoring]
   end
 
-  Victim -- HTTPS --> FastAPI
+  Victim -- HTTPS --> CoreSvc
   Analyst -- HTTPS --> NextJS
   LEO -- HTTPS --> NextJS
 
-  FastAPI -- REST/gRPC --> CloudSQL
-  FastAPI -- REST/gRPC --> Vector
-  FastAPI -- Signed URLs --> Storage
-  FastAPI -- Tokenization Calls --> TokenVault
-  FastAPI -- Invoke Chains --> RAG
+  CoreSvc -- REST/gRPC --> CloudSQL
+  CoreSvc -- REST/gRPC --> Vector
+  CoreSvc -- Signed URLs --> Storage
+  CoreSvc -- Tokenization Calls --> TokenVault
+  CoreSvc -- Invoke Chains --> RAG
 
-  NextJS -- API Calls --> FastAPI
+  NextJS -- API Calls --> CoreSvc
 
   IngestionPipelines -- Structured Writes --> CloudSQL
   IngestionPipelines -- Artifact Uploads --> Storage
   IngestionPipelines -- Embed Jobs --> Vector
 
   Scheduler -- Triggers --> IngestionPipelines
-  Secrets -- Credentials --> FastAPI
+  Secrets -- Credentials --> CoreSvc
   Secrets -- Credentials --> NextJS
   Secrets -- Credentials --> IngestionPipelines
-  Telemetry -- Metrics/Logs --> FastAPI
+  Telemetry -- Metrics/Logs --> CoreSvc
   Telemetry -- Metrics/Logs --> NextJS
   Telemetry -- Metrics/Logs --> IngestionPipelines
 ```
@@ -136,7 +137,7 @@ flowchart LR
   end
 
   subgraph RunServices["Cloud Run Services"]
-    FastAPI[FastAPI Gateway]
+    CoreSvc[Core API]
     NextJS[Next.js Console]
     JobIngest[Cloud Run Jobs - Ingestion]
     JobReport[Cloud Run Jobs - Report Generator]
@@ -163,14 +164,14 @@ flowchart LR
   AnalystUI --> IAP
   LEOUI --> IAP
 
-  IAP --> FastAPI
+  IAP --> CoreSvc
   IAP --> NextJS
 
-  NextJS -->|Authenticated API| FastAPI
-  FastAPI -->|REST| CloudSQL
-  FastAPI -->|Signed URLs| Storage
-  FastAPI -->|Vector Queries| Vector
-  FastAPI --> VaultService
+  NextJS -->|Authenticated API| CoreSvc
+  CoreSvc -->|REST| CloudSQL
+  CoreSvc -->|Signed URLs| Storage
+  CoreSvc -->|Vector Queries| Vector
+  CoreSvc --> VaultService
 
   JobIngest -->|Writes| CloudSQL
   JobIngest -->|Artifacts| Storage
@@ -181,13 +182,13 @@ flowchart LR
 
   VaultService -->|Detokenized Reads| CloudSQL
 
-  Secrets -.-> FastAPI
+  Secrets -.-> CoreSvc
   Secrets -.-> NextJS
   Secrets -.-> JobIngest
   Secrets -.-> JobReport
   Secrets -.-> VaultService
 
-  FastAPI -.->|Workload Identity| VPCConn
+  CoreSvc -.->|Workload Identity| VPCConn
   JobIngest -.->|Private Resources| VPCConn
   JobReport -.->|Private Resources| VPCConn
   VaultService -.->|Private Resources| VPCConn
@@ -196,14 +197,14 @@ flowchart LR
   VPCConn -->|Private Access| Vector
   VPCConn -->|Private Access| KMS
 
-  Logging -.-> FastAPI
+  Logging -.-> CoreSvc
   Logging -.-> NextJS
   Logging -.-> JobIngest
   Logging -.-> JobReport
   Logging -.-> VaultService
 ```
 
-The swimlanes emphasize the Cloud Run deployment boundary: Identity-Aware Proxy fronts the stateless FastAPI and
+The swimlanes emphasize the Cloud Run deployment boundary: Identity-Aware Proxy fronts the stateless Core API and
 Next.js services, while background Cloud Run jobs handle ingestion and reporting. Workload Identity supplies secrets
 from Secret Manager, and the shared VPC connector enables private access to the vector store or KMS when those
 resources require it. Observability remains centralized through Cloud Logging and Monitoring across all containers.
@@ -270,7 +271,7 @@ This section documents the architecture and data-flow for evidence dossier gener
 
 - Source diagram (editable): https://drive.google.com/drive/folders/1z7pg_D0k6fiRQdw_pejeDBav49xdvnqL?usp=drive_link
 - Local draw.io version: `docs/diagrams/dossier_flow.drawio` (importable into diagrams.net)
- - Local mermaid snapshot mirrors the Drive version for offline readers.
+- Local mermaid snapshot mirrors the Drive version for offline readers.
 
 ```mermaid
 flowchart LR
@@ -294,6 +295,7 @@ flowchart LR
 ### 1. **FastAPI Backend**
 
 **Responsibilities**:
+
 - REST API endpoints for case management
 - PII tokenization and encryption
 - LLM-powered scam classification
@@ -301,6 +303,7 @@ flowchart LR
 - Cloud SQL CRUD operations
 
 **Technology Stack**:
+
 - Python 3.11
 - FastAPI 0.104+ (async/await support)
 - LangChain 0.2+ (RAG pipeline)
@@ -309,21 +312,21 @@ flowchart LR
 
 **Key Endpoints (FastAPI Routers)**:
 
-| Prefix | Router | Description |
-|--------|--------|-------------|
-| `/reviews` | `review.py` | Search, queue ops, saved-search CRUD, review actions |
-| `/cases` | `cases.py` | Case detail view (GET /cases/{id}) |
-| `/intakes` | `intake.py` | Victim submission pipeline |
-| `/reports` | `reports.py` | Dossier listing, artifacts, signature verification |
-| `/accounts` | `account_list.py` | Account list extraction runs and artifacts |
-| `/analytics` | `analytics.py` | Overview metrics, trends, intake stats |
-| `/dashboard` | `dashboard.py` | Overview stats (active investigations, recent actions) |
-| `/campaigns` | `campaigns.py` | Fraud campaign CRUD |
-| `/discovery` | `discovery.py` | Vertex AI Discovery search |
-| `/taxonomy` | `taxonomy.py` | Fraud taxonomy hierarchy tree |
-| `/tokenization` | `tokenization.py` | PII tokenize/detokenize endpoints |
-| `/tasks/{task_id}` | `app.py` | Background task status polling |
-| `POST /reports/generate` | `app.py` | Guarded report generation trigger |
+| Prefix                   | Router            | Description                                            |
+| ------------------------ | ----------------- | ------------------------------------------------------ |
+| `/reviews`               | `review.py`       | Search, queue ops, saved-search CRUD, review actions   |
+| `/cases`                 | `cases.py`        | Case detail view (GET /cases/{id})                     |
+| `/intakes`               | `intake.py`       | Victim submission pipeline                             |
+| `/reports`               | `reports.py`      | Dossier listing, artifacts, signature verification     |
+| `/accounts`              | `account_list.py` | Account list extraction runs and artifacts             |
+| `/analytics`             | `analytics.py`    | Overview metrics, trends, intake stats                 |
+| `/dashboard`             | `dashboard.py`    | Overview stats (active investigations, recent actions) |
+| `/campaigns`             | `campaigns.py`    | Fraud campaign CRUD                                    |
+| `/discovery`             | `discovery.py`    | Vertex AI Discovery search                             |
+| `/taxonomy`              | `taxonomy.py`     | Fraud taxonomy hierarchy tree                          |
+| `/tokenization`          | `tokenization.py` | PII tokenize/detokenize endpoints                      |
+| `/tasks/{task_id}`       | `app.py`          | Background task status polling                         |
+| `POST /reports/generate` | `app.py`          | Guarded report generation trigger                      |
 
 ---
 
@@ -332,18 +335,21 @@ flowchart LR
 #### Next.js External Portal
 
 **Responsibilities**:
+
 - Orchestrate the full victim → analyst → law enforcement workflow with OAuth-backed authentication
 - Expose search, review, approval, and report delivery experiences through a React UI that mirrors the FastAPI contracts
 - Render case detail pages with evidence thumbnails, inline entity highlighting, and Discovery powered search facets
 - Provide bulk report exports, smoke-test hooks, and future citizen-facing intake forms without revealing backend secrets
 
 **Technology Stack**:
+
 - Node.js 20 (Cloud Run)
 - Next.js 15 App Router with React 19 RC and TypeScript
 - Tailwind CSS, `@i4g/ui-kit`, and shared design tokens
 - `@i4g/sdk` with an adapter selected via `I4G_API_KIND` (core vs mock)
 
 **Key Features**:
+
 - Hybrid rendering (Server Components + edge-ready client interactivity)
 - Cloud Run friendly build (PNPM workspaces, multi-stage Dockerfile)
 - API route proxy that injects server-only secrets for FastAPI calls
@@ -352,18 +358,21 @@ flowchart LR
 ### 3a. **Account List Extraction Service**
 
 **Responsibilities**:
+
 - Expose `POST /accounts/extract` for on-demand analyst runs with API-key enforcement (`X-ACCOUNTLIST-KEY`).
 - Coordinate retrieval (`FinancialEntityRetriever`), LLM extraction (`AccountEntityExtractor`), and artifact generation (`AccountListExporter`).
 - Publish CSV/JSON/XLSX/PDF outputs to the local reports directory, Cloud Storage, or Google Drive (when configured) and return signed links to the caller.
 - Power the Cloud Run job `account-list` (scheduled via Cloud Scheduler) so recurring exports share the exact same code path as the interactive API.
 
 **Technology Stack**:
+
 - Python 3.11 shared package (`src/i4g/services/account_list/*`).
 - LangChain + Ollama locally (Vertex AI/Gemini ready once service accounts are wired).
 - ReportLab + OpenPyXL for artifact rendering.
 - Cloud Run job container (`i4g jobs account` entrypoint) plus optional Google Drive uploads via ADC scopes.
 
 **Key Features**:
+
 - Category catalog (bank, crypto, payments today; IP/ASN/browser planned) driven by configuration so new indicators only need prompt/query definitions.
 - Deduplication + metadata summary stored alongside artifacts, surfaced in the analyst console via a summary/status table.
 - Manual smoke harness (`tests/adhoc/account_list_export_smoke.py`) to verify exporter plumbing without hitting the LLM stack.
@@ -374,21 +383,25 @@ flowchart LR
 ### 3b. **Dual Extraction Ingestion Pipeline**
 
 **Responsibilities**:
+
 - Normalize Discovery bundles into structured case/entity payloads (`ingest_payloads.prepare_ingest_payload`).
 - Execute `i4g.worker.jobs.ingest`, which orchestrates entity extraction, SQL writes (`SqlWriter`), and Vertex AI Search document imports (`VertexWriter`).
 - Persist ingestion run metrics plus retry payloads so operators can audit progress (`IngestionRunTracker`) and replay failed Vertex batches via `i4g.worker.jobs.ingest_retry`.
 
 **Technology Stack**:
+
 - Python workers launched locally or via Cloud Run jobs using `conda run -n i4g python -m i4g.worker.jobs.{ingest,ingest_retry}`.
 - Cloud SQL / SQLite for `cases`, `entities`, and `ingestion_runs`; Vertex AI Search (`retrieval-poc`) for semantic retrieval.
 - Settings-driven toggles (`I4G_VERTEX_SEARCH_*`, `I4G_INGEST_RETRY__BATCH_LIMIT`) resolved by `i4g.settings.get_settings()` so environment overrides stay declarative.
 
 **Key Features**:
+
 - Run tracking (`scripts/verify_ingestion_run.py`) records case/entity counts plus backend-specific write totals, enabling reproducible smokes across local/dev/prod.
 - `_maybe_enqueue_retry` serializes the SQL result + payload + error, allowing the retry worker to rehydrate the exact Vertex writes without repeating entity extraction.
 - Retry worker operates in dry-run or live mode, reporting successes/failures per backend; batches can be tuned to stay under rate limits.
 
 **Operational Status (Nov 30, 2025)**:
+
 - Dev ingestion run `01993af5-09ab-4ecf-b0c8-cd86702b8edd` processed 200 `retrieval_poc_dev` cases with SQL reaching 200 writes; Vertex imported 155 documents before hitting the "Document batch requests/min" quota (HTTP 429 ResourceExhausted).
 - `python -m i4g.worker.jobs.ingest_retry` (batch size 10) drained the 45 queued Vertex payloads once quota recovered, so the corpus is eventually consistent even when the live run throttles.
 - Until the Vertex quota is raised, operators should stagger ingestion batches (e.g., lower ingestion job batch sizes) or schedule retry workers immediately after large ingests to finish the semantic index.
@@ -399,21 +412,23 @@ flowchart LR
 
 The relational schema is defined in SQLAlchemy models at `src/i4g/store/sql.py` and managed via Alembic migrations (`alembic/` directory). Key tables:
 
-| Table Group | Tables | Notes |
-|-------------|--------|-------|
-| Core case data | `cases`, `scam_records`, `entities` | Normalized case + extracted entity storage |
-| Review workflow | `review_queue`, `review_actions` | Analyst queue assignments and audit trail |
-| Intake pipeline | `intake_records`, `ingestion_runs`, `ingestion_retry` | Victim submissions and batch ingestion tracking |
-| Classification | `classifications`, `campaigns`, `campaign_classifications` | Fraud taxonomy and campaign linkage |
-| PII isolation | `pii_token_store` | **Isolated PII Vault database** — separate Cloud SQL instance in production |
-| Evidence | `source_documents`, `evidence_files` | Document metadata and artifact references |
+| Table Group     | Tables                                                     | Notes                                                                       |
+| --------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Core case data  | `cases`, `scam_records`, `entities`                        | Normalized case + extracted entity storage                                  |
+| Review workflow | `review_queue`, `review_actions`                           | Analyst queue assignments and audit trail                                   |
+| Intake pipeline | `intake_records`, `ingestion_runs`, `ingestion_retry`      | Victim submissions and batch ingestion tracking                             |
+| Classification  | `classifications`, `campaigns`, `campaign_classifications` | Fraud taxonomy and campaign linkage                                         |
+| PII isolation   | `pii_token_store`                                          | **Isolated PII Vault database** — separate Cloud SQL instance in production |
+| Evidence        | `source_documents`, `evidence_files`                       | Document metadata and artifact references                                   |
 
 **Access Control**:
 
 Row-level security and role-based access are enforced at the application layer via Cloud SQL IAM database authentication and PostgreSQL roles:
+
 - Analysts can only read cases assigned to them (filtered by `assigned_to` column matching authenticated user).
 - PII vault table is restricted to the backend service account (`i4g-backend@i4g-prod.iam.gserviceaccount.com`).
-```
+
+````
 
 ---
 
@@ -510,7 +525,7 @@ API deployment (Python FastAPI):
 
 ```bash
 gcloud run deploy i4g-api \
-  --image us-central1-docker.pkg.dev/i4g-dev/applications/fastapi:dev \
+  --image us-central1-docker.pkg.dev/i4g-dev/applications/core-svc:dev \
   --region us-central1 \
   --platform managed \
   --allow-unauthenticated \
@@ -520,7 +535,7 @@ gcloud run deploy i4g-api \
   --timeout 300 \
   --set-env-vars "ENVIRONMENT=production" \
   --set-secrets "TOKEN_ENCRYPTION_KEY=TOKEN_ENCRYPTION_KEY:latest"
-```
+````
 
 Analyst console deployment (Next.js container image built via PNPM workspaces):
 
@@ -531,12 +546,13 @@ gcloud run deploy i4g-console \
     --platform managed \
     --allow-unauthenticated \
     --set-env-vars NEXT_PUBLIC_USE_MOCK_DATA=false \
-    --set-env-vars I4G_API_URL=https://fastapi-gateway-y5jge5w2cq-uc.a.run.app/ \
+    --set-env-vars I4G_API_URL=https://core-svc-y5jge5w2cq-uc.a.run.app/ \
     --set-env-vars I4G_API_KIND=core \
     --set-env-vars I4G_API_KEY=dev-analyst-token
 ```
 
 **Auto-Scaling**:
+
 - Minimum instances: 0 (scales to zero when idle)
 - Maximum instances: 10 (free tier limit)
 - Concurrency: 20 requests per instance
@@ -550,6 +566,7 @@ This section now embeds the future-state IAM and control-plane details; `docs/de
 truth.
 
 ### Identity & Access Control
+
 - Primary option: Google Cloud Identity Platform (OIDC) with role claims for `victim`, `analyst`, `admin`, and `leo`.
 - Fallback / future option: authentik or Keycloak on Cloud Run or GKE if self-hosted control becomes necessary.
 - The Next.js console and FastAPI share a lightweight auth service for token verification and role enforcement; all user entry
@@ -560,19 +577,20 @@ truth.
 
 ### Service Accounts & Permissions
 
-| Component | Service Account | Key Roles |
-|---|---|---|
-| FastAPI Cloud Run service | `sa-app@{project}` | `roles/run.invoker`, `roles/datastore.user`, `roles/storage.objectViewer`, custom `roles/vertex.searchUser` or AlloyDB client role, Secret Manager accessor |
-| Next.js analyst console | `sa-app@{project}` | `roles/run.invoker`, `roles/datastore.viewer`, `roles/storage.objectViewer`, `roles/logging.logWriter`, custom Discovery search role, Secret Manager accessor |
-| Ingestion jobs / schedulers | `sa-ingest@{project}` | `roles/run.invoker`, `roles/storage.objectAdmin`, `roles/datastore.user`, Pub/Sub publisher when workflows emit events, Secret Manager accessor for source credentials |
-| Report worker (Cloud Run job or scheduler) | `sa-report@{project}` | `roles/storage.objectAdmin`, `roles/datastore.user`, Secret Manager accessor |
-| PII vault micro-service | `sa-vault@{project}` | `roles/datastore.user`, Cloud KMS encrypter/decrypter when KMS is enabled, no Cloud Storage access |
-| Terraform / automation pipeline | `sa-infra@{project}` | `roles/resourcemanager.projectIamAdmin`, `roles/run.admin`, `roles/storage.admin`, `roles/iam.securityReviewer` scoped to the infra project |
+| Component                                  | Service Account       | Key Roles                                                                                                                                                              |
+| ------------------------------------------ | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FastAPI Cloud Run service                  | `sa-app@{project}`    | `roles/run.invoker`, `roles/datastore.user`, `roles/storage.objectViewer`, custom `roles/vertex.searchUser` or AlloyDB client role, Secret Manager accessor            |
+| Next.js analyst console                    | `sa-app@{project}`    | `roles/run.invoker`, `roles/datastore.viewer`, `roles/storage.objectViewer`, `roles/logging.logWriter`, custom Discovery search role, Secret Manager accessor          |
+| Ingestion jobs / schedulers                | `sa-ingest@{project}` | `roles/run.invoker`, `roles/storage.objectAdmin`, `roles/datastore.user`, Pub/Sub publisher when workflows emit events, Secret Manager accessor for source credentials |
+| Report worker (Cloud Run job or scheduler) | `sa-report@{project}` | `roles/storage.objectAdmin`, `roles/datastore.user`, Secret Manager accessor                                                                                           |
+| PII vault micro-service                    | `sa-vault@{project}`  | `roles/datastore.user`, Cloud KMS encrypter/decrypter when KMS is enabled, no Cloud Storage access                                                                     |
+| Terraform / automation pipeline            | `sa-infra@{project}`  | `roles/resourcemanager.projectIamAdmin`, `roles/run.admin`, `roles/storage.admin`, `roles/iam.securityReviewer` scoped to the infra project                            |
 
 > Discovery access is granted via a custom IAM role that wraps `discoveryengine.servingConfigs.search`; Terraform
 > provisions it per project to avoid unsupported project-level grants.
 
 ### Secrets & Tokenization
+
 - Secret Manager holds database passwords, third-party API keys, and encryption salts; access is scoped to the runtime
   service accounts above.
 - Vaulted PII records store AES-256-GCM encrypted values; keys live in Cloud KMS when credits allow or in Secret Manager
@@ -581,6 +599,7 @@ truth.
   it via IAM allow policies.
 
 ### Network & Data Safeguards
+
 - VPC Access connectors back Cloud Run services for outbound calls to private resources (Cloud SQL, AlloyDB, KMS).
 - Cloud Storage buckets enforce uniform bucket-level access with IAM conditions; signed URLs have short TTLs and carry
   user identity in audit logs.
@@ -588,6 +607,7 @@ truth.
 - Artifact Registry images are signed (Sigstore) and verified by Cloud Deploy prior to promotion.
 
 ### Monitoring & Compliance
+
 - Cloud Audit Logs retained for ≥400 days; exports land in BigQuery or Cloud Storage coldline when costs allow.
 - Security Command Center (Standard) feeds vulnerability findings on Cloud Run images and IAM misconfigurations.
 - Daily job reconciles IAM policy drift against Terraform state and alerts via Cloud Monitoring.
@@ -596,13 +616,13 @@ truth.
 
 ### Role-to-Capability Matrix
 
-| Role | Entry Path | Primary Data Access | Actions Allowed | Notes |
-|---|---|---|---|---|
-| Victim | FastAPI intake endpoints via Google Identity | Own submissions (Cloud SQL rows scoped to UID), upload bucket objects via signed URL | Create/update intake records, upload evidence, read status of submitted cases | Read-only access enforced through database RBAC; no direct Storage listing |
-| Analyst | Next.js analyst console (Cloud Run) | Case queues, evidence metadata, vector query results, read-only Cloud SQL PII tokens (detokenized via FastAPI on demand) | Claim/release cases, run chat/RAG searches, trigger report generation, annotate cases | Detokenization requires explicit action and logs actor/justification |
-| Admin | Next.js admin views + FastAPI admin APIs | All case data, configuration collections, audit logs | Manage users/roles, adjust configuration, approve report publishing, initiate rotations | Access gated by admin-only OAuth claim and Cloud Run IAM |
-| Law Enforcement (LEO) | Next.js read-only report portal | Published reports, supporting evidence with signed URLs | View/download reports, acknowledge receipt | Accounts provisioned manually; multi-factor auth enforced |
-| Automation (ingest/report jobs) | Cloud Run jobs / Scheduler | Cloud SQL ingestion tables, Storage evidence buckets, vector store | Normalize raw feeds, enqueue cases, seed vector index, emit alerts | Operate under dedicated service accounts with least privilege |
+| Role                            | Entry Path                                   | Primary Data Access                                                                                                      | Actions Allowed                                                                         | Notes                                                                      |
+| ------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Victim                          | FastAPI intake endpoints via Google Identity | Own submissions (Cloud SQL rows scoped to UID), upload bucket objects via signed URL                                     | Create/update intake records, upload evidence, read status of submitted cases           | Read-only access enforced through database RBAC; no direct Storage listing |
+| Analyst                         | Next.js analyst console (Cloud Run)          | Case queues, evidence metadata, vector query results, read-only Cloud SQL PII tokens (detokenized via FastAPI on demand) | Claim/release cases, run chat/RAG searches, trigger report generation, annotate cases   | Detokenization requires explicit action and logs actor/justification       |
+| Admin                           | Next.js admin views + FastAPI admin APIs     | All case data, configuration collections, audit logs                                                                     | Manage users/roles, adjust configuration, approve report publishing, initiate rotations | Access gated by admin-only OAuth claim and Cloud Run IAM                   |
+| Law Enforcement (LEO)           | Next.js read-only report portal              | Published reports, supporting evidence with signed URLs                                                                  | View/download reports, acknowledge receipt                                              | Accounts provisioned manually; multi-factor auth enforced                  |
+| Automation (ingest/report jobs) | Cloud Run jobs / Scheduler                   | Cloud SQL ingestion tables, Storage evidence buckets, vector store                                                       | Normalize raw feeds, enqueue cases, seed vector index, emit alerts                      | Operate under dedicated service accounts with least privilege              |
 
 ### PII Isolation
 
@@ -641,16 +661,19 @@ truth.
 ### 3. **Encryption**
 
 **At Rest**:
+
 - **Cloud SQL**: Encryption at rest (Google-managed keys)
 - **Cloud Storage**: Customer-Managed Encryption Keys (CMEK)
 - **PII Vault**: Additional AES-256-GCM layer (app-level encryption)
 
 **In Transit**:
+
 - **All API calls**: TLS 1.3
 - **Cloud Run**: HTTPS only (HTTP redirects to HTTPS)
 - **Ollama**: HTTP localhost (same machine, no network)
 
 **Key Management**:
+
 ```bash
 # Encryption key stored in Secret Manager
 gcloud secrets create TOKEN_ENCRYPTION_KEY \
@@ -706,6 +729,7 @@ gcloud secrets versions add TOKEN_ENCRYPTION_KEY --data-file=new_key.txt
 ### Response Times (p95)
 
 > TBD — benchmark against production endpoints. Key routes to measure:
+>
 > - `POST /reviews/search` (hybrid retrieval)
 > - `GET /cases/{id}` (case detail with entity resolution)
 > - `POST /reports/generate` (guarded report generation)
@@ -733,13 +757,14 @@ gsutil lifecycle set lifecycle.json gs://i4g-backups
 ```
 
 **lifecycle.json**:
+
 ```json
 {
   "lifecycle": {
     "rule": [
       {
-        "action": {"type": "Delete"},
-        "condition": {"age": 7}
+        "action": { "type": "Delete" },
+        "condition": { "age": 7 }
       }
     ]
   }
@@ -781,6 +806,7 @@ gcloud run services update i4g-api --traffic
 ## Technology Stack
 
 ### Backend
+
 - **Language**: Python 3.11
 - **Framework**: FastAPI 0.104+ (async, type hints)
 - **ORM**: SQLAlchemy 2.0 + Alembic (migrations)
@@ -790,10 +816,12 @@ gcloud run services update i4g-api --traffic
 - **OCR**: Tesseract + pytesseract for document text extraction
 
 ### Frontend
+
 - **External portal**: Next.js 15 (victim, analyst, and law enforcement UI)
 - **Shared styling**: Tailwind CSS design tokens + focused CSS for PII redaction and responsive layouts
 
 ### Cloud Infrastructure
+
 - **Hosting**: Google Cloud Platform
   - Cloud Run (API + dashboard)
   - Cloud SQL (PostgreSQL)
@@ -803,6 +831,7 @@ gcloud run services update i4g-api --traffic
   - Cloud Monitoring (metrics + alerts)
 
 ### CI/CD
+
 - **Version Control**: GitHub
 - **CI Pipeline**: GitHub Actions
   - Lint (black, isort, mypy)
@@ -815,16 +844,19 @@ gcloud run services update i4g-api --traffic
 ## Future Architecture Improvements
 
 ### Completed (formerly Phase 2)
+
 - [x] Background task execution via `TASK_STATUS` dict + `asyncio` threads (interim until Redis)
 - [x] Cloud Run Jobs for async work (ingestion, report generation, account list extraction)
 - [x] Multi-provider LLM support (Vertex AI, Ollama, Mock)
 
 ### Phase 2 (In Progress)
+
 - [ ] Replace in-memory `TASK_STATUS` with Redis for multi-instance consistency
 - [ ] CDN for static assets (Cloud CDN)
 - [ ] Multi-region deployment (us-central1 + europe-west1)
 
 ### Phase 3 (Scale)
+
 - [ ] Event-driven architecture (Pub/Sub)
 - [ ] Real-time analytics dashboard (BigQuery + Data Studio)
 - [ ] Mobile app (React Native)

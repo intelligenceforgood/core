@@ -3,7 +3,9 @@
 Use this checklist before promoting hybrid search changes from dev → prod. It mirrors the Milestone 3 delivery scope (filters, saved-search migrations, observability) so backend + UI remain in sync.
 
 ## 1. Preflight Configuration
+
 - **Settings file**: ensure `[search]` and `[search.saved_search]` sections match the release (weights, schema cache TTL, migration tag/version). Example override snippet:
+
   ```toml
   [search]
   semantic_weight = 0.65
@@ -14,6 +16,7 @@ Use this checklist before promoting hybrid search changes from dev → prod. It 
   migration_tag = "hybrid-v1"
   schema_version = "hybrid-v1"
   ```
+
 - **Environment variables** (export or bake into Cloud Run configs):
   | Purpose | Variable |
   | --- | --- |
@@ -24,18 +27,24 @@ Use this checklist before promoting hybrid search changes from dev → prod. It 
   | Observability | `I4G_OBSERVABILITY__SERVICE_NAME`, `I4G_OBSERVABILITY__STATSD_PREFIX`
 
 ## 2. Deployment Steps
+
 1. **Cut image / build**: run `pip install -e .`, `pytest tests/unit/services/test_hybrid_search_service.py`, and rebuild the FastAPI + worker images.
 2. **Config sync**: run `python scripts/export_settings_manifest.py --docs-repo ../docs` so docs and manifests capture any new knobs.
 3. **Apply to dev**:
-   - Deploy FastAPI + worker services with the refreshed container image and config overrides.
-  - Execute `i4g bootstrap local reset --report-dir data/reports/bootstrap_local` if dev data needs the latest entity fields, then run the ingestion job (`i4g jobs ingest`) with the `network_smoke` dataset.
+   - Deploy Core API + worker services with the refreshed container image and config overrides.
+
+- Execute `i4g bootstrap local reset --report-dir data/reports/bootstrap_local` if dev data needs the latest entity fields, then run the ingestion job (`i4g jobs ingest`) with the `network_smoke` dataset.
+
 4. **Smoke tests**:
-   - API: `curl -sS -H "X-API-KEY: $I4G_API_KEY" "$FASTAPI_BASE/reviews/search/schema"` and confirm indicator/dataset lists include the new fields.
+   - API: `curl -sS -H "X-API-KEY: $I4G_API_KEY" "$CORE_API_BASE/reviews/search/schema"` and confirm indicator/dataset lists include the new fields.
    - Next.js console: `pnpm --filter web test:smoke` (ensures schema-driven chips render).
-  - Saved-search tooling: export + tag + import using `i4g-admin export-saved-searches --schema-version hybrid-v1` and `i4g search tag-saved-searches --dedupe`.
-5. **Task queue verification**: ensure the in-memory `TASK_STATUS` map (fastapi app logs) reports progress for `/tasks/{id}` responses during hybrid search requests. If not, restart the API after clearing stale state.
+
+- Saved-search tooling: export + tag + import using `i4g-admin export-saved-searches --schema-version hybrid-v1` and `i4g search tag-saved-searches --dedupe`.
+
+5. **Task queue verification**: ensure the in-memory `TASK_STATUS` map (core-svc app logs) reports progress for `/tasks/{id}` responses during hybrid search requests. If not, restart the API after clearing stale state.
 
 ## 3. Monitoring & Observability
+
 - **Metrics to watch** (StatsD / OTEL):
   - `hybrid_search.query.total`
   - `hybrid_search.query.duration_ms`
@@ -46,12 +55,14 @@ Use this checklist before promoting hybrid search changes from dev → prod. It 
 - **Logs**: search for `hybrid_search.query` events; each entry should include `score_policy`, `counts`, and the request filter summary.
 
 ## 4. Promotion to Prod
+
 1. Update the prod settings file with the same `[search]` block and saved-search defaults.
 2. Re-run ingestion smokes against `i4g-prod` (dataset limited to sanitized bundles) to populate entity examples before flipping the UI feature flag.
 3. Execute the same CLI saved-search workflow with prod data to ensure schema versions are embedded before analysts rely on the new filters.
 4. After deploy, monitor the metrics + logs for at least one hour; rollback if `hybrid_search.query.duration_ms` spikes above 1.5× the previous baseline.
 
 ## 5. Post-Deployment
+
 - Update `planning/change_log.md` with run IDs, dataset names, and any deviations.
 - Notify analysts (Slack #analyst-ops) with the schema version, migration tag, and saved-search steps.
 - Schedule a follow-up Playwright regression run (`pnpm --filter web test:smoke`) within 24 hours to confirm the UI still consumes live schema payloads.

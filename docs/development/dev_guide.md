@@ -60,8 +60,8 @@ For detailed instructions on managing the Fraud Taxonomy, see [Taxonomy Manageme
 
 The `data/i4g_store.db` file is a local SQLite database used for storing application data, including:
 
--   **Structured Data:** Extracted entities, classification results, and other structured information.
--   **Review Data:** Data for the analyst review system.
+- **Structured Data:** Extracted entities, classification results, and other structured information.
+- **Review Data:** Data for the analyst review system.
 
 This file is created automatically when you run the application and is not meant to be shared or committed to version control. If you want to start with a fresh database, you can delete this file.
 
@@ -122,6 +122,7 @@ I4G_LLM__PROVIDER=mock i4g jobs account ...
 ```
 
 To make this permanent for your local environment, add it to your `.env.local`:
+
 ```bash
 echo "I4G_LLM__PROVIDER=mock" >> .env.local
 ```
@@ -164,21 +165,21 @@ When the sandbox services cannot find the expected API base/key, they usually cr
 `NoneType` attribute errors). Avoid that loop by defining the following variables before starting any of the local apps.
 Use a `.env.local` file or export them in the same shell session:
 
-| Service | Launch command | Required env vars |
-| --- | --- | --- |
-| **FastAPI** | `conda run -n i4g uvicorn i4g.api.app:app --reload` | `I4G_ENV=local`, `I4G_API_URL=http://127.0.0.1:8000`, `I4G_API_KEY=dev-analyst-token` |
-| **Next.js analyst console** | `pnpm --filter web dev` | Same API vars as above, `I4G_API_KIND=proto`, and set `NEXT_PUBLIC_USE_MOCK_DATA=false` so the console skips the mock client |
+| Service                     | Launch command                                      | Required env vars                                                                                                            |
+| --------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **FastAPI**                 | `conda run -n i4g uvicorn i4g.api.app:app --reload` | `I4G_ENV=local`, `I4G_API_URL=http://127.0.0.1:8000`, `I4G_API_KEY=dev-analyst-token`                                        |
+| **Next.js analyst console** | `pnpm --filter web dev`                             | Same API vars as above, `I4G_API_KIND=proto`, and set `NEXT_PUBLIC_USE_MOCK_DATA=false` so the console skips the mock client |
 
 Additional tips:
 
 - Keep `I4G_ENV=local` for all sandbox runs; it forces SQLite/Chroma backends and mock identity.
 - If you need to point the console at `i4g-dev`, override `I4G_ENV=dev` **and** supply the matching
-    `I4G_API_KEY` (for example from Secret Manager). Missing keys produce `401 Unauthorized` loops in the UI.
+  `I4G_API_KEY` (for example from Secret Manager). Missing keys produce `401 Unauthorized` loops in the UI.
 - Add these exports to `.env.local` (core repo) and `.env.local` inside `ui/apps/web/` if you frequently switch between
-    services; both repos load the files automatically via `python-dotenv` / Next.js env loaders.
+  services; both repos load the files automatically via `python-dotenv` / Next.js env loaders.
 - Whenever you see Playwright/Vitest failures about `fetch`, re-check that
-    `I4G_API_URL` and `I4G_API_KEY` are present in the environment running that command (VS Code tasks do not inherit
-    shell profiles by default).
+  `I4G_API_URL` and `I4G_API_KEY` are present in the environment running that command (VS Code tasks do not inherit
+  shell profiles by default).
 
 ### Dossier download/verification smoke (FastAPI + portal)
 
@@ -226,13 +227,13 @@ The command returns non-zero on verification failures so it can be used as a CI 
 
 Set these when running the console or dossier jobs locally so download and verification links resolve correctly:
 
-| Variable | Purpose | Example |
-| --- | --- | --- |
-| `I4G_DOSSIER_BASE_PATH` | Absolute path to local dossier artifacts for the portal proxy | `/Users/jerry/Work/project/i4g/core/data/reports/dossiers` |
-| `I4G_REPORT__DRIVE_PARENT_ID` | Shared Drive parent folder where uploaded dossiers land (dev/prod) | `0AJd...pVaUk9PVA` |
-| `I4G_REPORT__HASH_ALGORITHM` | Hash algorithm recorded in signature manifests | `sha256` |
-| `I4G_API_URL` / `I4G_API_KEY` / `I4G_API_KIND` | Console → FastAPI connectivity | `http://127.0.0.1:8000`, `dev-analyst-token`, `core` |
-| `I4G_CONSOLE_IAP_TOKEN` (when behind IAP) | Passes the IAP bearer token for API calls in secured environments | `<iap-jwt>` |
+| Variable                                       | Purpose                                                            | Example                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------- |
+| `I4G_DOSSIER_BASE_PATH`                        | Absolute path to local dossier artifacts for the portal proxy      | `/Users/jerry/Work/project/i4g/core/data/reports/dossiers` |
+| `I4G_REPORT__DRIVE_PARENT_ID`                  | Shared Drive parent folder where uploaded dossiers land (dev/prod) | `0AJd...pVaUk9PVA`                                         |
+| `I4G_REPORT__HASH_ALGORITHM`                   | Hash algorithm recorded in signature manifests                     | `sha256`                                                   |
+| `I4G_API_URL` / `I4G_API_KEY` / `I4G_API_KIND` | Console → FastAPI connectivity                                     | `http://127.0.0.1:8000`, `dev-analyst-token`, `core`       |
+| `I4G_CONSOLE_IAP_TOKEN` (when behind IAP)      | Passes the IAP bearer token for API calls in secured environments  | `<iap-jwt>`                                                |
 
 Keep the table in sync with `docs/config/` when Drive IDs or hash algorithms change.
 
@@ -273,22 +274,21 @@ python -c "from i4g.settings import get_settings; print(get_settings())"
 
 `i4g.settings` now groups related configuration into typed sections so we can swap individual services (local versus GCP) without flipping the entire environment. The most frequently used sections are:
 
-| Section | Purpose | Common overrides |
-| --- | --- | --- |
-| `settings.api` | FastAPI/CLI endpoints and shared API key | `I4G_API__BASE_URL`, `I4G_API__KEY` |
-| `settings.storage` | Structured store backend and Cloud Storage buckets | `I4G_STORAGE__STRUCTURED_BACKEND`, `I4G_STORAGE__SQLITE_PATH`, `I4G_STORAGE__EVIDENCE_BUCKET` |
-| `settings.vector` | Vector index backend and embedding model | `I4G_VECTOR__BACKEND`, `I4G_VECTOR__CHROMA_DIR`, `I4G_VECTOR__PGVECTOR__DSN` |
-| `settings.llm` | Chat/RAG model provider selection | `I4G_LLM__PROVIDER`, `I4G_LLM__OLLAMA_BASE_URL`, `I4G_LLM__VERTEX_AI__MODEL` |
-| `settings.identity` | Auth provider wiring for APIs | `I4G_IDENTITY__PROVIDER`, `I4G_IDENTITY__AUDIENCE` |
-| `settings.ingestion` | Scheduler + Cloud Run job defaults | `I4G_INGESTION__ENABLE_SCHEDULED_JOBS`, `I4G_INGESTION__SERVICE_ACCOUNT` |
-| `settings.report` | Dossier/report thresholds + Google Drive uploads | `I4G_REPORT__DRIVE_PARENT_ID`, `I4G_REPORT__MIN_LOSS_USD`, `I4G_REPORT__RECENCY_DAYS` |
+| Section              | Purpose                                            | Common overrides                                                                              |
+| -------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `settings.api`       | FastAPI/CLI endpoints and shared API key           | `I4G_API__BASE_URL`, `I4G_API__KEY`                                                           |
+| `settings.storage`   | Structured store backend and Cloud Storage buckets | `I4G_STORAGE__STRUCTURED_BACKEND`, `I4G_STORAGE__SQLITE_PATH`, `I4G_STORAGE__EVIDENCE_BUCKET` |
+| `settings.vector`    | Vector index backend and embedding model           | `I4G_VECTOR__BACKEND`, `I4G_VECTOR__CHROMA_DIR`, `I4G_VECTOR__PGVECTOR__DSN`                  |
+| `settings.llm`       | Chat/RAG model provider selection                  | `I4G_LLM__PROVIDER`, `I4G_LLM__OLLAMA_BASE_URL`, `I4G_LLM__VERTEX_AI__MODEL`                  |
+| `settings.identity`  | Auth provider wiring for APIs                      | `I4G_IDENTITY__PROVIDER`, `I4G_IDENTITY__AUDIENCE`                                            |
+| `settings.ingestion` | Scheduler + Cloud Run job defaults                 | `I4G_INGESTION__ENABLE_SCHEDULED_JOBS`, `I4G_INGESTION__SERVICE_ACCOUNT`                      |
+| `settings.report`    | Dossier/report thresholds + Google Drive uploads   | `I4G_REPORT__DRIVE_PARENT_ID`, `I4G_REPORT__MIN_LOSS_USD`, `I4G_REPORT__RECENCY_DAYS`         |
 
 Use double underscores to drill into nested fields (for example `I4G_STORAGE__EVIDENCE_BUCKET=i4g-evidence-staging`). Legacy aliases like `I4G_API_URL` and `I4G_VECTOR_BACKEND` still work, so existing `.env` files do not need to change immediately.
 
 Set `I4G_REPORT__DRIVE_PARENT_ID` to the Shared Drive folder that should receive dossier exports. The CLI/worker paths
 inherit that value automatically, so the only remaining setup is granting the runtime service account Drive API access to
 that shared folder.
-
 
 ## Running the Core Pipelines
 
@@ -325,39 +325,39 @@ Prefer a manual walkthrough or need to re-run a single stage? Use the individual
 
 1. **Download + Normalize Scam Text Bundles**
 
-    ```bash
-    python tests/adhoc/build_scam_bundle.py --outdir data/bundles --chunk_chars 800
-    ```
+   ```bash
+   python tests/adhoc/build_scam_bundle.py --outdir data/bundles --chunk_chars 800
+   ```
 
-    This pulls public-domain scam/phishing corpora via Hugging Face, masks obvious PII, and writes JSONL bundles such as `data/bundles/ucirvine_sms.jsonl` and `data/bundles/bundle_all.jsonl`.
+   This pulls public-domain scam/phishing corpora via Hugging Face, masks obvious PII, and writes JSONL bundles such as `data/bundles/ucirvine_sms.jsonl` and `data/bundles/bundle_all.jsonl`.
 
 2. **Synthesize Chat Screenshots for OCR Demos**
 
-    ```bash
-    python tests/adhoc/synthesize_chat_screenshots.py --input data/bundles/ucirvine_sms.jsonl --limit 20
-    ```
+   ```bash
+   python tests/adhoc/synthesize_chat_screenshots.py --input data/bundles/ucirvine_sms.jsonl --limit 20
+   ```
 
-    Generated PNGs land in `data/chat_screens/`. That folder is the expected input directory for OCR, so you can immediately run:
+   Generated PNGs land in `data/chat_screens/`. That folder is the expected input directory for OCR, so you can immediately run:
 
-    ```bash
-    i4g extract ocr --input data/chat_screens --output data/ocr_output.jsonl
-    ```
+   ```bash
+   i4g extract ocr --input data/chat_screens --output data/ocr_output.jsonl
+   ```
 
 3. **Reprime SQLite / Vector Stores (optional)**
 
-    ```bash
-    python tests/adhoc/manual_ingest_demo.py
-    ```
+   ```bash
+   python tests/adhoc/manual_ingest_demo.py
+   ```
 
-    This seeds `data/manual_demo/` with a structured SQLite DB and a Chroma vector index using two representative scam cases. Rerun as needed whenever you want a clean slate for ingestion demos.
+   This seeds `data/manual_demo/` with a structured SQLite DB and a Chroma vector index using two representative scam cases. Rerun as needed whenever you want a clean slate for ingestion demos.
 
 4. **Seed Analyst Review Queue**
 
-    ```bash
-    python tests/adhoc/synthesize_review_cases.py --reset --queued 5 --in-review 2 --accepted 1 --rejected 1
-    ```
+   ```bash
+   python tests/adhoc/synthesize_review_cases.py --reset --queued 5 --in-review 2 --accepted 1 --rejected 1
+   ```
 
-    Populates `data/i4g_store.db` with synthetic review items so the analyst console has cases ready to demonstrate claim/accept/reject flows.
+   Populates `data/i4g_store.db` with synthetic review items so the analyst console has cases ready to demonstrate claim/accept/reject flows.
 
 Once these assets exist, the downstream scripts referenced below will find usable inputs without manual data hunting.
 
@@ -412,6 +412,7 @@ uvicorn i4g.api.app:app --reload
 ```
 
 Check endpoint:
+
 ```
 http://localhost:8000/docs
 ```
@@ -446,49 +447,49 @@ Use the new CLI + worker helpers when testing the agentic dossier pipeline local
 
 1. **Build bundle plans** (loss/recency filters + shared entities) without mutating queue state:
 
-    ```bash
-    i4g admin build-dossiers --dry-run --limit 100 --preview 5
-    ```
+   ```bash
+   i4g admin build-dossiers --dry-run --limit 100 --preview 5
+   ```
 
-    Omit `--dry-run` to enqueue `DossierPlan` records inside the SQLite queue. Override thresholds with
-    `--min-loss`, `--recency-days`, `--max-cases`, and `--jurisdiction-mode` as needed.
+   Omit `--dry-run` to enqueue `DossierPlan` records inside the SQLite queue. Override thresholds with
+   `--min-loss`, `--recency-days`, `--max-cases`, and `--jurisdiction-mode` as needed.
 
 2. **Seed curated pilot runs** whenever you need deterministic demo dossiers:
 
-    ```bash
-    i4g admin pilot-dossiers --case-count 3 --dry-run
-    i4g admin pilot-dossiers --seed-only  # only write structured + review rows
-    ```
+   ```bash
+   i4g admin pilot-dossiers --case-count 3 --dry-run
+   i4g admin pilot-dossiers --seed-only  # only write structured + review rows
+   ```
 
-    The command loads `data/manual_demo/dossier_pilot_cases.json` by default, seeds the structured/review stores,
-    and optionally enqueues the curated plans (or just previews them with `--dry-run`). Use `--case <id>` to target
-    specific entries or `--cases-file` to point at a different JSON payload.
+   The command loads `data/manual_demo/dossier_pilot_cases.json` by default, seeds the structured/review stores,
+   and optionally enqueues the curated plans (or just previews them with `--dry-run`). Use `--case <id>` to target
+   specific entries or `--cases-file` to point at a different JSON payload.
 
 3. **Process queued plans** either manually or from Cloud Run:
 
-    ```bash
-    i4g admin process-dossiers --batch-size 3 --preview 3
-    python -m i4g.worker.jobs.dossier_queue  # Cloud Run job entry point
-    ```
+   ```bash
+   i4g admin process-dossiers --batch-size 3 --preview 3
+   python -m i4g.worker.jobs.dossier_queue  # Cloud Run job entry point
+   ```
 
-    The processor leases queue entries, renders the full bundle (JSON manifest, Markdown, PDF/HTML exports,
-    signature files), uploads artifacts to Drive when configured, and marks completion/failure accordingly.
-    Pass `--dry-run` (or `I4G_DOSSIER__DRY_RUN=true`) to inspect queue contents without generating artifacts; the
-    job automatically resets the lease to `pending` after the dry run.
+   The processor leases queue entries, renders the full bundle (JSON manifest, Markdown, PDF/HTML exports,
+   signature files), uploads artifacts to Drive when configured, and marks completion/failure accordingly.
+   Pass `--dry-run` (or `I4G_DOSSIER__DRY_RUN=true`) to inspect queue contents without generating artifacts; the
+   job automatically resets the lease to `pending` after the dry run.
 
 ### Relevant Environment Variables
 
-| Variable | Description |
-| --- | --- |
-| `I4G_REPORT__DRIVE_PARENT_ID` | Shared Drive folder that will receive dossier artifacts (share it with the runtime service account). |
-| `I4G_REPORT__MIN_LOSS_USD` | Minimum loss threshold applied by `BundleBuilder`/CLI before cases enter a dossier plan. |
-| `I4G_REPORT__RECENCY_DAYS` | Rolling acceptance window enforced while selecting pilot/production dossier cases. |
-| `I4G_REPORT__MAX_CASES_PER_DOSSIER` | Hard limit on cases grouped into a single dossier (default `5`). |
-| `I4G_REPORT__REQUIRE_CROSS_BORDER` | Forces dossier plans to include only cross-border cases when set to `true`. |
-| `I4G_REPORT__HASH_ALGORITHM` | Hashing algorithm for `.signatures.json` manifests (defaults to `sha256`). |
-| `I4G_DOSSIER__BATCH_SIZE` | Number of queue entries the worker processes per invocation (default `5`). |
-| `I4G_DOSSIER__DRY_RUN` | When `true`, the worker inspects queue entries without generating artifacts. |
-| `GOOGLE_APPLICATION_CREDENTIALS` | Local-only: path to a JSON service-account key that has Drive API scopes for uploads. |
+| Variable                            | Description                                                                                          |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `I4G_REPORT__DRIVE_PARENT_ID`       | Shared Drive folder that will receive dossier artifacts (share it with the runtime service account). |
+| `I4G_REPORT__MIN_LOSS_USD`          | Minimum loss threshold applied by `BundleBuilder`/CLI before cases enter a dossier plan.             |
+| `I4G_REPORT__RECENCY_DAYS`          | Rolling acceptance window enforced while selecting pilot/production dossier cases.                   |
+| `I4G_REPORT__MAX_CASES_PER_DOSSIER` | Hard limit on cases grouped into a single dossier (default `5`).                                     |
+| `I4G_REPORT__REQUIRE_CROSS_BORDER`  | Forces dossier plans to include only cross-border cases when set to `true`.                          |
+| `I4G_REPORT__HASH_ALGORITHM`        | Hashing algorithm for `.signatures.json` manifests (defaults to `sha256`).                           |
+| `I4G_DOSSIER__BATCH_SIZE`           | Number of queue entries the worker processes per invocation (default `5`).                           |
+| `I4G_DOSSIER__DRY_RUN`              | When `true`, the worker inspects queue entries without generating artifacts.                         |
+| `GOOGLE_APPLICATION_CREDENTIALS`    | Local-only: path to a JSON service-account key that has Drive API scopes for uploads.                |
 
 Grant the Cloud Run runtime account (and any local service account key) `roles/drive.file` + `.roles/drive.metadata.readonly`,
 then share the `I4G_REPORT__DRIVE_PARENT_ID` folder with that identity so uploads can succeed during dossier generation.
@@ -553,56 +554,61 @@ Install locally with `pip install -e .` to expose `i4g`; run `i4g admin --help` 
 
 Infrastructure lives under the sibling `infra/` tree. For module layout, workflow steps, and Discovery prerequisites (including the quota-project command), follow the instructions in `infra/README.md`.
 
-### Publishing the FastAPI Image to Artifact Registry
+### Publishing the Core API Image to Artifact Registry
 
 Manual workflow (run from the repo root unless noted):
 
 1. Authenticate gcloud and Docker (once per machine/shell).
 
-    gcloud config set project i4g-dev
-    gcloud auth login
-    gcloud auth configure-docker us-central1-docker.pkg.dev
+   gcloud config set project i4g-dev
+   gcloud auth login
+   gcloud auth configure-docker us-central1-docker.pkg.dev
 
 2. Create the Artifact Registry repo if it does not already exist.
 
-    gcloud artifacts repositories create applications \
+   gcloud artifacts repositories create applications \
 
-    gcloud artifacts repositories create applications \
-      --repository-format docker \
-      --location us-central1
+   gcloud artifacts repositories create applications \
+    --repository-format docker \
+    --location us-central1
 
 3. Build, tag, and push the service image. On Apple Silicon (M-series), target `linux/amd64` so Cloud Run can start the container.
+
 ```bash
 docker buildx create --use --name i4g-builder # one-time builder
 ```
+
 ```bash
 docker buildx inspect --bootstrap # optional: verify builder
 ```
+
 ```bash
 docker buildx build \
     --platform linux/amd64 \
-    -f docker/fastapi.Dockerfile \
-    -t us-central1-docker.pkg.dev/i4g-dev/applications/fastapi:dev \
+    -f docker/core-svc.Dockerfile \
+    -t us-central1-docker.pkg.dev/i4g-dev/applications/core-svc:dev \
     --push \
     .
 ```
+
 For x86 development machines, plain docker build/tag/push still works:
+
 ```bash
-docker build -f docker/fastapi.Dockerfile -t fastapi:dev .
-docker tag fastapi:dev us-central1-docker.pkg.dev/i4g-dev/applications/fastapi:dev
-docker push us-central1-docker.pkg.dev/i4g-dev/applications/fastapi:dev
+docker build -f docker/core-svc.Dockerfile -t core-svc:dev .
+docker tag core-svc:dev us-central1-docker.pkg.dev/i4g-dev/applications/core-svc:dev
+docker push us-central1-docker.pkg.dev/i4g-dev/applications/core-svc:dev
 ```
 
-4. Reference the pushed URI in Terraform (for example `infra/environments/dev/terraform.tfvars`).
+4.  Reference the pushed URI in Terraform (for example `infra/environments/dev/terraform.tfvars`).
 
-    project_id    = "i4g-dev"
-    fastapi_image = "us-central1-docker.pkg.dev/i4g-dev/applications/fastapi:dev"
+    project_id = "i4g-dev"
+    core_svc_image = "us-central1-docker.pkg.dev/i4g-dev/applications/core-svc:dev"
 
-5. If you rebuild an image but keep the same tag (for example `:dev`), force Cloud Run to pull the new digest:
+5.  If you rebuild an image but keep the same tag (for example `:dev`), force Cloud Run to pull the new digest:
 
-                gcloud run services update fastapi-gateway \
+                gcloud run services update core-svc \
                     --region=us-central1 \
-                    --image=us-central1-docker.pkg.dev/i4g-dev/applications/fastapi:dev
+                    --image=us-central1-docker.pkg.dev/i4g-dev/applications/core-svc:dev
 
         Running `terraform apply` afterwards keeps state in sync once the new revisions are live.
 
@@ -645,4 +651,4 @@ applying Cloud Run overrides so smoke tests, env vars, and Task_STATUS hooks sta
 
 By default the ingestion job runs against `/app/data/retrieval_poc/cases.jsonl` packaged in the container and skips embeddings unless `I4G_INGEST__ENABLE_VECTOR=true` is supplied, allowing the Cloud Run job to succeed without an external Ollama endpoint. Terraform injects `I4G_ENV` and the Dockerfile sets `I4G_RUNTIME__PROJECT_ROOT=/app`, so structured-store writes land in `/app/data` unless overridden.
 
-> ⚠️  Reminder: `data/retrieval_poc` only seeds the prototype. Plan to remove the dataset from local workstations and job images once production ingestion sources are wired up.
+> ⚠️ Reminder: `data/retrieval_poc` only seeds the prototype. Plan to remove the dataset from local workstations and job images once production ingestion sources are wired up.

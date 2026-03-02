@@ -214,7 +214,7 @@ class SmokeSettings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
     api_url: str = Field(
-        default="https://fastapi-gateway-y5jge5w2cq-uc.a.run.app",
+        default="https://core-svc-y5jge5w2cq-uc.a.run.app",
         validation_alias=AliasChoices("SMOKE_API_URL", "SMOKE__API_URL"),
         description="Default API base URL for smoke tests.",
     )

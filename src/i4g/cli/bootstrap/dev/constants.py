@@ -14,7 +14,7 @@ DEFAULT_RUNTIME_SA = "sa-app@i4g-dev.iam.gserviceaccount.com"
 IAP_CLIENT_ID_FALLBACK = "544936845045-a87u04lgc7go7asc4nhed36ka50iqh0h.apps.googleusercontent.com"
 DEFAULT_PROJECT = "i4g-dev"
 DEFAULT_REGION = "us-central1"
-DEFAULT_SMOKE_API_URL = "https://fastapi-gateway-y5jge5w2cq-uc.a.run.app"
+DEFAULT_SMOKE_API_URL = "https://core-svc-y5jge5w2cq-uc.a.run.app"
 DEFAULT_REPORT_DIR = REPO_ROOT / "data" / "reports" / "bootstrap_dev"
 DEFAULT_JOBS = {
     "ingest": "ingest-bootstrap",

@@ -32,18 +32,21 @@ We welcome contributions from:
 ### 1. **Set Up Development Environment**
 
 **Prerequisites**:
+
 - Python 3.11+
 - Docker Desktop
 - Git
 - Ollama (for local LLM testing)
 
 **Clone the Repository**:
+
 ```bash
 git clone https://github.com/jsoung/i4g.git
 cd i4g
 ```
 
 **Install Dependencies**:
+
 ```bash
 # Create virtual environment
 python -m venv venv
@@ -62,22 +65,25 @@ pip install -r requirements.txt
 ```
 
 **Run Tests**:
+
 ```bash
 pytest tests/ -v
 ```
 
 **Start Local API**:
+
 ```bash
 # In terminal 1: Start Ollama
 ollama serve
 
-# In terminal 2: Start FastAPI (development)
+# In terminal 2: Start Core API (development)
 # Recommended: run with Uvicorn so the ASGI app is imported as `app`.
 uvicorn i4g.api.app:app --reload
 # API runs at http://localhost:8000
 ```
 
 **Start Next.js Console**:
+
 ```bash
 cd ui/ && pnpm install && pnpm --filter web dev
 # Console runs at http://localhost:3000
@@ -95,6 +101,7 @@ Browse our [GitHub Issues](https://github.com/jsoung/i4g/issues) for tasks label
 - `enhancement`: New feature or improvement
 
 **Claim an Issue**:
+
 1. Comment: "I'd like to work on this!"
 2. Wait for maintainer approval (usually within 24 hours)
 3. You'll be assigned the issue
@@ -115,6 +122,7 @@ git checkout -b bugfix/fix-pdf-encoding
 ```
 
 **Branch Naming Convention**:
+
 - `feature/description`: New functionality
 - `bugfix/description`: Fixing a bug
 - `docs/description`: Documentation updates
@@ -150,6 +158,7 @@ def tokenize_pii(text: str) -> dict[str, str]:
 ```
 
 **Formatting Tools**:
+
 ```bash
 # Auto-format code
 black src/ tests/
@@ -168,11 +177,13 @@ mypy src/
 **All code changes must include tests!**
 
 **Test Coverage Targets**:
+
 - Unit tests: 80% minimum
 - Integration tests: Critical paths only
 - E2E tests: Happy path + 1 error case
 
 **Run Tests Before Committing**:
+
 ```bash
 # Run all tests
 pytest tests/ -v
@@ -200,6 +211,7 @@ Use **Conventional Commits** format:
 ```
 
 **Examples**:
+
 ```
 feat(pii): add phone number tokenization
 
@@ -219,6 +231,7 @@ Fixes #89
 ```
 
 **Types**:
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation changes
@@ -246,24 +259,30 @@ git push origin feature/add-scam-trends
 Go to [GitHub](https://github.com/jsoung/i4g/pulls) and click **"New Pull Request"**.
 
 **PR Description Template**:
+
 ```markdown
 ## Description
+
 Brief summary of changes (2-3 sentences).
 
 ## Motivation
+
 Why is this change needed? Link to issue if applicable.
 
 ## Changes Made
+
 - Added X feature
 - Refactored Y component
 - Updated Z documentation
 
 ## Testing
+
 - [ ] Unit tests pass (`pytest tests/`)
 - [ ] Integration tests pass (if applicable)
 - [ ] Manual testing completed
 
 ## Checklist
+
 - [ ] Code follows style guidelines (`black`, `isort`)
 - [ ] Self-reviewed code
 - [ ] Commented complex logic
@@ -278,10 +297,12 @@ Closes #[issue number]
 ### 3. **Code Review**
 
 **Review Timeline**:
+
 - Initial feedback: Within 48 hours
 - Follow-up: Within 24 hours after updates
 
 **Approval Criteria**:
+
 - At least 1 approval from maintainer (Jerry)
 - All CI checks pass (tests, linting)
 - No unresolved comments
@@ -291,14 +312,17 @@ Closes #[issue number]
 ## Communication Channels
 
 ### GitHub Issues
+
 - **Use for**: Bug reports, feature requests, task tracking
 - **Response time**: 24-48 hours
 
 ### GitHub Discussions
+
 - **Use for**: Questions, ideas, general discussion
 - **Categories**: Q&A, Ideas, Show & Tell
 
 ### Email
+
 - **Maintainer**: Jerry Soung (jerry.soung@gmail.com)
 - **Use for**: Security issues (use PGP if available), partnership inquiries
 
@@ -307,15 +331,20 @@ Closes #[issue number]
 ## Recognition & Credits
 
 ### Contributors Hall of Fame
+
 All contributors are listed in [contributors.md](./contributors.md) with their contributions.
 
 ### Academic Credit
+
 Graduate students can receive:
+
 - **Internship Credit**: Coordinate with your advisor (we provide verification letters)
 - **Research Publications**: Co-authorship on papers if you contribute significantly to research components
 
 ### Letters of Recommendation
+
 Jerry provides reference letters for contributors who:
+
 - Complete at least 3 meaningful PRs
 - Participate for 3+ months
 - Demonstrate reliability and quality work
@@ -327,6 +356,7 @@ Jerry provides reference letters for contributors who:
 If you're a grad student joining through a university partnership:
 
 ### Week 1: Setup & Training
+
 - [ ] Complete development environment setup
 - [ ] Read [Data Compliance Guide](./compliance.md)
 - [ ] Sign FERPA Data Use Agreement (DUA)
@@ -334,11 +364,13 @@ If you're a grad student joining through a university partnership:
 - [ ] Attend onboarding session (schedule via email)
 
 ### Week 2-3: First Contribution
+
 - [ ] Pick a `good first issue`
 - [ ] Submit first PR
 - [ ] Attend code review session
 
 ### Week 4+: Regular Contributions
+
 - [ ] Weekly check-ins (Mondays)
 - [ ] Monthly progress report (for academic advisor)
 - [ ] Bi-weekly pair programming (optional)
@@ -350,12 +382,15 @@ If you're a grad student joining through a university partnership:
 ## Security & Confidentiality
 
 ### Sensitive Data Handling
+
 - **NEVER commit**: Real PII, API keys, passwords
 - **Use**: Git secrets scanner (automatically installed via pre-commit)
 - **Report**: Any suspected data leak to security@i4g.org immediately
 
 ### Non-Disclosure
+
 All contributors must sign a confidentiality agreement:
+
 - Available at: [confidentiality_agreement.md](./confidentiality_agreement.md)
 - Submit signed copy to: legal@i4g.org
 - Renewal: Annually
@@ -378,6 +413,7 @@ A: **DO NOT open a public issue.** Email security@i4g.org with details. We'll re
 
 **Q: Can I use i4g code in my research paper?**
 A: Yes! The project is MIT licensed. Please cite:
+
 ```
 Soung, J. (2025). i4g: AI-Powered Scam Reporting Platform.
 GitHub repository: https://github.com/jsoung/i4g
@@ -391,21 +427,25 @@ A: No problem! Just comment on the issue: "I'm unable to continue, feel free to 
 ## Code of Conduct
 
 ### Our Pledge
+
 We are committed to providing a welcoming, inclusive, and harassment-free environment for all contributors.
 
 ### Expected Behavior
+
 - Be respectful and constructive in feedback
 - Assume good intent
 - Focus on what's best for the project
 - Acknowledge and learn from mistakes
 
 ### Unacceptable Behavior
+
 - Harassment, discrimination, or offensive comments
 - Personal attacks or trolling
 - Publishing others' private information
 - Any conduct that creates an unsafe environment
 
 ### Reporting
+
 Email conduct@i4g.org with details. All reports are confidential.
 
 **Enforcement**:

@@ -152,7 +152,7 @@ python scripts/debug_iap.py
 This script checks:
 1.  Your current gcloud identity.
 2.  Ability to generate ID tokens for the IAP audience.
-3.  Connectivity to the `fastapi-gateway` service.
+3.  Connectivity to the `core-svc` service.
 
 ### Job Reference
 The bootstrap process orchestrates several Cloud Run Jobs. These jobs are defined in `infra/` (Terraform) and built from `core/docker/`.
