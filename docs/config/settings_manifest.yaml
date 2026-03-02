@@ -1,1376 +1,1358 @@
-generated_at: '2026-02-28T18:32:15.171394+00:00'
+generated_at: "2026-02-28T18:32:15.171394+00:00"
 source: src/i4g/settings/config.py
 env_prefix: I4G_
 fields:
-- path: account_job.categories
-  section: account_job
-  type: list[str]
-  default: []
-  env_vars:
-  - I4G_ACCOUNT_JOB__CATEGORIES
-  - ACCOUNT_JOB_CATEGORIES
-  - ACCOUNT_JOB__CATEGORIES
-  description: Comma-separated fraud categories to include (e.g. bank,crypto,payments).
-- path: account_job.dry_run
-  section: account_job
-  type: bool
-  default: false
-  env_vars:
-  - I4G_ACCOUNT_JOB__DRY_RUN
-  - ACCOUNT_JOB_DRY_RUN
-  - ACCOUNT_JOB__DRY_RUN
-  description: Run extraction without persisting results.
-- path: account_job.end_time
-  section: account_job
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_ACCOUNT_JOB__END_TIME
-  - ACCOUNT_JOB_END_TIME
-  - ACCOUNT_JOB__END_TIME
-  description: ISO-8601 end of the extraction window. Defaults to now (UTC).
-- path: account_job.include_sources
-  section: account_job
-  type: bool
-  default: true
-  env_vars:
-  - I4G_ACCOUNT_JOB__INCLUDE_SOURCES
-  - ACCOUNT_JOB_INCLUDE_SOURCES
-  - ACCOUNT_JOB__INCLUDE_SOURCES
-  description: Whether to include source evidence references in output.
-- path: account_job.output_formats
-  section: account_job
-  type: list[str]
-  default: []
-  env_vars:
-  - I4G_ACCOUNT_JOB__OUTPUT_FORMATS
-  - ACCOUNT_JOB_OUTPUT_FORMATS
-  - ACCOUNT_JOB__OUTPUT_FORMATS
-  description: Comma-separated output formats (e.g. pdf,xlsx). Overrides account_list.default_formats.
-- path: account_job.start_time
-  section: account_job
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_ACCOUNT_JOB__START_TIME
-  - ACCOUNT_JOB_START_TIME
-  - ACCOUNT_JOB__START_TIME
-  description: ISO-8601 start of the extraction window. Defaults to end_time minus
-    window_days.
-- path: account_job.top_k
-  section: account_job
-  type: int
-  default: 200
-  env_vars:
-  - I4G_ACCOUNT_JOB__TOP_K
-  - ACCOUNT_JOB_TOP_K
-  - ACCOUNT_JOB__TOP_K
-  description: Maximum number of accounts to extract per run.
-- path: account_job.window_days
-  section: account_job
-  type: int
-  default: 15
-  env_vars:
-  - I4G_ACCOUNT_JOB__WINDOW_DAYS
-  - ACCOUNT_JOB_WINDOW_DAYS
-  - ACCOUNT_JOB__WINDOW_DAYS
-  description: Number of days in the extraction window when start_time is not set.
-- path: account_list.api_key
-  section: account_list
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_ACCOUNT_LIST__API_KEY
-  - ACCOUNT_LIST_API_KEY
-  - ACCOUNT_LIST__API_KEY
-  description: Account list extraction configuration.
-- path: account_list.artifact_prefix
-  section: account_list
-  type: str
-  default: account_list
-  env_vars:
-  - I4G_ACCOUNT_LIST__ARTIFACT_PREFIX
-  - ACCOUNT_LIST_ARTIFACT_PREFIX
-  - ACCOUNT_LIST__ARTIFACT_PREFIX
-  description: Account list extraction configuration.
-- path: account_list.default_formats
-  section: account_list
-  type: list[str]
-  default: []
-  env_vars:
-  - I4G_ACCOUNT_LIST__DEFAULT_FORMATS
-  - ACCOUNT_LIST_DEFAULT_FORMATS
-  - ACCOUNT_LIST__DEFAULT_FORMATS
-  description: Account list extraction configuration.
-- path: account_list.drive_folder_id
-  section: account_list
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_ACCOUNT_LIST__DRIVE_FOLDER_ID
-  - ACCOUNT_LIST_DRIVE_FOLDER_ID
-  - ACCOUNT_LIST__DRIVE_FOLDER_ID
-  description: Account list extraction configuration.
-- path: account_list.enable_vector
-  section: account_list
-  type: bool
-  default: true
-  env_vars:
-  - I4G_ACCOUNT_LIST__ENABLE_VECTOR
-  - ACCOUNT_LIST_ENABLE_VECTOR
-  - ACCOUNT_LIST__ENABLE_VECTOR
-  description: Account list extraction configuration.
-- path: account_list.enabled
-  section: account_list
-  type: bool
-  default: true
-  env_vars:
-  - I4G_ACCOUNT_LIST__ENABLED
-  - ACCOUNT_LIST_ENABLED
-  - ACCOUNT_LIST__ENABLED
-  description: Account list extraction configuration.
-- path: account_list.header_name
-  section: account_list
-  type: str
-  default: X-ACCOUNTLIST-KEY
-  env_vars:
-  - I4G_ACCOUNT_LIST__HEADER_NAME
-  - ACCOUNT_LIST_HEADER_NAME
-  - ACCOUNT_LIST__HEADER_NAME
-  description: Account list extraction configuration.
-- path: account_list.max_top_k
-  section: account_list
-  type: int
-  default: 250
-  env_vars:
-  - I4G_ACCOUNT_LIST__MAX_TOP_K
-  - ACCOUNT_LIST_MAX_TOP_K
-  - ACCOUNT_LIST__MAX_TOP_K
-  description: Account list extraction configuration.
-- path: account_list.require_api_key
-  section: account_list
-  type: bool
-  default: true
-  env_vars:
-  - I4G_ACCOUNT_LIST__REQUIRE_API_KEY
-  - ACCOUNT_LIST_REQUIRE_API_KEY
-  - ACCOUNT_LIST__REQUIRE_API_KEY
-  description: Account list extraction configuration.
-- path: api.base_url
-  section: api
-  type: str
-  default: http://127.0.0.1:8000
-  env_vars:
-  - I4G_API__BASE_URL
-  - API_URL
-  - API__BASE_URL
-  description: API endpoint configuration shared by CLI + dashboards.
-- path: api.cors_origins
-  section: api
-  type: list[str]
-  default:
-  - '*'
-  env_vars:
-  - I4G_API__CORS_ORIGINS
-  - API_CORS_ORIGINS
-  - API__CORS_ORIGINS
-  description: Allowed CORS origins. Defaults to ['*'] for local dev; override in
-    cloud envs.
-- path: api.key
-  section: api
-  type: str
-  default: dev-analyst-token
-  env_vars:
-  - I4G_API__KEY
-  - API_KEY
-  - API__KEY
-  description: API endpoint configuration shared by CLI + dashboards.
-- path: api.rate_limit_per_minute
-  section: api
-  type: int
-  default: 60
-  env_vars:
-  - I4G_API__RATE_LIMIT_PER_MINUTE
-  - API_RATE_LIMIT
-  - API__RATE_LIMIT_PER_MINUTE
-  description: API endpoint configuration shared by CLI + dashboards.
-- path: crypto.pii_key
-  section: crypto
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_CRYPTO__PII_KEY
-  - CRYPTO_PII_KEY
-  - CRYPTO__PII_KEY
-  description: Application-level cryptographic material used by vault/tokenization
-    flows.
-- path: data_dir
-  section: data_dir
-  type: Path
-  default: /Users/jerry/Work/project/i4g/core/data
-  env_vars:
-  - I4G_DATA_DIR
-  description: Top-level configuration model with nested sections for each subsystem.
-- path: dossier_job.batch_size
-  section: dossier_job
-  type: int
-  default: 5
-  env_vars:
-  - I4G_DOSSIER_JOB__BATCH_SIZE
-  - DOSSIER_BATCH_SIZE
-  - DOSSIER__BATCH_SIZE
-  description: Cloud Run job overrides for dossier queue processing.
-- path: dossier_job.dry_run
-  section: dossier_job
-  type: bool
-  default: false
-  env_vars:
-  - I4G_DOSSIER_JOB__DRY_RUN
-  - DOSSIER_DRY_RUN
-  - DOSSIER__DRY_RUN
-  description: Cloud Run job overrides for dossier queue processing.
-- path: env
-  section: env
-  type: str
-  default: local
-  env_vars:
-  - I4G_ENV
-  - ENV
-  - ENVIRONMENT
-  - RUNTIME__ENV
-  description: Top-level configuration model with nested sections for each subsystem.
-- path: identity.audience
-  section: identity
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_IDENTITY__AUDIENCE
-  - IDENTITY_AUDIENCE
-  - IDENTITY__AUDIENCE
-  description: Identity provider wiring for auth-enabled services.
-- path: identity.client_id
-  section: identity
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_IDENTITY__CLIENT_ID
-  - IDENTITY_CLIENT_ID
-  - IDENTITY__CLIENT_ID
-  description: Identity provider wiring for auth-enabled services.
-- path: identity.disable_auth
-  section: identity
-  type: bool
-  default: false
-  env_vars:
-  - I4G_IDENTITY__DISABLE_AUTH
-  - IDENTITY_DISABLE_AUTH
-  - IDENTITY__DISABLE_AUTH
-  description: Identity provider wiring for auth-enabled services.
-- path: identity.iap_backend_audience
-  section: identity
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_IDENTITY__IAP_BACKEND_AUDIENCE
-  - IDENTITY_IAP_BACKEND_AUDIENCE
-  - IDENTITY__IAP_BACKEND_AUDIENCE
-  description: IAP backend-service audience string (/projects/PROJECT_NUMBER/global/backendServices/BACKEND_ID).
-    Used to verify X-Goog-IAP-JWT-Assertion tokens whose audience differs from the
-    OAuth client ID.
-- path: identity.issuer
-  section: identity
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_IDENTITY__ISSUER
-  - IDENTITY_ISSUER
-  - IDENTITY__ISSUER
-  description: Identity provider wiring for auth-enabled services.
-- path: identity.provider
-  section: identity
-  type: Literal['mock', 'google_identity', 'authentik', 'firebase']
-  default: mock
-  env_vars:
-  - I4G_IDENTITY__PROVIDER
-  - IDENTITY_PROVIDER
-  - IDENTITY__PROVIDER
-  description: Identity provider wiring for auth-enabled services.
-- path: ingest_retry_job.batch_limit
-  section: ingest_retry_job
-  type: int
-  default: 25
-  env_vars:
-  - I4G_INGEST_RETRY_JOB__BATCH_LIMIT
-  - INGEST_RETRY_BATCH_LIMIT
-  - INGEST_RETRY__BATCH_LIMIT
-  description: Cloud Run job overrides for the ingestion retry processor.
-- path: ingest_retry_job.dry_run
-  section: ingest_retry_job
-  type: bool
-  default: false
-  env_vars:
-  - I4G_INGEST_RETRY_JOB__DRY_RUN
-  - INGEST_RETRY_DRY_RUN
-  - INGEST_RETRY__DRY_RUN
-  description: Cloud Run job overrides for the ingestion retry processor.
-- path: ingestion.batch_limit
-  section: ingestion
-  type: int
-  default: 0
-  env_vars:
-  - I4G_INGESTION__BATCH_LIMIT
-  - INGEST_BATCH_LIMIT
-  - INGEST__BATCH_LIMIT
-  - INGESTION_BATCH_LIMIT
-  - INGESTION__BATCH_LIMIT
-  description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.dataset_path
-  section: ingestion
-  type: str | Path
-  default: /Users/jerry/Work/project/i4g/core/data/retrieval_poc/cases.jsonl
-  env_vars:
-  - I4G_INGESTION__DATASET_PATH
-  - INGEST_JSONL_PATH
-  - INGEST__JSONL_PATH
-  - INGESTION_JSONL_PATH
-  - INGESTION__JSONL_PATH
-  description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.default_dataset
-  section: ingestion
-  type: str
-  default: unknown
-  env_vars:
-  - I4G_INGESTION__DEFAULT_DATASET
-  - INGEST_DEFAULT_DATASET
-  - INGEST__DEFAULT_DATASET
-  - INGEST__DATASET_NAME
-  - INGESTION_DEFAULT_DATASET
-  - INGESTION__DEFAULT_DATASET
-  description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.default_region
-  section: ingestion
-  type: str
-  default: us-central1
-  env_vars:
-  - I4G_INGESTION__DEFAULT_REGION
-  - INGESTION_DEFAULT_REGION
-  - INGESTION__DEFAULT_REGION
-  description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.default_service_account
-  section: ingestion
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_INGESTION__DEFAULT_SERVICE_ACCOUNT
-  - INGESTION_SERVICE_ACCOUNT
-  - INGESTION__SERVICE_ACCOUNT
-  description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.dry_run
-  section: ingestion
-  type: bool
-  default: false
-  env_vars:
-  - I4G_INGESTION__DRY_RUN
-  - INGEST_DRY_RUN
-  - INGEST__DRY_RUN
-  - INGESTION_DRY_RUN
-  - INGESTION__DRY_RUN
-  description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.enable_scheduled_jobs
-  section: ingestion
-  type: bool
-  default: false
-  env_vars:
-  - I4G_INGESTION__ENABLE_SCHEDULED_JOBS
-  - INGESTION_ENABLE_SCHEDULED_JOBS
-  - INGESTION__ENABLE_SCHEDULED_JOBS
-  description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.enable_sql
-  section: ingestion
-  type: bool
-  default: true
-  env_vars:
-  - I4G_INGESTION__ENABLE_SQL
-  - INGEST_ENABLE_SQL
-  - INGEST__ENABLE_SQL
-  - INGESTION_ENABLE_SQL
-  - INGESTION__ENABLE_SQL
-  description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.enable_vector_store
-  section: ingestion
-  type: bool
-  default: true
-  env_vars:
-  - I4G_INGESTION__ENABLE_VECTOR_STORE
-  - INGEST_ENABLE_VECTOR
-  - INGEST__ENABLE_VECTOR
-  - INGESTION_ENABLE_VECTOR
-  - INGESTION__ENABLE_VECTOR
-  description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.enable_vertex
-  section: ingestion
-  type: bool
-  default: false
-  env_vars:
-  - I4G_INGESTION__ENABLE_VERTEX
-  - INGEST_ENABLE_VERTEX
-  - INGEST__ENABLE_VERTEX
-  - INGESTION_ENABLE_VERTEX
-  - INGESTION__ENABLE_VERTEX
-  description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.fanout_timeout_seconds
-  section: ingestion
-  type: int
-  default: 60
-  env_vars:
-  - I4G_INGESTION__FANOUT_TIMEOUT_SECONDS
-  - INGEST_FANOUT_TIMEOUT_SECONDS
-  - INGEST__FANOUT_TIMEOUT_SECONDS
-  - INGESTION_FANOUT_TIMEOUT_SECONDS
-  - INGESTION__FANOUT_TIMEOUT_SECONDS
-  description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.max_retries
-  section: ingestion
-  type: int
-  default: 3
-  env_vars:
-  - I4G_INGESTION__MAX_RETRIES
-  - INGEST_MAX_RETRIES
-  - INGEST__MAX_RETRIES
-  - INGESTION_MAX_RETRIES
-  - INGESTION__MAX_RETRIES
-  description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.rate_limit_delay
-  section: ingestion
-  type: float
-  default: 0.0
-  env_vars:
-  - I4G_INGESTION__RATE_LIMIT_DELAY
-  - INGEST_RATE_LIMIT_DELAY
-  - INGEST__RATE_LIMIT_DELAY
-  - INGESTION_RATE_LIMIT_DELAY
-  - INGESTION__RATE_LIMIT_DELAY
-  description: Delay in seconds between records for rate limiting.
-- path: ingestion.reset_vector
-  section: ingestion
-  type: bool
-  default: false
-  env_vars:
-  - I4G_INGESTION__RESET_VECTOR
-  - INGEST_RESET_VECTOR
-  - INGEST__RESET_VECTOR
-  - INGESTION_RESET_VECTOR
-  - INGESTION__RESET_VECTOR
-  description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.retry_delay_seconds
-  section: ingestion
-  type: int
-  default: 60
-  env_vars:
-  - I4G_INGESTION__RETRY_DELAY_SECONDS
-  - INGEST_RETRY_DELAY_SECONDS
-  - INGEST__RETRY_DELAY_SECONDS
-  - INGESTION_RETRY_DELAY_SECONDS
-  - INGESTION__RETRY_DELAY_SECONDS
-  description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.scheduler_project
-  section: ingestion
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_INGESTION__SCHEDULER_PROJECT
-  - INGESTION_SCHEDULER_PROJECT
-  - INGESTION__SCHEDULER_PROJECT
-  description: Scheduler + job configuration for ingestion workflows.
-- path: ingestion.skip_classification
-  section: ingestion
-  type: bool
-  default: false
-  env_vars:
-  - I4G_INGESTION__SKIP_CLASSIFICATION
-  - INGEST_SKIP_CLASSIFICATION
-  - INGEST__SKIP_CLASSIFICATION
-  - INGESTION_SKIP_CLASSIFICATION
-  - INGESTION__SKIP_CLASSIFICATION
-  description: When True, skip fraud classification during ingestion.
-- path: intake.api_base
-  section: intake
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_INTAKE__API_BASE
-  - INTAKE_API_BASE
-  - INTAKE__API_BASE
-  description: Base URL for the intake API (if processing via HTTP rather than direct
-    service call).
-- path: intake.api_key
-  section: intake
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_INTAKE__API_KEY
-  - INTAKE_API_KEY
-  - INTAKE__API_KEY
-  description: API key for authenticating intake API calls. Falls back to api.key.
-- path: intake.id
-  section: intake
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_INTAKE__ID
-  - INTAKE_ID
-  - INTAKE__ID
-  description: Intake submission ID to process.
-- path: intake.job_id
-  section: intake
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_INTAKE__JOB_ID
-  - INTAKE_JOB_ID
-  - INTAKE__JOB_ID
-  description: Intake job ID for tracking.
-- path: llm.chat_model
-  section: llm
-  type: str
-  default: llama3
-  env_vars:
-  - I4G_LLM__CHAT_MODEL
-  - LLM_CHAT_MODEL
-  - LLM__CHAT_MODEL
-  description: Primary model identifier (e.g. 'llama3', 'gemini-2.5-flash'). Used
-    for all providers.
-- path: llm.ollama_base_url
-  section: llm
-  type: str
-  default: http://127.0.0.1:11434
-  env_vars:
-  - I4G_LLM__OLLAMA_BASE_URL
-  - OLLAMA_BASE_URL
-  - LLM__OLLAMA_BASE_URL
-  description: Large language model provider settings.
-- path: llm.provider
-  section: llm
-  type: Literal['ollama', 'vertex_ai', 'mock']
-  default: ollama
-  env_vars:
-  - I4G_LLM__PROVIDER
-  - LLM_PROVIDER
-  - LLM__PROVIDER
-  description: Large language model provider settings.
-- path: llm.temperature
-  section: llm
-  type: float
-  default: 0.1
-  env_vars:
-  - I4G_LLM__TEMPERATURE
-  - LLM_TEMPERATURE
-  - LLM__TEMPERATURE
-  description: Large language model provider settings.
-- path: llm.vertex_ai_location
-  section: llm
-  type: str | NoneType
-  default: us-central1
-  env_vars:
-  - I4G_LLM__VERTEX_AI_LOCATION
-  - LLM_VERTEX_AI_LOCATION
-  - LLM__VERTEX_AI__LOCATION
-  description: Large language model provider settings.
-- path: llm.vertex_ai_model
-  section: llm
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_LLM__VERTEX_AI_MODEL
-  - LLM_VERTEX_AI_MODEL
-  - LLM__VERTEX_AI__MODEL
-  description: Legacy override for Vertex AI model. Prefer 'chat_model'.
-- path: llm.vertex_ai_project
-  section: llm
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_LLM__VERTEX_AI_PROJECT
-  - LLM_VERTEX_AI_PROJECT
-  - LLM__VERTEX_AI__PROJECT
-  description: Large language model provider settings.
-- path: observability.detokenization_alert_threshold
-  section: observability
-  type: int
-  default: 10
-  env_vars:
-  - I4G_OBSERVABILITY__DETOKENIZATION_ALERT_THRESHOLD
-  - OBS_DETOKENIZATION_ALERT_THRESHOLD
-  - OBSERVABILITY__DETOKENIZATION_ALERT_THRESHOLD
-  description: Max detokenization calls per user per hour before alerting.
-- path: observability.dossier_stuck_timeout_minutes
-  section: observability
-  type: int
-  default: 30
-  env_vars:
-  - I4G_OBSERVABILITY__DOSSIER_STUCK_TIMEOUT_MINUTES
-  - OBS_DOSSIER_STUCK_TIMEOUT_MINUTES
-  - OBSERVABILITY__DOSSIER_STUCK_TIMEOUT_MINUTES
-  description: Minutes after which a dossier job is considered stuck.
-- path: observability.ingestion_error_rate_threshold
-  section: observability
-  type: float
-  default: 0.1
-  env_vars:
-  - I4G_OBSERVABILITY__INGESTION_ERROR_RATE_THRESHOLD
-  - OBS_INGESTION_ERROR_RATE_THRESHOLD
-  - OBSERVABILITY__INGESTION_ERROR_RATE_THRESHOLD
-  description: "Ingestion failure rate (0.0\u20131.0) that triggers an alert."
-- path: observability.otlp_endpoint
-  section: observability
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_OBSERVABILITY__OTLP_ENDPOINT
-  - OBS_OTLP_ENDPOINT
-  - OBSERVABILITY__OTLP_ENDPOINT
-  description: Logging, tracing, and metrics configuration.
-- path: observability.service_name
-  section: observability
-  type: str
-  default: i4g-backend
-  env_vars:
-  - I4G_OBSERVABILITY__SERVICE_NAME
-  - OBS_SERVICE_NAME
-  - OBSERVABILITY__SERVICE_NAME
-  description: Logging, tracing, and metrics configuration.
-- path: observability.statsd_host
-  section: observability
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_OBSERVABILITY__STATSD_HOST
-  - OBS_STATSD_HOST
-  - OBSERVABILITY__STATSD_HOST
-  description: Logging, tracing, and metrics configuration.
-- path: observability.statsd_port
-  section: observability
-  type: int
-  default: 8125
-  env_vars:
-  - I4G_OBSERVABILITY__STATSD_PORT
-  - OBS_STATSD_PORT
-  - OBSERVABILITY__STATSD_PORT
-  description: Logging, tracing, and metrics configuration.
-- path: observability.statsd_prefix
-  section: observability
-  type: str
-  default: i4g
-  env_vars:
-  - I4G_OBSERVABILITY__STATSD_PREFIX
-  - OBS_STATSD_PREFIX
-  - OBSERVABILITY__STATSD_PREFIX
-  description: Logging, tracing, and metrics configuration.
-- path: observability.structured_logging
-  section: observability
-  type: bool
-  default: true
-  env_vars:
-  - I4G_OBSERVABILITY__STRUCTURED_LOGGING
-  - OBS_STRUCTURED_LOGGING
-  - OBSERVABILITY__STRUCTURED_LOGGING
-  description: Logging, tracing, and metrics configuration.
-- path: observability.trace_sample_rate
-  section: observability
-  type: float
-  default: 0.0
-  env_vars:
-  - I4G_OBSERVABILITY__TRACE_SAMPLE_RATE
-  - OBS_TRACE_SAMPLE_RATE
-  - OBSERVABILITY__TRACE_SAMPLE_RATE
-  description: Logging, tracing, and metrics configuration.
-- path: pii.backend
-  section: pii
-  type: Literal['sqlite', 'cloudsql']
-  default: sqlite
-  env_vars:
-  - I4G_PII__BACKEND
-  - PII_BACKEND
-  - PII__BACKEND
-  description: Deterministic tokenization controls for PII vault integration.
-- path: pii.cloudsql_database
-  section: pii
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_PII__CLOUDSQL_DATABASE
-  - PII__CLOUDSQL__DATABASE
-  - I4G_PII__CLOUDSQL__DATABASE
-  description: Deterministic tokenization controls for PII vault integration.
-- path: pii.cloudsql_enable_iam_auth
-  section: pii
-  type: bool
-  default: false
-  env_vars:
-  - I4G_PII__CLOUDSQL_ENABLE_IAM_AUTH
-  - PII__CLOUDSQL__ENABLE_IAM_AUTH
-  - I4G_PII__CLOUDSQL__ENABLE_IAM_AUTH
-  description: Deterministic tokenization controls for PII vault integration.
-- path: pii.cloudsql_instance
-  section: pii
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_PII__CLOUDSQL_INSTANCE
-  - PII__CLOUDSQL__INSTANCE
-  - I4G_PII__CLOUDSQL__INSTANCE
-  description: Deterministic tokenization controls for PII vault integration.
-- path: pii.cloudsql_password
-  section: pii
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_PII__CLOUDSQL_PASSWORD
-  - PII__CLOUDSQL__PASSWORD
-  - I4G_PII__CLOUDSQL__PASSWORD
-  description: Deterministic tokenization controls for PII vault integration.
-- path: pii.cloudsql_user
-  section: pii
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_PII__CLOUDSQL_USER
-  - PII__CLOUDSQL__USER
-  - I4G_PII__CLOUDSQL__USER
-  description: Deterministic tokenization controls for PII vault integration.
-- path: pii.pepper
-  section: pii
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_PII__PEPPER
-  - PII_PEPPER
-  - PII__PEPPER
-  description: Deterministic tokenization controls for PII vault integration.
-- path: pii.pepper_version
-  section: pii
-  type: str
-  default: v1
-  env_vars:
-  - I4G_PII__PEPPER_VERSION
-  - PII_PEPPER_VERSION
-  - PII__PEPPER_VERSION
-  description: Deterministic tokenization controls for PII vault integration.
-- path: pii.require_pepper
-  section: pii
-  type: bool
-  default: true
-  env_vars:
-  - I4G_PII__REQUIRE_PEPPER
-  - PII_REQUIRE_PEPPER
-  - PII__REQUIRE_PEPPER
-  description: Deterministic tokenization controls for PII vault integration.
-- path: project_root
-  section: project_root
-  type: Path
-  default: /Users/jerry/Work/project/i4g/core
-  env_vars:
-  - I4G_PROJECT_ROOT
-  - PROJECT_ROOT
-  - RUNTIME__PROJECT_ROOT
-  - I4G_RUNTIME__PROJECT_ROOT
-  description: Top-level configuration model with nested sections for each subsystem.
-- path: report.batch_limit
-  section: report
-  type: int
-  default: 25
-  env_vars:
-  - I4G_REPORT__BATCH_LIMIT
-  - REPORT_BATCH_LIMIT
-  - REPORT__BATCH_LIMIT
-  description: Maximum number of reviews to process per report batch.
-- path: report.drive_parent_id
-  section: report
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_REPORT__DRIVE_PARENT_ID
-  - REPORT_DRIVE_PARENT_ID
-  - REPORT__DRIVE_PARENT_ID
-  description: Agentic dossier/report configuration.
-- path: report.dry_run
-  section: report
-  type: bool
-  default: false
-  env_vars:
-  - I4G_REPORT__DRY_RUN
-  - REPORT_DRY_RUN
-  - REPORT__DRY_RUN
-  description: When True, log actions without generating reports.
-- path: report.hash_algorithm
-  section: report
-  type: str
-  default: sha256
-  env_vars:
-  - I4G_REPORT__HASH_ALGORITHM
-  - REPORT_HASH_ALGORITHM
-  - REPORT__HASH_ALGORITHM
-  description: Agentic dossier/report configuration.
-- path: report.max_cases_per_dossier
-  section: report
-  type: int
-  default: 5
-  env_vars:
-  - I4G_REPORT__MAX_CASES_PER_DOSSIER
-  - REPORT_MAX_CASES_PER_DOSSIER
-  - REPORT__MAX_CASES_PER_DOSSIER
-  description: Agentic dossier/report configuration.
-- path: report.min_loss_usd
-  section: report
-  type: float
-  default: 50000.0
-  env_vars:
-  - I4G_REPORT__MIN_LOSS_USD
-  - REPORT_MIN_LOSS_USD
-  - REPORT__MIN_LOSS_USD
-  description: Agentic dossier/report configuration.
-- path: report.recency_days
-  section: report
-  type: int
-  default: 30
-  env_vars:
-  - I4G_REPORT__RECENCY_DAYS
-  - REPORT_RECENCY_DAYS
-  - REPORT__RECENCY_DAYS
-  description: Agentic dossier/report configuration.
-- path: report.require_cross_border
-  section: report
-  type: bool
-  default: false
-  env_vars:
-  - I4G_REPORT__REQUIRE_CROSS_BORDER
-  - REPORT_REQUIRE_CROSS_BORDER
-  - REPORT__REQUIRE_CROSS_BORDER
-  description: Agentic dossier/report configuration.
-- path: report.review_ids
-  section: report
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_REPORT__REVIEW_IDS
-  - REPORT_REVIEW_IDS
-  - REPORT__REVIEW_IDS
-  description: Comma-separated explicit review IDs (overrides queue lookup).
-- path: report.target_status
-  section: report
-  type: str
-  default: accepted
-  env_vars:
-  - I4G_REPORT__TARGET_STATUS
-  - REPORT_TARGET_STATUS
-  - REPORT__TARGET_STATUS
-  description: Queue status filter when auto-resolving review IDs.
-- path: report.tool_timeout_seconds
-  section: report
-  type: float | NoneType
-  default: null
-  env_vars:
-  - I4G_REPORT__TOOL_TIMEOUT_SECONDS
-  - REPORT_TOOL_TIMEOUT_SECONDS
-  - REPORT__TOOL_TIMEOUT_SECONDS
-  description: Per-tool timeout for LangChain dossier tools; None disables timeouts.
-- path: runtime.fallback_dir
-  section: runtime
-  type: Path
-  default: /tmp/i4g/evidence
-  env_vars:
-  - I4G_RUNTIME__FALLBACK_DIR
-  - RUNTIME_FALLBACK_DIR
-  - RUNTIME__FALLBACK_DIR
-  description: Fallback directory for local evidence storage when primary path is
-    not writable.
-- path: runtime.log_level
-  section: runtime
-  type: str
-  default: INFO
-  env_vars:
-  - I4G_RUNTIME__LOG_LEVEL
-  - LOG_LEVEL
-  - RUNTIME__LOG_LEVEL
-  description: Process-level runtime controls.
-- path: search.classification_presets
-  section: search
-  type: list[str]
-  default: []
-  env_vars:
-  - I4G_SEARCH__CLASSIFICATION_PRESETS
-  - SEARCH_CLASSIFICATION_PRESETS
-  - SEARCH__CLASSIFICATION_PRESETS
-  description: Hybrid search tuning parameters and schema presets.
-- path: search.dataset_presets
-  section: search
-  type: list[str]
-  default: []
-  env_vars:
-  - I4G_SEARCH__DATASET_PRESETS
-  - SEARCH_DATASET_PRESETS
-  - SEARCH__DATASET_PRESETS
-  description: Hybrid search tuning parameters and schema presets.
-- path: search.default_limit
-  section: search
-  type: int
-  default: 25
-  env_vars:
-  - I4G_SEARCH__DEFAULT_LIMIT
-  - SEARCH_DEFAULT_LIMIT
-  - SEARCH__DEFAULT_LIMIT
-  description: Hybrid search tuning parameters and schema presets.
-- path: search.indicator_types
-  section: search
-  type: list[str]
-  default:
-  - bank_account
-  - crypto_wallet
-  - email
-  - phone
-  - ip_address
-  - asn
-  - browser_agent
-  - url
-  - merchant
-  env_vars:
-  - I4G_SEARCH__INDICATOR_TYPES
-  - SEARCH_INDICATOR_TYPES
-  - SEARCH__INDICATOR_TYPES
-  description: Hybrid search tuning parameters and schema presets.
-- path: search.loss_buckets
-  section: search
-  type: list[str]
-  default:
-  - <10k
-  - 10k-50k
-  - '>50k'
-  env_vars:
-  - I4G_SEARCH__LOSS_BUCKETS
-  - SEARCH_LOSS_BUCKETS
-  - SEARCH__LOSS_BUCKETS
-  description: Hybrid search tuning parameters and schema presets.
-- path: search.saved_search.migration_tag
-  section: search
-  type: str
-  default: hybrid-v1
-  env_vars:
-  - I4G_SEARCH__SAVED_SEARCH__MIGRATION_TAG
-  - SEARCH_SAVED_SEARCH_MIGRATION_TAG
-  - SEARCH__SAVED_SEARCH__MIGRATION_TAG
-  - SAVED_SEARCH_MIGRATION_TAG
-  description: Saved-search migration defaults shared across CLI scripts.
-- path: search.saved_search.schema_version
-  section: search
-  type: str
-  default: ''
-  env_vars:
-  - I4G_SEARCH__SAVED_SEARCH__SCHEMA_VERSION
-  - SEARCH_SAVED_SEARCH_SCHEMA_VERSION
-  - SEARCH__SAVED_SEARCH__SCHEMA_VERSION
-  - SAVED_SEARCH_SCHEMA_VERSION
-  description: Saved-search migration defaults shared across CLI scripts.
-- path: search.schema_cache_ttl_seconds
-  section: search
-  type: int
-  default: 300
-  env_vars:
-  - I4G_SEARCH__SCHEMA_CACHE_TTL_SECONDS
-  - SEARCH_SCHEMA_CACHE_TTL
-  - SEARCH__SCHEMA_CACHE_TTL
-  description: Hybrid search tuning parameters and schema presets.
-- path: search.schema_entity_example_limit
-  section: search
-  type: int
-  default: 5
-  env_vars:
-  - I4G_SEARCH__SCHEMA_ENTITY_EXAMPLE_LIMIT
-  - SEARCH_SCHEMA_ENTITY_EXAMPLE_LIMIT
-  - SEARCH__SCHEMA_ENTITY_EXAMPLE_LIMIT
-  description: Hybrid search tuning parameters and schema presets.
-- path: search.semantic_weight
-  section: search
-  type: float
-  default: 0.65
-  env_vars:
-  - I4G_SEARCH__SEMANTIC_WEIGHT
-  - SEARCH_SEMANTIC_WEIGHT
-  - SEARCH__SEMANTIC_WEIGHT
-  description: Hybrid search tuning parameters and schema presets.
-- path: search.structured_weight
-  section: search
-  type: float
-  default: 0.35
-  env_vars:
-  - I4G_SEARCH__STRUCTURED_WEIGHT
-  - SEARCH_STRUCTURED_WEIGHT
-  - SEARCH__STRUCTURED_WEIGHT
-  description: Hybrid search tuning parameters and schema presets.
-- path: search.time_presets
-  section: search
-  type: list[str]
-  default:
-  - 7d
-  - 30d
-  - 90d
-  env_vars:
-  - I4G_SEARCH__TIME_PRESETS
-  - SEARCH_TIME_PRESETS
-  - SEARCH__TIME_PRESETS
-  description: Hybrid search tuning parameters and schema presets.
-- path: secrets.local_env_file
-  section: secrets
-  type: Path | NoneType
-  default: null
-  env_vars:
-  - I4G_SECRETS__LOCAL_ENV_FILE
-  - SECRETS_LOCAL_ENV_FILE
-  - SECRETS__LOCAL_ENV_FILE
-  description: Secret resolution strategy (local vs Secret Manager).
-- path: secrets.project
-  section: secrets
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_SECRETS__PROJECT
-  - SECRETS_PROJECT
-  - SECRETS__PROJECT
-  description: Secret resolution strategy (local vs Secret Manager).
-- path: secrets.use_secret_manager
-  section: secrets
-  type: bool
-  default: false
-  env_vars:
-  - I4G_SECRETS__USE_SECRET_MANAGER
-  - SECRETS_USE_SECRET_MANAGER
-  - SECRETS__USE_SECRET_MANAGER
-  description: Secret resolution strategy (local vs Secret Manager).
-- path: smoke.api_url
-  section: smoke
-  type: str
-  default: https://fastapi-gateway-y5jge5w2cq-uc.a.run.app
-  env_vars:
-  - I4G_SMOKE__API_URL
-  - SMOKE_API_URL
-  - SMOKE__API_URL
-  description: Default API base URL for smoke tests.
-- path: ssi_job.core_api_url
-  section: ssi_job
-  type: str
-  default: https://api.intelligenceforgood.org
-  env_vars:
-  - I4G_SSI_JOB__CORE_API_URL
-  - SSI_JOB_CORE_API_URL
-  - SSI_JOB__CORE_API_URL
-  description: Core API base URL for task status callbacks from the SSI job.
-- path: ssi_job.job_name
-  section: ssi_job
-  type: str
-  default: ssi-investigate
-  env_vars:
-  - I4G_SSI_JOB__JOB_NAME
-  - SSI_JOB_NAME
-  - SSI_JOB__JOB_NAME
-  description: Cloud Run Job name for the SSI investigate job.
-- path: ssi_job.playbook_dir
-  section: ssi_job
-  type: str
-  default: config/playbooks
-  env_vars:
-  - I4G_SSI_JOB__PLAYBOOK_DIR
-  - SSI_PLAYBOOK_DIR
-  - SSI_JOB__PLAYBOOK_DIR
-  description: Directory containing SSI playbook JSON files. Resolved relative to
-    project root.
-- path: ssi_job.project
-  section: ssi_job
-  type: str
-  default: i4g-dev
-  env_vars:
-  - I4G_SSI_JOB__PROJECT
-  - SSI_JOB_PROJECT
-  - SSI_JOB__PROJECT
-  description: GCP project ID where the SSI Cloud Run Job is deployed.
-- path: ssi_job.region
-  section: ssi_job
-  type: str
-  default: us-central1
-  env_vars:
-  - I4G_SSI_JOB__REGION
-  - SSI_JOB_REGION
-  - SSI_JOB__REGION
-  description: GCP region for the Cloud Run Job.
-- path: ssi_job.service_account
-  section: ssi_job
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_SSI_JOB__SERVICE_ACCOUNT
-  - SSI_JOB_SERVICE_ACCOUNT
-  - SSI_JOB__SERVICE_ACCOUNT
-  description: Service account to impersonate when triggering the job.
-- path: storage.cloudsql_database
-  section: storage
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_STORAGE__CLOUDSQL_DATABASE
-  - APP__CLOUDSQL__DATABASE
-  - I4G_APP__CLOUDSQL__DATABASE
-  description: Structured + blob storage configuration.
-- path: storage.cloudsql_enable_iam_auth
-  section: storage
-  type: bool
-  default: false
-  env_vars:
-  - I4G_STORAGE__CLOUDSQL_ENABLE_IAM_AUTH
-  - APP__CLOUDSQL__ENABLE_IAM_AUTH
-  - I4G_APP__CLOUDSQL__ENABLE_IAM_AUTH
-  description: Structured + blob storage configuration.
-- path: storage.cloudsql_instance
-  section: storage
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_STORAGE__CLOUDSQL_INSTANCE
-  - APP__CLOUDSQL__INSTANCE
-  - I4G_APP__CLOUDSQL__INSTANCE
-  description: Structured + blob storage configuration.
-- path: storage.cloudsql_password
-  section: storage
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_STORAGE__CLOUDSQL_PASSWORD
-  - APP__CLOUDSQL__PASSWORD
-  - I4G_APP__CLOUDSQL__PASSWORD
-  description: Structured + blob storage configuration.
-- path: storage.cloudsql_user
-  section: storage
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_STORAGE__CLOUDSQL_USER
-  - APP__CLOUDSQL__USER
-  - I4G_APP__CLOUDSQL__USER
-  description: Structured + blob storage configuration.
-- path: storage.evidence_bucket
-  section: storage
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_STORAGE__EVIDENCE_BUCKET
-  - STORAGE_EVIDENCE_BUCKET
-  - STORAGE__EVIDENCE_BUCKET
-  description: Structured + blob storage configuration.
-- path: storage.evidence_local_dir
-  section: storage
-  type: Path
-  default: /Users/jerry/Work/project/i4g/core/data/evidence
-  env_vars:
-  - I4G_STORAGE__EVIDENCE_LOCAL_DIR
-  - STORAGE_EVIDENCE_LOCAL_DIR
-  - STORAGE__EVIDENCE__LOCAL_DIR
-  description: Structured + blob storage configuration.
-- path: storage.report_bucket
-  section: storage
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_STORAGE__REPORT_BUCKET
-  - STORAGE_REPORT_BUCKET
-  - STORAGE__REPORT_BUCKET
-  description: Structured + blob storage configuration.
-- path: storage.retention_days
-  section: storage
-  type: int
-  default: 90
-  env_vars:
-  - I4G_STORAGE__RETENTION_DAYS
-  - STORAGE__RETENTION_DAYS
-  - STORAGE_RETENTION_DAYS
-  description: Number of days after resolution before automated purge. Set via I4G_STORAGE__RETENTION_DAYS.
-- path: storage.retention_enabled
-  section: storage
-  type: bool
-  default: true
-  env_vars:
-  - I4G_STORAGE__RETENTION_ENABLED
-  - STORAGE__RETENTION_ENABLED
-  - STORAGE_RETENTION_ENABLED
-  description: Master switch for automated retention purge. Set I4G_STORAGE__RETENTION_ENABLED=false
-    to disable.
-- path: storage.retention_grace_days
-  section: storage
-  type: int
-  default: 30
-  env_vars:
-  - I4G_STORAGE__RETENTION_GRACE_DAYS
-  - STORAGE__RETENTION_GRACE_DAYS
-  - STORAGE_RETENTION_GRACE_DAYS
-  description: Days after soft-delete before hard purge. Set via I4G_STORAGE__RETENTION_GRACE_DAYS.
-- path: storage.sqlite_path
-  section: storage
-  type: Path
-  default: /Users/jerry/Work/project/i4g/core/data/i4g_store.db
-  env_vars:
-  - I4G_STORAGE__SQLITE_PATH
-  description: Structured + blob storage configuration.
-- path: storage.ssi_evidence_bucket
-  section: storage
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_STORAGE__SSI_EVIDENCE_BUCKET
-  - STORAGE__SSI_EVIDENCE_BUCKET
-  - STORAGE_SSI_EVIDENCE_BUCKET
-  description: GCS bucket for SSI investigation evidence artifacts.
-- path: storage.ssi_evidence_prefix
-  section: storage
-  type: str
-  default: investigations
-  env_vars:
-  - I4G_STORAGE__SSI_EVIDENCE_PREFIX
-  - STORAGE__SSI_EVIDENCE_PREFIX
-  - STORAGE_SSI_EVIDENCE_PREFIX
-  description: Key prefix inside the SSI evidence bucket.
-- path: storage.structured_backend
-  section: storage
-  type: Literal['sqlite', 'cloudsql']
-  default: sqlite
-  env_vars:
-  - I4G_STORAGE__STRUCTURED_BACKEND
-  - STRUCTURED_BACKEND
-  - STORAGE__STRUCTURED_BACKEND
-  description: Structured + blob storage configuration.
-- path: sweep.batch_size
-  section: sweep
-  type: int
-  default: 20
-  env_vars:
-  - I4G_SWEEP__BATCH_SIZE
-  - SWEEP_BATCH_SIZE
-  - SWEEP__BATCH_SIZE
-  - JOB_BATCH_SIZE
-  description: Number of cases to classify per loop iteration.
-- path: sweep.max_runtime_seconds
-  section: sweep
-  type: int
-  default: 3300
-  env_vars:
-  - I4G_SWEEP__MAX_RUNTIME_SECONDS
-  - SWEEP_MAX_RUNTIME_SECONDS
-  - SWEEP__MAX_RUNTIME_SECONDS
-  - JOB_MAX_RUNTIME_SECONDS
-  description: Maximum wall-clock seconds before the sweeper exits gracefully.
-- path: vector.backend
-  section: vector
-  type: Literal['chroma', 'faiss', 'pgvector', 'vertex_ai']
-  default: chroma
-  env_vars:
-  - I4G_VECTOR__BACKEND
-  - VECTOR_BACKEND
-  - VECTOR__BACKEND
-  description: Vector store configuration supporting multiple backends.
-- path: vector.chroma_dir
-  section: vector
-  type: Path
-  default: /Users/jerry/Work/project/i4g/core/data/chroma_store
-  env_vars:
-  - I4G_VECTOR__CHROMA_DIR
-  description: Vector store configuration supporting multiple backends.
-- path: vector.collection
-  section: vector
-  type: str
-  default: i4g_vectors
-  env_vars:
-  - I4G_VECTOR__COLLECTION
-  - VECTOR_COLLECTION
-  - VECTOR__COLLECTION
-  description: Vector store configuration supporting multiple backends.
-- path: vector.embedding_model
-  section: vector
-  type: str
-  default: nomic-embed-text
-  env_vars:
-  - I4G_VECTOR__EMBEDDING_MODEL
-  - EMBED_MODEL
-  - VECTOR__EMBED_MODEL
-  description: Vector store configuration supporting multiple backends.
-- path: vector.faiss_dir
-  section: vector
-  type: Path
-  default: /Users/jerry/Work/project/i4g/core/data/faiss_store
-  env_vars:
-  - I4G_VECTOR__FAISS_DIR
-  - VECTOR_FAISS_DIR
-  - VECTOR__FAISS_DIR
-  description: Vector store configuration supporting multiple backends.
-- path: vector.pgvector_dsn
-  section: vector
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_VECTOR__PGVECTOR_DSN
-  - VECTOR_PGVECTOR_DSN
-  - VECTOR__PGVECTOR__DSN
-  description: Vector store configuration supporting multiple backends.
-- path: vector.vertex_ai_branch
-  section: vector
-  type: str
-  default: default_branch
-  env_vars:
-  - I4G_VECTOR__VERTEX_AI_BRANCH
-  - VECTOR_VERTEX_AI_BRANCH
-  - VECTOR__VERTEX_AI__BRANCH
-  - I4G_VERTEX_SEARCH_BRANCH
-  description: Vector store configuration supporting multiple backends.
-- path: vector.vertex_ai_data_store
-  section: vector
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_VECTOR__VERTEX_AI_DATA_STORE
-  - VECTOR_VERTEX_AI_DATA_STORE
-  - VECTOR__VERTEX_AI__DATA_STORE
-  - I4G_VERTEX_SEARCH_DATA_STORE
-  description: Vector store configuration supporting multiple backends.
-- path: vector.vertex_ai_index
-  section: vector
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_VECTOR__VERTEX_AI_INDEX
-  - VECTOR_VERTEX_AI_INDEX
-  - VECTOR__VERTEX_AI__INDEX
-  description: Vector store configuration supporting multiple backends.
-- path: vector.vertex_ai_location
-  section: vector
-  type: str | NoneType
-  default: us-central1
-  env_vars:
-  - I4G_VECTOR__VERTEX_AI_LOCATION
-  - VECTOR_VERTEX_AI_LOCATION
-  - VECTOR__VERTEX_AI__LOCATION
-  - I4G_VERTEX_SEARCH_LOCATION
-  description: Vector store configuration supporting multiple backends.
-- path: vector.vertex_ai_project
-  section: vector
-  type: str | NoneType
-  default: null
-  env_vars:
-  - I4G_VECTOR__VERTEX_AI_PROJECT
-  - VECTOR_VERTEX_AI_PROJECT
-  - VECTOR__VERTEX_AI__PROJECT
-  - I4G_VERTEX_SEARCH_PROJECT
-  description: Vector store configuration supporting multiple backends.
-- path: vector.vertex_ai_serving_config
-  section: vector
-  type: str
-  default: default_search
-  env_vars:
-  - I4G_VECTOR__VERTEX_AI_SERVING_CONFIG
-  - VECTOR_VERTEX_AI_SERVING_CONFIG
-  - VECTOR__VERTEX_AI__SERVING_CONFIG
-  - I4G_VERTEX_SEARCH_SERVING_CONFIG
-  description: Vertex AI Search serving config ID.
+  - path: account_job.categories
+    section: account_job
+    type: list[str]
+    default: []
+    env_vars:
+      - I4G_ACCOUNT_JOB__CATEGORIES
+      - ACCOUNT_JOB_CATEGORIES
+      - ACCOUNT_JOB__CATEGORIES
+    description: Comma-separated fraud categories to include (e.g. bank,crypto,payments).
+  - path: account_job.dry_run
+    section: account_job
+    type: bool
+    default: false
+    env_vars:
+      - I4G_ACCOUNT_JOB__DRY_RUN
+      - ACCOUNT_JOB_DRY_RUN
+      - ACCOUNT_JOB__DRY_RUN
+    description: Run extraction without persisting results.
+  - path: account_job.end_time
+    section: account_job
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_ACCOUNT_JOB__END_TIME
+      - ACCOUNT_JOB_END_TIME
+      - ACCOUNT_JOB__END_TIME
+    description: ISO-8601 end of the extraction window. Defaults to now (UTC).
+  - path: account_job.include_sources
+    section: account_job
+    type: bool
+    default: true
+    env_vars:
+      - I4G_ACCOUNT_JOB__INCLUDE_SOURCES
+      - ACCOUNT_JOB_INCLUDE_SOURCES
+      - ACCOUNT_JOB__INCLUDE_SOURCES
+    description: Whether to include source evidence references in output.
+  - path: account_job.output_formats
+    section: account_job
+    type: list[str]
+    default: []
+    env_vars:
+      - I4G_ACCOUNT_JOB__OUTPUT_FORMATS
+      - ACCOUNT_JOB_OUTPUT_FORMATS
+      - ACCOUNT_JOB__OUTPUT_FORMATS
+    description: Comma-separated output formats (e.g. pdf,xlsx). Overrides account_list.default_formats.
+  - path: account_job.start_time
+    section: account_job
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_ACCOUNT_JOB__START_TIME
+      - ACCOUNT_JOB_START_TIME
+      - ACCOUNT_JOB__START_TIME
+    description:
+      ISO-8601 start of the extraction window. Defaults to end_time minus
+      window_days.
+  - path: account_job.top_k
+    section: account_job
+    type: int
+    default: 200
+    env_vars:
+      - I4G_ACCOUNT_JOB__TOP_K
+      - ACCOUNT_JOB_TOP_K
+      - ACCOUNT_JOB__TOP_K
+    description: Maximum number of accounts to extract per run.
+  - path: account_job.window_days
+    section: account_job
+    type: int
+    default: 15
+    env_vars:
+      - I4G_ACCOUNT_JOB__WINDOW_DAYS
+      - ACCOUNT_JOB_WINDOW_DAYS
+      - ACCOUNT_JOB__WINDOW_DAYS
+    description: Number of days in the extraction window when start_time is not set.
+  - path: account_list.api_key
+    section: account_list
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_ACCOUNT_LIST__API_KEY
+      - ACCOUNT_LIST_API_KEY
+      - ACCOUNT_LIST__API_KEY
+    description: Account list extraction configuration.
+  - path: account_list.artifact_prefix
+    section: account_list
+    type: str
+    default: account_list
+    env_vars:
+      - I4G_ACCOUNT_LIST__ARTIFACT_PREFIX
+      - ACCOUNT_LIST_ARTIFACT_PREFIX
+      - ACCOUNT_LIST__ARTIFACT_PREFIX
+    description: Account list extraction configuration.
+  - path: account_list.default_formats
+    section: account_list
+    type: list[str]
+    default: []
+    env_vars:
+      - I4G_ACCOUNT_LIST__DEFAULT_FORMATS
+      - ACCOUNT_LIST_DEFAULT_FORMATS
+      - ACCOUNT_LIST__DEFAULT_FORMATS
+    description: Account list extraction configuration.
+  - path: account_list.drive_folder_id
+    section: account_list
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_ACCOUNT_LIST__DRIVE_FOLDER_ID
+      - ACCOUNT_LIST_DRIVE_FOLDER_ID
+      - ACCOUNT_LIST__DRIVE_FOLDER_ID
+    description: Account list extraction configuration.
+  - path: account_list.enable_vector
+    section: account_list
+    type: bool
+    default: true
+    env_vars:
+      - I4G_ACCOUNT_LIST__ENABLE_VECTOR
+      - ACCOUNT_LIST_ENABLE_VECTOR
+      - ACCOUNT_LIST__ENABLE_VECTOR
+    description: Account list extraction configuration.
+  - path: account_list.enabled
+    section: account_list
+    type: bool
+    default: true
+    env_vars:
+      - I4G_ACCOUNT_LIST__ENABLED
+      - ACCOUNT_LIST_ENABLED
+      - ACCOUNT_LIST__ENABLED
+    description: Account list extraction configuration.
+  - path: account_list.header_name
+    section: account_list
+    type: str
+    default: X-ACCOUNTLIST-KEY
+    env_vars:
+      - I4G_ACCOUNT_LIST__HEADER_NAME
+      - ACCOUNT_LIST_HEADER_NAME
+      - ACCOUNT_LIST__HEADER_NAME
+    description: Account list extraction configuration.
+  - path: account_list.max_top_k
+    section: account_list
+    type: int
+    default: 250
+    env_vars:
+      - I4G_ACCOUNT_LIST__MAX_TOP_K
+      - ACCOUNT_LIST_MAX_TOP_K
+      - ACCOUNT_LIST__MAX_TOP_K
+    description: Account list extraction configuration.
+  - path: account_list.require_api_key
+    section: account_list
+    type: bool
+    default: true
+    env_vars:
+      - I4G_ACCOUNT_LIST__REQUIRE_API_KEY
+      - ACCOUNT_LIST_REQUIRE_API_KEY
+      - ACCOUNT_LIST__REQUIRE_API_KEY
+    description: Account list extraction configuration.
+  - path: api.base_url
+    section: api
+    type: str
+    default: http://127.0.0.1:8000
+    env_vars:
+      - I4G_API__BASE_URL
+      - API_URL
+      - API__BASE_URL
+    description: API endpoint configuration shared by CLI + dashboards.
+  - path: api.cors_origins
+    section: api
+    type: list[str]
+    default:
+      - "*"
+    env_vars:
+      - I4G_API__CORS_ORIGINS
+      - API_CORS_ORIGINS
+      - API__CORS_ORIGINS
+    description:
+      Allowed CORS origins. Defaults to ['*'] for local dev; override in
+      cloud envs.
+  - path: api.key
+    section: api
+    type: str
+    default: dev-analyst-token
+    env_vars:
+      - I4G_API__KEY
+      - API_KEY
+      - API__KEY
+    description: API endpoint configuration shared by CLI + dashboards.
+  - path: api.rate_limit_per_minute
+    section: api
+    type: int
+    default: 60
+    env_vars:
+      - I4G_API__RATE_LIMIT_PER_MINUTE
+      - API_RATE_LIMIT
+      - API__RATE_LIMIT_PER_MINUTE
+    description: API endpoint configuration shared by CLI + dashboards.
+  - path: crypto.pii_key
+    section: crypto
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_CRYPTO__PII_KEY
+      - CRYPTO_PII_KEY
+      - CRYPTO__PII_KEY
+    description:
+      Application-level cryptographic material used by vault/tokenization
+      flows.
+  - path: data_dir
+    section: data_dir
+    type: Path
+    default: /Users/jerry/Work/project/i4g/core/data
+    env_vars:
+      - I4G_DATA_DIR
+    description: Top-level configuration model with nested sections for each subsystem.
+  - path: dossier_job.batch_size
+    section: dossier_job
+    type: int
+    default: 5
+    env_vars:
+      - I4G_DOSSIER_JOB__BATCH_SIZE
+      - DOSSIER_BATCH_SIZE
+      - DOSSIER__BATCH_SIZE
+    description: Cloud Run job overrides for dossier queue processing.
+  - path: dossier_job.dry_run
+    section: dossier_job
+    type: bool
+    default: false
+    env_vars:
+      - I4G_DOSSIER_JOB__DRY_RUN
+      - DOSSIER_DRY_RUN
+      - DOSSIER__DRY_RUN
+    description: Cloud Run job overrides for dossier queue processing.
+  - path: env
+    section: env
+    type: str
+    default: local
+    env_vars:
+      - I4G_ENV
+      - ENV
+      - ENVIRONMENT
+      - RUNTIME__ENV
+    description: Top-level configuration model with nested sections for each subsystem.
+  - path: identity.audience
+    section: identity
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_IDENTITY__AUDIENCE
+      - IDENTITY_AUDIENCE
+      - IDENTITY__AUDIENCE
+    description: Identity provider wiring for auth-enabled services.
+  - path: identity.client_id
+    section: identity
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_IDENTITY__CLIENT_ID
+      - IDENTITY_CLIENT_ID
+      - IDENTITY__CLIENT_ID
+    description: Identity provider wiring for auth-enabled services.
+  - path: identity.disable_auth
+    section: identity
+    type: bool
+    default: false
+    env_vars:
+      - I4G_IDENTITY__DISABLE_AUTH
+      - IDENTITY_DISABLE_AUTH
+      - IDENTITY__DISABLE_AUTH
+    description: Identity provider wiring for auth-enabled services.
+  - path: identity.iap_backend_audience
+    section: identity
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_IDENTITY__IAP_BACKEND_AUDIENCE
+      - IDENTITY_IAP_BACKEND_AUDIENCE
+      - IDENTITY__IAP_BACKEND_AUDIENCE
+    description:
+      IAP backend-service audience string (/projects/PROJECT_NUMBER/global/backendServices/BACKEND_ID).
+      Used to verify X-Goog-IAP-JWT-Assertion tokens whose audience differs from the
+      OAuth client ID.
+  - path: identity.issuer
+    section: identity
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_IDENTITY__ISSUER
+      - IDENTITY_ISSUER
+      - IDENTITY__ISSUER
+    description: Identity provider wiring for auth-enabled services.
+  - path: identity.provider
+    section: identity
+    type: Literal['mock', 'google_identity', 'authentik', 'firebase']
+    default: mock
+    env_vars:
+      - I4G_IDENTITY__PROVIDER
+      - IDENTITY_PROVIDER
+      - IDENTITY__PROVIDER
+    description: Identity provider wiring for auth-enabled services.
+  - path: ingest_retry_job.batch_limit
+    section: ingest_retry_job
+    type: int
+    default: 25
+    env_vars:
+      - I4G_INGEST_RETRY_JOB__BATCH_LIMIT
+      - INGEST_RETRY_BATCH_LIMIT
+      - INGEST_RETRY__BATCH_LIMIT
+    description: Cloud Run job overrides for the ingestion retry processor.
+  - path: ingest_retry_job.dry_run
+    section: ingest_retry_job
+    type: bool
+    default: false
+    env_vars:
+      - I4G_INGEST_RETRY_JOB__DRY_RUN
+      - INGEST_RETRY_DRY_RUN
+      - INGEST_RETRY__DRY_RUN
+    description: Cloud Run job overrides for the ingestion retry processor.
+  - path: ingestion.batch_limit
+    section: ingestion
+    type: int
+    default: 0
+    env_vars:
+      - I4G_INGESTION__BATCH_LIMIT
+      - INGEST_BATCH_LIMIT
+      - INGEST__BATCH_LIMIT
+      - INGESTION_BATCH_LIMIT
+      - INGESTION__BATCH_LIMIT
+    description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.dataset_path
+    section: ingestion
+    type: str | Path
+    default: /Users/jerry/Work/project/i4g/core/data/retrieval_poc/cases.jsonl
+    env_vars:
+      - I4G_INGESTION__DATASET_PATH
+      - INGEST_JSONL_PATH
+      - INGEST__JSONL_PATH
+      - INGESTION_JSONL_PATH
+      - INGESTION__JSONL_PATH
+    description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.default_dataset
+    section: ingestion
+    type: str
+    default: unknown
+    env_vars:
+      - I4G_INGESTION__DEFAULT_DATASET
+      - INGEST_DEFAULT_DATASET
+      - INGEST__DEFAULT_DATASET
+      - INGEST__DATASET_NAME
+      - INGESTION_DEFAULT_DATASET
+      - INGESTION__DEFAULT_DATASET
+    description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.default_region
+    section: ingestion
+    type: str
+    default: us-central1
+    env_vars:
+      - I4G_INGESTION__DEFAULT_REGION
+      - INGESTION_DEFAULT_REGION
+      - INGESTION__DEFAULT_REGION
+    description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.default_service_account
+    section: ingestion
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_INGESTION__DEFAULT_SERVICE_ACCOUNT
+      - INGESTION_SERVICE_ACCOUNT
+      - INGESTION__SERVICE_ACCOUNT
+    description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.dry_run
+    section: ingestion
+    type: bool
+    default: false
+    env_vars:
+      - I4G_INGESTION__DRY_RUN
+      - INGEST_DRY_RUN
+      - INGEST__DRY_RUN
+      - INGESTION_DRY_RUN
+      - INGESTION__DRY_RUN
+    description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.enable_scheduled_jobs
+    section: ingestion
+    type: bool
+    default: false
+    env_vars:
+      - I4G_INGESTION__ENABLE_SCHEDULED_JOBS
+      - INGESTION_ENABLE_SCHEDULED_JOBS
+      - INGESTION__ENABLE_SCHEDULED_JOBS
+    description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.enable_sql
+    section: ingestion
+    type: bool
+    default: true
+    env_vars:
+      - I4G_INGESTION__ENABLE_SQL
+      - INGEST_ENABLE_SQL
+      - INGEST__ENABLE_SQL
+      - INGESTION_ENABLE_SQL
+      - INGESTION__ENABLE_SQL
+    description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.enable_vector_store
+    section: ingestion
+    type: bool
+    default: true
+    env_vars:
+      - I4G_INGESTION__ENABLE_VECTOR_STORE
+      - INGEST_ENABLE_VECTOR
+      - INGEST__ENABLE_VECTOR
+      - INGESTION_ENABLE_VECTOR
+      - INGESTION__ENABLE_VECTOR
+    description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.enable_vertex
+    section: ingestion
+    type: bool
+    default: false
+    env_vars:
+      - I4G_INGESTION__ENABLE_VERTEX
+      - INGEST_ENABLE_VERTEX
+      - INGEST__ENABLE_VERTEX
+      - INGESTION_ENABLE_VERTEX
+      - INGESTION__ENABLE_VERTEX
+    description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.fanout_timeout_seconds
+    section: ingestion
+    type: int
+    default: 60
+    env_vars:
+      - I4G_INGESTION__FANOUT_TIMEOUT_SECONDS
+      - INGEST_FANOUT_TIMEOUT_SECONDS
+      - INGEST__FANOUT_TIMEOUT_SECONDS
+      - INGESTION_FANOUT_TIMEOUT_SECONDS
+      - INGESTION__FANOUT_TIMEOUT_SECONDS
+    description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.max_retries
+    section: ingestion
+    type: int
+    default: 3
+    env_vars:
+      - I4G_INGESTION__MAX_RETRIES
+      - INGEST_MAX_RETRIES
+      - INGEST__MAX_RETRIES
+      - INGESTION_MAX_RETRIES
+      - INGESTION__MAX_RETRIES
+    description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.rate_limit_delay
+    section: ingestion
+    type: float
+    default: 0.0
+    env_vars:
+      - I4G_INGESTION__RATE_LIMIT_DELAY
+      - INGEST_RATE_LIMIT_DELAY
+      - INGEST__RATE_LIMIT_DELAY
+      - INGESTION_RATE_LIMIT_DELAY
+      - INGESTION__RATE_LIMIT_DELAY
+    description: Delay in seconds between records for rate limiting.
+  - path: ingestion.reset_vector
+    section: ingestion
+    type: bool
+    default: false
+    env_vars:
+      - I4G_INGESTION__RESET_VECTOR
+      - INGEST_RESET_VECTOR
+      - INGEST__RESET_VECTOR
+      - INGESTION_RESET_VECTOR
+      - INGESTION__RESET_VECTOR
+    description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.retry_delay_seconds
+    section: ingestion
+    type: int
+    default: 60
+    env_vars:
+      - I4G_INGESTION__RETRY_DELAY_SECONDS
+      - INGEST_RETRY_DELAY_SECONDS
+      - INGEST__RETRY_DELAY_SECONDS
+      - INGESTION_RETRY_DELAY_SECONDS
+      - INGESTION__RETRY_DELAY_SECONDS
+    description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.scheduler_project
+    section: ingestion
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_INGESTION__SCHEDULER_PROJECT
+      - INGESTION_SCHEDULER_PROJECT
+      - INGESTION__SCHEDULER_PROJECT
+    description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.skip_classification
+    section: ingestion
+    type: bool
+    default: false
+    env_vars:
+      - I4G_INGESTION__SKIP_CLASSIFICATION
+      - INGEST_SKIP_CLASSIFICATION
+      - INGEST__SKIP_CLASSIFICATION
+      - INGESTION_SKIP_CLASSIFICATION
+      - INGESTION__SKIP_CLASSIFICATION
+    description: When True, skip fraud classification during ingestion.
+  - path: intake.api_base
+    section: intake
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_INTAKE__API_BASE
+      - INTAKE_API_BASE
+      - INTAKE__API_BASE
+    description:
+      Base URL for the intake API (if processing via HTTP rather than direct
+      service call).
+  - path: intake.api_key
+    section: intake
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_INTAKE__API_KEY
+      - INTAKE_API_KEY
+      - INTAKE__API_KEY
+    description: API key for authenticating intake API calls. Falls back to api.key.
+  - path: intake.id
+    section: intake
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_INTAKE__ID
+      - INTAKE_ID
+      - INTAKE__ID
+    description: Intake submission ID to process.
+  - path: intake.job_id
+    section: intake
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_INTAKE__JOB_ID
+      - INTAKE_JOB_ID
+      - INTAKE__JOB_ID
+    description: Intake job ID for tracking.
+  - path: llm.chat_model
+    section: llm
+    type: str
+    default: llama3
+    env_vars:
+      - I4G_LLM__CHAT_MODEL
+      - LLM_CHAT_MODEL
+      - LLM__CHAT_MODEL
+    description:
+      Primary model identifier (e.g. 'llama3', 'gemini-2.5-flash'). Used
+      for all providers.
+  - path: llm.ollama_base_url
+    section: llm
+    type: str
+    default: http://127.0.0.1:11434
+    env_vars:
+      - I4G_LLM__OLLAMA_BASE_URL
+      - OLLAMA_BASE_URL
+      - LLM__OLLAMA_BASE_URL
+    description: Large language model provider settings.
+  - path: llm.provider
+    section: llm
+    type: Literal['ollama', 'vertex_ai', 'mock']
+    default: ollama
+    env_vars:
+      - I4G_LLM__PROVIDER
+      - LLM_PROVIDER
+      - LLM__PROVIDER
+    description: Large language model provider settings.
+  - path: llm.temperature
+    section: llm
+    type: float
+    default: 0.1
+    env_vars:
+      - I4G_LLM__TEMPERATURE
+      - LLM_TEMPERATURE
+      - LLM__TEMPERATURE
+    description: Large language model provider settings.
+  - path: llm.vertex_ai_location
+    section: llm
+    type: str | NoneType
+    default: us-central1
+    env_vars:
+      - I4G_LLM__VERTEX_AI_LOCATION
+      - LLM_VERTEX_AI_LOCATION
+      - LLM__VERTEX_AI__LOCATION
+    description: Large language model provider settings.
+  - path: llm.vertex_ai_model
+    section: llm
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_LLM__VERTEX_AI_MODEL
+      - LLM_VERTEX_AI_MODEL
+      - LLM__VERTEX_AI__MODEL
+    description: Legacy override for Vertex AI model. Prefer 'chat_model'.
+  - path: llm.vertex_ai_project
+    section: llm
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_LLM__VERTEX_AI_PROJECT
+      - LLM_VERTEX_AI_PROJECT
+      - LLM__VERTEX_AI__PROJECT
+    description: Large language model provider settings.
+  - path: observability.detokenization_alert_threshold
+    section: observability
+    type: int
+    default: 10
+    env_vars:
+      - I4G_OBSERVABILITY__DETOKENIZATION_ALERT_THRESHOLD
+      - OBS_DETOKENIZATION_ALERT_THRESHOLD
+      - OBSERVABILITY__DETOKENIZATION_ALERT_THRESHOLD
+    description: Max detokenization calls per user per hour before alerting.
+  - path: observability.dossier_stuck_timeout_minutes
+    section: observability
+    type: int
+    default: 30
+    env_vars:
+      - I4G_OBSERVABILITY__DOSSIER_STUCK_TIMEOUT_MINUTES
+      - OBS_DOSSIER_STUCK_TIMEOUT_MINUTES
+      - OBSERVABILITY__DOSSIER_STUCK_TIMEOUT_MINUTES
+    description: Minutes after which a dossier job is considered stuck.
+  - path: observability.ingestion_error_rate_threshold
+    section: observability
+    type: float
+    default: 0.1
+    env_vars:
+      - I4G_OBSERVABILITY__INGESTION_ERROR_RATE_THRESHOLD
+      - OBS_INGESTION_ERROR_RATE_THRESHOLD
+      - OBSERVABILITY__INGESTION_ERROR_RATE_THRESHOLD
+    description: "Ingestion failure rate (0.0\u20131.0) that triggers an alert."
+  - path: observability.otlp_endpoint
+    section: observability
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_OBSERVABILITY__OTLP_ENDPOINT
+      - OBS_OTLP_ENDPOINT
+      - OBSERVABILITY__OTLP_ENDPOINT
+    description: Logging, tracing, and metrics configuration.
+  - path: observability.service_name
+    section: observability
+    type: str
+    default: i4g-backend
+    env_vars:
+      - I4G_OBSERVABILITY__SERVICE_NAME
+      - OBS_SERVICE_NAME
+      - OBSERVABILITY__SERVICE_NAME
+    description: Logging, tracing, and metrics configuration.
+  - path: observability.statsd_host
+    section: observability
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_OBSERVABILITY__STATSD_HOST
+      - OBS_STATSD_HOST
+      - OBSERVABILITY__STATSD_HOST
+    description: Logging, tracing, and metrics configuration.
+  - path: observability.statsd_port
+    section: observability
+    type: int
+    default: 8125
+    env_vars:
+      - I4G_OBSERVABILITY__STATSD_PORT
+      - OBS_STATSD_PORT
+      - OBSERVABILITY__STATSD_PORT
+    description: Logging, tracing, and metrics configuration.
+  - path: observability.statsd_prefix
+    section: observability
+    type: str
+    default: i4g
+    env_vars:
+      - I4G_OBSERVABILITY__STATSD_PREFIX
+      - OBS_STATSD_PREFIX
+      - OBSERVABILITY__STATSD_PREFIX
+    description: Logging, tracing, and metrics configuration.
+  - path: observability.structured_logging
+    section: observability
+    type: bool
+    default: true
+    env_vars:
+      - I4G_OBSERVABILITY__STRUCTURED_LOGGING
+      - OBS_STRUCTURED_LOGGING
+      - OBSERVABILITY__STRUCTURED_LOGGING
+    description: Logging, tracing, and metrics configuration.
+  - path: observability.trace_sample_rate
+    section: observability
+    type: float
+    default: 0.0
+    env_vars:
+      - I4G_OBSERVABILITY__TRACE_SAMPLE_RATE
+      - OBS_TRACE_SAMPLE_RATE
+      - OBSERVABILITY__TRACE_SAMPLE_RATE
+    description: Logging, tracing, and metrics configuration.
+  - path: pii.backend
+    section: pii
+    type: Literal['sqlite', 'cloudsql']
+    default: sqlite
+    env_vars:
+      - I4G_PII__BACKEND
+      - PII_BACKEND
+      - PII__BACKEND
+    description: Deterministic tokenization controls for PII vault integration.
+  - path: pii.cloudsql_database
+    section: pii
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_PII__CLOUDSQL_DATABASE
+      - PII__CLOUDSQL__DATABASE
+      - I4G_PII__CLOUDSQL__DATABASE
+    description: Deterministic tokenization controls for PII vault integration.
+  - path: pii.cloudsql_enable_iam_auth
+    section: pii
+    type: bool
+    default: false
+    env_vars:
+      - I4G_PII__CLOUDSQL_ENABLE_IAM_AUTH
+      - PII__CLOUDSQL__ENABLE_IAM_AUTH
+      - I4G_PII__CLOUDSQL__ENABLE_IAM_AUTH
+    description: Deterministic tokenization controls for PII vault integration.
+  - path: pii.cloudsql_instance
+    section: pii
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_PII__CLOUDSQL_INSTANCE
+      - PII__CLOUDSQL__INSTANCE
+      - I4G_PII__CLOUDSQL__INSTANCE
+    description: Deterministic tokenization controls for PII vault integration.
+  - path: pii.cloudsql_password
+    section: pii
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_PII__CLOUDSQL_PASSWORD
+      - PII__CLOUDSQL__PASSWORD
+      - I4G_PII__CLOUDSQL__PASSWORD
+    description: Deterministic tokenization controls for PII vault integration.
+  - path: pii.cloudsql_user
+    section: pii
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_PII__CLOUDSQL_USER
+      - PII__CLOUDSQL__USER
+      - I4G_PII__CLOUDSQL__USER
+    description: Deterministic tokenization controls for PII vault integration.
+  - path: pii.pepper
+    section: pii
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_PII__PEPPER
+      - PII_PEPPER
+      - PII__PEPPER
+    description: Deterministic tokenization controls for PII vault integration.
+  - path: pii.pepper_version
+    section: pii
+    type: str
+    default: v1
+    env_vars:
+      - I4G_PII__PEPPER_VERSION
+      - PII_PEPPER_VERSION
+      - PII__PEPPER_VERSION
+    description: Deterministic tokenization controls for PII vault integration.
+  - path: pii.require_pepper
+    section: pii
+    type: bool
+    default: true
+    env_vars:
+      - I4G_PII__REQUIRE_PEPPER
+      - PII_REQUIRE_PEPPER
+      - PII__REQUIRE_PEPPER
+    description: Deterministic tokenization controls for PII vault integration.
+  - path: project_root
+    section: project_root
+    type: Path
+    default: /Users/jerry/Work/project/i4g/core
+    env_vars:
+      - I4G_PROJECT_ROOT
+      - PROJECT_ROOT
+      - RUNTIME__PROJECT_ROOT
+      - I4G_RUNTIME__PROJECT_ROOT
+    description: Top-level configuration model with nested sections for each subsystem.
+  - path: report.batch_limit
+    section: report
+    type: int
+    default: 25
+    env_vars:
+      - I4G_REPORT__BATCH_LIMIT
+      - REPORT_BATCH_LIMIT
+      - REPORT__BATCH_LIMIT
+    description: Maximum number of reviews to process per report batch.
+  - path: report.drive_parent_id
+    section: report
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_REPORT__DRIVE_PARENT_ID
+      - REPORT_DRIVE_PARENT_ID
+      - REPORT__DRIVE_PARENT_ID
+    description: Agentic dossier/report configuration.
+  - path: report.dry_run
+    section: report
+    type: bool
+    default: false
+    env_vars:
+      - I4G_REPORT__DRY_RUN
+      - REPORT_DRY_RUN
+      - REPORT__DRY_RUN
+    description: When True, log actions without generating reports.
+  - path: report.hash_algorithm
+    section: report
+    type: str
+    default: sha256
+    env_vars:
+      - I4G_REPORT__HASH_ALGORITHM
+      - REPORT_HASH_ALGORITHM
+      - REPORT__HASH_ALGORITHM
+    description: Agentic dossier/report configuration.
+  - path: report.max_cases_per_dossier
+    section: report
+    type: int
+    default: 5
+    env_vars:
+      - I4G_REPORT__MAX_CASES_PER_DOSSIER
+      - REPORT_MAX_CASES_PER_DOSSIER
+      - REPORT__MAX_CASES_PER_DOSSIER
+    description: Agentic dossier/report configuration.
+  - path: report.min_loss_usd
+    section: report
+    type: float
+    default: 50000.0
+    env_vars:
+      - I4G_REPORT__MIN_LOSS_USD
+      - REPORT_MIN_LOSS_USD
+      - REPORT__MIN_LOSS_USD
+    description: Agentic dossier/report configuration.
+  - path: report.recency_days
+    section: report
+    type: int
+    default: 30
+    env_vars:
+      - I4G_REPORT__RECENCY_DAYS
+      - REPORT_RECENCY_DAYS
+      - REPORT__RECENCY_DAYS
+    description: Agentic dossier/report configuration.
+  - path: report.require_cross_border
+    section: report
+    type: bool
+    default: false
+    env_vars:
+      - I4G_REPORT__REQUIRE_CROSS_BORDER
+      - REPORT_REQUIRE_CROSS_BORDER
+      - REPORT__REQUIRE_CROSS_BORDER
+    description: Agentic dossier/report configuration.
+  - path: report.review_ids
+    section: report
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_REPORT__REVIEW_IDS
+      - REPORT_REVIEW_IDS
+      - REPORT__REVIEW_IDS
+    description: Comma-separated explicit review IDs (overrides queue lookup).
+  - path: report.target_status
+    section: report
+    type: str
+    default: accepted
+    env_vars:
+      - I4G_REPORT__TARGET_STATUS
+      - REPORT_TARGET_STATUS
+      - REPORT__TARGET_STATUS
+    description: Queue status filter when auto-resolving review IDs.
+  - path: report.tool_timeout_seconds
+    section: report
+    type: float | NoneType
+    default: null
+    env_vars:
+      - I4G_REPORT__TOOL_TIMEOUT_SECONDS
+      - REPORT_TOOL_TIMEOUT_SECONDS
+      - REPORT__TOOL_TIMEOUT_SECONDS
+    description: Per-tool timeout for LangChain dossier tools; None disables timeouts.
+  - path: runtime.fallback_dir
+    section: runtime
+    type: Path
+    default: /tmp/i4g/evidence
+    env_vars:
+      - I4G_RUNTIME__FALLBACK_DIR
+      - RUNTIME_FALLBACK_DIR
+      - RUNTIME__FALLBACK_DIR
+    description:
+      Fallback directory for local evidence storage when primary path is
+      not writable.
+  - path: runtime.log_level
+    section: runtime
+    type: str
+    default: INFO
+    env_vars:
+      - I4G_RUNTIME__LOG_LEVEL
+      - LOG_LEVEL
+      - RUNTIME__LOG_LEVEL
+    description: Process-level runtime controls.
+  - path: search.classification_presets
+    section: search
+    type: list[str]
+    default: []
+    env_vars:
+      - I4G_SEARCH__CLASSIFICATION_PRESETS
+      - SEARCH_CLASSIFICATION_PRESETS
+      - SEARCH__CLASSIFICATION_PRESETS
+    description: Hybrid search tuning parameters and schema presets.
+  - path: search.dataset_presets
+    section: search
+    type: list[str]
+    default: []
+    env_vars:
+      - I4G_SEARCH__DATASET_PRESETS
+      - SEARCH_DATASET_PRESETS
+      - SEARCH__DATASET_PRESETS
+    description: Hybrid search tuning parameters and schema presets.
+  - path: search.default_limit
+    section: search
+    type: int
+    default: 25
+    env_vars:
+      - I4G_SEARCH__DEFAULT_LIMIT
+      - SEARCH_DEFAULT_LIMIT
+      - SEARCH__DEFAULT_LIMIT
+    description: Hybrid search tuning parameters and schema presets.
+  - path: search.indicator_types
+    section: search
+    type: list[str]
+    default:
+      - bank_account
+      - crypto_wallet
+      - email
+      - phone
+      - ip_address
+      - asn
+      - browser_agent
+      - url
+      - merchant
+    env_vars:
+      - I4G_SEARCH__INDICATOR_TYPES
+      - SEARCH_INDICATOR_TYPES
+      - SEARCH__INDICATOR_TYPES
+    description: Hybrid search tuning parameters and schema presets.
+  - path: search.loss_buckets
+    section: search
+    type: list[str]
+    default:
+      - <10k
+      - 10k-50k
+      - ">50k"
+    env_vars:
+      - I4G_SEARCH__LOSS_BUCKETS
+      - SEARCH_LOSS_BUCKETS
+      - SEARCH__LOSS_BUCKETS
+    description: Hybrid search tuning parameters and schema presets.
+  - path: search.saved_search.migration_tag
+    section: search
+    type: str
+    default: hybrid-v1
+    env_vars:
+      - I4G_SEARCH__SAVED_SEARCH__MIGRATION_TAG
+      - SEARCH_SAVED_SEARCH_MIGRATION_TAG
+      - SEARCH__SAVED_SEARCH__MIGRATION_TAG
+      - SAVED_SEARCH_MIGRATION_TAG
+    description: Saved-search migration defaults shared across CLI scripts.
+  - path: search.saved_search.schema_version
+    section: search
+    type: str
+    default: ""
+    env_vars:
+      - I4G_SEARCH__SAVED_SEARCH__SCHEMA_VERSION
+      - SEARCH_SAVED_SEARCH_SCHEMA_VERSION
+      - SEARCH__SAVED_SEARCH__SCHEMA_VERSION
+      - SAVED_SEARCH_SCHEMA_VERSION
+    description: Saved-search migration defaults shared across CLI scripts.
+  - path: search.schema_cache_ttl_seconds
+    section: search
+    type: int
+    default: 300
+    env_vars:
+      - I4G_SEARCH__SCHEMA_CACHE_TTL_SECONDS
+      - SEARCH_SCHEMA_CACHE_TTL
+      - SEARCH__SCHEMA_CACHE_TTL
+    description: Hybrid search tuning parameters and schema presets.
+  - path: search.schema_entity_example_limit
+    section: search
+    type: int
+    default: 5
+    env_vars:
+      - I4G_SEARCH__SCHEMA_ENTITY_EXAMPLE_LIMIT
+      - SEARCH_SCHEMA_ENTITY_EXAMPLE_LIMIT
+      - SEARCH__SCHEMA_ENTITY_EXAMPLE_LIMIT
+    description: Hybrid search tuning parameters and schema presets.
+  - path: search.semantic_weight
+    section: search
+    type: float
+    default: 0.65
+    env_vars:
+      - I4G_SEARCH__SEMANTIC_WEIGHT
+      - SEARCH_SEMANTIC_WEIGHT
+      - SEARCH__SEMANTIC_WEIGHT
+    description: Hybrid search tuning parameters and schema presets.
+  - path: search.structured_weight
+    section: search
+    type: float
+    default: 0.35
+    env_vars:
+      - I4G_SEARCH__STRUCTURED_WEIGHT
+      - SEARCH_STRUCTURED_WEIGHT
+      - SEARCH__STRUCTURED_WEIGHT
+    description: Hybrid search tuning parameters and schema presets.
+  - path: search.time_presets
+    section: search
+    type: list[str]
+    default:
+      - 7d
+      - 30d
+      - 90d
+    env_vars:
+      - I4G_SEARCH__TIME_PRESETS
+      - SEARCH_TIME_PRESETS
+      - SEARCH__TIME_PRESETS
+    description: Hybrid search tuning parameters and schema presets.
+  - path: secrets.local_env_file
+    section: secrets
+    type: Path | NoneType
+    default: null
+    env_vars:
+      - I4G_SECRETS__LOCAL_ENV_FILE
+      - SECRETS_LOCAL_ENV_FILE
+      - SECRETS__LOCAL_ENV_FILE
+    description: Secret resolution strategy (local vs Secret Manager).
+  - path: secrets.project
+    section: secrets
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_SECRETS__PROJECT
+      - SECRETS_PROJECT
+      - SECRETS__PROJECT
+    description: Secret resolution strategy (local vs Secret Manager).
+  - path: secrets.use_secret_manager
+    section: secrets
+    type: bool
+    default: false
+    env_vars:
+      - I4G_SECRETS__USE_SECRET_MANAGER
+      - SECRETS_USE_SECRET_MANAGER
+      - SECRETS__USE_SECRET_MANAGER
+    description: Secret resolution strategy (local vs Secret Manager).
+  - path: smoke.api_url
+    section: smoke
+    type: str
+    default: https://fastapi-gateway-y5jge5w2cq-uc.a.run.app
+    env_vars:
+      - I4G_SMOKE__API_URL
+      - SMOKE_API_URL
+      - SMOKE__API_URL
+    description: Default API base URL for smoke tests.
+  - path: ssi.service_url
+    section: ssi
+    type: str
+    default: ""
+    env_vars:
+      - I4G_SSI__SERVICE_URL
+      - SSI_SERVICE_URL
+      - SSI__SERVICE_URL
+    description: Base URL of the SSI Cloud Run Service.
+  - path: ssi.core_api_url
+    section: ssi
+    type: str
+    default: https://api.intelligenceforgood.org
+    env_vars:
+      - I4G_SSI__CORE_API_URL
+      - SSI_CORE_API_URL
+      - SSI__CORE_API_URL
+    description: Core API base URL for task status callbacks from the SSI service.
+  - path: ssi.playbook_dir
+    section: ssi
+    type: str
+    default: config/playbooks
+    env_vars:
+      - I4G_SSI__PLAYBOOK_DIR
+      - SSI_PLAYBOOK_DIR
+      - SSI__PLAYBOOK_DIR
+    description:
+      Directory containing SSI playbook JSON files. Resolved relative to
+      project root.
+  - path: storage.cloudsql_database
+    section: storage
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_STORAGE__CLOUDSQL_DATABASE
+      - APP__CLOUDSQL__DATABASE
+      - I4G_APP__CLOUDSQL__DATABASE
+    description: Structured + blob storage configuration.
+  - path: storage.cloudsql_enable_iam_auth
+    section: storage
+    type: bool
+    default: false
+    env_vars:
+      - I4G_STORAGE__CLOUDSQL_ENABLE_IAM_AUTH
+      - APP__CLOUDSQL__ENABLE_IAM_AUTH
+      - I4G_APP__CLOUDSQL__ENABLE_IAM_AUTH
+    description: Structured + blob storage configuration.
+  - path: storage.cloudsql_instance
+    section: storage
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_STORAGE__CLOUDSQL_INSTANCE
+      - APP__CLOUDSQL__INSTANCE
+      - I4G_APP__CLOUDSQL__INSTANCE
+    description: Structured + blob storage configuration.
+  - path: storage.cloudsql_password
+    section: storage
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_STORAGE__CLOUDSQL_PASSWORD
+      - APP__CLOUDSQL__PASSWORD
+      - I4G_APP__CLOUDSQL__PASSWORD
+    description: Structured + blob storage configuration.
+  - path: storage.cloudsql_user
+    section: storage
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_STORAGE__CLOUDSQL_USER
+      - APP__CLOUDSQL__USER
+      - I4G_APP__CLOUDSQL__USER
+    description: Structured + blob storage configuration.
+  - path: storage.evidence_bucket
+    section: storage
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_STORAGE__EVIDENCE_BUCKET
+      - STORAGE_EVIDENCE_BUCKET
+      - STORAGE__EVIDENCE_BUCKET
+    description: Structured + blob storage configuration.
+  - path: storage.evidence_local_dir
+    section: storage
+    type: Path
+    default: /Users/jerry/Work/project/i4g/core/data/evidence
+    env_vars:
+      - I4G_STORAGE__EVIDENCE_LOCAL_DIR
+      - STORAGE_EVIDENCE_LOCAL_DIR
+      - STORAGE__EVIDENCE__LOCAL_DIR
+    description: Structured + blob storage configuration.
+  - path: storage.report_bucket
+    section: storage
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_STORAGE__REPORT_BUCKET
+      - STORAGE_REPORT_BUCKET
+      - STORAGE__REPORT_BUCKET
+    description: Structured + blob storage configuration.
+  - path: storage.retention_days
+    section: storage
+    type: int
+    default: 90
+    env_vars:
+      - I4G_STORAGE__RETENTION_DAYS
+      - STORAGE__RETENTION_DAYS
+      - STORAGE_RETENTION_DAYS
+    description: Number of days after resolution before automated purge. Set via I4G_STORAGE__RETENTION_DAYS.
+  - path: storage.retention_enabled
+    section: storage
+    type: bool
+    default: true
+    env_vars:
+      - I4G_STORAGE__RETENTION_ENABLED
+      - STORAGE__RETENTION_ENABLED
+      - STORAGE_RETENTION_ENABLED
+    description:
+      Master switch for automated retention purge. Set I4G_STORAGE__RETENTION_ENABLED=false
+      to disable.
+  - path: storage.retention_grace_days
+    section: storage
+    type: int
+    default: 30
+    env_vars:
+      - I4G_STORAGE__RETENTION_GRACE_DAYS
+      - STORAGE__RETENTION_GRACE_DAYS
+      - STORAGE_RETENTION_GRACE_DAYS
+    description: Days after soft-delete before hard purge. Set via I4G_STORAGE__RETENTION_GRACE_DAYS.
+  - path: storage.sqlite_path
+    section: storage
+    type: Path
+    default: /Users/jerry/Work/project/i4g/core/data/i4g_store.db
+    env_vars:
+      - I4G_STORAGE__SQLITE_PATH
+    description: Structured + blob storage configuration.
+  - path: storage.ssi_evidence_bucket
+    section: storage
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_STORAGE__SSI_EVIDENCE_BUCKET
+      - STORAGE__SSI_EVIDENCE_BUCKET
+      - STORAGE_SSI_EVIDENCE_BUCKET
+    description: GCS bucket for SSI investigation evidence artifacts.
+  - path: storage.ssi_evidence_prefix
+    section: storage
+    type: str
+    default: investigations
+    env_vars:
+      - I4G_STORAGE__SSI_EVIDENCE_PREFIX
+      - STORAGE__SSI_EVIDENCE_PREFIX
+      - STORAGE_SSI_EVIDENCE_PREFIX
+    description: Key prefix inside the SSI evidence bucket.
+  - path: storage.structured_backend
+    section: storage
+    type: Literal['sqlite', 'cloudsql']
+    default: sqlite
+    env_vars:
+      - I4G_STORAGE__STRUCTURED_BACKEND
+      - STRUCTURED_BACKEND
+      - STORAGE__STRUCTURED_BACKEND
+    description: Structured + blob storage configuration.
+  - path: sweep.batch_size
+    section: sweep
+    type: int
+    default: 20
+    env_vars:
+      - I4G_SWEEP__BATCH_SIZE
+      - SWEEP_BATCH_SIZE
+      - SWEEP__BATCH_SIZE
+      - JOB_BATCH_SIZE
+    description: Number of cases to classify per loop iteration.
+  - path: sweep.max_runtime_seconds
+    section: sweep
+    type: int
+    default: 3300
+    env_vars:
+      - I4G_SWEEP__MAX_RUNTIME_SECONDS
+      - SWEEP_MAX_RUNTIME_SECONDS
+      - SWEEP__MAX_RUNTIME_SECONDS
+      - JOB_MAX_RUNTIME_SECONDS
+    description: Maximum wall-clock seconds before the sweeper exits gracefully.
+  - path: vector.backend
+    section: vector
+    type: Literal['chroma', 'faiss', 'pgvector', 'vertex_ai']
+    default: chroma
+    env_vars:
+      - I4G_VECTOR__BACKEND
+      - VECTOR_BACKEND
+      - VECTOR__BACKEND
+    description: Vector store configuration supporting multiple backends.
+  - path: vector.chroma_dir
+    section: vector
+    type: Path
+    default: /Users/jerry/Work/project/i4g/core/data/chroma_store
+    env_vars:
+      - I4G_VECTOR__CHROMA_DIR
+    description: Vector store configuration supporting multiple backends.
+  - path: vector.collection
+    section: vector
+    type: str
+    default: i4g_vectors
+    env_vars:
+      - I4G_VECTOR__COLLECTION
+      - VECTOR_COLLECTION
+      - VECTOR__COLLECTION
+    description: Vector store configuration supporting multiple backends.
+  - path: vector.embedding_model
+    section: vector
+    type: str
+    default: nomic-embed-text
+    env_vars:
+      - I4G_VECTOR__EMBEDDING_MODEL
+      - EMBED_MODEL
+      - VECTOR__EMBED_MODEL
+    description: Vector store configuration supporting multiple backends.
+  - path: vector.faiss_dir
+    section: vector
+    type: Path
+    default: /Users/jerry/Work/project/i4g/core/data/faiss_store
+    env_vars:
+      - I4G_VECTOR__FAISS_DIR
+      - VECTOR_FAISS_DIR
+      - VECTOR__FAISS_DIR
+    description: Vector store configuration supporting multiple backends.
+  - path: vector.pgvector_dsn
+    section: vector
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_VECTOR__PGVECTOR_DSN
+      - VECTOR_PGVECTOR_DSN
+      - VECTOR__PGVECTOR__DSN
+    description: Vector store configuration supporting multiple backends.
+  - path: vector.vertex_ai_branch
+    section: vector
+    type: str
+    default: default_branch
+    env_vars:
+      - I4G_VECTOR__VERTEX_AI_BRANCH
+      - VECTOR_VERTEX_AI_BRANCH
+      - VECTOR__VERTEX_AI__BRANCH
+      - I4G_VERTEX_SEARCH_BRANCH
+    description: Vector store configuration supporting multiple backends.
+  - path: vector.vertex_ai_data_store
+    section: vector
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_VECTOR__VERTEX_AI_DATA_STORE
+      - VECTOR_VERTEX_AI_DATA_STORE
+      - VECTOR__VERTEX_AI__DATA_STORE
+      - I4G_VERTEX_SEARCH_DATA_STORE
+    description: Vector store configuration supporting multiple backends.
+  - path: vector.vertex_ai_index
+    section: vector
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_VECTOR__VERTEX_AI_INDEX
+      - VECTOR_VERTEX_AI_INDEX
+      - VECTOR__VERTEX_AI__INDEX
+    description: Vector store configuration supporting multiple backends.
+  - path: vector.vertex_ai_location
+    section: vector
+    type: str | NoneType
+    default: us-central1
+    env_vars:
+      - I4G_VECTOR__VERTEX_AI_LOCATION
+      - VECTOR_VERTEX_AI_LOCATION
+      - VECTOR__VERTEX_AI__LOCATION
+      - I4G_VERTEX_SEARCH_LOCATION
+    description: Vector store configuration supporting multiple backends.
+  - path: vector.vertex_ai_project
+    section: vector
+    type: str | NoneType
+    default: null
+    env_vars:
+      - I4G_VECTOR__VERTEX_AI_PROJECT
+      - VECTOR_VERTEX_AI_PROJECT
+      - VECTOR__VERTEX_AI__PROJECT
+      - I4G_VERTEX_SEARCH_PROJECT
+    description: Vector store configuration supporting multiple backends.
+  - path: vector.vertex_ai_serving_config
+    section: vector
+    type: str
+    default: default_search
+    env_vars:
+      - I4G_VECTOR__VERTEX_AI_SERVING_CONFIG
+      - VECTOR_VERTEX_AI_SERVING_CONFIG
+      - VECTOR__VERTEX_AI__SERVING_CONFIG
+      - I4G_VERTEX_SEARCH_SERVING_CONFIG
+    description: Vertex AI Search serving config ID.

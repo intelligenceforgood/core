@@ -14,16 +14,16 @@ Browser (port 3000)
 Next.js (App Router, port 3000)
   ↓  server-side fetch to I4G_API_URL (default http://127.0.0.1:8000)
 Core FastAPI (port 8000)
-  ↓  (for SSI) subprocess or Cloud Run Job trigger
-SSI FastAPI (port 8100, local dev only — NOT deployed in cloud)
+  ↓  (for SSI) HTTP POST to SSI Cloud Run Service
+SSI FastAPI (port 8100, local dev only — NOT deployed standalone in cloud)
 ```
 
 ### Next.js API routes — two patterns
 
-| Pattern | Location | Purpose |
-|---------|----------|---------|
-| **Dedicated routes** | `ui/apps/web/src/app/api/ssi/*`, `api/search/*`, `api/reviews/*`, etc. | Custom proxy logic (request normalization, response shaping, error handling). Always preferred when they exist. |
-| **Catch-all proxy** | `ui/apps/web/src/app/api/[...path]/route.ts` | Generic pass-through to core API. Forwards any `GET/POST/PUT/DELETE/PATCH` to `{I4G_API_URL}/{path}`. No special response handling. |
+| Pattern              | Location                                                               | Purpose                                                                                                                             |
+| -------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| **Dedicated routes** | `ui/apps/web/src/app/api/ssi/*`, `api/search/*`, `api/reviews/*`, etc. | Custom proxy logic (request normalization, response shaping, error handling). Always preferred when they exist.                     |
+| **Catch-all proxy**  | `ui/apps/web/src/app/api/[...path]/route.ts`                           | Generic pass-through to core API. Forwards any `GET/POST/PUT/DELETE/PATCH` to `{I4G_API_URL}/{path}`. No special response handling. |
 
 ### Critical URL rule for browser-facing links
 
@@ -41,38 +41,38 @@ Proxy routes:  → localhost:8000/cases/{id}/evidence/{doc_id}
 
 ### SDK client URL resolution
 
-| Context | baseUrl | Mechanism |
-|---------|---------|-----------|
-| Server component (SSR) | `process.env.I4G_API_URL` (e.g., `http://127.0.0.1:8000`) | Direct to core — no proxy needed |
-| Client component (browser) | `"/api"` | Relative — goes through Next.js catch-all proxy |
+| Context                    | baseUrl                                                   | Mechanism                                       |
+| -------------------------- | --------------------------------------------------------- | ----------------------------------------------- |
+| Server component (SSR)     | `process.env.I4G_API_URL` (e.g., `http://127.0.0.1:8000`) | Direct to core — no proxy needed                |
+| Client component (browser) | `"/api"`                                                  | Relative — goes through Next.js catch-all proxy |
 
 Source: `ui/apps/web/src/lib/i4g-client.ts` → `resolveClient()`.
 
 ### SSI-specific Next.js API routes
 
-| Browser path | Next.js route file | Proxies to (core API) | Notes |
-|---|---|---|---|
-| `/api/ssi/investigate` | `api/ssi/investigate/route.ts` | Local: SSI `POST /investigate`; Cloud: Core `POST /investigations/ssi` | Normalizes response shape |
-| `/api/ssi/investigate/{id}` | `api/ssi/investigate/[id]/route.ts` | Local: SSI `GET /investigate/{id}`; Cloud: Core `GET /tasks/{id}` | Normalizes status + result |
-| `/api/ssi/report/{id}` | `api/ssi/report/[id]/route.ts` | Core `GET /investigations/ssi/{id}/report.pdf` | Handles GCS 307 redirects, sets Content-Disposition |
-| `/api/ssi/investigations` | `api/ssi/investigations/route.ts` | Core `GET /investigations/ssi/history` | Passes query params |
-| `/api/ssi/investigations/{id}` | `api/ssi/investigations/[id]/route.ts` | Core `GET /investigations/ssi/{id}` | Direct proxy |
-| `/api/ssi/wallets` | `api/ssi/wallets/route.ts` | Core `GET /investigations/ssi/wallets` | Direct proxy |
+| Browser path                   | Next.js route file                     | Proxies to (core API)                                                  | Notes                                               |
+| ------------------------------ | -------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------- |
+| `/api/ssi/investigate`         | `api/ssi/investigate/route.ts`         | Local: SSI `POST /investigate`; Cloud: Core `POST /investigations/ssi` | Normalizes response shape                           |
+| `/api/ssi/investigate/{id}`    | `api/ssi/investigate/[id]/route.ts`    | Local: SSI `GET /investigate/{id}`; Cloud: Core `GET /tasks/{id}`      | Normalizes status + result                          |
+| `/api/ssi/report/{id}`         | `api/ssi/report/[id]/route.ts`         | Core `GET /investigations/ssi/{id}/report.pdf`                         | Handles GCS 307 redirects, sets Content-Disposition |
+| `/api/ssi/investigations`      | `api/ssi/investigations/route.ts`      | Core `GET /investigations/ssi/history`                                 | Passes query params                                 |
+| `/api/ssi/investigations/{id}` | `api/ssi/investigations/[id]/route.ts` | Core `GET /investigations/ssi/{id}`                                    | Direct proxy                                        |
+| `/api/ssi/wallets`             | `api/ssi/wallets/route.ts`             | Core `GET /investigations/ssi/wallets`                                 | Direct proxy                                        |
 
 ### Core API router mounts (prefix map)
 
-| Prefix | Router file | Key endpoints |
-|--------|------------|---------------|
-| `/cases` | `cases.py` | CRUD, timeline, detail |
-| `/cases/{id}/evidence` | `evidence.py` | Upload, list, download evidence files |
-| `/investigations/ssi` | `ssi_investigations.py` | `/history`, `/active`, `/{scan_id}` |
-| `/investigations/ssi` | `ssi_evidence.py` | `/{scan_id}/report.pdf`, `/evidence-bundle`, `/lea-package` |
-| `/investigations/ssi` | `ssi_wallets.py` | `/wallets`, `/{scan_id}/wallets.csv`, `/{scan_id}/wallets.xlsx` |
-| `/investigations/ssi` | `ssi_playbooks.py` | Playbook CRUD (prefix: `/playbooks/ssi`) |
-| `/investigations` | `investigations.py` | `POST /investigations/ssi` (trigger), `GET /investigations/ssi/{task_id}` |
-| `/reviews` | `review.py` | Search, history, saved searches, case actions |
-| `/tasks` | `tasks.py` | `GET /tasks/{task_id}` — poll background task status |
-| `/taxonomy` | `taxonomy.py` | Fraud taxonomy CRUD |
+| Prefix                 | Router file             | Key endpoints                                                             |
+| ---------------------- | ----------------------- | ------------------------------------------------------------------------- |
+| `/cases`               | `cases.py`              | CRUD, timeline, detail                                                    |
+| `/cases/{id}/evidence` | `evidence.py`           | Upload, list, download evidence files                                     |
+| `/investigations/ssi`  | `ssi_investigations.py` | `/history`, `/active`, `/{scan_id}`                                       |
+| `/investigations/ssi`  | `ssi_evidence.py`       | `/{scan_id}/report.pdf`, `/evidence-bundle`, `/lea-package`               |
+| `/investigations/ssi`  | `ssi_wallets.py`        | `/wallets`, `/{scan_id}/wallets.csv`, `/{scan_id}/wallets.xlsx`           |
+| `/investigations/ssi`  | `ssi_playbooks.py`      | Playbook CRUD (prefix: `/playbooks/ssi`)                                  |
+| `/investigations`      | `investigations.py`     | `POST /investigations/ssi` (trigger), `GET /investigations/ssi/{task_id}` |
+| `/reviews`             | `review.py`             | Search, history, saved searches, case actions                             |
+| `/tasks`               | `tasks.py`              | `GET /tasks/{task_id}` — poll background task status                      |
+| `/taxonomy`            | `taxonomy.py`           | Fraud taxonomy CRUD                                                       |
 
 **Registration order matters** — SSI wallets/evidence routers are registered before `ssi_investigations` to prevent the `/{scan_id}` catch-all from swallowing `/wallets`, etc.
 
@@ -101,12 +101,12 @@ Source: `ui/apps/web/src/lib/i4g-client.ts` → `resolveClient()`.
 
 ### Storage backends by environment
 
-| Category | Local | Cloud |
-|----------|-------|-------|
-| Relational | SQLite (`data/i4g_store.db`) | Cloud SQL PostgreSQL |
-| Vector | Chroma (`data/chroma_store`) | Vertex AI Search |
-| Blob/evidence | Local FS (`data/evidence/`) | GCS buckets |
-| SSI scans | SQLite (`data/ssi_store.db`) | Cloud SQL PostgreSQL |
+| Category      | Local                        | Cloud                |
+| ------------- | ---------------------------- | -------------------- |
+| Relational    | SQLite (`data/i4g_store.db`) | Cloud SQL PostgreSQL |
+| Vector        | Chroma (`data/chroma_store`) | Vertex AI Search     |
+| Blob/evidence | Local FS (`data/evidence/`)  | GCS buckets          |
+| SSI scans     | SQLite (`data/ssi_store.db`) | Cloud SQL PostgreSQL |
 
 ### Evidence file flow
 
@@ -169,10 +169,10 @@ This ID links the case back to SSI's `site_scans` table and is used to construct
 
 ### SSI dual-environment routing
 
-| Environment | Investigation trigger | Status polling | Evidence download |
-|---|---|---|---|
-| Local | UI → Next.js `/api/ssi/investigate` → SSI API (port 8100) `POST /investigate` | UI → Next.js `/api/ssi/investigate/{id}` → SSI API `GET /investigate/{id}` | UI → Next.js `/api/ssi/report/{id}` → Core `GET /investigations/ssi/{id}/report.pdf` → local FS |
-| Cloud | UI → Next.js `/api/ssi/investigate` → Core `POST /investigations/ssi` → Cloud Run Job | UI → Next.js `/api/ssi/investigate/{id}` → Core `GET /tasks/{task_id}` | UI → Next.js `/api/ssi/report/{id}` → Core → 307 → GCS signed URL |
+| Environment | Investigation trigger                                                                                           | Status polling                                                             | Evidence download                                                                               |
+| ----------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Local       | UI → Next.js `/api/ssi/investigate` → SSI API (port 8100) `POST /investigate`                                   | UI → Next.js `/api/ssi/investigate/{id}` → SSI API `GET /investigate/{id}` | UI → Next.js `/api/ssi/report/{id}` → Core `GET /investigations/ssi/{id}/report.pdf` → local FS |
+| Cloud       | UI → Next.js `/api/ssi/investigate` → Core `POST /investigations/ssi` → SSI Service `POST /trigger/investigate` | UI → Next.js `/api/ssi/investigate/{id}` → Core `GET /tasks/{task_id}`     | UI → Next.js `/api/ssi/report/{id}` → Core → 307 → GCS signed URL                               |
 
 ---
 
@@ -219,9 +219,9 @@ site_scans ──1:N──▶ harvested_wallets
 3. **Duplicate PDF URLs** — SSI PDF report has TWO paths that reach the same core endpoint:
    - Dedicated: `/api/ssi/report/{scan_id}` (preferred — handles GCS redirects, sets Content-Disposition)
    - Catch-all: `/api/investigations/ssi/{scan_id}/report.pdf` (also works but less robust)
-   Always use the dedicated route for consistency.
+     Always use the dedicated route for consistency.
 
-4. **SSI API not running in cloud** — The standalone SSI FastAPI (`port 8100`) only runs locally. In cloud, core's gateway handles everything. Next.js SSI proxy routes handle the dual routing automatically.
+4. **SSI API not running standalone in cloud** — The standalone SSI FastAPI (`port 8100`) only runs locally. In cloud, core triggers SSI via HTTP POST to the SSI Cloud Run Service (`POST /trigger/investigate`). Next.js SSI proxy routes handle the dual routing automatically.
 
 5. **Router registration order** — SSI routers with specific paths (wallets, evidence) must be registered before the `/{scan_id}` catch-all. Changing order in `app.py` can break routing.
 

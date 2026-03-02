@@ -1385,76 +1385,40 @@
       "description": "Default API base URL for smoke tests."
     },
     {
-      "path": "ssi_job.core_api_url",
-      "section": "ssi_job",
+      "path": "ssi.service_url",
+      "section": "ssi",
+      "type": "str",
+      "default": "",
+      "env_vars": [
+        "I4G_SSI__SERVICE_URL",
+        "SSI_SERVICE_URL",
+        "SSI__SERVICE_URL"
+      ],
+      "description": "Base URL of the SSI Cloud Run Service."
+    },
+    {
+      "path": "ssi.core_api_url",
+      "section": "ssi",
       "type": "str",
       "default": "https://api.intelligenceforgood.org",
       "env_vars": [
-        "I4G_SSI_JOB__CORE_API_URL",
-        "SSI_JOB_CORE_API_URL",
-        "SSI_JOB__CORE_API_URL"
+        "I4G_SSI__CORE_API_URL",
+        "SSI_CORE_API_URL",
+        "SSI__CORE_API_URL"
       ],
-      "description": "Core API base URL for task status callbacks from the SSI job."
+      "description": "Core API base URL for task status callbacks from the SSI service."
     },
     {
-      "path": "ssi_job.job_name",
-      "section": "ssi_job",
-      "type": "str",
-      "default": "ssi-investigate",
-      "env_vars": [
-        "I4G_SSI_JOB__JOB_NAME",
-        "SSI_JOB_NAME",
-        "SSI_JOB__JOB_NAME"
-      ],
-      "description": "Cloud Run Job name for the SSI investigate job."
-    },
-    {
-      "path": "ssi_job.playbook_dir",
-      "section": "ssi_job",
+      "path": "ssi.playbook_dir",
+      "section": "ssi",
       "type": "str",
       "default": "config/playbooks",
       "env_vars": [
-        "I4G_SSI_JOB__PLAYBOOK_DIR",
+        "I4G_SSI__PLAYBOOK_DIR",
         "SSI_PLAYBOOK_DIR",
-        "SSI_JOB__PLAYBOOK_DIR"
+        "SSI__PLAYBOOK_DIR"
       ],
       "description": "Directory containing SSI playbook JSON files. Resolved relative to project root."
-    },
-    {
-      "path": "ssi_job.project",
-      "section": "ssi_job",
-      "type": "str",
-      "default": "i4g-dev",
-      "env_vars": [
-        "I4G_SSI_JOB__PROJECT",
-        "SSI_JOB_PROJECT",
-        "SSI_JOB__PROJECT"
-      ],
-      "description": "GCP project ID where the SSI Cloud Run Job is deployed."
-    },
-    {
-      "path": "ssi_job.region",
-      "section": "ssi_job",
-      "type": "str",
-      "default": "us-central1",
-      "env_vars": [
-        "I4G_SSI_JOB__REGION",
-        "SSI_JOB_REGION",
-        "SSI_JOB__REGION"
-      ],
-      "description": "GCP region for the Cloud Run Job."
-    },
-    {
-      "path": "ssi_job.service_account",
-      "section": "ssi_job",
-      "type": "str | NoneType",
-      "default": null,
-      "env_vars": [
-        "I4G_SSI_JOB__SERVICE_ACCOUNT",
-        "SSI_JOB_SERVICE_ACCOUNT",
-        "SSI_JOB__SERVICE_ACCOUNT"
-      ],
-      "description": "Service account to impersonate when triggering the job."
     },
     {
       "path": "storage.cloudsql_database",

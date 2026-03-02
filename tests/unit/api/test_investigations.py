@@ -5,7 +5,7 @@ Tests verify:
 - ``GET /investigations/ssi/{task_id}`` returns task status.
 - Request validation rejects invalid payloads.
 - Role enforcement requires analyst role or above.
-- Cloud Run Job trigger is called with correct env overrides.
+- Cloud Run Service trigger is called with correct parameters.
 """
 
 from __future__ import annotations
@@ -33,7 +33,8 @@ def _clear_task_status():
 class TestTriggerSsiInvestigation:
     """Tests for POST /investigations/ssi."""
 
-    def test_trigger_returns_202_with_task_id(self) -> None:
+    @patch("i4g.api.investigations._trigger_cloud_run_service")
+    def test_trigger_returns_202_with_task_id(self, mock_service: MagicMock) -> None:
         """Triggering an SSI investigation returns 202 with task metadata."""
         resp = client.post(
             "/investigations/ssi",
@@ -41,11 +42,12 @@ class TestTriggerSsiInvestigation:
         )
         assert resp.status_code == 202
         data = resp.json()
-        assert data["status"] in ("queued", "running")
+        assert data["status"] == "running"
         assert data["taskId"].startswith("ssi-")
         assert "message" in data
 
-    def test_trigger_registers_task_in_status_store(self) -> None:
+    @patch("i4g.api.investigations._trigger_cloud_run_service")
+    def test_trigger_registers_task_in_status_store(self, mock_service: MagicMock) -> None:
         """The endpoint registers the task in TASK_STATUS immediately."""
         resp = client.post(
             "/investigations/ssi",
@@ -54,9 +56,10 @@ class TestTriggerSsiInvestigation:
         assert resp.status_code == 202
         task_id = resp.json()["taskId"]
         assert task_id in TASK_STATUS
-        assert TASK_STATUS[task_id]["status"] in ("queued", "running")
+        assert TASK_STATUS[task_id]["status"] == "running"
 
-    def test_trigger_with_all_options(self) -> None:
+    @patch("i4g.api.investigations._trigger_cloud_run_service")
+    def test_trigger_with_all_options(self, mock_service: MagicMock) -> None:
         """All request fields are accepted and processed."""
         resp = client.post(
             "/investigations/ssi",
@@ -85,7 +88,8 @@ class TestTriggerSsiInvestigation:
         )
         assert resp.status_code == 422
 
-    def test_trigger_uses_defaults(self) -> None:
+    @patch("i4g.api.investigations._trigger_cloud_run_service")
+    def test_trigger_uses_defaults(self, mock_service: MagicMock) -> None:
         """Default values are applied for optional fields."""
         resp = client.post(
             "/investigations/ssi",
@@ -137,7 +141,8 @@ class TestGetSsiInvestigationStatus:
 class TestSsiInvestigationRbac:
     """Test role enforcement for SSI investigation endpoints."""
 
-    def test_analyst_can_trigger(self) -> None:
+    @patch("i4g.api.investigations._trigger_cloud_run_service")
+    def test_analyst_can_trigger(self, mock_service: MagicMock) -> None:
         """Analyst role can trigger investigations (via local-dev bypass)."""
         # In local env, auth is disabled → returns local-dev admin user.
         resp = client.post(
@@ -147,106 +152,27 @@ class TestSsiInvestigationRbac:
         assert resp.status_code == 202
 
 
-class TestCloudRunJobTrigger:
-    """Tests for the Cloud Run Job trigger logic."""
-
-    @patch("i4g.api.investigations._trigger_cloud_run_job")
-    def test_cloud_trigger_passes_env_overrides(self, mock_trigger: MagicMock, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Verify env overrides include task_id and status URL."""
-        mock_trigger.return_value = "operations/test-op"
-
-        # Force non-local env to exercise the Cloud Run path
-        from i4g.settings import get_settings
-
-        settings = get_settings()
-        monkeypatch.setattr(settings, "env", "dev")
-
-        resp = client.post(
-            "/investigations/ssi",
-            json={"url": "https://scam.example.com", "scanType": "full"},
-        )
-        assert resp.status_code == 202
-        assert mock_trigger.called, "Cloud Run trigger should have been called in non-local env"
-
-        call_kwargs = mock_trigger.call_args
-        env_overrides = call_kwargs.kwargs.get("env_overrides", {})
-        assert "SSI_JOB__URL" in env_overrides
-        assert env_overrides["SSI_JOB__URL"] == "https://scam.example.com"
-        assert "I4G_TASK_ID" in env_overrides
-        assert "I4G_TASK_STATUS_URL" in env_overrides
-
-
-class TestServiceModeDispatch:
-    """Tests for ssi_job.mode='service' dispatch path (Phase 3.0)."""
+class TestServiceTriggerDispatch:
+    """Tests for service-only dispatch path."""
 
     @patch("i4g.api.investigations._trigger_cloud_run_service")
-    @patch("i4g.api.investigations._trigger_cloud_run_job")
-    def test_service_mode_calls_service_trigger(
-        self,
-        mock_job: MagicMock,
-        mock_service: MagicMock,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """When mode='service', _trigger_cloud_run_service is called."""
-        from i4g.settings import get_settings
-
-        settings = get_settings()
-        monkeypatch.setattr(settings, "env", "dev")
-        monkeypatch.setattr(settings.ssi_job, "mode", "service")
-        monkeypatch.setattr(settings.ssi_job, "service_url", "https://ssi-svc.run.app")
-
+    def test_trigger_calls_service(self, mock_service: MagicMock) -> None:
+        """POST /investigations/ssi calls _trigger_cloud_run_service."""
         resp = client.post(
             "/investigations/ssi",
             json={"url": "https://scam.example.com"},
         )
         assert resp.status_code == 202
-        assert mock_service.called, "Service trigger should be called when mode='service'"
-        assert not mock_job.called, "Job trigger should NOT be called when mode='service'"
+        assert mock_service.called, "Service trigger should be called"
 
         data = resp.json()
         assert data["status"] == "running"
         assert "Cloud Run Service" in data["message"]
 
     @patch("i4g.api.investigations._trigger_cloud_run_service")
-    @patch("i4g.api.investigations._trigger_cloud_run_job")
-    def test_job_mode_calls_job_trigger(
-        self,
-        mock_job: MagicMock,
-        mock_service: MagicMock,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """When mode='job', _trigger_cloud_run_job is called (default)."""
-        mock_job.return_value = "operations/test-op"
-
-        from i4g.settings import get_settings
-
-        settings = get_settings()
-        monkeypatch.setattr(settings, "env", "dev")
-        monkeypatch.setattr(settings.ssi_job, "mode", "job")
-
-        resp = client.post(
-            "/investigations/ssi",
-            json={"url": "https://scam.example.com"},
-        )
-        assert resp.status_code == 202
-        assert mock_job.called, "Job trigger should be called when mode='job'"
-        assert not mock_service.called, "Service trigger should NOT be called when mode='job'"
-
-    @patch("i4g.api.investigations._trigger_cloud_run_service")
-    def test_service_mode_failure_returns_502(
-        self,
-        mock_service: MagicMock,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
+    def test_service_failure_returns_502(self, mock_service: MagicMock) -> None:
         """Service trigger failure returns 502 and records failure in TASK_STATUS."""
         mock_service.side_effect = RuntimeError("Connection refused")
-
-        from i4g.settings import get_settings
-
-        settings = get_settings()
-        monkeypatch.setattr(settings, "env", "dev")
-        monkeypatch.setattr(settings.ssi_job, "mode", "service")
-        monkeypatch.setattr(settings.ssi_job, "service_url", "https://ssi-svc.run.app")
 
         resp = client.post(
             "/investigations/ssi",
@@ -255,19 +181,8 @@ class TestServiceModeDispatch:
         assert resp.status_code == 502
 
     @patch("i4g.api.investigations._trigger_cloud_run_service")
-    def test_service_mode_passes_correct_params(
-        self,
-        mock_service: MagicMock,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
+    def test_service_trigger_receives_correct_params(self, mock_service: MagicMock) -> None:
         """Service trigger receives correct parameters from the request."""
-        from i4g.settings import get_settings
-
-        settings = get_settings()
-        monkeypatch.setattr(settings, "env", "dev")
-        monkeypatch.setattr(settings.ssi_job, "mode", "service")
-        monkeypatch.setattr(settings.ssi_job, "service_url", "https://ssi-svc.run.app")
-
         resp = client.post(
             "/investigations/ssi",
             json={
@@ -280,20 +195,30 @@ class TestServiceModeDispatch:
         assert resp.status_code == 202
 
         call_kwargs = mock_service.call_args.kwargs
-        assert call_kwargs["service_url"] == "https://ssi-svc.run.app"
         assert call_kwargs["url"] == "https://scam.example.com"
         assert call_kwargs["scan_type"] == "passive"
         assert call_kwargs["push_to_core"] is False
         assert call_kwargs["dataset"] == "tutorial"
         assert call_kwargs["scan_id"]  # should be a non-empty UUID string
 
+    @patch("i4g.api.investigations._trigger_cloud_run_service")
+    def test_response_has_no_job_name_field(self, mock_service: MagicMock) -> None:
+        """Response no longer includes a jobName field (job path removed)."""
+        resp = client.post(
+            "/investigations/ssi",
+            json={"url": "https://scam.example.com"},
+        )
+        assert resp.status_code == 202
+        data = resp.json()
+        assert "jobName" not in data
+
 
 class TestTriggerCloudRunService:
-    """Unit tests for _trigger_cloud_run_service (Phase 3.0)."""
+    """Unit tests for _trigger_cloud_run_service."""
 
     @patch("httpx.Client")
     def test_posts_to_correct_endpoint(self, mock_client_cls: MagicMock) -> None:
-        """Sends POST to {service_url}/jobs/investigate."""
+        """Sends POST to {service_url}/trigger/investigate."""
         mock_client = MagicMock()
         mock_response = MagicMock()
         mock_response.json.return_value = {"scan_id": "abc", "status": "accepted"}
@@ -312,7 +237,7 @@ class TestTriggerCloudRunService:
 
         mock_client.post.assert_called_once()
         call_args = mock_client.post.call_args
-        assert call_args.args[0] == "https://ssi-svc.run.app/jobs/investigate"
+        assert call_args.args[0] == "https://ssi-svc.run.app/trigger/investigate"
         payload = call_args.kwargs["json"]
         assert payload["url"] == "https://scam.example.com"
         assert payload["scan_type"] == "full"
@@ -338,7 +263,7 @@ class TestTriggerCloudRunService:
         )
 
         call_args = mock_client.post.call_args
-        assert call_args.args[0] == "https://ssi-svc.run.app/jobs/investigate"
+        assert call_args.args[0] == "https://ssi-svc.run.app/trigger/investigate"
 
     @patch("httpx.Client")
     def test_http_error_raises_runtime_error(self, mock_client_cls: MagicMock) -> None:

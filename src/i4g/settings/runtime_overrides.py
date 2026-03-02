@@ -47,10 +47,10 @@ def resolve_paths(settings: Settings) -> Settings:
     normalize_ingestion_paths(settings)
 
     # SSI playbook directory
-    pb_dir = Path(settings.ssi_job.playbook_dir)
+    pb_dir = Path(settings.ssi.playbook_dir)
     if not pb_dir.is_absolute():
         ssi_update = {"playbook_dir": str((settings.project_root / pb_dir).resolve())}
-        object.__setattr__(settings, "ssi_job", settings.ssi_job.model_copy(update=ssi_update))
+        object.__setattr__(settings, "ssi", settings.ssi.model_copy(update=ssi_update))
 
     return settings
 

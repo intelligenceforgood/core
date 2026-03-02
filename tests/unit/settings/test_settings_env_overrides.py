@@ -602,42 +602,41 @@ def test_iap_backend_audience_default_none(monkeypatch: object) -> None:
     assert settings.identity.iap_backend_audience is None
 
 
-def test_ssi_job_name_override(monkeypatch: object) -> None:
-    """ssi_job.job_name responds to I4G_SSI_JOB__JOB_NAME."""
+def test_ssi_service_url_override(monkeypatch: object) -> None:
+    """ssi.service_url responds to I4G_SSI__SERVICE_URL."""
 
     _clear_env(
         monkeypatch,
-        "I4G_SSI_JOB__JOB_NAME",
-        "SSI_JOB__JOB_NAME",
-        "SSI_JOB_NAME",
+        "I4G_SSI__SERVICE_URL",
+        "SSI__SERVICE_URL",
+        "SSI_SERVICE_URL",
     )
-    _set_env(monkeypatch, "I4G_SSI_JOB__JOB_NAME", "ssi-investigate-custom")
+    _set_env(monkeypatch, "I4G_SSI__SERVICE_URL", "https://ssi-svc-custom.run.app")
 
     settings = reload_settings(env="dev")
-    assert settings.ssi_job.job_name == "ssi-investigate-custom"
+    assert settings.ssi.service_url == "https://ssi-svc-custom.run.app"
 
 
-def test_ssi_job_defaults(monkeypatch: object) -> None:
-    """ssi_job settings have sensible defaults."""
+def test_ssi_defaults(monkeypatch: object) -> None:
+    """ssi settings have sensible defaults."""
 
     _clear_env(
         monkeypatch,
-        "I4G_SSI_JOB__JOB_NAME",
-        "SSI_JOB__JOB_NAME",
-        "SSI_JOB_NAME",
-        "I4G_SSI_JOB__PROJECT",
-        "SSI_JOB__PROJECT",
-        "SSI_JOB_PROJECT",
-        "I4G_SSI_JOB__REGION",
-        "SSI_JOB__REGION",
-        "SSI_JOB_REGION",
+        "I4G_SSI__SERVICE_URL",
+        "SSI__SERVICE_URL",
+        "SSI_SERVICE_URL",
+        "I4G_SSI__CORE_API_URL",
+        "SSI__CORE_API_URL",
+        "SSI_CORE_API_URL",
+        "I4G_SSI__PLAYBOOK_DIR",
+        "SSI__PLAYBOOK_DIR",
+        "SSI_PLAYBOOK_DIR",
     )
 
     settings = reload_settings(env="dev")
-    assert settings.ssi_job.job_name == "ssi-investigate"
-    assert settings.ssi_job.project == "i4g-dev"
-    assert settings.ssi_job.region == "us-central1"
-    assert settings.ssi_job.service_account is None
+    assert settings.ssi.service_url == ""
+    assert settings.ssi.core_api_url == "https://api.intelligenceforgood.org"
+    assert settings.ssi.playbook_dir  # should have a default value
 
 
 def test_ssi_evidence_bucket_override(monkeypatch: object) -> None:
@@ -699,78 +698,34 @@ def test_ssi_evidence_prefix_default(monkeypatch: object) -> None:
 
 
 # ---------------------------------------------------------------------------
-# SSI Job mode + service_url settings (Phase 3.0)
+# SSI settings (service-only, Phase 3.0.12)
 # ---------------------------------------------------------------------------
 
 
-def test_ssi_job_mode_default(monkeypatch: object) -> None:
-    """ssi_job.mode defaults to 'job'."""
+def test_ssi_service_url_default(monkeypatch: object) -> None:
+    """ssi.service_url defaults to empty string."""
 
     _clear_env(
         monkeypatch,
-        "I4G_SSI_JOB__MODE",
-        "SSI_JOB_MODE",
-        "SSI_JOB__MODE",
+        "I4G_SSI__SERVICE_URL",
+        "SSI_SERVICE_URL",
+        "SSI__SERVICE_URL",
     )
 
     settings = reload_settings(env="dev")
-    assert settings.ssi_job.mode == "job"
+    assert settings.ssi.service_url == ""
 
 
-def test_ssi_job_mode_override_service(monkeypatch: object) -> None:
-    """ssi_job.mode can be overridden to 'service' via env var."""
+def test_ssi_service_url_env_override(monkeypatch: object) -> None:
+    """ssi.service_url can be set via env var."""
 
     _clear_env(
         monkeypatch,
-        "I4G_SSI_JOB__MODE",
-        "SSI_JOB_MODE",
-        "SSI_JOB__MODE",
+        "I4G_SSI__SERVICE_URL",
+        "SSI_SERVICE_URL",
+        "SSI__SERVICE_URL",
     )
-    _set_env(monkeypatch, "SSI_JOB__MODE", "service")
+    _set_env(monkeypatch, "SSI__SERVICE_URL", "https://ssi-svc-abc123.run.app")
 
     settings = reload_settings(env="dev")
-    assert settings.ssi_job.mode == "service"
-
-
-def test_ssi_job_mode_override_with_prefix(monkeypatch: object) -> None:
-    """ssi_job.mode responds to the I4G_ prefixed env var."""
-
-    _clear_env(
-        monkeypatch,
-        "I4G_SSI_JOB__MODE",
-        "SSI_JOB_MODE",
-        "SSI_JOB__MODE",
-    )
-    _set_env(monkeypatch, "SSI_JOB_MODE", "service")
-
-    settings = reload_settings(env="dev")
-    assert settings.ssi_job.mode == "service"
-
-
-def test_ssi_job_service_url_default(monkeypatch: object) -> None:
-    """ssi_job.service_url defaults to empty string."""
-
-    _clear_env(
-        monkeypatch,
-        "I4G_SSI_JOB__SERVICE_URL",
-        "SSI_JOB_SERVICE_URL",
-        "SSI_JOB__SERVICE_URL",
-    )
-
-    settings = reload_settings(env="dev")
-    assert settings.ssi_job.service_url == ""
-
-
-def test_ssi_job_service_url_override(monkeypatch: object) -> None:
-    """ssi_job.service_url can be set via env var."""
-
-    _clear_env(
-        monkeypatch,
-        "I4G_SSI_JOB__SERVICE_URL",
-        "SSI_JOB_SERVICE_URL",
-        "SSI_JOB__SERVICE_URL",
-    )
-    _set_env(monkeypatch, "SSI_JOB__SERVICE_URL", "https://ssi-svc-abc123.run.app")
-
-    settings = reload_settings(env="dev")
-    assert settings.ssi_job.service_url == "https://ssi-svc-abc123.run.app"
+    assert settings.ssi.service_url == "https://ssi-svc-abc123.run.app"

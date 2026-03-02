@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
 
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -548,56 +547,27 @@ class IntakeJobSettings(BaseSettings):
     )
 
 
-class SsiJobSettings(BaseSettings):
+class SsiSettings(BaseSettings):
     """Configuration for triggering SSI investigations from the core API.
 
     Used by ``POST /investigations/ssi`` to launch an SSI investigation
-    via Cloud Run Job (``mode="job"``) or Cloud Run Service
-    (``mode="service"``) and track its progress.
+    via the SSI Cloud Run Service and track its progress.
     """
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
-    mode: Literal["job", "service"] = Field(
-        default="job",
-        validation_alias=AliasChoices("SSI_JOB_MODE", "SSI_JOB__MODE"),
-        description=(
-            "Dispatch mode for SSI investigations: 'job' triggers a Cloud Run Job, "
-            "'service' sends an HTTP POST to the SSI Cloud Run Service."
-        ),
-    )
     service_url: str = Field(
         default="",
-        validation_alias=AliasChoices("SSI_JOB_SERVICE_URL", "SSI_JOB__SERVICE_URL"),
-        description="Base URL of the SSI Cloud Run Service (used when mode='service').",
-    )
-    job_name: str = Field(
-        default="ssi-investigate",
-        validation_alias=AliasChoices("SSI_JOB_NAME", "SSI_JOB__JOB_NAME"),
-        description="Cloud Run Job name for the SSI investigate job.",
-    )
-    project: str = Field(
-        default="i4g-dev",
-        validation_alias=AliasChoices("SSI_JOB_PROJECT", "SSI_JOB__PROJECT"),
-        description="GCP project ID where the SSI Cloud Run Job is deployed.",
-    )
-    region: str = Field(
-        default="us-central1",
-        validation_alias=AliasChoices("SSI_JOB_REGION", "SSI_JOB__REGION"),
-        description="GCP region for the Cloud Run Job.",
-    )
-    service_account: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("SSI_JOB_SERVICE_ACCOUNT", "SSI_JOB__SERVICE_ACCOUNT"),
-        description="Service account to impersonate when triggering the job.",
+        validation_alias=AliasChoices("SSI_SERVICE_URL", "SSI__SERVICE_URL"),
+        description="Base URL of the SSI Cloud Run Service.",
     )
     core_api_url: str = Field(
         default="https://api.intelligenceforgood.org",
-        validation_alias=AliasChoices("SSI_JOB_CORE_API_URL", "SSI_JOB__CORE_API_URL"),
-        description="Core API base URL for task status callbacks from the SSI job.",
+        validation_alias=AliasChoices("SSI_CORE_API_URL", "SSI__CORE_API_URL"),
+        description="Core API base URL for task status callbacks from the SSI service.",
     )
     playbook_dir: str = Field(
         default="config/playbooks",
-        validation_alias=AliasChoices("SSI_PLAYBOOK_DIR", "SSI_JOB__PLAYBOOK_DIR"),
+        validation_alias=AliasChoices("SSI_PLAYBOOK_DIR", "SSI__PLAYBOOK_DIR"),
         description="Directory containing SSI playbook JSON files. Resolved relative to project root.",
     )

@@ -13,7 +13,7 @@ patterns.
 
 Playbooks are stored as JSON files on disk, following the same file-based
 approach used by the standalone SSI service.  The directory is configured
-via ``settings.ssi_job.playbook_dir`` (env: ``SSI_PLAYBOOK_DIR``).
+via ``settings.ssi.playbook_dir`` (env: ``SSI_PLAYBOOK_DIR``).
 """
 
 from __future__ import annotations
@@ -158,7 +158,7 @@ def _get_playbook_dir() -> Path:
     Returns:
         Absolute ``Path`` to the playbook directory.
     """
-    return Path(get_settings().ssi_job.playbook_dir)
+    return Path(get_settings().ssi.playbook_dir)
 
 
 def _load_all(pb_dir: Path) -> list[dict[str, Any]]:
