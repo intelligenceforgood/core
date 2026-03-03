@@ -571,3 +571,37 @@ class SsiSettings(BaseSettings):
         validation_alias=AliasChoices("SSI_PLAYBOOK_DIR", "SSI__PLAYBOOK_DIR"),
         description="Directory containing SSI playbook JSON files. Resolved relative to project root.",
     )
+    events_endpoint: str = Field(
+        default="",
+        validation_alias=AliasChoices("SSI_EVENTS_ENDPOINT", "SSI__EVENTS_ENDPOINT"),
+        description="Core API endpoint prefix for pushing SSI events (e.g. https://api.example.com). Empty disables HTTP event sink.",
+    )
+
+
+class RedisSettings(BaseSettings):
+    """Optional Redis connection for SSE pub/sub fan-out.
+
+    When ``url`` is empty (the default), Redis is disabled and the SSE
+    endpoint falls back to polling the ``ssi_events`` table directly.
+    Cloud Memorystore (Basic tier, 1 GB) is recommended for production.
+
+    Env vars: ``I4G_REDIS__URL``, ``I4G_REDIS__CHANNEL_PREFIX``.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    url: str = Field(
+        default="",
+        validation_alias=AliasChoices("REDIS_URL", "REDIS__URL"),
+        description="Redis connection URL (e.g. redis://localhost:6379/0). Empty disables Redis.",
+    )
+    channel_prefix: str = Field(
+        default="ssi:events",
+        validation_alias=AliasChoices("REDIS_CHANNEL_PREFIX", "REDIS__CHANNEL_PREFIX"),
+        description="Pub/sub channel prefix for SSI events. Full channel: {prefix}:{scan_id}.",
+    )
+    poll_interval_seconds: float = Field(
+        default=2.0,
+        validation_alias=AliasChoices("REDIS_POLL_INTERVAL", "REDIS__POLL_INTERVAL"),
+        description="DB polling interval (seconds) when Redis is unavailable.",
+    )

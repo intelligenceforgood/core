@@ -26,6 +26,7 @@ from i4g.api.investigations import router as investigations_router
 from i4g.api.reports import router as reports_router
 from i4g.api.review import router as review_router
 from i4g.api.ssi_evidence import router as ssi_evidence_router
+from i4g.api.ssi_events import router as ssi_events_router
 from i4g.api.ssi_investigations import router as ssi_investigations_router
 from i4g.api.ssi_playbooks import router as ssi_playbooks_router
 from i4g.api.ssi_wallets import router as ssi_wallets_router
@@ -152,6 +153,7 @@ def create_app() -> FastAPI:
     app.include_router(ssi_playbooks_router)
     app.include_router(ssi_wallets_router)
     app.include_router(ssi_evidence_router)
+    app.include_router(ssi_events_router)
     app.include_router(ssi_investigations_router)
     app.include_router(investigations_router)
     app.include_router(reports_router)

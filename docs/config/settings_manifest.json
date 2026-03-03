@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-02-28T18:32:15.170505+00:00",
+  "generated_at": "2026-03-03T22:43:35.980201+00:00",
   "source": "src/i4g/settings/config.py",
   "env_prefix": "I4G_",
   "fields": [
@@ -1017,6 +1017,42 @@
       "description": "Top-level configuration model with nested sections for each subsystem."
     },
     {
+      "path": "redis.channel_prefix",
+      "section": "redis",
+      "type": "str",
+      "default": "ssi:events",
+      "env_vars": [
+        "I4G_REDIS__CHANNEL_PREFIX",
+        "REDIS_CHANNEL_PREFIX",
+        "REDIS__CHANNEL_PREFIX"
+      ],
+      "description": "Pub/sub channel prefix for SSI events. Full channel: {prefix}:{scan_id}."
+    },
+    {
+      "path": "redis.poll_interval_seconds",
+      "section": "redis",
+      "type": "float",
+      "default": 2.0,
+      "env_vars": [
+        "I4G_REDIS__POLL_INTERVAL_SECONDS",
+        "REDIS_POLL_INTERVAL",
+        "REDIS__POLL_INTERVAL"
+      ],
+      "description": "DB polling interval (seconds) when Redis is unavailable."
+    },
+    {
+      "path": "redis.url",
+      "section": "redis",
+      "type": "str",
+      "default": "",
+      "env_vars": [
+        "I4G_REDIS__URL",
+        "REDIS_URL",
+        "REDIS__URL"
+      ],
+      "description": "Redis connection URL (e.g. redis://localhost:6379/0). Empty disables Redis."
+    },
+    {
       "path": "report.batch_limit",
       "section": "report",
       "type": "int",
@@ -1385,18 +1421,6 @@
       "description": "Default API base URL for smoke tests."
     },
     {
-      "path": "ssi.service_url",
-      "section": "ssi",
-      "type": "str",
-      "default": "",
-      "env_vars": [
-        "I4G_SSI__SERVICE_URL",
-        "SSI_SERVICE_URL",
-        "SSI__SERVICE_URL"
-      ],
-      "description": "Base URL of the SSI Cloud Run Service."
-    },
-    {
       "path": "ssi.core_api_url",
       "section": "ssi",
       "type": "str",
@@ -1409,6 +1433,18 @@
       "description": "Core API base URL for task status callbacks from the SSI service."
     },
     {
+      "path": "ssi.events_endpoint",
+      "section": "ssi",
+      "type": "str",
+      "default": "",
+      "env_vars": [
+        "I4G_SSI__EVENTS_ENDPOINT",
+        "SSI_EVENTS_ENDPOINT",
+        "SSI__EVENTS_ENDPOINT"
+      ],
+      "description": "Core API endpoint prefix for pushing SSI events (e.g. https://api.example.com). Empty disables HTTP event sink."
+    },
+    {
       "path": "ssi.playbook_dir",
       "section": "ssi",
       "type": "str",
@@ -1419,6 +1455,18 @@
         "SSI__PLAYBOOK_DIR"
       ],
       "description": "Directory containing SSI playbook JSON files. Resolved relative to project root."
+    },
+    {
+      "path": "ssi.service_url",
+      "section": "ssi",
+      "type": "str",
+      "default": "",
+      "env_vars": [
+        "I4G_SSI__SERVICE_URL",
+        "SSI_SERVICE_URL",
+        "SSI__SERVICE_URL"
+      ],
+      "description": "Base URL of the SSI Cloud Run Service."
     },
     {
       "path": "storage.cloudsql_database",

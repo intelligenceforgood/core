@@ -483,6 +483,28 @@ sa.Index("idx_pii_exposures_scan_id", pii_exposures.c.scan_id)
 sa.Index("idx_pii_exposures_case_id", pii_exposures.c.case_id)
 sa.Index("idx_pii_exposures_field_type", pii_exposures.c.field_type)
 
+ssi_events = sa.Table(
+    "ssi_events",
+    METADATA,
+    sa.Column("id", UUID_TYPE, primary_key=True),
+    sa.Column(
+        "scan_id",
+        UUID_TYPE,
+        sa.ForeignKey("site_scans.scan_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("event_type", sa.Text(), nullable=False),
+    sa.Column("timestamp", TIMESTAMP, nullable=False),
+    # Carries all event data; screenshots are stored as inline base64 in this column.
+    sa.Column("data_json", JSON_TYPE, nullable=True),
+    # Reserved for future GCS-backed screenshots (nullable — base64 is stored in data_json).
+    sa.Column("screenshot_url", sa.Text(), nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_ssi_events_scan_id", ssi_events.c.scan_id)
+sa.Index("idx_ssi_events_timestamp", ssi_events.c.scan_id, ssi_events.c.timestamp)
+sa.Index("idx_ssi_events_event_type", ssi_events.c.event_type)
+
 
 def dialect_insert(session: Session, table: sa.Table):
     """Return a dialect-aware INSERT construct that supports ``on_conflict_do_update``.

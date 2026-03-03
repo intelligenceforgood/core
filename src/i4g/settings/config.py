@@ -25,6 +25,7 @@ from i4g.settings.sections import (
     LLMSettings,
     ObservabilitySettings,
     PIISettings,
+    RedisSettings,
     ReportSettings,
     RuntimeSettings,
     SearchSettings,
@@ -208,6 +209,7 @@ class Settings(BaseSettings):
     dossier_job: DossierJobSettings = Field(default_factory=DossierJobSettings)
     smoke: SmokeSettings = Field(default_factory=SmokeSettings)
     ssi: SsiSettings = Field(default_factory=SsiSettings)
+    redis: RedisSettings = Field(default_factory=RedisSettings)
     env_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
     config_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
 

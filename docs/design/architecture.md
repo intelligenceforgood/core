@@ -234,7 +234,7 @@ resources require it. Observability remains centralized through Cloud Logging an
 │  └──┬─────────┘      └────┬──────────┘                   │
 └─────┼─────────────────────┼──────────────────────────────┘
       │                     │
-      │   Cloud SQL API    │
+      │   Cloud SQL API     │
       │                     │
 ┌─────▼─────────────────────▼──────────────────────────────┐
 │                  Data Layer (GCP)                        │
