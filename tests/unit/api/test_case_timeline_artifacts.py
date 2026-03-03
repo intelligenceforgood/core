@@ -260,7 +260,7 @@ class TestArtifactsFromEvidence:
         assert len(pdf_arts) == 1
         pdf = pdf_arts[0]
         assert pdf["name"] == "Investigation Report (PDF)"
-        assert pdf["url"] == f"/ssi/report/{inv_id}"
+        assert pdf["url"] == f"/ssi/report/{inv_id}?action=inline"
         assert pdf["metadata"]["mime_type"] == "application/pdf"
 
     def test_no_pdf_artifact_without_ssi_metadata(self) -> None:

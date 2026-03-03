@@ -25,6 +25,12 @@ from i4g.store.sql import session_factory as build_sql_session_factory
 
 logger = logging.getLogger(__name__)
 
+# Content types forced to text/plain for safe inline display.
+_FORCE_PLAIN_TYPES = ("text/html", "text/markdown", "text/x-markdown")
+
+# Content types the browser can display inline (everything else forces download).
+_INLINE_PREFIXES = ("image/", "text/", "application/pdf", "application/json")
+
 router = APIRouter(
     prefix="/cases/{case_id}/evidence",
     tags=["evidence"],
@@ -160,8 +166,6 @@ def export_evidence(case_id: str) -> StreamingResponse:
     files_included = 0
 
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        seen_names: dict[str, int] = {}
-
         for row in rows:
             mapping = row._mapping
             doc_id = str(mapping["document_id"])
@@ -187,17 +191,10 @@ def export_evidence(case_id: str) -> StreamingResponse:
                     logger.warning("Failed to retrieve evidence %s for doc %s", source_url, doc_id)
 
                 if retrieved is not None:
-                    # Deduplicate filenames within the archive
-                    archive_name = retrieved.file_name
-                    if archive_name in seen_names:
-                        seen_names[archive_name] += 1
-                        base, _, ext = archive_name.rpartition(".")
-                        if ext:
-                            archive_name = f"{base}_{seen_names[archive_name]}.{ext}"
-                        else:
-                            archive_name = f"{archive_name}_{seen_names[archive_name]}"
-                    else:
-                        seen_names[archive_name] = 0
+                    # Preserve subdirectory structure from the title column
+                    # (e.g. "agent/step_000.png" → "evidence/agent/step_000.png")
+                    relative = mapping.get("title") or retrieved.file_name
+                    archive_name = f"evidence/{relative.lstrip('/')}"
 
                     zf.writestr(archive_name, retrieved.data)
                     entry["archive_file"] = archive_name
@@ -259,11 +256,17 @@ def download_evidence(case_id: str, doc_id: str) -> Response:
     content_type = retrieved.content_type or mapping.get("mime_type") or "application/octet-stream"
     file_name = retrieved.file_name
 
+    # Force text/plain for types that should show source rather than render.
+    if any(content_type.startswith(t) for t in _FORCE_PLAIN_TYPES):
+        content_type = "text/plain; charset=utf-8"
+
+    disposition = "inline" if any(content_type.startswith(p) for p in _INLINE_PREFIXES) else "attachment"
+
     return Response(
         content=retrieved.data,
         media_type=content_type,
         headers={
-            "Content-Disposition": f'attachment; filename="{file_name}"',
+            "Content-Disposition": f'{disposition}; filename="{file_name}"',
             "X-Evidence-SHA256": retrieved.checksum_sha256,
         },
     )

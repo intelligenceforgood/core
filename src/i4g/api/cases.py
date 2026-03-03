@@ -338,12 +338,16 @@ def get_case(case_id: str) -> CaseDetail:
             ).scalar()
             ssi_inv_id = str(scan_row) if scan_row else props.get("ssi_investigation_id")
     if ssi_inv_id:
+        # Drop report.pdf from the source_documents list — it is the same file
+        # served by the prominent "Investigation Report (PDF)" entry below.
+        # It remains in source_documents so the download bundle still includes it.
+        artifacts = [a for a in artifacts if a.name != "report.pdf"]
         artifacts.append(
             CaseArtifact(
                 id=f"ssi-report-{ssi_inv_id}",
                 type="report",
                 name="Investigation Report (PDF)",
-                url=f"/ssi/report/{ssi_inv_id}",
+                url=f"/ssi/report/{ssi_inv_id}?action=inline",
                 metadata={"mime_type": "application/pdf", "source": "ssi"},
             )
         )
