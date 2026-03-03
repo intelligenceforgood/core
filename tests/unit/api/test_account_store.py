@@ -101,6 +101,19 @@ class TestListAccounts:
         all_accounts = store.list_accounts(active_only=False)
         assert len(all_accounts) == 2
 
+    def test_excludes_service_accounts_by_default(self, store: AccountStore):
+        store.get_or_create_account("user@test.io")
+        store.get_or_create_account("sa-app@i4g-dev.iam.gserviceaccount.com")
+        accounts = store.list_accounts()
+        assert len(accounts) == 1
+        assert accounts[0]["email"] == "user@test.io"
+
+    def test_includes_service_accounts_when_requested(self, store: AccountStore):
+        store.get_or_create_account("user@test.io")
+        store.get_or_create_account("sa-app@i4g-dev.iam.gserviceaccount.com")
+        accounts = store.list_accounts(include_service_accounts=True)
+        assert len(accounts) == 2
+
 
 class TestUpdateRole:
     """Verify role changes and audit logging (F34, F35)."""
@@ -130,17 +143,17 @@ class TestUpdateRole:
         store.get_or_create_account("target@test.io")
         store.update_role("target@test.io", "admin", actor="boss@test.io")
 
-        # Check review_actions table for the audit entry.
+        # Check account_actions table for the audit entry.
         with db_session_factory() as session:
             rows = session.execute(
-                sa.select(sql_schema.review_actions).where(
-                    sql_schema.review_actions.c.action == "role_change"
+                sa.select(sql_schema.account_actions).where(
+                    sql_schema.account_actions.c.action == "role_change"
                 )
             ).all()
             assert len(rows) == 1
             row = dict(rows[0]._mapping)
             assert row["actor"] == "boss@test.io"
-            assert row["payload"]["target_email"] == "target@test.io"
+            assert row["target_email"] == "target@test.io"
             assert row["payload"]["old_role"] == DEFAULT_ROLE.value
             assert row["payload"]["new_role"] == "admin"
 
@@ -185,14 +198,14 @@ class TestDeactivateAccount:
 
         with db_session_factory() as session:
             rows = session.execute(
-                sa.select(sql_schema.review_actions).where(
-                    sql_schema.review_actions.c.action == "account_deactivated"
+                sa.select(sql_schema.account_actions).where(
+                    sql_schema.account_actions.c.action == "account_deactivated"
                 )
             ).all()
             assert len(rows) == 1
             row = dict(rows[0]._mapping)
             assert row["actor"] == "admin@test.io"
-            assert row["payload"]["target_email"] == "victim@test.io"
+            assert row["target_email"] == "victim@test.io"
 
 
 class TestReactivateAccount:
@@ -218,11 +231,11 @@ class TestReactivateAccount:
 
         with db_session_factory() as session:
             rows = session.execute(
-                sa.select(sql_schema.review_actions).where(
-                    sql_schema.review_actions.c.action == "account_reactivated"
+                sa.select(sql_schema.account_actions).where(
+                    sql_schema.account_actions.c.action == "account_reactivated"
                 )
             ).all()
             assert len(rows) == 1
             row = dict(rows[0]._mapping)
             assert row["actor"] == "admin@test.io"
-            assert row["payload"]["target_email"] == "paused@test.io"
+            assert row["target_email"] == "paused@test.io"

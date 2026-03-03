@@ -33,6 +33,19 @@ accounts = sa.Table(
 )
 sa.Index("idx_accounts_role", accounts.c.role)
 
+account_actions = sa.Table(
+    "account_actions",
+    METADATA,
+    sa.Column("action_id", sa.Text(), primary_key=True),
+    sa.Column("target_email", sa.Text(), nullable=False),
+    sa.Column("actor", sa.Text(), nullable=True),
+    sa.Column("action", sa.Text(), nullable=False),
+    sa.Column("payload", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_account_actions_target", account_actions.c.target_email)
+sa.Index("idx_account_actions_created_at", account_actions.c.created_at)
+
 ingestion_runs = sa.Table(
     "ingestion_runs",
     METADATA,

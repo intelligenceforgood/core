@@ -87,11 +87,19 @@ class AccountStore:
         # Always read back to get the authoritative row.
         return self.get_account(email)  # type: ignore[return-value]
 
-    def list_accounts(self, active_only: bool = True) -> list[dict[str, Any]]:
+    # Service-account email suffix — these are auto-provisioned by GCP
+    # identity and should not appear in the admin user-management page.
+    _SERVICE_ACCOUNT_SUFFIX = ".iam.gserviceaccount.com"
+
+    def list_accounts(
+        self, active_only: bool = True, *, include_service_accounts: bool = False
+    ) -> list[dict[str, Any]]:
         """Return all accounts, optionally filtering to active only.
 
         Args:
             active_only: If True, exclude deactivated accounts.
+            include_service_accounts: If False (default), exclude GCP
+                service-account emails (``*.iam.gserviceaccount.com``).
 
         Returns:
             List of account dicts.
@@ -100,6 +108,10 @@ class AccountStore:
             query = sa.select(sql_schema.accounts).order_by(sql_schema.accounts.c.email)
             if active_only:
                 query = query.where(sql_schema.accounts.c.is_active == sa.true())
+            if not include_service_accounts:
+                query = query.where(
+                    ~sql_schema.accounts.c.email.endswith(self._SERVICE_ACCOUNT_SUFFIX)
+                )
             rows = session.execute(query).all()
             return [dict(r._mapping) for r in rows]
 
@@ -141,15 +153,14 @@ class AccountStore:
                 .values(role=new_role, updated_at=now)
             )
 
-            # Audit trail — write to review_actions with a dedicated action type.
+            # Audit trail — dedicated account_actions table (no FK to review_queue).
             session.execute(
-                sa.insert(sql_schema.review_actions).values(
+                sa.insert(sql_schema.account_actions).values(
                     action_id=f"role-change-{email}-{now.isoformat()}",
-                    review_id="system",
+                    target_email=email,
                     actor=actor,
                     action="role_change",
                     payload={
-                        "target_email": email,
                         "old_role": old_role,
                         "new_role": new_role,
                     },
@@ -202,12 +213,12 @@ class AccountStore:
             )
             if result.rowcount > 0:
                 session.execute(
-                    sa.insert(sql_schema.review_actions).values(
+                    sa.insert(sql_schema.account_actions).values(
                         action_id=f"deactivate-{email}-{now.isoformat()}",
-                        review_id="system",
+                        target_email=email,
                         actor=actor,
                         action="account_deactivated",
-                        payload={"target_email": email},
+                        payload={},
                         created_at=now,
                     )
                 )
@@ -233,12 +244,12 @@ class AccountStore:
             )
             if result.rowcount > 0:
                 session.execute(
-                    sa.insert(sql_schema.review_actions).values(
+                    sa.insert(sql_schema.account_actions).values(
                         action_id=f"reactivate-{email}-{now.isoformat()}",
-                        review_id="system",
+                        target_email=email,
                         actor=actor,
                         action="account_reactivated",
-                        payload={"target_email": email},
+                        payload={},
                         created_at=now,
                     )
                 )
