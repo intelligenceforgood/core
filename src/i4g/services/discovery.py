@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
-from collections.abc import Sequence
 
 from google.cloud import discoveryengine_v1beta as discoveryengine
 from google.protobuf import json_format

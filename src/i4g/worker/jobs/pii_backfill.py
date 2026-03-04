@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from i4g.services.factories import build_structured_store, build_tokenization_service
 from i4g.store.schema import ScamRecord
@@ -59,11 +59,7 @@ def run_pii_backfill(
             metadata = record.metadata or {}
             tokenized_metadata = service.tokenize_tree(metadata, detector="backfill", case_id=case_id)
 
-            if (
-                tokenized_text != original_text
-                or tokenized_entities != entities
-                or tokenized_metadata != metadata
-            ):
+            if tokenized_text != original_text or tokenized_entities != entities or tokenized_metadata != metadata:
                 if not dry_run:
                     store.upsert_record(
                         ScamRecord(
@@ -72,7 +68,7 @@ def run_pii_backfill(
                             entities=tokenized_entities,
                             classification=record.classification,
                             confidence=record.confidence,
-                            created_at=record.created_at or datetime.now(timezone.utc),
+                            created_at=record.created_at or datetime.now(UTC),
                             embedding=record.embedding,
                             metadata=tokenized_metadata,
                         )
@@ -96,7 +92,11 @@ def run_pii_backfill(
     status = "finished" if failed == 0 else "partial"
     logger.info(
         "PII backfill %s. Scanned %d records. Updated %d. Failed %d. Dry run: %s",
-        status, count, updated, failed, dry_run,
+        status,
+        count,
+        updated,
+        failed,
+        dry_run,
     )
     if reporter.is_enabled():
         reporter.update(

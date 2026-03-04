@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from langchain_ollama import OllamaLLM
@@ -95,10 +95,7 @@ class ReportGenerator:
         """
         if case_id:
             base = self.structured.get_by_id(case_id)
-            if base and getattr(base, "text", None):
-                query = base.text
-            else:
-                query = text_query or ""
+            query = base.text if base and getattr(base, "text", None) else text_query or ""
         else:
             query = text_query or ""
 
@@ -130,7 +127,6 @@ class ReportGenerator:
                 for v in vals:
                     if not v:
                         continue
-                    key = k
                     if "wallet" in k:
                         agg["wallets"].add(v)
                     elif "crypto" in k or "asset" in k:
@@ -205,7 +201,7 @@ class ReportGenerator:
         # Context for the template
         context = {
             "report_id": str(uuid.uuid4()),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "anchor_case_id": case_id,
             "query": text_query,
             "summary": summary,
@@ -218,7 +214,7 @@ class ReportGenerator:
             rendered = self.templates.render(template_name, context)
         except FileNotFoundError:
             # Fallback: simple auto-generated markdown
-            rendered = f"# i4g Report\n\nGenerated: {context['generated_at']}\n\n## Summary\n\n{summary}\n\n## Entities\n\n{json.dumps(aggregated, indent=2)}\n"
+            rendered = f"# i4g Report\n\nGenerated: {context['generated_at']}\n\n## Summary\n\n{summary}\n\n## Entities\n\n{json.dumps(aggregated, indent=2)}\n"  # noqa: E501
 
         # Export the report
         title = f"i4g Report {context['report_id']}"

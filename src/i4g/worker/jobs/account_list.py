@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from i4g.services.account_list import AccountListRequest, AccountListResult, AccountListService, log_account_list_run
 from i4g.settings import Settings, get_settings
@@ -17,7 +17,7 @@ _DEFAULT_FORMATS = ["xlsx", "pdf"]
 
 def _parse_datetime(value: str) -> datetime:  # noqa: D103 — thin wrapper around shared parse_datetime
     result = parse_datetime(value, on_error="raise")
-    return result.astimezone(timezone.utc)
+    return result.astimezone(UTC)
 
 
 def _resolve_formats(settings: Settings) -> list[str]:
@@ -30,7 +30,7 @@ def _resolve_formats(settings: Settings) -> list[str]:
 
 
 def _build_request_from_env(settings: Settings, *, now: datetime | None = None) -> AccountListRequest:
-    reference = now or datetime.now(timezone.utc)
+    reference = now or datetime.now(UTC)
     job = settings.account_job
 
     window_days = job.window_days

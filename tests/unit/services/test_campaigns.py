@@ -5,7 +5,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
 
 from i4g.services.campaigns import CampaignService
-from i4g.store.sql import campaigns, METADATA
+from i4g.store.sql import METADATA, campaigns
 
 
 @pytest.fixture

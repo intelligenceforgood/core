@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import argparse
 import random
-from typing import Dict, Iterable, List, Tuple
+from collections.abc import Iterable
 from uuid import uuid4
 
 from sqlalchemy import text
@@ -23,7 +23,7 @@ from i4g.settings import get_settings
 from i4g.store.review_store import ReviewStore
 from i4g.store.sql import session_factory
 
-CASE_TEMPLATES: List[Dict[str, str]] = [
+CASE_TEMPLATES: list[dict[str, str]] = [
     {
         "code": "CRYPTO",
         "priority": "high",
@@ -46,7 +46,7 @@ CASE_TEMPLATES: List[Dict[str, str]] = [
     },
 ]
 
-STATUS_NOTES: Dict[str, List[str]] = {
+STATUS_NOTES: dict[str, list[str]] = {
     "queued": [
         "Auto-triage pending analyst assignment.",
         "Classifier confidence above threshold; needs verification.",
@@ -73,8 +73,8 @@ def _reset_store(store: ReviewStore) -> None:
         session.commit()
 
 
-def _status_plan(args: argparse.Namespace) -> List[str]:
-    plan: List[str] = []
+def _status_plan(args: argparse.Namespace) -> list[str]:
+    plan: list[str] = []
     for status, count in [
         ("queued", args.queued),
         ("in_review", args.in_review),
@@ -86,7 +86,7 @@ def _status_plan(args: argparse.Namespace) -> List[str]:
     return plan
 
 
-def _seed_case(store: ReviewStore, target_status: str) -> Tuple[str, str]:
+def _seed_case(store: ReviewStore, target_status: str) -> tuple[str, str]:
     template = random.choice(CASE_TEMPLATES)
     case_id = f"{template['code']}-{uuid4().hex[:8].upper()}"
     review_id = store.enqueue_case(case_id=case_id, priority=template["priority"])

@@ -18,7 +18,6 @@ from pydantic import BaseModel, Field
 
 from i4g.api.auth import require_role, require_token
 from i4g.api.camel import CamelModel
-from i4g.api.roles import Role
 from i4g.store.account_store import AccountStore
 from i4g.store.sql import session_factory
 
@@ -159,7 +158,7 @@ def update_user_role(
     try:
         updated = store.update_role(email, payload.role, actor=user["username"])
     except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))  # noqa: B904
 
     if updated is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update role")

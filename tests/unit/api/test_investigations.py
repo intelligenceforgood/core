@@ -313,4 +313,3 @@ class TestTriggerCloudRunService:
                 push_to_core=True,
                 dataset="ssi",
             )
-

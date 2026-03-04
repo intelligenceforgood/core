@@ -1,5 +1,7 @@
-import typer
 from pathlib import Path
+
+import typer
+
 from i4g.settings import get_settings
 
 settings_app = typer.Typer(help="Inspect and export configuration manifests.")

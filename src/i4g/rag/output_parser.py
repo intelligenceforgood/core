@@ -99,10 +99,7 @@ def parse_with_retry(
                     invoke_kwargs=invoke_kwargs or {},
                 )
 
-    raise ValueError(
-        f"Failed to parse RAG output after {1 + max_retries} attempts. "
-        f"Last error: {last_error}"
-    )
+    raise ValueError(f"Failed to parse RAG output after {1 + max_retries} attempts. " f"Last error: {last_error}")
 
 
 # ---------------------------------------------------------------------------

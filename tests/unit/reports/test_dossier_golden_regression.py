@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime, timezone
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Dict, Sequence
 
 from i4g.reports.bundle_builder import DossierCandidate, DossierPlan
 from i4g.reports.dossier_analysis import DossierAnalysis
@@ -18,7 +18,7 @@ from i4g.reports.dossier_templates import TemplateRegistry
 from i4g.reports.dossier_tools import DossierToolResults
 from i4g.reports.dossier_visuals import DossierVisualAssets
 
-GOLDEN_TIMESTAMP = datetime(2025, 12, 4, tzinfo=timezone.utc)
+GOLDEN_TIMESTAMP = datetime(2025, 12, 4, tzinfo=UTC)
 
 # Filled after first deterministic render; keep values in sync when templates or tools change.
 EXPECTED_HASHES = {
@@ -71,7 +71,7 @@ def test_dossier_golden_sample_regression(tmp_path) -> None:
 
 
 def _golden_plan() -> DossierPlan:
-    accepted = datetime(2025, 12, 1, tzinfo=timezone.utc)
+    accepted = datetime(2025, 12, 1, tzinfo=UTC)
     cases = [
         DossierCandidate(
             case_id="case-1",
@@ -93,7 +93,7 @@ def _golden_plan() -> DossierPlan:
     return DossierPlan(
         plan_id="dossier-golden-20251204-01",
         jurisdiction_key="US-cross",
-        created_at=datetime(2025, 12, 2, tzinfo=timezone.utc),
+        created_at=datetime(2025, 12, 2, tzinfo=UTC),
         total_loss_usd=sum(case.loss_amount_usd for case in cases),
         cases=cases,
         bundle_reason="Golden sample regression",
@@ -214,16 +214,16 @@ class _GoldenExporter:
         return ExportArtifacts(pdf_path=pdf_path, html_path=html_path, warnings=tuple())
 
 
-def _jurisdiction_counts(plan: DossierPlan) -> Dict[str, int]:
-    counts: Dict[str, int] = {}
+def _jurisdiction_counts(plan: DossierPlan) -> dict[str, int]:
+    counts: dict[str, int] = {}
     for candidate in plan.cases:
         key = candidate.jurisdiction or "unknown"
         counts[key] = counts.get(key, 0) + 1
     return counts
 
 
-def _entity_map(plan: DossierPlan) -> Dict[str, Sequence[str]]:
-    adjacency: Dict[str, list[str]] = {}
+def _entity_map(plan: DossierPlan) -> dict[str, Sequence[str]]:
+    adjacency: dict[str, list[str]] = {}
     for candidate in plan.cases:
         for entity in candidate.primary_entities:
             adjacency.setdefault(entity, []).append(candidate.case_id)

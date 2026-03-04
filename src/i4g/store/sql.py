@@ -445,7 +445,9 @@ harvested_wallets = sa.Table(
     sa.Column("metadata", JSON_TYPE, nullable=True),
     sa.Column("harvested_at", TIMESTAMP, nullable=True),
     sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
-    sa.UniqueConstraint("scan_id", "token_symbol", "network_short", "wallet_address", name="uq_wallets_scan_token_addr"),
+    sa.UniqueConstraint(
+        "scan_id", "token_symbol", "network_short", "wallet_address", name="uq_wallets_scan_token_addr"
+    ),
 )
 sa.Index("idx_wallets_scan_id", harvested_wallets.c.scan_id)
 sa.Index("idx_wallets_case_id", harvested_wallets.c.case_id)
@@ -482,7 +484,9 @@ pii_exposures = sa.Table(
     sa.Column("exposure_id", UUID_TYPE, primary_key=True),
     sa.Column("scan_id", UUID_TYPE, sa.ForeignKey("site_scans.scan_id", ondelete="CASCADE"), nullable=False),
     sa.Column("case_id", sa.Text(), sa.ForeignKey("cases.case_id", ondelete="SET NULL"), nullable=True),
-    sa.Column("field_type", sa.Text(), nullable=False),  # email | password | phone | name | address | ssn | id_number | financial | other
+    sa.Column(
+        "field_type", sa.Text(), nullable=False
+    ),  # email | password | phone | name | address | ssn | id_number | financial | other
     sa.Column("field_label", sa.Text(), nullable=True),
     sa.Column("form_action", sa.Text(), nullable=True),
     sa.Column("page_url", sa.Text(), nullable=True),

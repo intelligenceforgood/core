@@ -10,12 +10,12 @@ from typing import Any
 
 from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
-from i4g.settings.runtime_overrides import apply_environment_overrides, apply_local_defaults, resolve_paths
 
+from i4g.settings.runtime_overrides import apply_environment_overrides, apply_local_defaults, resolve_paths
 from i4g.settings.sections import (
-    APISettings,
     AccountJobSettings,
     AccountListSettings,
+    APISettings,
     CryptoSettings,
     DossierJobSettings,
     IdentitySettings,

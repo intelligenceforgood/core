@@ -5,9 +5,9 @@ from __future__ import annotations
 import hashlib
 import logging
 import mimetypes
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
-from collections.abc import Mapping, Sequence
 
 from i4g.reports.bundle_builder import DossierPlan
 from i4g.settings import get_settings

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
-from collections.abc import Iterable, Sequence
 
 from i4g.store.dossier_queue_store import DossierQueueStore
 
@@ -122,7 +122,7 @@ class BundleBuilder:
         self,
         candidates: Iterable[DossierCandidate],
         criteria: BundleCriteria,
-    ) -> List[str]:
+    ) -> list[str]:
         """Build dossier plans from candidates and enqueue them.
 
         Args:
@@ -149,7 +149,7 @@ class BundleBuilder:
     ) -> list[DossierPlan]:
         """Return deterministic bundles without mutating queue state."""
 
-        now = reference_time or datetime.now(timezone.utc)
+        now = reference_time or datetime.now(UTC)
         filtered = self._filter_candidates(candidates, criteria, now)
         buckets = self._group_candidates(filtered, criteria)
         plans: list[DossierPlan] = []

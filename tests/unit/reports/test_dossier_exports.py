@@ -1,6 +1,6 @@
 import hashlib
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from i4g.reports.bundle_builder import DossierCandidate, DossierPlan
@@ -19,7 +19,7 @@ def test_exporter_generates_pdf_and_html(tmp_path):
 
 
 def test_signature_manifest_includes_uploaded_hashes(tmp_path):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     plan = DossierPlan(
         plan_id="test-plan",
         jurisdiction_key="US-CA",
@@ -74,7 +74,7 @@ def test_dossier_uploader_returns_hashes(tmp_path):
     plan = DossierPlan(
         plan_id="upload-plan",
         jurisdiction_key="US-CA",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         total_loss_usd=Decimal("1000"),
         cases=[],
         bundle_reason="upload-test",

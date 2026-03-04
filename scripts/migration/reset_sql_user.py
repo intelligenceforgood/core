@@ -3,10 +3,12 @@
 Force reset of migration_user in Azure SQL.
 Handles schema ownership and drops/recreates the user to ensure a clean state.
 """
+
 import argparse
 import struct
-import pyodbc
 import sys
+
+import pyodbc
 from azure.identity import DefaultAzureCredential
 
 SERVER = "intelforgood.database.windows.net"

@@ -8,10 +8,10 @@ was removed in the Store Consolidation sprint (WS-3 / D16).
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from collections.abc import Sequence
 
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
@@ -20,8 +20,8 @@ from i4g.store import sql as sql_schema
 from i4g.store.sql import (
     METADATA,
     dialect_insert,
-    session_factory as build_session_factory,
 )
+from i4g.store.sql import session_factory as build_session_factory
 
 if TYPE_CHECKING:  # pragma: no cover - import used only for type hints
     from i4g.reports.bundle_builder import DossierPlan
@@ -66,7 +66,7 @@ class DossierQueueStore:
     def enqueue_plan(self, plan: DossierPlan, *, priority: str = "normal") -> str:
         """Insert or replace a dossier plan in the queue."""
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         payload = json.dumps(plan.to_dict(), sort_keys=True)
 
         with self._session_factory() as session:
@@ -115,11 +115,7 @@ class DossierQueueStore:
     def list_plans(self, *, status: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
         """Return queue entries filtered by ``status`` (or all entries when omitted)."""
 
-        stmt = (
-            sa.select(sql_schema.dossier_queue)
-            .limit(limit)
-            .order_by(sql_schema.dossier_queue.c.updated_at.desc())
-        )
+        stmt = sa.select(sql_schema.dossier_queue).limit(limit).order_by(sql_schema.dossier_queue.c.updated_at.desc())
         if status:
             stmt = stmt.where(sql_schema.dossier_queue.c.status == status)
 
@@ -155,7 +151,7 @@ class DossierQueueStore:
     def lease_next(self) -> dict[str, Any] | None:
         """Atomically lease the next pending entry for processing."""
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         with self._session_factory() as session:
             dialect = session.get_bind().dialect.name
@@ -210,7 +206,7 @@ class DossierQueueStore:
         error: str | None = None,
         warnings: Sequence[str] | None = None,
     ) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         warnings_payload = json.dumps(list(warnings)) if warnings is not None else None
 
         values: dict[str, Any] = {"status": status, "updated_at": now}
@@ -224,11 +220,7 @@ class DossierQueueStore:
         elif status == "pending":
             values["warnings"] = None
 
-        stmt = (
-            sa.update(sql_schema.dossier_queue)
-            .where(sql_schema.dossier_queue.c.plan_id == plan_id)
-            .values(**values)
-        )
+        stmt = sa.update(sql_schema.dossier_queue).where(sql_schema.dossier_queue.c.plan_id == plan_id).values(**values)
 
         with self._session_factory() as session:
             session.execute(stmt)

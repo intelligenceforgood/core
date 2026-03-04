@@ -3,11 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from collections.abc import Callable, Sequence
 
 import yaml
 
@@ -559,7 +559,7 @@ def write_manifest(
     ocr_files = sorted(ocr_dir.glob("*.txt"))
     manifest = {
         "bundle": DATASET_ID,
-        "generated_at": datetime.now(timezone.utc).strftime(ISO_FORMAT),
+        "generated_at": datetime.now(UTC).strftime(ISO_FORMAT),
         "seed": seed,
         "smoke": smoke,
         "case_count": case_count,
@@ -651,7 +651,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # Minimal argparse avoided to keep Typer as the primary interface; support direct invocation with defaults.
     _ = argv  # Unused; retained for signature compatibility.
     result = generate_bundle()
-    print("Generated synthetic coverage bundle at %s (cases=%d)" % (result.manifest_path.parent, result.case_count))
+    print(f"Generated synthetic coverage bundle at {result.manifest_path.parent} (cases={result.case_count})")
     return 0
 
 

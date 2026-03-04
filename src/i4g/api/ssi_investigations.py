@@ -203,11 +203,21 @@ def update_investigation(
 
     # Whitelist allowed fields to prevent arbitrary column writes.
     allowed_fields = {
-        "status", "evidence_path", "evidence_zip_sha256", "risk_score",
-        "case_id", "classification_result", "error_message",
-        "duration_seconds", "passive_result", "active_result",
-        "wallet_count", "total_cost_usd", "llm_input_tokens",
-        "llm_output_tokens", "taxonomy_version",
+        "status",
+        "evidence_path",
+        "evidence_zip_sha256",
+        "risk_score",
+        "case_id",
+        "classification_result",
+        "error_message",
+        "duration_seconds",
+        "passive_result",
+        "active_result",
+        "wallet_count",
+        "total_cost_usd",
+        "llm_input_tokens",
+        "llm_output_tokens",
+        "taxonomy_version",
     }
     update_fields = {k: v for k, v in payload.items() if k in allowed_fields and v is not None}
 

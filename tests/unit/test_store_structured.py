@@ -10,9 +10,6 @@ No external dependencies or actual data directories are used;
 tests run on an in-memory SQLite database for full isolation.
 """
 
-import json
-from datetime import datetime
-
 import pytest
 
 from i4g.store.schema import ScamRecord

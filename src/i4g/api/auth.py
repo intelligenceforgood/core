@@ -109,9 +109,7 @@ def _verify_iap_jwt(token: str, *, is_iap_assertion: bool = False) -> dict[str, 
         verify_kwargs: dict[str, str] = {}
         if is_iap_assertion:
             verify_kwargs["certs_url"] = _IAP_CERTS_URL
-        payload = id_token_mod.verify_token(
-            token, g_request, audience=audience, **verify_kwargs
-        )
+        payload = id_token_mod.verify_token(token, g_request, audience=audience, **verify_kwargs)
         email = payload.get("email", "unknown")
         role = _resolve_role(email)
         return {"username": email, "role": role}

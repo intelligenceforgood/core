@@ -94,7 +94,9 @@ async def submit_intake(
     result = service.create_intake(
         submission, attachments, create_job=True, job_metadata={"submitted_by": submission["submitted_by"]}
     )
-    logger.info("submit_intake: intake_id=%s job_id=%s attachments=%d", result["intake_id"], result["job_id"], len(attachments))
+    logger.info(
+        "submit_intake: intake_id=%s job_id=%s attachments=%d", result["intake_id"], result["job_id"], len(attachments)
+    )
 
     if result["job_id"]:
         background_tasks.add_task(service.process_job, result["intake_id"], result["job_id"])

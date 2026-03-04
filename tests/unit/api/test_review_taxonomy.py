@@ -4,10 +4,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
 from i4g.api.app import app
+from i4g.api.auth import require_token
 from i4g.api.review import get_store
 from i4g.store.review_store import ReviewStore
 from i4g.store.sql import METADATA
-from i4g.api.auth import require_token
 
 
 @pytest.fixture

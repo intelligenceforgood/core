@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
-
 from i4g.task_status import TaskStatusReporter
 
 
 def test_reporter_records_updates_via_sink(monkeypatch) -> None:
-    captured: List[Tuple[str, Dict[str, object]]] = []
+    captured: list[tuple[str, dict[str, object]]] = []
 
-    def _sink(task_id: str, payload: Dict[str, object]) -> None:
+    def _sink(task_id: str, payload: dict[str, object]) -> None:
         captured.append((task_id, payload))
 
     reporter = TaskStatusReporter(task_id="task-123", sink=_sink)
@@ -23,9 +21,9 @@ def test_reporter_records_updates_via_sink(monkeypatch) -> None:
 
 
 def test_reporter_noops_without_task_id() -> None:
-    invoked: List[Tuple[str, Dict[str, object]]] = []
+    invoked: list[tuple[str, dict[str, object]]] = []
 
-    def _sink(task_id: str, payload: Dict[str, object]) -> None:
+    def _sink(task_id: str, payload: dict[str, object]) -> None:
         invoked.append((task_id, payload))
 
     reporter = TaskStatusReporter(task_id=None, sink=_sink)

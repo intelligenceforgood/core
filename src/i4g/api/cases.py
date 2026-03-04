@@ -10,21 +10,21 @@ import hashlib
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 import sqlalchemy as sa
-from pydantic import BaseModel, Field
-
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from i4g.api.auth import require_role, require_token
 from i4g.api.camel import CamelModel
 from i4g.api.response_models import CasesListResponse
 from i4g.services.factories import build_retention_service, build_review_store
 from i4g.store import sql as sql_schema
-from i4g.store.sql import dialect_insert, session_factory as build_sql_session_factory
+from i4g.store.sql import dialect_insert
+from i4g.store.sql import session_factory as build_sql_session_factory
 
 logger = logging.getLogger(__name__)
 
@@ -238,7 +238,7 @@ def get_case(case_id: str) -> CaseDetail:
     timeline_events = []
     for action in data.get("timeline", []):
         ts_str = action.get("created_at")
-        ts = datetime.fromisoformat(ts_str) if ts_str else datetime.now(timezone.utc)
+        ts = datetime.fromisoformat(ts_str) if ts_str else datetime.now(UTC)
         raw_payload = action.get("payload")
         description = _format_timeline_description(action["action"], raw_payload)
         timeline_events.append(
@@ -332,9 +332,10 @@ def get_case(case_id: str) -> CaseDetail:
         ssi_inv_id = None
         if data.get("source_type") == "ssi_investigation" or props.get("ssi_investigation_id"):
             scan_row = session.execute(
-                sa.select(sql_schema.site_scans.c.scan_id).where(
-                    sql_schema.site_scans.c.case_id == case_id
-                ).order_by(sql_schema.site_scans.c.created_at.desc()).limit(1)
+                sa.select(sql_schema.site_scans.c.scan_id)
+                .where(sql_schema.site_scans.c.case_id == case_id)
+                .order_by(sql_schema.site_scans.c.created_at.desc())
+                .limit(1)
             ).scalar()
             ssi_inv_id = str(scan_row) if scan_row else props.get("ssi_investigation_id")
     if ssi_inv_id:
@@ -474,9 +475,7 @@ def _format_timeline_description(action: str, payload: Any) -> str:
 
 def _get_or_404(session: Any, case_id: str) -> None:
     """Raise 404 if *case_id* does not exist in the cases table."""
-    row = session.execute(
-        sa.select(sql_schema.cases.c.case_id).where(sql_schema.cases.c.case_id == case_id)
-    ).fetchone()
+    row = session.execute(sa.select(sql_schema.cases.c.case_id).where(sql_schema.cases.c.case_id == case_id)).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Case not found")
 
@@ -497,7 +496,7 @@ def create_case(body: CreateCaseRequest) -> CreateCaseResponse:
         The assigned ``case_id``.
     """
     case_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # Build a content hash from metadata + source_url for dedup
     raw_content = json.dumps(body.metadata or {}, sort_keys=True) + (body.source_url or "")
@@ -523,9 +522,7 @@ def create_case(body: CreateCaseRequest) -> CreateCaseResponse:
             if body.metadata:
                 update_vals["metadata"] = body.metadata
             session.execute(
-                sa.update(sql_schema.cases)
-                .where(sql_schema.cases.c.case_id == existing)
-                .values(**update_vals)
+                sa.update(sql_schema.cases).where(sql_schema.cases.c.case_id == existing).values(**update_vals)
             )
             session.commit()
             return CreateCaseResponse(case_id=existing, created=False)
@@ -617,7 +614,7 @@ def update_case(case_id: str, body: UpdateCaseRequest) -> dict[str, Any]:
         Confirmation dict with the ``case_id``.
     """
     sf = build_sql_session_factory()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     update_vals: dict[str, Any] = {"updated_at": now}
     if body.classification_result is not None:
@@ -635,11 +632,7 @@ def update_case(case_id: str, body: UpdateCaseRequest) -> dict[str, Any]:
 
     with sf() as session:
         _get_or_404(session, case_id)
-        session.execute(
-            sa.update(sql_schema.cases)
-            .where(sql_schema.cases.c.case_id == case_id)
-            .values(**update_vals)
-        )
+        session.execute(sa.update(sql_schema.cases).where(sql_schema.cases.c.case_id == case_id).values(**update_vals))
         session.commit()
 
     return {"case_id": case_id, "updated": True}
@@ -665,7 +658,7 @@ def batch_create_entities(case_id: str, body: BatchEntitiesRequest) -> BatchEnti
         Count of entities written.
     """
     sf = build_sql_session_factory()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     with sf() as session:
         _get_or_404(session, case_id)
@@ -731,7 +724,7 @@ def batch_create_indicators(case_id: str, body: BatchIndicatorsRequest) -> Batch
         Count of indicators written.
     """
     sf = build_sql_session_factory()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     with sf() as session:
         _get_or_404(session, case_id)
@@ -816,9 +809,7 @@ def add_timeline_events(case_id: str, body: BatchTimelineRequest) -> BatchTimeli
     with sf() as session:
         _get_or_404(session, case_id)
         review_id = session.execute(
-            sa.select(sql_schema.review_queue.c.review_id).where(
-                sql_schema.review_queue.c.case_id == case_id
-            )
+            sa.select(sql_schema.review_queue.c.review_id).where(sql_schema.review_queue.c.case_id == case_id)
         ).scalar()
 
     if not review_id:
@@ -826,7 +817,7 @@ def add_timeline_events(case_id: str, body: BatchTimelineRequest) -> BatchTimeli
 
     created = 0
     for event in body.events:
-        ts = event.timestamp or datetime.now(timezone.utc)
+        ts = event.timestamp or datetime.now(UTC)
         store.log_action(
             review_id=review_id,
             action=event.type,
@@ -857,7 +848,7 @@ def export_case(case_id: str) -> JSONResponse:
     try:
         payload = service.export_case_data(case_id)
     except KeyError:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Case not found")  # noqa: B904
     return JSONResponse(content=payload)
 
 
@@ -876,5 +867,5 @@ def delete_case(case_id: str) -> dict[str, Any]:
     try:
         result = service.gdpr_delete_case(case_id)
     except KeyError:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Case not found")  # noqa: B904
     return result

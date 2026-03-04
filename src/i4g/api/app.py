@@ -2,31 +2,29 @@
 
 import logging
 import time
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pathlib import Path
-
-from i4g.api.response_models import TaskStatusResponse, TaskUpdateResponse
 
 from i4g.api.account_list import router as account_list_router
 from i4g.api.accounts import router as accounts_router
 from i4g.api.analytics import router as analytics_router
-from i4g.api.auth import require_role, require_token
-from i4g.api.cases import router as cases_router
+from i4g.api.auth import require_token
 from i4g.api.campaigns import router as campaigns_router
+from i4g.api.cases import router as cases_router
 from i4g.api.dashboard import router as dashboard_router
-
 from i4g.api.discovery import router as discovery_router
 from i4g.api.evidence import router as evidence_router
 from i4g.api.intake import router as intake_router
 from i4g.api.investigations import router as investigations_router
 from i4g.api.reports import router as reports_router
+from i4g.api.response_models import TaskStatusResponse, TaskUpdateResponse
 from i4g.api.review import router as review_router
-from i4g.api.ssi_evidence import router as ssi_evidence_router
 from i4g.api.ssi_events import router as ssi_events_router
+from i4g.api.ssi_evidence import router as ssi_evidence_router
 from i4g.api.ssi_investigations import router as ssi_investigations_router
 from i4g.api.ssi_playbooks import router as ssi_playbooks_router
 from i4g.api.ssi_wallets import router as ssi_wallets_router
@@ -40,6 +38,7 @@ from i4g.task_status_store import TASK_STATUS
 # ----------------------------------------
 
 task_router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(require_token)])
+
 
 @task_router.get("/{task_id}", response_model=TaskStatusResponse, response_model_exclude_none=True)
 def get_task_status(task_id: str) -> dict[str, Any]:
@@ -76,7 +75,9 @@ def get_task_status(task_id: str) -> dict[str, Any]:
                     "investigation_id": task_id,
                     "risk_score": float(_scan["risk_score"]) if _scan.get("risk_score") is not None else None,
                     "case_id": _scan.get("case_id"),
-                    "duration_seconds": float(_scan["duration_seconds"]) if _scan.get("duration_seconds") is not None else None,
+                    "duration_seconds": (
+                        float(_scan["duration_seconds"]) if _scan.get("duration_seconds") is not None else None
+                    ),
                 }
         except Exception as _e:
             logging.getLogger(__name__).debug("SSI DB fallback failed for task %s: %s", task_id, _e)
@@ -106,7 +107,9 @@ def get_task_status(task_id: str) -> dict[str, Any]:
                     "investigation_id": scan_id,
                     "risk_score": float(scan["risk_score"]) if scan.get("risk_score") is not None else None,
                     "case_id": scan.get("case_id"),
-                    "duration_seconds": float(scan["duration_seconds"]) if scan.get("duration_seconds") is not None else None,
+                    "duration_seconds": (
+                        float(scan["duration_seconds"]) if scan.get("duration_seconds") is not None else None
+                    ),
                 }
         except Exception as e:
             logging.getLogger(__name__).warning("Failed to look up SSI scan status for %s: %s", scan_id, e)

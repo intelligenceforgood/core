@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
-class IndicatorCategory(str, Enum):
+class IndicatorCategory(StrEnum):
     """Supported financial indicator categories."""
 
     BANK = "bank"

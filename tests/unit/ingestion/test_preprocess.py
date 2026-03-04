@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
 from i4g.ingestion.preprocess import chunk_text, clean_text, prepare_documents
-
 
 # ---------------------------------------------------------------------------
 # clean_text

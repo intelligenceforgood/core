@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from collections.abc import Callable, Iterable
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
 from cryptography.fernet import Fernet, InvalidToken
@@ -35,7 +35,7 @@ class SqlAlchemyPiiTokenStore:
         """Insert the token row if not already present."""
 
         encrypted_value = self._encrypt(canonical_value)
-        created_at = datetime.now(timezone.utc)
+        created_at = datetime.now(UTC)
 
         with self.session_factory() as session:
             stmt = dialect_insert(session, pii_tokens).values(
@@ -71,17 +71,17 @@ class SqlAlchemyPiiTokenStore:
             row = session.execute(stmt).fetchone()
             if not row:
                 return None
-            
+
             # row is a Row object, access by index or attribute if mapped, but here it's Core table
             # row._mapping provides dict-like access
             data = row._mapping
-            
+
             canonical_value = data["canonical_value"]
             encrypted_value = data["encrypted_value"]
-            
+
             if canonical_value is None and encrypted_value is not None:
                 canonical_value = self._decrypt(encrypted_value)
-                
+
             return StoredToken(
                 token=data["token"],
                 prefix=data["prefix"],
@@ -95,23 +95,23 @@ class SqlAlchemyPiiTokenStore:
 
     def list_tokens(self, *, prefixes: Iterable[str] | None = None) -> list[StoredToken]:
         """Enumerate stored tokens."""
-        
+
         stmt = sa.select(pii_tokens)
         if prefixes:
             stmt = stmt.where(pii_tokens.c.prefix.in_(prefixes))
-            
+
         with self.session_factory() as session:
             rows = session.execute(stmt).fetchall()
-            
+
         tokens: list[StoredToken] = []
         for row in rows:
             data = row._mapping
             canonical_value = data["canonical_value"]
             encrypted_value = data["encrypted_value"]
-            
+
             if canonical_value is None and encrypted_value is not None:
                 canonical_value = self._decrypt(encrypted_value)
-                
+
             tokens.append(
                 StoredToken(
                     token=data["token"],
@@ -139,7 +139,7 @@ class SqlAlchemyPiiTokenStore:
     ) -> None:
         """Record an audit log entry for a sensitive operation."""
 
-        timestamp = datetime.now(timezone.utc)
+        timestamp = datetime.now(UTC)
         with self.session_factory() as session:
             session.execute(
                 sa.insert(audit_log).values(
@@ -165,9 +165,7 @@ class SqlAlchemyPiiTokenStore:
             Number of tokens deleted.
         """
         with self.session_factory() as session:
-            result = session.execute(
-                sa.delete(pii_tokens).where(pii_tokens.c.case_id == case_id)
-            )
+            result = session.execute(sa.delete(pii_tokens).where(pii_tokens.c.case_id == case_id))
             deleted = result.rowcount
             session.commit()
 

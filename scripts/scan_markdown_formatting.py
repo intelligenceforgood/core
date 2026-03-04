@@ -1,9 +1,8 @@
 import os
-import re
 
 
 def scan_file(filepath):
-    with open(filepath, "r", encoding="utf-8") as f:
+    with open(filepath, encoding="utf-8") as f:
         lines = f.readlines()
 
     in_code_block = False
@@ -11,7 +10,6 @@ def scan_file(filepath):
     errors = []
 
     for i, line in enumerate(lines):
-        stripped_right = line.rstrip()
         stripped_line = line.strip()
 
         # Detect code block start/end
@@ -30,18 +28,14 @@ def scan_file(filepath):
             # Look at previous line
             if i > 0:
                 prev_line = lines[i - 1].rstrip()
-                if prev_line.endswith("\\"):
-                    # Current line should be indented
-                    if len(line) > 0 and line[0] not in (" ", "\t", "\n"):
-                        errors.append((i + 1, "Continuation line starts at 0"))
+                # Current line should be indented
+                if prev_line.endswith("\\") and len(line) > 0 and line[0] not in (" ", "\t", "\n"):
+                    errors.append((i + 1, "Continuation line starts at 0"))
 
             # Check 2: Indented code block content starts at 0
-            if code_block_indent > 0:
-                if len(line) > 1 and line[0] not in (" ", "\t"):
-                    # Ignore empty lines or lines that are just newline
-                    errors.append(
-                        (i + 1, f"Indented code block content starts at 0 (block indent: {code_block_indent})")
-                    )
+            if code_block_indent > 0 and len(line) > 1 and line[0] not in (" ", "\t"):
+                # Ignore empty lines or lines that are just newline
+                errors.append((i + 1, f"Indented code block content starts at 0 (block indent: {code_block_indent})"))
 
     return errors
 
@@ -68,7 +62,7 @@ def main():
                             for line_num, msg in errors:
                                 print(f"  Line {line_num}: {msg}")
                                 # Print context
-                                with open(filepath, "r") as f:
+                                with open(filepath) as f:
                                     all_lines = f.readlines()
                                     print(f"    {all_lines[line_num-1].rstrip()}")
                     except Exception as e:

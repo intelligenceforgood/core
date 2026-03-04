@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -18,7 +18,7 @@ def _sample_plan(plan_id: str = "dossier-us-ca-20251203-01") -> DossierPlan:
     candidate = DossierCandidate(
         case_id="case-1",
         loss_amount_usd=Decimal("100000"),
-        accepted_at=datetime(2025, 12, 1, tzinfo=timezone.utc),
+        accepted_at=datetime(2025, 12, 1, tzinfo=UTC),
         jurisdiction="US-CA",
         cross_border=False,
         primary_entities=("wallet:abc",),
@@ -26,7 +26,7 @@ def _sample_plan(plan_id: str = "dossier-us-ca-20251203-01") -> DossierPlan:
     return DossierPlan(
         plan_id=plan_id,
         jurisdiction_key="US-CA",
-        created_at=datetime(2025, 12, 3, tzinfo=timezone.utc),
+        created_at=datetime(2025, 12, 3, tzinfo=UTC),
         total_loss_usd=Decimal("100000"),
         cases=[candidate],
         bundle_reason="test-plan",

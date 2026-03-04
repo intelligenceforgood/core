@@ -149,7 +149,9 @@ def bulk_update_saved_search_tags(
         sys.exit(1)
 
     if replace is not None and (add or remove):
-        console.print("[yellow]\u26a0\ufe0f --replace overrides --add/--remove; add/remove values will be ignored.[/yellow]")
+        console.print(
+            "[yellow]\u26a0\ufe0f --replace overrides --add/--remove; add/remove values will be ignored.[/yellow]"
+        )
 
     store = build_review_store()
     normalized_add = [t.strip() for t in (add or []) if t.strip()]

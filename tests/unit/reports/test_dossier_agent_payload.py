@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from i4g.reports.bundle_builder import DossierCandidate, DossierPlan
@@ -15,7 +15,7 @@ def test_build_agent_payload_combines_sources() -> None:
     candidate = DossierCandidate(
         case_id="case-1",
         loss_amount_usd=Decimal("42000"),
-        accepted_at=datetime(2025, 12, 1, tzinfo=timezone.utc),
+        accepted_at=datetime(2025, 12, 1, tzinfo=UTC),
         jurisdiction="US-CA",
         cross_border=True,
         primary_entities=("wallet:abc",),
@@ -23,7 +23,7 @@ def test_build_agent_payload_combines_sources() -> None:
     plan = DossierPlan(
         plan_id="plan-1",
         jurisdiction_key="US-CA",
-        created_at=datetime(2025, 12, 3, tzinfo=timezone.utc),
+        created_at=datetime(2025, 12, 3, tzinfo=UTC),
         total_loss_usd=Decimal("42000"),
         cases=[candidate],
         bundle_reason="test",

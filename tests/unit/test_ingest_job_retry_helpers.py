@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 from unittest.mock import Mock
 
 from i4g.store.sql_writer import SqlWriterResult
@@ -19,7 +19,7 @@ class _ExplodingStr:
 def test_clone_payload_round_trips_without_shared_state() -> None:
     """Ensure JSON branch returns a deep copy that does not share nested references."""
 
-    payload: Dict[str, Any] = {"case_id": "case-1", "metadata": {"source": "unit"}}
+    payload: dict[str, Any] = {"case_id": "case-1", "metadata": {"source": "unit"}}
     clone = ingest._clone_payload(payload)
     assert clone == payload
     assert clone is not payload
@@ -30,7 +30,7 @@ def test_clone_payload_round_trips_without_shared_state() -> None:
 def test_clone_payload_falls_back_when_serialization_fails() -> None:
     """Verify we still return a dict when JSON serialization raises."""
 
-    payload: Dict[str, Any] = {"case_id": "case-fallback", "bad": _ExplodingStr()}
+    payload: dict[str, Any] = {"case_id": "case-fallback", "bad": _ExplodingStr()}
     clone = ingest._clone_payload(payload)
     assert clone["bad"] is payload["bad"]
     assert clone is not payload

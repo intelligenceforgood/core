@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -28,7 +28,7 @@ def _make_item(backend: str, payload: dict) -> RetryItem:
         backend=backend,
         payload=payload,
         attempt_count=0,
-        next_attempt_at=datetime.now(timezone.utc),
+        next_attempt_at=datetime.now(UTC),
     )
 
 

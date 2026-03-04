@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -15,14 +15,14 @@ class TestParseDatetime:
     # ── datetime inputs ──────────────────────────────────────────
 
     def test_aware_datetime_returned_as_is(self) -> None:
-        dt = datetime(2024, 6, 15, 12, 0, tzinfo=timezone.utc)
+        dt = datetime(2024, 6, 15, 12, 0, tzinfo=UTC)
         assert parse_datetime(dt) is dt
 
     def test_naive_datetime_gets_utc(self) -> None:
         dt = datetime(2024, 6, 15, 12, 0)
         result = parse_datetime(dt)
         assert result is not None
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
         assert result.replace(tzinfo=None) == dt
 
     # ── string inputs ────────────────────────────────────────────
@@ -30,17 +30,17 @@ class TestParseDatetime:
     def test_iso_string(self) -> None:
         result = parse_datetime("2024-06-15T12:00:00+00:00")
         assert result is not None
-        assert result == datetime(2024, 6, 15, 12, 0, tzinfo=timezone.utc)
+        assert result == datetime(2024, 6, 15, 12, 0, tzinfo=UTC)
 
     def test_z_suffix_normalised(self) -> None:
         result = parse_datetime("2024-06-15T12:00:00Z")
         assert result is not None
-        assert result == datetime(2024, 6, 15, 12, 0, tzinfo=timezone.utc)
+        assert result == datetime(2024, 6, 15, 12, 0, tzinfo=UTC)
 
     def test_naive_iso_string_gets_utc(self) -> None:
         result = parse_datetime("2024-06-15T12:00:00")
         assert result is not None
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
 
     def test_empty_string_returns_none(self) -> None:
         assert parse_datetime("") is None
@@ -62,9 +62,9 @@ class TestParseDatetime:
     # ── on_error="now" ───────────────────────────────────────────
 
     def test_on_error_now_returns_current_time(self) -> None:
-        before = datetime.now(timezone.utc)
+        before = datetime.now(UTC)
         result = parse_datetime("bad", on_error="now")
-        after = datetime.now(timezone.utc)
+        after = datetime.now(UTC)
         assert before <= result <= after
 
     def test_on_error_now_with_none_input(self) -> None:

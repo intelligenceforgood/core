@@ -1,7 +1,7 @@
 """Dashboard overview endpoints for analyst console."""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import desc, func, select
@@ -11,8 +11,8 @@ from i4g.api.auth import require_token
 from i4g.api.response_models import DashboardOverviewResponse
 from i4g.api.review_deps import get_db_session
 from i4g.store.sql import (
-    review_queue,
     review_actions,
+    review_queue,
     scam_records,
 )
 
@@ -33,7 +33,7 @@ def _get_active_investigations(session: Session) -> dict[str, str]:
     )
 
     # Compare to last week
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     last_week = now - timedelta(days=7)
 
     prev_count = (
@@ -58,7 +58,7 @@ def _get_active_investigations(session: Session) -> dict[str, str]:
 
 def _get_new_leads(session: Session) -> dict[str, str]:
     """Count new cases created in the last 7 days."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start_dt = now - timedelta(days=7)
 
     # Use review_queue as proxy for cases in local mode if 'cases' table missing or mapped
@@ -92,13 +92,13 @@ def _get_recent_activity(session: Session) -> list[dict[str, str]]:
     ).all()
 
     activities = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     for row in rows:
         # Calculate relative time string like "10m ago"
         dt = row.created_at
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
 
         diff = now - dt
         minutes = int(diff.total_seconds() / 60)
@@ -133,12 +133,12 @@ def _get_alerts(session: Session) -> list[dict[str, str]]:
     ).all()
 
     alerts = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     for row in rows:
         dt = row.created_at
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=UTC)
         diff = now - dt
         minutes = int(diff.total_seconds() / 60)
         time_str = f"{minutes}m ago"

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import re
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterable, Mapping
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
@@ -189,10 +190,8 @@ def fetch_signature_manifest(plan_id: str) -> dict[str, Any]:
     signature_manifest = manifest_info.get("signature_manifest")
     if not signature_manifest:
         raise HTTPException(status_code=404, detail=f"Signature manifest unavailable for plan {plan_id}")
-    try:
+    with contextlib.suppress(Exception):
         _OBS.increment("reports.dossiers.signature_manifest", tags={"plan_id": plan_id})
-    except Exception:
-        pass
     return signature_manifest
 
 
@@ -217,14 +216,11 @@ def download_dossier_artifact(plan_id: str, artifact: str) -> FileResponse:
     try:
         path.relative_to(ARTIFACTS_DIR)
     except ValueError:
-        raise HTTPException(status_code=403, detail="Artifact path outside allowed directory")
+        raise HTTPException(status_code=403, detail="Artifact path outside allowed directory")  # noqa: B904
     if not path.exists() or not path.is_file():
         raise HTTPException(status_code=404, detail=f"Artifact path missing for plan {plan_id}: {path}")
-    try:
+    with contextlib.suppress(Exception):  # Observability is best-effort
         _OBS.increment("reports.dossiers.download", tags={"artifact": key})
-    except Exception:
-        # Observability is best-effort
-        pass
     return FileResponse(path)
 
 
@@ -354,10 +350,7 @@ def _resolve_relative(raw_path: object, base_dir: Path) -> str | None:
     if not raw_path:
         return None
     candidate = Path(str(raw_path))
-    if not candidate.is_absolute():
-        candidate = (base_dir / candidate).resolve()
-    else:
-        candidate = candidate.resolve()
+    candidate = (base_dir / candidate).resolve() if not candidate.is_absolute() else candidate.resolve()
     # Ensure the resolved path stays within the artifacts tree.
     try:
         candidate.relative_to(ARTIFACTS_DIR)

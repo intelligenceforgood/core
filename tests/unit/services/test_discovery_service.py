@@ -4,7 +4,6 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-from google.cloud import discoveryengine_v1beta as discoveryengine
 
 from i4g.services.discovery import (
     DiscoverySearchParams,

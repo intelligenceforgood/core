@@ -1,10 +1,10 @@
 """
 Unit tests for StructuredStore (unified SQLAlchemy implementation).
 """
-import pytest
+
 from unittest.mock import MagicMock, patch
-import sqlalchemy as sa
-from i4g.store.structured import StructuredStore, SqlAlchemyStructuredStore
+
+from i4g.store.structured import SqlAlchemyStructuredStore, StructuredStore
 
 
 def test_sqlalchemy_alias():
@@ -23,6 +23,6 @@ def test_init_with_session_factory():
     mock_factory = MagicMock(return_value=mock_session)
 
     with patch("i4g.store.sql.METADATA.create_all") as mock_create_all:
-        store = StructuredStore(session_factory=mock_factory)
+        StructuredStore(session_factory=mock_factory)
 
     mock_create_all.assert_called_once_with(mock_conn)

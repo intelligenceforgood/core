@@ -12,11 +12,10 @@ an admin to pre-register every user.  Admins can promote via User Management.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy.orm import Session
 
 from i4g.api.roles import DEFAULT_ROLE, Role
 from i4g.store import sql as sql_schema
@@ -45,9 +44,7 @@ class AccountStore:
             Account dict or ``None`` if not found.
         """
         with self._session_factory() as session:
-            row = session.execute(
-                sa.select(sql_schema.accounts).where(sql_schema.accounts.c.email == email)
-            ).first()
+            row = session.execute(sa.select(sql_schema.accounts).where(sql_schema.accounts.c.email == email)).first()
             if row is None:
                 return None
             return dict(row._mapping)
@@ -69,7 +66,7 @@ class AccountStore:
         if existing is not None:
             return existing
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             stmt = dialect_insert(session, sql_schema.accounts).values(
                 email=email,
@@ -109,9 +106,7 @@ class AccountStore:
             if active_only:
                 query = query.where(sql_schema.accounts.c.is_active == sa.true())
             if not include_service_accounts:
-                query = query.where(
-                    ~sql_schema.accounts.c.email.endswith(self._SERVICE_ACCOUNT_SUFFIX)
-                )
+                query = query.where(~sql_schema.accounts.c.email.endswith(self._SERVICE_ACCOUNT_SUFFIX))
             rows = session.execute(query).all()
             return [dict(r._mapping) for r in rows]
 
@@ -137,14 +132,14 @@ class AccountStore:
         try:
             Role(new_role)
         except ValueError:
-            raise ValueError(f"Invalid role: {new_role!r}. Must be one of {[r.value for r in Role]}")
+            raise ValueError(f"Invalid role: {new_role!r}. Must be one of {[r.value for r in Role]}")  # noqa: B904
 
         existing = self.get_account(email)
         if existing is None:
             return None
 
         old_role = existing["role"]
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         with self._session_factory() as session:
             session.execute(
@@ -182,7 +177,7 @@ class AccountStore:
         Returns:
             Updated account dict, or ``None`` if user not found.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             result = session.execute(
                 sa.update(sql_schema.accounts)
@@ -204,7 +199,7 @@ class AccountStore:
         Returns:
             True if the account was deactivated.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             result = session.execute(
                 sa.update(sql_schema.accounts)
@@ -235,7 +230,7 @@ class AccountStore:
         Returns:
             True if the account was reactivated.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             result = session.execute(
                 sa.update(sql_schema.accounts)

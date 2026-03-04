@@ -14,9 +14,8 @@ import google.auth.impersonated_credentials
 import google.auth.transport.requests
 from googleapiclient.discovery import build
 
-from i4g.settings import get_settings
-
 from i4g.cli.bootstrap.common import get_bundles
+from i4g.settings import get_settings
 
 from .constants import JobResult, JobSpec
 from .utils import fetch_pepper, format_command

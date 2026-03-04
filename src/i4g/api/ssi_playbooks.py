@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -46,7 +46,7 @@ router = APIRouter(
 # ---------------------------------------------------------------------------
 
 
-class PlaybookStepType(str, Enum):
+class PlaybookStepType(StrEnum):
     """Action types a playbook step can perform."""
 
     CLICK = "click"

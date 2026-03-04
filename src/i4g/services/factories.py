@@ -9,16 +9,17 @@ implemented.
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 
 from i4g.pii.tokenization import TokenizationService
 from i4g.reports.bundle_builder import BundleBuilder
 from i4g.reports.bundle_candidates import BundleCandidateProvider
 from i4g.reports.dossier_context import DossierContextLoader
-from i4g.services.vertex_writer import VertexDocumentWriter
 from i4g.services.classifier import FraudClassifier
 from i4g.services.retention import RetentionService
-from i4g.settings import get_settings
+from i4g.services.vertex_writer import VertexDocumentWriter
+from i4g.settings import Settings, get_settings
 from i4g.storage import EvidenceStorage
 from i4g.store.dossier_queue_store import DossierQueueStore
 from i4g.store.entity_store import EntityStore
@@ -28,8 +29,7 @@ from i4g.store.intake_store import IntakeStore
 from i4g.store.pii_token_store import PiiTokenStore  # noqa: F401 — kept for backward compat
 from i4g.store.pii_token_store_sql import SqlAlchemyPiiTokenStore
 from i4g.store.review_store import ReviewStore
-from i4g.store.sql import METADATA
-from i4g.store.sql import build_vault_session_factory
+from i4g.store.sql import METADATA, build_vault_session_factory
 from i4g.store.sql import session_factory as build_sql_session_factory
 from i4g.store.sql_writer import SqlWriter
 from i4g.store.ssi_events_store import SsiEventsStore
@@ -253,10 +253,8 @@ def build_tokenization_service() -> TokenizationService:
 
     fernet = None
     if settings.crypto.pii_key and Fernet:
-        try:
+        with contextlib.suppress(Exception):
             fernet = Fernet(settings.crypto.pii_key.encode("utf-8"))
-        except Exception:
-            pass
 
     connection_details: dict[str, str | bool] = {}
     if backend == "cloudsql":
@@ -361,16 +359,12 @@ def build_retention_service() -> RetentionService:
         pass
 
     evidence_storage = None
-    try:
+    with contextlib.suppress(Exception):
         evidence_storage = build_evidence_storage()
-    except Exception:
-        pass
 
     vector_store = None
-    try:
+    with contextlib.suppress(Exception):
         vector_store = build_vector_store()
-    except Exception:
-        pass
 
     return RetentionService(
         sf,

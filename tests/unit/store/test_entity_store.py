@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
@@ -28,11 +28,11 @@ def _seed_case_with_entity(
     entity_type: str = "bank_account",
     last_seen_offset_days: int = 0,
 ) -> None:
-    case_metadata: Dict[str, Any] = {"dataset": dataset}
+    case_metadata: dict[str, Any] = {"dataset": dataset}
     if loss_amount is not None:
         case_metadata["loss_amount"] = loss_amount
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     last_seen_at = now - timedelta(days=last_seen_offset_days)
 
     session.execute(
@@ -43,8 +43,8 @@ def _seed_case_with_entity(
             "source_type": "ocr",
             "classification": "romance",
             "confidence": 0.9,
-            "detected_at": datetime.now(timezone.utc),
-            "reported_at": datetime.now(timezone.utc),
+            "detected_at": datetime.now(UTC),
+            "reported_at": datetime.now(UTC),
             "raw_text_sha256": f"sha-{case_id}",
             "status": "open",
             "metadata": case_metadata,

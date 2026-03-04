@@ -22,8 +22,8 @@ import argparse
 import json
 import logging
 import os
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, Optional
 
 from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
@@ -83,7 +83,7 @@ def ensure_output_dir(path: str) -> Path:
     return output
 
 
-def resolve_indexes(index_client: SearchIndexClient, requested: Optional[Iterable[str]]) -> list[str]:
+def resolve_indexes(index_client: SearchIndexClient, requested: Iterable[str] | None) -> list[str]:
     if requested:
         return list(requested)
     return [index.name for index in index_client.list_indexes()]  # type: ignore[return-value]
@@ -98,7 +98,7 @@ def export_schema(index_client: SearchIndexClient, index_name: str, output_dir: 
 
 
 def export_documents(
-    search_client: SearchClient, index_name: str, output_dir: Path, batch_size: int, max_docs: Optional[int]
+    search_client: SearchClient, index_name: str, output_dir: Path, batch_size: int, max_docs: int | None
 ) -> None:
     docs_path = output_dir / f"{index_name}_documents.jsonl"
     total_written = 0

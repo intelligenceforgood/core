@@ -2,14 +2,15 @@
 
 This module backs `i4g smoke dossiers`.
 """
+
 from __future__ import annotations
 
 import argparse
 import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from collections.abc import Mapping, Sequence
 from urllib import error, parse, request
 
 DEFAULT_API_URL = "http://localhost:8000"

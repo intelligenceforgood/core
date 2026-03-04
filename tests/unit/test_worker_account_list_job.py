@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -32,7 +32,7 @@ def _settings(default_formats: list[str] | None = None, max_top_k: int = 250, en
 
 
 def test_build_request_defaults(monkeypatch):
-    reference = datetime(2025, 11, 15, tzinfo=timezone.utc)
+    reference = datetime(2025, 11, 15, tzinfo=UTC)
     monkeypatch.delenv("I4G_ACCOUNT_JOB__START_TIME", raising=False)
     monkeypatch.delenv("I4G_ACCOUNT_JOB__END_TIME", raising=False)
     monkeypatch.delenv("I4G_ACCOUNT_JOB__WINDOW_DAYS", raising=False)
@@ -61,8 +61,8 @@ def test_build_request_env_overrides(monkeypatch):
 
     request = account_job._build_request_from_env(settings)
 
-    assert request.start_time == datetime(2025, 11, 1, 0, 0, tzinfo=timezone.utc)
-    assert request.end_time == datetime(2025, 11, 15, 12, 0, tzinfo=timezone.utc)
+    assert request.start_time == datetime(2025, 11, 1, 0, 0, tzinfo=UTC)
+    assert request.end_time == datetime(2025, 11, 15, 12, 0, tzinfo=UTC)
     assert request.categories == ["bank", "crypto", "payments"]
     assert request.top_k == 500  # capped at max_top_k
     assert request.include_sources is False
@@ -70,7 +70,7 @@ def test_build_request_env_overrides(monkeypatch):
 
 
 def test_main_dry_run_skips_service(monkeypatch):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     request = AccountListRequest(
         start_time=now - timedelta(days=1),
         end_time=now,
@@ -99,7 +99,7 @@ def test_main_dry_run_skips_service(monkeypatch):
 
 
 def test_main_runs_service(monkeypatch):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     request = AccountListRequest(
         start_time=now - timedelta(days=1),
         end_time=now,
@@ -141,7 +141,7 @@ def test_main_runs_service(monkeypatch):
 
 
 def test_main_handles_failures(monkeypatch):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     request = AccountListRequest(
         start_time=now - timedelta(days=1),
         end_time=now,

@@ -127,7 +127,7 @@ def run_vertex_search(
         request.boost_spec = boost_spec
 
     console.print(
-        f"[cyan]🔍 Vertex search:[/cyan] project={resolved_project} location={resolved_location} data_store={data_store_id} query='{query}'"
+        f"[cyan]🔍 Vertex search:[/cyan] project={resolved_project} location={resolved_location} data_store={data_store_id} query='{query}'"  # noqa: E501
     )
 
     try:
@@ -208,10 +208,7 @@ def query_vertex(
         request.boost_spec = boost_spec
 
     results_iter = client.search(request=request)
-    if page_size and page_size > 0:
-        results = list(results_iter)[:page_size]
-    else:
-        results = list(results_iter)
+    results = list(results_iter)[:page_size] if page_size and page_size > 0 else list(results_iter)
 
     if raw:
         payload = [json_format.MessageToDict(result._pb) for result in results]  # type: ignore[attr-defined]

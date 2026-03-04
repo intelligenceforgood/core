@@ -65,21 +65,16 @@ CC_RE = re.compile(r"\b(?:\d[ -]*?){13,19}\b")
 DOB_RE = re.compile(
     r"\b(?:"
     # YYYY-MM-DD
-    r"(?:19|20)\d{2}[/-](?:0[1-9]|1[0-2])[/-](?:0[1-9]|[12]\d|3[01])"
-    r"|"
+    r"(?:19|20)\d{2}[/-](?:0[1-9]|1[0-2])[/-](?:0[1-9]|[12]\d|3[01])" r"|"
     # MM/DD/YYYY or DD/MM/YYYY
-    r"(?:0[1-9]|1[0-2])[/-](?:0[1-9]|[12]\d|3[01])[/-](?:19|20)\d{2}"
-    r"|"
+    r"(?:0[1-9]|1[0-2])[/-](?:0[1-9]|[12]\d|3[01])[/-](?:19|20)\d{2}" r"|"
     # DD-Mon-YYYY (e.g. 15-Jan-1990)
-    r"(?:0[1-9]|[12]\d|3[01])[- ](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[- ](?:19|20)\d{2}"
-    r")\b",
+    r"(?:0[1-9]|[12]\d|3[01])[- ](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[- ](?:19|20)\d{2}" r")\b",
     re.IGNORECASE,
 )
 
 # IPv4
-IPV4_RE = re.compile(
-    r"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b"
-)
+IPV4_RE = re.compile(r"\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b")
 
 # US street address (simplified heuristic — number + street name + suffix)
 ADDRESS_RE = re.compile(

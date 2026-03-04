@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
-from collections.abc import Iterable
 
 from i4g.services.factories import build_evidence_storage, build_intake_store
 from i4g.services.intake_job_runner import IntakeJobResult, IntakeJobRunner, LocalPipelineIntakeJobRunner

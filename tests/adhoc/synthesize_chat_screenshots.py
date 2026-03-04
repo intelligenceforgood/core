@@ -32,7 +32,7 @@ def load_font():
     """Try to load a readable system font."""
     try:
         return ImageFont.truetype("Arial.ttf", FONT_SIZE)
-    except:
+    except Exception:
         return ImageFont.load_default()
 
 
@@ -80,8 +80,8 @@ def create_chat_image(messages, out_path):
 def main(input_file, limit):
     output_dir = Path("data/chat_screens")
     output_dir.mkdir(parents=True, exist_ok=True)
-    with open(input_file, "r", encoding="utf-8") as f:
-        lines = [json.loads(l) for l in f.readlines() if l.strip()]
+    with open(input_file, encoding="utf-8") as f:
+        lines = [json.loads(line) for line in f.readlines() if line.strip()]
     print(f"Loaded {len(lines)} records")
 
     # group messages randomly into chats of 3–8 lines

@@ -1,6 +1,6 @@
 """Static taxonomy data."""
 
-from typing import Any, Dict
+from typing import Any
 
 TAXONOMY_DEFINITIONS: dict[str, Any] = {
     "version": "1.0",
@@ -19,8 +19,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "examples": [
                         "Hi Grandma, it's me, I'm in trouble in Mexico and lost my wallet.",
                         "This is IRS agent Smith, you owe back taxes.",
-                        "I am a prince from Nigeria and need your help moving funds."
-                    ]
+                        "I am a prince from Nigeria and need your help moving funds.",
+                    ],
                 },
                 {
                     "code": "INTENT.INVESTMENT",
@@ -29,8 +29,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "examples": [
                         "Guaranteed 20% weekly returns on our new crypto platform.",
                         "Exclusive pre-IPO opportunity for selected investors only.",
-                        "Our AI trading bot never loses money."
-                    ]
+                        "Our AI trading bot never loses money.",
+                    ],
                 },
                 {
                     "code": "INTENT.ROMANCE",
@@ -39,8 +39,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "examples": [
                         "I wish I could meet you but I'm deployed overseas right now.",
                         "My camera is broken so we can't video chat yet.",
-                        "I need money for a plane ticket to come see you."
-                    ]
+                        "I need money for a plane ticket to come see you.",
+                    ],
                 },
                 {
                     "code": "INTENT.EMPLOYMENT",
@@ -49,8 +49,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "examples": [
                         "Earn $5000/week working from home, no experience needed.",
                         "Please pay $200 for your background check equipment shipping.",
-                        "Data entry job: process these checks through your personal account."
-                    ]
+                        "Data entry job: process these checks through your personal account.",
+                    ],
                 },
                 {
                     "code": "INTENT.SHOPPING",
@@ -59,8 +59,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "examples": [
                         "PS5 console for $200 - limited time offer!",
                         "Webstore with no physical address or contact info.",
-                        "Seller asks for payment via Friends & Family only."
-                    ]
+                        "Seller asks for payment via Friends & Family only.",
+                    ],
                 },
                 {
                     "code": "INTENT.TECH_SUPPORT",
@@ -69,8 +69,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "examples": [
                         "Your computer has a virus! Call Microsoft Support immediately.",
                         "We detected suspicious activity on your IP address.",
-                        "Please install AnyDesk so I can fix your drivers."
-                    ]
+                        "Please install AnyDesk so I can fix your drivers.",
+                    ],
                 },
                 {
                     "code": "INTENT.PRIZE",
@@ -79,8 +79,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "examples": [
                         "Congratulations! You won a $1000 Walmart Gift Card.",
                         "You've been selected for a free iPhone 15.",
-                        "Pay processing fees to claim your lottery jackpot."
-                    ]
+                        "Pay processing fees to claim your lottery jackpot.",
+                    ],
                 },
                 {
                     "code": "INTENT.EXTORTION",
@@ -89,8 +89,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "examples": [
                         "I recorded you on your webcam, pay BTC or I send it to your contacts.",
                         "We have your SSN and will leak it unless you pay.",
-                        "If you don't pay the fine, the police will arrest you in 1 hour."
-                    ]
+                        "If you don't pay the fine, the police will arrest you in 1 hour.",
+                    ],
                 },
                 {
                     "code": "INTENT.CHARITY",
@@ -99,10 +99,10 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "examples": [
                         "Donate to the victims of the recent earthquake via this personal PayPal.",
                         "Help feed hungry children, send crypto now.",
-                        "Urgent medical funds needed for a dog surgery (stolen photos)."
-                    ]
-                }
-            ]
+                        "Urgent medical funds needed for a dog surgery (stolen photos).",
+                    ],
+                },
+            ],
         },
         {
             "id": "channels",
@@ -115,8 +115,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Communication via email",
                     "examples": [
                         "Phishing link sent from 'support@amaz0n.com'.",
-                        "CEO Fraud email asking for urgent wire transfer."
-                    ]
+                        "CEO Fraud email asking for urgent wire transfer.",
+                    ],
                 },
                 {
                     "code": "CHANNEL.SMS",
@@ -124,8 +124,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Text messages or SMS",
                     "examples": [
                         "USPS: Your package delivery failed, click here.",
-                        "Bank Alert: Did you spend $500? Reply Y or N."
-                    ]
+                        "Bank Alert: Did you spend $500? Reply Y or N.",
+                    ],
                 },
                 {
                     "code": "CHANNEL.CHAT",
@@ -133,8 +133,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "WhatsApp, Telegram, Signal, etc.",
                     "examples": [
                         "Let's move to WhatsApp for better privacy.",
-                        "Telegram group offering 'pump and dump' signals."
-                    ]
+                        "Telegram group offering 'pump and dump' signals.",
+                    ],
                 },
                 {
                     "code": "CHANNEL.SOCIAL",
@@ -142,8 +142,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Facebook, Instagram, Twitter, LinkedIn, etc.",
                     "examples": [
                         "Instagram DM from a stranger complimenting your photos.",
-                        "LinkedIn message from a 'recruiter' with a generic profile."
-                    ]
+                        "LinkedIn message from a 'recruiter' with a generic profile.",
+                    ],
                 },
                 {
                     "code": "CHANNEL.PHONE",
@@ -151,19 +151,16 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Voice calls",
                     "examples": [
                         "Robocall about your car's extended warranty.",
-                        "Live caller claiming to be from the Social Security Administration."
-                    ]
+                        "Live caller claiming to be from the Social Security Administration.",
+                    ],
                 },
                 {
                     "code": "CHANNEL.WEB",
                     "label": "Web",
                     "description": "Malicious websites or landing pages",
-                    "examples": [
-                        "Fake crypto exchange login page.",
-                        "Pop-up warning that your browser is infected."
-                    ]
-                }
-            ]
+                    "examples": ["Fake crypto exchange login page.", "Pop-up warning that your browser is infected."],
+                },
+            ],
         },
         {
             "id": "techniques",
@@ -174,10 +171,7 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "code": "SE.URGENCY",
                     "label": "Urgency",
                     "description": "Time pressure, deadlines",
-                    "examples": [
-                        "Offer expires in 10 minutes!",
-                        "Act now or your account will be permanently closed."
-                    ]
+                    "examples": ["Offer expires in 10 minutes!", "Act now or your account will be permanently closed."],
                 },
                 {
                     "code": "SE.AUTHORITY",
@@ -185,17 +179,14 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Government, bank, employer tone",
                     "examples": [
                         "This is Officer Johnson from the local precinct.",
-                        "CEO requesting immediate action."
-                    ]
+                        "CEO requesting immediate action.",
+                    ],
                 },
                 {
                     "code": "SE.SCARCITY",
                     "label": "Scarcity",
                     "description": "Limited availability",
-                    "examples": [
-                        "Only 2 spots left in the investment pool.",
-                        "Last chance to buy at this price."
-                    ]
+                    "examples": ["Only 2 spots left in the investment pool.", "Last chance to buy at this price."],
                 },
                 {
                     "code": "SE.FEAR",
@@ -203,8 +194,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Threats, loss, legal trouble",
                     "examples": [
                         "Your social security number has been suspended.",
-                        "A warrant has been issued for your arrest."
-                    ]
+                        "A warrant has been issued for your arrest.",
+                    ],
                 },
                 {
                     "code": "SE.RECIPROCITY",
@@ -212,8 +203,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Gifts, favors",
                     "examples": [
                         "I'll give you a free bonus if you sign up now.",
-                        "I helped you, now you need to help me move this money."
-                    ]
+                        "I helped you, now you need to help me move this money.",
+                    ],
                 },
                 {
                     "code": "SE.TRUST_BUILDING",
@@ -221,8 +212,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Long-term rapport",
                     "examples": [
                         "Talking for weeks about daily life and family before mentioning money.",
-                        "Sending small gifts to build confidence."
-                    ]
+                        "Sending small gifts to build confidence.",
+                    ],
                 },
                 {
                     "code": "SE.CONFUSION",
@@ -230,10 +221,10 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Overwhelming steps",
                     "examples": [
                         "Complex crypto withdrawal instructions designed to confuse.",
-                        "Technical jargon used to intimidate the victim."
-                    ]
-                }
-            ]
+                        "Technical jargon used to intimidate the victim.",
+                    ],
+                },
+            ],
         },
         {
             "id": "actions",
@@ -244,10 +235,7 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "code": "ACTION.SEND_MONEY",
                     "label": "Send Money",
                     "description": "Direct money transfer",
-                    "examples": [
-                        "Wire transfer to an overseas bank account.",
-                        "Zelle or Venmo payment to a stranger."
-                    ]
+                    "examples": ["Wire transfer to an overseas bank account.", "Zelle or Venmo payment to a stranger."],
                 },
                 {
                     "code": "ACTION.GIFT_CARDS",
@@ -255,8 +243,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Purchase and share gift card codes",
                     "examples": [
                         "Buy $500 iTunes cards and send me the codes.",
-                        "Pay your utility bill with Target gift cards."
-                    ]
+                        "Pay your utility bill with Target gift cards.",
+                    ],
                 },
                 {
                     "code": "ACTION.CRYPTO",
@@ -264,8 +252,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Send crypto to a wallet address",
                     "examples": [
                         "Deposit BTC to this wallet address to unlock your account.",
-                        "Invest USDT in this liquidity mining pool."
-                    ]
+                        "Invest USDT in this liquidity mining pool.",
+                    ],
                 },
                 {
                     "code": "ACTION.CREDENTIALS",
@@ -273,8 +261,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Provide login details or passwords",
                     "examples": [
                         "Log in to your bank to verify your identity.",
-                        "Provide your 2FA code to the 'support agent'."
-                    ]
+                        "Provide your 2FA code to the 'support agent'.",
+                    ],
                 },
                 {
                     "code": "ACTION.INSTALL",
@@ -282,28 +270,22 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Download and install apps or remote access tools",
                     "examples": [
                         "Download AnyDesk or TeamViewer for remote support.",
-                        "Install this 'trading app' (APK file) directly."
-                    ]
+                        "Install this 'trading app' (APK file) directly.",
+                    ],
                 },
                 {
                     "code": "ACTION.CLICK_LINK",
                     "label": "Click Link",
                     "description": "Visit a specific URL",
-                    "examples": [
-                        "Click here to track your package.",
-                        "Review document via this secure link."
-                    ]
+                    "examples": ["Click here to track your package.", "Review document via this secure link."],
                 },
                 {
                     "code": "ACTION.PROVIDE_PII",
                     "label": "Provide PII",
                     "description": "Share SSN, ID, or other sensitive info",
-                    "examples": [
-                        "What is your mother's maiden name?",
-                        "Send a photo of your driver's license."
-                    ]
-                }
-            ]
+                    "examples": ["What is your mother's maiden name?", "Send a photo of your driver's license."],
+                },
+            ],
         },
         {
             "id": "personas",
@@ -314,10 +296,7 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "code": "PERSONA.GOVERNMENT",
                     "label": "Government",
                     "description": "IRS, FBI, Police, etc.",
-                    "examples": [
-                        "IRS Agent claiming tax fraud.",
-                        "FBI agent investigating your bank account."
-                    ]
+                    "examples": ["IRS Agent claiming tax fraud.", "FBI agent investigating your bank account."],
                 },
                 {
                     "code": "PERSONA.BANK",
@@ -325,8 +304,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Chase, Wells Fargo, PayPal, etc.",
                     "examples": [
                         "Chase Fraud Department calling about suspicious charges.",
-                        "PayPal support email regarding a transaction dispute."
-                    ]
+                        "PayPal support email regarding a transaction dispute.",
+                    ],
                 },
                 {
                     "code": "PERSONA.TECH",
@@ -334,8 +313,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Microsoft, Apple, Amazon support",
                     "examples": [
                         "Amazon support claiming an unauthorized iPhone purchase.",
-                        "Microsoft technician fixing a virus."
-                    ]
+                        "Microsoft technician fixing a virus.",
+                    ],
                 },
                 {
                     "code": "PERSONA.EMPLOYER",
@@ -343,17 +322,14 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Recruiter, Boss, CEO",
                     "examples": [
                         "Recruiter offering a dream job.",
-                        "CEO emailing asking for gift cards for employees."
-                    ]
+                        "CEO emailing asking for gift cards for employees.",
+                    ],
                 },
                 {
                     "code": "PERSONA.ROMANTIC",
                     "label": "Romantic Partner",
                     "description": "Boyfriend, Girlfriend, Match",
-                    "examples": [
-                        "US Soldier deployed abroad.",
-                        "Successful business owner looking for love."
-                    ]
+                    "examples": ["US Soldier deployed abroad.", "Successful business owner looking for love."],
                 },
                 {
                     "code": "PERSONA.MARKETPLACE",
@@ -361,8 +337,8 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Facebook Marketplace, Craigslist user",
                     "examples": [
                         "Buyer claiming they paid but need insurance fee.",
-                        "Seller offering to ship item after payment."
-                    ]
+                        "Seller offering to ship item after payment.",
+                    ],
                 },
                 {
                     "code": "PERSONA.CHARITY",
@@ -370,15 +346,15 @@ TAXONOMY_DEFINITIONS: dict[str, Any] = {
                     "description": "Red Cross, GoFundMe, etc.",
                     "examples": [
                         "Volunteer collecting for disaster relief.",
-                        "Representative of a fake animal shelter."
-                    ]
-                }
-            ]
-        }
-    ]
+                        "Representative of a fake animal shelter.",
+                    ],
+                },
+            ],
+        },
+    ],
 }
 
-CODE_TO_LABEL: Dict[str, str] = {
+CODE_TO_LABEL: dict[str, str] = {
     "INTENT.IMPOSTER": "Imposter",
     "INTENT.INVESTMENT": "Investment",
     "INTENT.ROMANCE": "Romance",
@@ -414,5 +390,5 @@ CODE_TO_LABEL: Dict[str, str] = {
     "PERSONA.EMPLOYER": "Employer",
     "PERSONA.ROMANTIC": "Romantic Partner",
     "PERSONA.MARKETPLACE": "Marketplace User",
-    "PERSONA.CHARITY": "Charity"
+    "PERSONA.CHARITY": "Charity",
 }

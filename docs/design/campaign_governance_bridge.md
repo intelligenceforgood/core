@@ -5,7 +5,7 @@
 
 ## 1. Design Philosophy
 
-The i4g platform adopts a **Dual-Speed Architecture** to handle the inherent conflict between the rapid evolution of fraud tactics and the need for stable, consistent organizational reporting. 
+The i4g platform adopts a **Dual-Speed Architecture** to handle the inherent conflict between the rapid evolution of fraud tactics and the need for stable, consistent organizational reporting.
 
 Instead of forcing a single classification system to serve both masters, we proactively implement two distinct but interlinked layers:
 1.  **Governance Taxonomy:** The stable, strategic categorization of risk (Policy-driven).
@@ -26,7 +26,7 @@ This separation protects long-term reporting metrics from the volatility of dail
 
 ### 2.1 The Integration Strategy
 
-We upgrade the `Campaign` concept from a simple "Filter Bucket" into a **Strategic Classifier**. 
+We upgrade the `Campaign` concept from a simple "Filter Bucket" into a **Strategic Classifier**.
 
 *   **Inputs (Tactical):** The technical detection rules (keywords, regex, AI models) that identify a specific fraud pattern.
 *   **Outputs (Strategic):** The `associated_taxonomy_ids` field that explicitly maps this tactical pattern to its governing policy category.
@@ -37,7 +37,7 @@ This mapping acts as the translation layer between "What is happening now" and "
 
 1.  **Ingestion & Classification:** The system observes a case with raw technical signals (e.g., specific pig-butchering script text).
 2.  **Tactical Matching:** The `CampaignService` identifies this as part of the "Crypto Pig Butchering" Campaign.
-3.  **Strategic Rollup:** Because the Analyst has explicitly linked this Campaign to the `INTENT.INVESTMENT` (Investment) node, the system immediately understands the strategic impact. 
+3.  **Strategic Rollup:** Because the Analyst has explicitly linked this Campaign to the `INTENT.INVESTMENT` (Investment) node, the system immediately understands the strategic impact.
 4.  **Result:** Operational teams work the "Pig Butchering" queue, while Executive dashboards automatically reflect an increase in "Financial Facilitation" risk.
 
 ## 3. Implementation Design

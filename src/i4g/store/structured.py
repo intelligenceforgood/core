@@ -13,7 +13,7 @@ single SQLAlchemy path.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -21,12 +21,12 @@ import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
 
 from i4g.store import sql as sql_schema
+from i4g.store.schema import ScamRecord
 from i4g.store.sql import (
     METADATA,
     dialect_insert,
-    session_factory as build_session_factory,
 )
-from i4g.store.schema import ScamRecord
+from i4g.store.sql import session_factory as build_session_factory
 
 
 def _ensure_dir_for_db(db_path: str | Path) -> None:
@@ -85,7 +85,7 @@ class StructuredStore:
             try:
                 created_at = datetime.fromisoformat(created_at)
             except (ValueError, TypeError):
-                created_at = datetime.now(timezone.utc)
+                created_at = datetime.now(UTC)
         return ScamRecord(
             case_id=row.case_id,
             text=row.text,
@@ -149,9 +149,7 @@ class StructuredStore:
         """List the most recent records ordered by ``created_at`` descending."""
         with self._session_factory() as session:
             rows = session.execute(
-                sa.select(sql_schema.scam_records)
-                .order_by(sql_schema.scam_records.c.created_at.desc())
-                .limit(limit)
+                sa.select(sql_schema.scam_records).order_by(sql_schema.scam_records.c.created_at.desc()).limit(limit)
             ).all()
             return [self._row_to_record(r) for r in rows]
 
@@ -197,9 +195,7 @@ class StructuredStore:
                 # JSON entity search — dialect-aware
                 if dialect == "postgresql":
                     if isinstance(value, str):
-                        query = query.where(
-                            sql_schema.scam_records.c.entities[field].astext.ilike(f"%{value}%")
-                        )
+                        query = query.where(sql_schema.scam_records.c.entities[field].astext.ilike(f"%{value}%"))
                     else:
                         query = query.where(sql_schema.scam_records.c.entities[field].isnot(None))
                 else:
@@ -213,14 +209,17 @@ class StructuredStore:
             records = [self._row_to_record(r) for r in rows]
 
             # For entity searches on SQLite, apply Python-side value filter
-            if field not in ("case_id", "classification", "confidence", "dataset") and dialect != "postgresql":
-                if isinstance(value, str):
-                    records = [
-                        r
-                        for r in records
-                        if field in (r.entities or {})
-                        and any(value.lower() in str(x).lower() for x in (r.entities or {}).get(field, []))
-                    ]
+            if (
+                field not in ("case_id", "classification", "confidence", "dataset")
+                and dialect != "postgresql"
+                and isinstance(value, str)
+            ):
+                records = [
+                    r
+                    for r in records
+                    if field in (r.entities or {})
+                    and any(value.lower() in str(x).lower() for x in (r.entities or {}).get(field, []))
+                ]
 
             return records
 

@@ -2,7 +2,6 @@
 Embedding generation using Ollama local embedding models.
 """
 
-
 from langchain_ollama import OllamaEmbeddings
 
 

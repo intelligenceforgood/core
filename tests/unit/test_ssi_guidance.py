@@ -12,6 +12,7 @@ avoid any filesystem / database I/O.
 
 from __future__ import annotations
 
+import contextlib
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -32,10 +33,8 @@ def _reset_rate_limit() -> None:
     """Clear the rate-limit log between tests so counts don't bleed."""
     from i4g.api import app as app_module  # type: ignore[attr-defined]
 
-    try:
+    with contextlib.suppress(AttributeError):
         app_module.REQUEST_LOG.clear()
-    except AttributeError:
-        pass
 
 
 def _mock_store() -> MagicMock:

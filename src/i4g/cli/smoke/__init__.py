@@ -25,10 +25,11 @@ def smoke_dossiers(
         result = smoke_script.run_smoke(api_url=api_url, token=token, status=status, limit=limit, plan_id=plan_id)
     except smoke_script.SmokeError as exc:  # type: ignore[attr-defined]
         typer.echo(f"SMOKE FAILED: {exc}", err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1)  # noqa: B904
     typer.echo(
-        "SMOKE OK: plan=%s verified, manifest=%s, signature=%s"
-        % (result.plan_id, result.manifest_path or "<none>", result.signature_path or "<none>")
+        "SMOKE OK: plan={} verified, manifest={}, signature={}".format(
+            result.plan_id, result.manifest_path or "<none>", result.signature_path or "<none>"
+        )  # noqa: E501
     )
 
 
@@ -105,9 +106,7 @@ def smoke_cloud_run(extra_args: list[str] | None = typer.Argument(None)) -> None
                 container = value
 
     # Defaults preserved from the original script env fallbacks.
-    resolved_api_url = (
-        api_url or os.getenv("I4G_SMOKE_API_URL") or DEFAULT_SMOKE_API_URL
-    ).rstrip("/")
+    resolved_api_url = (api_url or os.getenv("I4G_SMOKE_API_URL") or DEFAULT_SMOKE_API_URL).rstrip("/")
     resolved_token = token or os.getenv("I4G_SMOKE_TOKEN") or "dev-analyst-token"
     resolved_project = project or os.getenv("I4G_SMOKE_PROJECT") or "i4g-dev"
     resolved_region = region or os.getenv("I4G_SMOKE_REGION") or "us-central1"

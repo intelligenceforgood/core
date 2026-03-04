@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
 from collections.abc import Iterable
+from typing import Any
 
 _NETWORK_ENTITY_FIELDS: dict[str, tuple[str, ...]] = {
     "browser_agent": ("browser_agent", "browser", "browser_string", "user_agent", "ua"),

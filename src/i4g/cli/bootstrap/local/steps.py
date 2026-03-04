@@ -12,15 +12,15 @@ from .constants import (
     BUNDLES_DIR,
     CHAT_SCREENS_DIR,
     CHROMA_DIR,
+    DEFAULT_PILOT_CASES,
     MANUAL_DEMO_DIR,
     OCR_OUTPUT,
     PILOT_CASES_PATH,
     REPORTS_DIR,
     ROOT,
     SEMANTIC_OUTPUT,
-    SRC_DIR,
     SQLITE_DB,
-    DEFAULT_PILOT_CASES,
+    SRC_DIR,
 )
 
 

@@ -6,10 +6,10 @@ import json
 import logging
 import socket
 import threading
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any
 from collections.abc import Iterable, Mapping, MutableMapping
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 from i4g.settings import Settings, get_settings
 
@@ -53,7 +53,7 @@ class Observability:
         payload = {
             "event": event,
             "component": self.component,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             **_sanitize_dict(fields),
         }
         if self._structured_logging:

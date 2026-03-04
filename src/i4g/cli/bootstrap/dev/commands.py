@@ -7,7 +7,14 @@ from pathlib import Path
 
 import typer
 
-from .constants import DEFAULT_JOBS, DEFAULT_PROJECT, DEFAULT_REGION, DEFAULT_REPORT_DIR, DEFAULT_SMOKE_API_URL, DEFAULT_WIF_SA
+from .constants import (
+    DEFAULT_JOBS,
+    DEFAULT_PROJECT,
+    DEFAULT_REGION,
+    DEFAULT_REPORT_DIR,
+    DEFAULT_SMOKE_API_URL,
+    DEFAULT_WIF_SA,
+)
 from .orchestrator import run_dev
 
 dev_app = typer.Typer(help="Bootstrap dev via Cloud Run jobs and optional smokes.")

@@ -60,8 +60,8 @@ def vertex_search_smoke(
     top = results[0].document
     summary = top.struct_data.get("summary") if top.struct_data else None
     console.print(
-        "[green]✅ Vertex search smoke:[/green] %d result(s) (top id=%s, summary=%s)"
-        % (len(results), top.id, summary or top.title or "<unknown>")
+        f"[green]✅ Vertex search smoke:[/green] {len(results)} result(s)"
+        f" (top id={top.id}, summary={summary or top.title or '<unknown>'})"
     )
 
 

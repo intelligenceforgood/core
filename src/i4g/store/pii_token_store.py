@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterable
 
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -60,7 +60,7 @@ class PiiTokenStore:
         """Insert the token row if not already present."""
 
         encrypted_value = self._encrypt(canonical_value)
-        created_at = datetime.now(timezone.utc).isoformat()
+        created_at = datetime.now(UTC).isoformat()
         with self._connect() as conn:
             conn.execute(
                 """
@@ -99,7 +99,7 @@ class PiiTokenStore:
 
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT token, prefix, normalized_value, canonical_value, encrypted_value, pepper_version, detector, case_id, created_at FROM pii_tokens WHERE token = ?",
+                "SELECT token, prefix, normalized_value, canonical_value, encrypted_value, pepper_version, detector, case_id, created_at FROM pii_tokens WHERE token = ?",  # noqa: E501
                 (token,),
             ).fetchone()
         if not row:
@@ -132,7 +132,7 @@ class PiiTokenStore:
     ) -> None:
         """Record an audit log entry for a sensitive operation."""
 
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
         with self._connect() as conn:
             conn.execute(
                 """
@@ -162,7 +162,7 @@ class PiiTokenStore:
     def list_tokens(self, *, prefixes: Iterable[str] | None = None) -> list[StoredToken]:
         """Enumerate stored tokens (dev/test helper)."""
 
-        query = "SELECT token, prefix, normalized_value, canonical_value, encrypted_value, pepper_version, detector, case_id, created_at FROM pii_tokens"
+        query = "SELECT token, prefix, normalized_value, canonical_value, encrypted_value, pepper_version, detector, case_id, created_at FROM pii_tokens"  # noqa: E501
         params: list[Any] = []
         if prefixes:
             prefix_list = list(prefixes)
@@ -202,8 +202,7 @@ class PiiTokenStore:
 
     def _init_tables(self) -> None:
         with self._connect() as conn:
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS pii_tokens (
                     token TEXT PRIMARY KEY,
                     prefix TEXT NOT NULL,
@@ -216,11 +215,9 @@ class PiiTokenStore:
                     case_id TEXT,
                     created_at TEXT NOT NULL
                 )
-                """
-            )
+                """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_pii_tokens_prefix ON pii_tokens(prefix)")
-            conn.execute(
-                """
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS audit_log (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     timestamp TEXT NOT NULL,
@@ -232,8 +229,7 @@ class PiiTokenStore:
                     reason TEXT,
                     case_id TEXT
                 )
-                """
-            )
+                """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_log_token ON audit_log(token)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor)")
 

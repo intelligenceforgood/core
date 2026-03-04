@@ -4,7 +4,7 @@ Verifies that admin-only endpoints (campaigns create/update, task update)
 reject non-admin users with 403.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient

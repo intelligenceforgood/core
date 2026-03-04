@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,7 +18,7 @@ def _sample_plan(plan_id: str = "test-plan-001") -> DossierPlan:
     candidate = DossierCandidate(
         case_id="case-1",
         loss_amount_usd=Decimal("125000"),
-        accepted_at=datetime(2025, 12, 1, tzinfo=timezone.utc),
+        accepted_at=datetime(2025, 12, 1, tzinfo=UTC),
         jurisdiction="US-CA",
         cross_border=True,
         primary_entities=("wallet:test",),
@@ -27,7 +26,7 @@ def _sample_plan(plan_id: str = "test-plan-001") -> DossierPlan:
     return DossierPlan(
         plan_id=plan_id,
         jurisdiction_key="US-CA",
-        created_at=datetime(2025, 12, 2, tzinfo=timezone.utc),
+        created_at=datetime(2025, 12, 2, tzinfo=UTC),
         total_loss_usd=Decimal("125000"),
         cases=[candidate],
         bundle_reason="unit-test",
@@ -63,7 +62,7 @@ def test_list_dossiers_returns_manifest_and_signature(tmp_path, queue_store, mon
     manifest_path.write_text(json.dumps(manifest_payload))
     signature_payload = {
         "algorithm": "sha256",
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "artifacts": [{"label": "manifest", "path": str(manifest_path), "size_bytes": 128, "hash": "abc"}],
         "warnings": [],
     }

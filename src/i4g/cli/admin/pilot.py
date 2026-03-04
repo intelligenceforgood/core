@@ -85,7 +85,8 @@ def schedule_pilot_dossiers(
 
     if schedule_summary.missing_cases:
         console.print(
-            "[yellow]\u26a0\ufe0f Candidate provider missing case_id(s):[/yellow] " + ", ".join(schedule_summary.missing_cases)
+            "[yellow]\u26a0\ufe0f Candidate provider missing case_id(s):[/yellow] "
+            + ", ".join(schedule_summary.missing_cases)
         )
 
     if not schedule_summary.plan_ids:

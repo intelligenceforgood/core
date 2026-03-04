@@ -1,6 +1,6 @@
+import json
 import sys
 from pathlib import Path
-import json
 
 # Add source to path
 sys.path.append(str(Path(__file__).parents[3] / "src"))

@@ -8,7 +8,7 @@ Consolidates the ``_parse_datetime`` helper that was duplicated across
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal, overload
 
 
@@ -43,7 +43,7 @@ def parse_datetime(value: Any, *, on_error: Literal["none", "now", "raise"] = "n
         ValueError: If *on_error* is ``"raise"`` and parsing fails.
     """
     if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
 
     if isinstance(value, str):
         text = value.strip()
@@ -52,13 +52,13 @@ def parse_datetime(value: Any, *, on_error: Literal["none", "now", "raise"] = "n
                 text = text[:-1] + "+00:00"
             try:
                 parsed = datetime.fromisoformat(text)
-                return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+                return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
             except ValueError:
                 pass
 
     # Fallback
     if on_error == "now":
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
     if on_error == "raise":
         raise ValueError(f"Cannot parse datetime from {value!r}")
     return None

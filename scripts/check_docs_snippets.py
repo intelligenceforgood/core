@@ -8,6 +8,7 @@ This script writes a summary to `reports/docs_snippet_report.txt` and
 exits with 0 so it can be used as a non-blocking check in CI. It prints
 results to stdout.
 """
+
 import argparse
 import re
 from pathlib import Path
@@ -81,7 +82,7 @@ def main():
         return 0
 
     with report_path.open("w", encoding="utf-8") as out:
-        out.write("Large fenced code blocks (>={})\n\n".format(args.max_lines))
+        out.write(f"Large fenced code blocks (>={args.max_lines})\n\n")
         for f in findings_all:
             line = f"{f['file']}:{f['start_line']}-{f['end_line']} ({f['lines']} lines) language='{f['lang']}'\n"
             out.write(line)

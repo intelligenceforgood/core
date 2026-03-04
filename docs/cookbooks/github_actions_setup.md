@@ -1,7 +1,7 @@
 # Setting Up GitHub Actions CI/CD with Workload Identity Federation
 
-**Estimated time:** 45–60 minutes  
-**Prerequisites:** Terraform access to dev and prod projects, GitHub admin access to `intelligenceforgood` org repos  
+**Estimated time:** 45–60 minutes
+**Prerequisites:** Terraform access to dev and prod projects, GitHub admin access to `intelligenceforgood` org repos
 **Scope:** Configure GitHub Actions workflows for automated testing, Docker builds, and Terraform deployments
 
 ---

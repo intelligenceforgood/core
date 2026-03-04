@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from i4g.reports.bundle_builder import DossierCandidate, DossierPlan
@@ -10,7 +10,7 @@ from i4g.reports.dossier_analysis import analyze_plan
 
 
 def test_analyze_plan_computes_summary_metrics() -> None:
-    base_time = datetime(2025, 12, 1, tzinfo=timezone.utc)
+    base_time = datetime(2025, 12, 1, tzinfo=UTC)
     candidates = [
         DossierCandidate(
             case_id="case-1",

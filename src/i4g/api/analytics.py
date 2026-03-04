@@ -1,7 +1,7 @@
 """Expose real analytics payloads for the console overview page."""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -13,10 +13,10 @@ from i4g.api.response_models import AnalyticsOverviewResponse
 from i4g.api.review_deps import get_db_session
 from i4g.store.sql import (
     cases,
-    review_queue,
-    review_actions,
-    intake_records,
     ingestion_runs,
+    intake_records,
+    review_actions,
+    review_queue,
 )
 
 logger = logging.getLogger(__name__)
@@ -112,9 +112,9 @@ def _get_metric_time_to_action(session: Session, now: datetime) -> dict[str, Any
             if act_at and case_at:
                 # Ensure timezone awareness compatibility
                 if act_at.tzinfo is None:
-                    act_at = act_at.replace(tzinfo=timezone.utc)
+                    act_at = act_at.replace(tzinfo=UTC)
                 if case_at.tzinfo is None:
-                    case_at = case_at.replace(tzinfo=timezone.utc)
+                    case_at = case_at.replace(tzinfo=UTC)
                 diffs.append((act_at - case_at).total_seconds() / 3600.0)
 
         if not diffs:
@@ -192,11 +192,7 @@ def _get_metric_sla(session: Session, now: datetime) -> dict[str, Any]:
             review_queue.c.queued_at,
             func.min(review_actions.c.created_at).label("first_action_at"),
         )
-        .select_from(
-            review_queue.outerjoin(
-                review_actions, review_queue.c.review_id == review_actions.c.review_id
-            )
-        )
+        .select_from(review_queue.outerjoin(review_actions, review_queue.c.review_id == review_actions.c.review_id))
         .where(review_queue.c.queued_at >= window_start)
         .group_by(review_queue.c.review_id, review_queue.c.priority, review_queue.c.queued_at)
     ).all()
@@ -219,15 +215,15 @@ def _get_metric_sla(session: Session, now: datetime) -> dict[str, Any]:
         queued = row.queued_at
         if first_action and queued:
             if first_action.tzinfo is None:
-                first_action = first_action.replace(tzinfo=timezone.utc)
+                first_action = first_action.replace(tzinfo=UTC)
             if queued.tzinfo is None:
-                queued = queued.replace(tzinfo=timezone.utc)
+                queued = queued.replace(tzinfo=UTC)
             if (first_action - queued).total_seconds() <= threshold_h * 3600:
                 met += 1
         elif first_action is None:
             # No action yet — check if still within window
             if queued.tzinfo is None:
-                queued = queued.replace(tzinfo=timezone.utc)
+                queued = queued.replace(tzinfo=UTC)
             if (now - queued).total_seconds() <= threshold_h * 3600:
                 met += 1
 
@@ -245,18 +241,46 @@ def _get_metric_sla(session: Session, now: datetime) -> dict[str, Any]:
 
 # Country-code → region mapping for geography breakdown
 _REGION_MAP: dict[str, str] = {
-    "US": "North America", "CA": "North America", "MX": "North America",
-    "GB": "Europe", "DE": "Europe", "FR": "Europe", "ES": "Europe",
-    "IT": "Europe", "NL": "Europe", "SE": "Europe", "NO": "Europe",
-    "CH": "Europe", "AT": "Europe", "PL": "Europe", "BE": "Europe",
-    "BR": "LATAM", "AR": "LATAM", "CO": "LATAM", "CL": "LATAM",
-    "PE": "LATAM", "EC": "LATAM", "VE": "LATAM",
-    "CN": "Asia-Pacific", "JP": "Asia-Pacific", "KR": "Asia-Pacific",
-    "IN": "Asia-Pacific", "AU": "Asia-Pacific", "NZ": "Asia-Pacific",
-    "SG": "Asia-Pacific", "PH": "Asia-Pacific", "TH": "Asia-Pacific",
-    "ID": "Asia-Pacific", "MY": "Asia-Pacific", "VN": "Asia-Pacific",
-    "NG": "Africa", "ZA": "Africa", "KE": "Africa", "GH": "Africa",
-    "EG": "Africa", "ET": "Africa",
+    "US": "North America",
+    "CA": "North America",
+    "MX": "North America",
+    "GB": "Europe",
+    "DE": "Europe",
+    "FR": "Europe",
+    "ES": "Europe",
+    "IT": "Europe",
+    "NL": "Europe",
+    "SE": "Europe",
+    "NO": "Europe",
+    "CH": "Europe",
+    "AT": "Europe",
+    "PL": "Europe",
+    "BE": "Europe",
+    "BR": "LATAM",
+    "AR": "LATAM",
+    "CO": "LATAM",
+    "CL": "LATAM",
+    "PE": "LATAM",
+    "EC": "LATAM",
+    "VE": "LATAM",
+    "CN": "Asia-Pacific",
+    "JP": "Asia-Pacific",
+    "KR": "Asia-Pacific",
+    "IN": "Asia-Pacific",
+    "AU": "Asia-Pacific",
+    "NZ": "Asia-Pacific",
+    "SG": "Asia-Pacific",
+    "PH": "Asia-Pacific",
+    "TH": "Asia-Pacific",
+    "ID": "Asia-Pacific",
+    "MY": "Asia-Pacific",
+    "VN": "Asia-Pacific",
+    "NG": "Africa",
+    "ZA": "Africa",
+    "KE": "Africa",
+    "GH": "Africa",
+    "EG": "Africa",
+    "ET": "Africa",
 }
 _ALL_REGIONS = ["North America", "Europe", "LATAM", "Asia-Pacific", "Africa"]
 
@@ -275,6 +299,7 @@ def _get_geography_breakdown(session: Session) -> list[dict[str, Any]]:
         if isinstance(meta, str):
             try:
                 import json
+
                 meta = json.loads(meta)
             except (ValueError, TypeError):
                 continue
@@ -292,7 +317,7 @@ def _get_geography_breakdown(session: Session) -> list[dict[str, Any]]:
 def get_analytics_overview(session: Session = Depends(get_db_session)) -> dict[str, object]:
     """Return the analytics payload populated from the database."""
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # 1. Top Metrics
     metrics = [

@@ -20,4 +20,3 @@ or API endpoint you plan to operate.
 - Subpoena handoffs and evidence packaging: [`dossiers_subpoena_handoff.md`](./dossiers_subpoena_handoff.md).
 
 Keep this index updated whenever you add a new console workflow so analysts can jump directly to the relevant playbook.
-

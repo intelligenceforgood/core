@@ -22,7 +22,6 @@ Examples:
 from __future__ import annotations
 
 import argparse
-from typing import List
 
 import google.auth
 from google.api_core import exceptions
@@ -52,7 +51,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def build_impersonated_credentials(service_account: str, scopes: List[str]) -> impersonated_credentials.Credentials:
+def build_impersonated_credentials(service_account: str, scopes: list[str]) -> impersonated_credentials.Credentials:
     source_credentials, _ = google.auth.default(scopes=scopes)
     return impersonated_credentials.Credentials(
         source_credentials=source_credentials,

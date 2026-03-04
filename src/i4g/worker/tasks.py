@@ -76,6 +76,7 @@ def generate_report_for_case(
         store.log_action(review_id, actor="worker", action="error", payload={"error": str(exc)})
         return f"error:{exc}"
 
+
 def classify_case(case_id: str) -> str:
     """Run fraud classification on a specific case and update the record.
 

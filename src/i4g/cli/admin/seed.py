@@ -6,12 +6,13 @@ import logging
 import random
 from uuid import uuid4
 
-from i4g.services.factories import build_review_store
-from i4g.store.review_store import ReviewStore
-from i4g.store import sql as sql_schema
-from i4g.store.sql import session_factory
-from i4g.services.campaigns import CampaignService
 from sqlalchemy import delete
+
+from i4g.services.campaigns import CampaignService
+from i4g.services.factories import build_review_store
+from i4g.store import sql as sql_schema
+from i4g.store.review_store import ReviewStore
+from i4g.store.sql import session_factory
 
 LOGGER = logging.getLogger(__name__)
 

@@ -20,7 +20,6 @@ import sys
 
 from i4g.services.factories import (
     build_evidence_storage,
-    build_review_store,
     build_tokenization_service,
     build_vector_store,
 )

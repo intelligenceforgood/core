@@ -7,9 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from i4g.api.camel import CamelModel
-
 from i4g.api.auth import require_role, require_token
+from i4g.api.camel import CamelModel
 from i4g.services.campaigns import CampaignService
 from i4g.store.sql import session_factory
 
@@ -74,7 +73,7 @@ def create_campaign(
             associated_taxonomy_ids=payload.associated_taxonomy_ids,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))  # noqa: B904
 
 
 @router.patch("/{campaign_id}", response_model=dict[str, Any])
@@ -94,5 +93,5 @@ def update_campaign(
             associated_taxonomy_ids=payload.associated_taxonomy_ids,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))  # noqa: B904
     return {"updated": True, "campaign_id": campaign_id}

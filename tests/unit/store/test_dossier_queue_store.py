@@ -2,18 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from decimal import Decimal
-from types import SimpleNamespace
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
-import pytest
-import sqlalchemy as sa
-from sqlalchemy.orm import sessionmaker
-
 from i4g.store.dossier_queue_store import DossierQueueStore
-from i4g.store.sql import METADATA
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -33,7 +25,7 @@ def _make_plan(plan_id: str = "plan-001") -> MagicMock:
     plan.to_dict.return_value = {
         "plan_id": plan_id,
         "jurisdiction_key": "US-CA",
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "total_loss_usd": "10000.00",
         "bundle_reason": "test bundle",
         "cross_border": False,

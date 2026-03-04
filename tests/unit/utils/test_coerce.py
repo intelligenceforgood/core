@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import os
-
 import pytest
 
 from i4g.utils.coerce import coerce_bool, env_bool, env_int, env_list
-
 
 # ── coerce_bool ──────────────────────────────────────────────────────
 

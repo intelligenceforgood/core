@@ -1,9 +1,9 @@
 # i4g Contributors Hall of Fame
 
-> **Status**: Placeholder — awaiting first official update  
+> **Status**: Placeholder — awaiting first official update
 > **Last Updated**: October 30, 2025
 
-Thank you to everyone volunteering time and expertise to make Intelligence for Good a reality.  
+Thank you to everyone volunteering time and expertise to make Intelligence for Good a reality.
 This page will list individual contributors, their focus areas, and notable pull requests once the first production cohort is confirmed.
 
 ## How to be listed

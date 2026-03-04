@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -32,7 +32,7 @@ def _make_review_store(db_path: Path) -> ReviewStore:
 
 def _pilot_payload(case_id: str = "case-pilot-test") -> dict:
     # Use a recent timestamp so the candidate passes the recency filter.
-    recent_ts = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+    recent_ts = (datetime.now(UTC) - timedelta(days=5)).isoformat()
     return {
         "case_id": case_id,
         "text": "Victim moved funds into suspect wallet after staged romance.",

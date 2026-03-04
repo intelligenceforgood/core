@@ -83,7 +83,7 @@ Review the [Azure legacy data primer](azure_legacy_data.md) for the environment 
   ```bash
   # Reset the user to a fresh state with a known password
   python scripts/migration/reset_sql_user.py "YourStrongPassword123!"
-  
+
   # Then export the password and run the fix script
   export SQL_MIGRATION_PASSWORD="YourStrongPassword123!"
   ./scripts/migration/fix_and_run.sh

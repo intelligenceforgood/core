@@ -1,4 +1,3 @@
-import time
 from unittest.mock import patch
 
 import pytest
@@ -42,7 +41,7 @@ async def test_rate_limiting_direct_call():
         mock_time.return_value = current_time
 
         # Call middleware 10 times, they should pass
-        for i in range(MAX_REQUESTS):
+        for _i in range(MAX_REQUESTS):
             await rate_limit_middleware(request, mock_call_next)
 
         # The 11th call should raise an exception

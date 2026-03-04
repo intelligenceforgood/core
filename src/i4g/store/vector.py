@@ -200,9 +200,7 @@ class VectorStore:
         else:
             self.embeddings = None
 
-        default_dir = (
-            str(settings.vector.chroma_dir) if backend_name == "chroma" else str(settings.vector.faiss_dir)
-        )
+        default_dir = str(settings.vector.chroma_dir) if backend_name == "chroma" else str(settings.vector.faiss_dir)
         self.persist_dir = persist_dir or default_dir
 
         if reset:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from i4g.services.factories import (
@@ -171,7 +171,7 @@ class IngestPipeline:
         self._default_dataset = default_dataset or ingestion_settings.default_dataset
         self._sql_enabled = enable_sql if enable_sql is not None else ingestion_settings.enable_sql
         self._vertex_enabled = enable_vertex if enable_vertex is not None else ingestion_settings.enable_vertex
-        
+
         # Detect potential double-write configuration
         if self._vertex_enabled and settings.vector.backend == "vertex_ai":
             LOGGER.warning(
@@ -291,10 +291,12 @@ class IngestPipeline:
             base_metadata = {}
 
         final_metadata = base_metadata.copy()
-        final_metadata.update({
-            "explanation": classification_result.get("explanation"),
-            "reasons": classification_result.get("reasons"),
-        })
+        final_metadata.update(
+            {
+                "explanation": classification_result.get("explanation"),
+                "reasons": classification_result.get("reasons"),
+            }
+        )
 
         record = ScamRecord(
             case_id=case_id,
@@ -306,7 +308,7 @@ class IngestPipeline:
             },
             classification=classification_result.get("fraud_type", ""),
             confidence=float(classification_result.get("fraud_confidence", 0.0)),
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             metadata=final_metadata,
         )
 

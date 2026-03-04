@@ -15,11 +15,6 @@ Backward-compatible re-exports are provided so that existing imports
 
 from fastapi import APIRouter
 
-# Sub-routers ----------------------------------------------------------------
-from i4g.api.review_detail import router as detail_router
-from i4g.api.review_queue import router as queue_router
-from i4g.api.review_search import router as search_router
-
 # Backward-compatible re-exports ---------------------------------------------
 from i4g.api.review_deps import (  # noqa: F401 — re-exported for callers
     SEARCH_AUDIT_REVIEW_ID,
@@ -30,12 +25,16 @@ from i4g.api.review_deps import (  # noqa: F401 — re-exported for callers
     get_retriever,
     get_store,
 )
+
+# Sub-routers ----------------------------------------------------------------
+from i4g.api.review_detail import router as detail_router
 from i4g.api.review_queue import (  # noqa: F401
     AnnotateRequest,
     DecisionRequest,
     EnqueueRequest,
     generate_report_for_case,
 )
+from i4g.api.review_queue import router as queue_router
 from i4g.api.review_search import (  # noqa: F401
     BulkTagUpdateRequest,
     EntityFilterModel,
@@ -46,6 +45,7 @@ from i4g.api.review_search import (  # noqa: F401
     SavedSearchUpdate,
     TimeRangeModel,
 )
+from i4g.api.review_search import router as search_router
 
 # Composite router -----------------------------------------------------------
 

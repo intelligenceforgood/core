@@ -384,4 +384,3 @@ This design:
 - Is cheap, fast, and maintainable
 
 This is the recommended production architecture under current constraints.
-

@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from i4g.services.account_list.queries import IndicatorQuery
 from i4g.services.account_list.retriever import FinancialEntityRetriever
 
 
 class _FakeHybridRetriever:
-    def __init__(self, results: List[Dict[str, Any]]) -> None:
+    def __init__(self, results: list[dict[str, Any]]) -> None:
         self._results = results
 
-    def query(self, **_: Any) -> Dict[str, Any]:
+    def query(self, **_: Any) -> dict[str, Any]:
         return {"results": self._results}
 
 
@@ -28,7 +28,7 @@ def _indicator_query() -> IndicatorQuery:
 
 
 def test_fetch_documents_includes_vector_entries() -> None:
-    created_at = datetime(2025, 11, 28, tzinfo=timezone.utc).isoformat()
+    created_at = datetime(2025, 11, 28, tzinfo=UTC).isoformat()
     hybrid = _FakeHybridRetriever(
         [
             {
@@ -63,7 +63,7 @@ def test_fetch_documents_includes_vector_entries() -> None:
 
 
 def test_vector_entries_respect_time_window() -> None:
-    created_at = datetime(2025, 1, 1, tzinfo=timezone.utc).isoformat()
+    created_at = datetime(2025, 1, 1, tzinfo=UTC).isoformat()
     hybrid = _FakeHybridRetriever(
         [
             {
@@ -80,7 +80,7 @@ def test_vector_entries_respect_time_window() -> None:
     )
     retriever = FinancialEntityRetriever(hybrid=hybrid)
 
-    start = datetime(2025, 2, 1, tzinfo=timezone.utc)
+    start = datetime(2025, 2, 1, tzinfo=UTC)
     end = start + timedelta(days=1)
 
     docs = retriever.fetch_documents(

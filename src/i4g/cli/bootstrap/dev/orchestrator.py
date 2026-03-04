@@ -6,8 +6,8 @@ import argparse
 import logging
 import os
 import subprocess
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 
 from i4g.cli.bootstrap.common import (
     DossierSmokeResult,

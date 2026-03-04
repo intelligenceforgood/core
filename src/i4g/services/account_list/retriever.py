@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import datetime, timezone
-from typing import Any
 from collections.abc import Iterable
+from datetime import UTC, datetime
+from typing import Any
 
 from i4g.settings import get_settings
 from i4g.store.retriever import HybridRetriever
@@ -55,8 +55,8 @@ def _normalize_timestamp(value: datetime | None) -> datetime | None:
     if value is None:
         return None
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _within_range(timestamp: datetime | None, start: datetime | None, end: datetime | None) -> bool:
@@ -68,9 +68,7 @@ def _within_range(timestamp: datetime | None, start: datetime | None, end: datet
         return True
     if normalized_start and normalized_timestamp < normalized_start:
         return False
-    if normalized_end and normalized_timestamp > normalized_end:
-        return False
-    return True
+    return not (normalized_end and normalized_timestamp > normalized_end)
 
 
 def _vector_override_from_env() -> bool | None:

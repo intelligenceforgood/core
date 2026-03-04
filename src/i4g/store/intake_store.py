@@ -8,7 +8,7 @@ sprint (WS-3 / D16).
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -18,8 +18,8 @@ from sqlalchemy.orm import sessionmaker
 from i4g.store import sql as sql_schema
 from i4g.store.sql import (
     METADATA,
-    session_factory as build_session_factory,
 )
+from i4g.store.sql import session_factory as build_session_factory
 
 
 class IntakeStore:
@@ -75,7 +75,7 @@ class IntakeStore:
         metadata: dict[str, Any] | None = None,
     ) -> str:
         intake_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             session.execute(
                 sa.insert(sql_schema.intake_records).values(
@@ -101,7 +101,7 @@ class IntakeStore:
         return intake_id
 
     def update_intake_status(self, intake_id: str, status: str, message: str | None = None) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             values: dict[str, Any] = {"status": status, "updated_at": now}
             if message is not None:
@@ -114,7 +114,7 @@ class IntakeStore:
             session.commit()
 
     def attach_case(self, intake_id: str, *, case_id: str | None = None, review_id: str | None = None) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             values: dict[str, Any] = {"updated_at": now}
             if case_id is not None:
@@ -144,7 +144,7 @@ class IntakeStore:
         storage_backend: str,
     ) -> str:
         attachment_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             session.execute(
                 sa.insert(sql_schema.intake_attachments).values(
@@ -175,7 +175,7 @@ class IntakeStore:
         metadata: dict[str, Any] | None = None,
     ) -> str:
         job_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             session.execute(
                 sa.insert(sql_schema.intake_jobs).values(
@@ -204,7 +204,7 @@ class IntakeStore:
         message: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> bool:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             # Get intake_id for this job
             job_row = session.execute(

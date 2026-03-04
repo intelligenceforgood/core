@@ -11,9 +11,8 @@ from __future__ import annotations
 
 import pytest
 import sqlalchemy as sa
-from sqlalchemy.orm import sessionmaker
-
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker
 
 from i4g.api.app import app
 from i4g.store.review_store import ReviewStore
@@ -208,9 +207,7 @@ class TestBatchEntities:
         """Submitting the same entity twice updates rather than duplicating."""
         case_id = self._create_case()
         entity_payload = {
-            "entities": [
-                {"entity_type": "domain", "canonical_value": "dup.example.com", "confidence": 0.5}
-            ]
+            "entities": [{"entity_type": "domain", "canonical_value": "dup.example.com", "confidence": 0.5}]
         }
         resp1 = client.post(f"/cases/{case_id}/entities/batch", json=entity_payload)
         assert resp1.status_code == 201
@@ -276,10 +273,6 @@ class TestBatchIndicators:
         """Batch-create returns 404 for a nonexistent case_id."""
         resp = client.post(
             "/cases/fake-case/indicators/batch",
-            json={
-                "indicators": [
-                    {"category": "crypto_wallet", "type": "ETH", "number": "0x1"}
-                ]
-            },
+            json={"indicators": [{"category": "crypto_wallet", "type": "ETH", "number": "0x1"}]},
         )
         assert resp.status_code == 404

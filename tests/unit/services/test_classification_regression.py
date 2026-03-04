@@ -8,13 +8,13 @@ Validates that:
 """
 
 import json
-import yaml
-import pytest
 
+import pytest
+import yaml
+
+from i4g.services.classifier import FraudClassifier, MockLLMClient
 from i4g.settings import PROJECT_ROOT
 from i4g.taxonomy.models import FraudClassificationResult, ScoredLabel
-from i4g.services.classifier import FraudClassifier, MockLLMClient
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -139,9 +139,9 @@ class TestRiskScoringRegression:
     def test_mock_classification_nonzero_score(self, classifier: FraudClassifier):
         """Mock classifier should return non-zero risk_score now that risk_weights exist."""
         result = classifier.classify("Suspicious text for testing")
-        assert result.risk_score > 0.0, (
-            f"Expected non-zero risk_score with risk_weights populated, got {result.risk_score}"
-        )
+        assert (
+            result.risk_score > 0.0
+        ), f"Expected non-zero risk_score with risk_weights populated, got {result.risk_score}"
 
     def test_risk_score_within_bounds(self, classifier: FraudClassifier):
         """Risk score must be in [0, 100]."""
@@ -213,6 +213,6 @@ class TestGoldenRoundTrip:
             # Verify key fields survive the round-trip
             assert len(dumped["intent"]) == len(ex["output"]["intent"]), f"Example {i}: intent count mismatch"
             assert dumped["risk_score"] == ex["output"]["risk_score"], f"Example {i}: risk_score mismatch"
-            assert dumped["taxonomy_version"] == ex["output"]["taxonomy_version"], (
-                f"Example {i}: taxonomy_version mismatch"
-            )
+            assert (
+                dumped["taxonomy_version"] == ex["output"]["taxonomy_version"]
+            ), f"Example {i}: taxonomy_version mismatch"

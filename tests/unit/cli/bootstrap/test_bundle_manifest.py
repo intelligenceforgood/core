@@ -4,12 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
-
-import pytest
 
 from i4g.cli.bootstrap.bundle_manifest import (
-    FileRecord,
     ManifestResult,
     build_manifest,
     count_lines,

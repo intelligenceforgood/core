@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-import os
-import warnings
-
 import hashlib
 import json
+import os
 import subprocess
+import warnings
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterable, Iterator
 
 from rich.console import Console
 

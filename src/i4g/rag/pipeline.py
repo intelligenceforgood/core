@@ -160,10 +160,7 @@ def build_scam_detection_chain(
     # Ensure the LLM is a LangChain Runnable for LCEL chain composition.
     # ChatOllama / BaseChatModel already extends Runnable; custom adapters
     # (VertexLangChainAdapter, MockLangChainLLM) need wrapping.
-    if isinstance(raw_llm, Runnable):
-        llm = raw_llm
-    else:
-        llm = RunnableLambda(raw_llm.invoke)
+    llm = raw_llm if isinstance(raw_llm, Runnable) else RunnableLambda(raw_llm.invoke)
 
     parser = build_assessment_parser()
 
@@ -203,8 +200,7 @@ def build_scam_detection_chain(
                 | (lambda inp: retriever.invoke(inp["question"]))
                 | RunnableLambda(_format_retrieved_docs),
                 "question": RunnablePassthrough() | (lambda inp: inp["question"]),
-                "format_instructions": RunnablePassthrough()
-                | (lambda _: parser.get_format_instructions()),
+                "format_instructions": RunnablePassthrough() | (lambda _: parser.get_format_instructions()),
             }
             | prompt
             | llm

@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from i4g.cli.bootstrap.common import DossierSmokeResult, SearchSmokeResult, SmokeResult
 
@@ -21,7 +21,7 @@ def write_reports(
     args: argparse.Namespace,
 ) -> None:
     args.report_dir.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(UTC).isoformat()
 
     # Gather verification state
     verification_report = verify_cloud_state(args)

@@ -5,9 +5,10 @@ Version: fraud-taxonomy.v1.0
 Auto-generated from definitions.yaml. DO NOT EDIT.
 """
 
-from enum import Enum
+from enum import StrEnum
 
-class ScamIntent(str, Enum):
+
+class ScamIntent(StrEnum):
     # Pretending to be a trusted entity
     IMPOSTER = "INTENT.IMPOSTER"
     # Promises of financial returns
@@ -27,7 +28,8 @@ class ScamIntent(str, Enum):
     # Fake disaster or cause appeals
     CHARITY = "INTENT.CHARITY"
 
-class DeliveryChannel(str, Enum):
+
+class DeliveryChannel(StrEnum):
     # Communication via email
     EMAIL = "CHANNEL.EMAIL"
     # Text messages or SMS
@@ -41,7 +43,8 @@ class DeliveryChannel(str, Enum):
     # Malicious websites or landing pages
     WEB = "CHANNEL.WEB"
 
-class SocialEngineeringTechnique(str, Enum):
+
+class SocialEngineeringTechnique(StrEnum):
     # Time pressure, deadlines
     URGENCY = "SE.URGENCY"
     # Government, bank, employer tone
@@ -57,7 +60,8 @@ class SocialEngineeringTechnique(str, Enum):
     # Overwhelming steps
     CONFUSION = "SE.CONFUSION"
 
-class RequestedAction(str, Enum):
+
+class RequestedAction(StrEnum):
     # Direct money transfer
     SEND_MONEY = "ACTION.SEND_MONEY"
     # Purchase and share gift card codes
@@ -73,7 +77,8 @@ class RequestedAction(str, Enum):
     # Share SSN, ID, or other sensitive info
     PROVIDE_PII = "ACTION.PROVIDE_PII"
 
-class ClaimedPersona(str, Enum):
+
+class ClaimedPersona(StrEnum):
     # IRS, FBI, Police, etc.
     GOVERNMENT = "PERSONA.GOVERNMENT"
     # Chase, Wells Fargo, PayPal, etc.

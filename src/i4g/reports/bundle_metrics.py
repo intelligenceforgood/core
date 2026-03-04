@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 from typing import Any
-from collections.abc import Mapping
 
 _LOSS_BAND_EMPTY = "unknown"
 

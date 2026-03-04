@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -15,7 +15,7 @@ from i4g.services.account_list.models import AccountListResult, FinancialIndicat
 def _build_result() -> AccountListResult:
     return AccountListResult(
         request_id="acc-export-1",
-        generated_at=datetime(2025, 11, 25, 10, 30, tzinfo=timezone.utc),
+        generated_at=datetime(2025, 11, 25, 10, 30, tzinfo=UTC),
         indicators=[
             FinancialIndicator(
                 category="bank",

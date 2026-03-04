@@ -6,10 +6,10 @@ import csv
 import json
 import logging
 import mimetypes
-from datetime import timezone
+from collections.abc import Iterable
+from datetime import UTC
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterable
 
 from openpyxl import Workbook
 from openpyxl.styles import Font
@@ -180,7 +180,7 @@ class AccountListExporter:
         summary["A1"] = "Request ID"
         summary["B1"] = result.request_id
         summary["A2"] = "Generated At"
-        summary["B2"] = result.generated_at.astimezone(timezone.utc).isoformat()
+        summary["B2"] = result.generated_at.astimezone(UTC).isoformat()
         summary["A3"] = "Indicator Count"
         summary["B3"] = len(result.indicators)
         workbook.save(path)
@@ -193,7 +193,7 @@ class AccountListExporter:
         doc = SimpleDocTemplate(str(path), pagesize=LETTER)
         styles = getSampleStyleSheet()
         story = [Paragraph("Account List Extraction", styles["Title"]), Spacer(1, 12)]
-        summary_text = f"Run: {result.request_id} — {result.generated_at.astimezone(timezone.utc).isoformat()}"
+        summary_text = f"Run: {result.request_id} — {result.generated_at.astimezone(UTC).isoformat()}"
         story.append(Paragraph(summary_text, styles["Normal"]))
         story.append(Spacer(1, 12))
         table_data = [["Category", "Type", "Item", "Number", "Source"]]
@@ -230,7 +230,7 @@ class AccountListExporter:
     # ------------------------------------------------------------------
 
     def _build_path(self, result: AccountListResult, *, suffix: str) -> Path:
-        timestamp = result.generated_at.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        timestamp = result.generated_at.astimezone(UTC).strftime("%Y%m%dT%H%M%SZ")
         safe_request_id = result.request_id.replace("/", "-")
         filename = f"{safe_request_id}_{timestamp}.{suffix}"
         return self.base_dir / filename

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
-from collections.abc import Iterable, Sequence
 
 from i4g.reports.bundle_builder import DossierPlan
 from i4g.store.review_store import ReviewStore

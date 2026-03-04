@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterable, Iterator
 
 import google.api_core.exceptions
 from google.cloud import discoveryengine_v1beta as discoveryengine

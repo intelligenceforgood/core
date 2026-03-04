@@ -12,9 +12,8 @@ Also provides GDPR export and GDPR delete operations.
 
 from __future__ import annotations
 
-import json
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import sqlalchemy as sa
@@ -22,13 +21,13 @@ from sqlalchemy.orm import Session
 
 from i4g.store.sql import (
     cases,
+    intake_attachments,
+    intake_jobs,
+    intake_records,
     review_actions,
     review_queue,
     scam_records,
     source_documents,
-    intake_records,
-    intake_attachments,
-    intake_jobs,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -79,21 +78,18 @@ class RetentionService:
         Returns:
             List of ``case_id`` values that were soft-deleted.
         """
-        cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
-        now = datetime.now(timezone.utc)
+        cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+        now = datetime.now(UTC)
 
         with self._session_factory() as session:
             # Find eligible cases
-            stmt = (
-                sa.select(cases.c.case_id)
-                .where(
-                    cases.c.status.in_(RESOLVED_STATUSES),
-                    cases.c.is_deleted == sa.false(),
-                    sa.or_(
-                        sa.and_(cases.c.resolved_at.isnot(None), cases.c.resolved_at < cutoff),
-                        sa.and_(cases.c.resolved_at.is_(None), cases.c.updated_at < cutoff),
-                    ),
-                )
+            stmt = sa.select(cases.c.case_id).where(
+                cases.c.status.in_(RESOLVED_STATUSES),
+                cases.c.is_deleted == sa.false(),
+                sa.or_(
+                    sa.and_(cases.c.resolved_at.isnot(None), cases.c.resolved_at < cutoff),
+                    sa.and_(cases.c.resolved_at.is_(None), cases.c.updated_at < cutoff),
+                ),
             )
             rows = session.execute(stmt).fetchall()
             case_ids = [row.case_id for row in rows]
@@ -103,9 +99,7 @@ class RetentionService:
 
             # Soft-delete in batch
             session.execute(
-                sa.update(cases)
-                .where(cases.c.case_id.in_(case_ids))
-                .values(is_deleted=True, deleted_at=now)
+                sa.update(cases).where(cases.c.case_id.in_(case_ids)).values(is_deleted=True, deleted_at=now)
             )
             session.commit()
 
@@ -130,16 +124,13 @@ class RetentionService:
         Returns:
             List of ``case_id`` values that were hard-purged.
         """
-        cutoff = datetime.now(timezone.utc) - timedelta(days=grace_days)
+        cutoff = datetime.now(UTC) - timedelta(days=grace_days)
 
         with self._session_factory() as session:
-            stmt = (
-                sa.select(cases.c.case_id)
-                .where(
-                    cases.c.is_deleted == sa.true(),
-                    cases.c.deleted_at.isnot(None),
-                    cases.c.deleted_at < cutoff,
-                )
+            stmt = sa.select(cases.c.case_id).where(
+                cases.c.is_deleted == sa.true(),
+                cases.c.deleted_at.isnot(None),
+                cases.c.deleted_at < cutoff,
             )
             rows = session.execute(stmt).fetchall()
             case_ids = [row.case_id for row in rows]
@@ -165,15 +156,9 @@ class RetentionService:
 
         # 3. Delete the case row (cascades to source_documents, entities, etc.)
         with self._session_factory() as session:
-            now = datetime.now(timezone.utc)
-            session.execute(
-                sa.update(cases)
-                .where(cases.c.case_id == case_id)
-                .values(purged_at=now)
-            )
-            session.execute(
-                sa.delete(cases).where(cases.c.case_id == case_id)
-            )
+            now = datetime.now(UTC)
+            session.execute(sa.update(cases).where(cases.c.case_id == case_id).values(purged_at=now))
+            session.execute(sa.delete(cases).where(cases.c.case_id == case_id))
             session.commit()
 
         # 4. Clean PII vault
@@ -221,17 +206,11 @@ class RetentionService:
             review_ids = [r.review_id for r in review_rows]
 
             if review_ids:
-                session.execute(
-                    sa.delete(review_actions).where(review_actions.c.review_id.in_(review_ids))
-                )
-                session.execute(
-                    sa.delete(review_queue).where(review_queue.c.review_id.in_(review_ids))
-                )
+                session.execute(sa.delete(review_actions).where(review_actions.c.review_id.in_(review_ids)))
+                session.execute(sa.delete(review_queue).where(review_queue.c.review_id.in_(review_ids)))
 
             # Scam records
-            session.execute(
-                sa.delete(scam_records).where(scam_records.c.case_id == case_id)
-            )
+            session.execute(sa.delete(scam_records).where(scam_records.c.case_id == case_id))
 
             # Intake chain: attachments/jobs → records
             intake_ids_stmt = sa.select(intake_records.c.intake_id).where(intake_records.c.case_id == case_id)
@@ -239,15 +218,9 @@ class RetentionService:
             intake_ids = [r.intake_id for r in intake_rows]
 
             if intake_ids:
-                session.execute(
-                    sa.delete(intake_attachments).where(intake_attachments.c.intake_id.in_(intake_ids))
-                )
-                session.execute(
-                    sa.delete(intake_jobs).where(intake_jobs.c.intake_id.in_(intake_ids))
-                )
-                session.execute(
-                    sa.delete(intake_records).where(intake_records.c.intake_id.in_(intake_ids))
-                )
+                session.execute(sa.delete(intake_attachments).where(intake_attachments.c.intake_id.in_(intake_ids)))
+                session.execute(sa.delete(intake_jobs).where(intake_jobs.c.intake_id.in_(intake_ids)))
+                session.execute(sa.delete(intake_records).where(intake_records.c.intake_id.in_(intake_ids)))
 
             session.commit()
 
@@ -266,9 +239,7 @@ class RetentionService:
             KeyError: If the case does not exist.
         """
         with self._session_factory() as session:
-            case_row = session.execute(
-                sa.select(cases).where(cases.c.case_id == case_id)
-            ).fetchone()
+            case_row = session.execute(sa.select(cases).where(cases.c.case_id == case_id)).fetchone()
 
             if not case_row:
                 raise KeyError(f"Case {case_id} not found")
@@ -283,9 +254,7 @@ class RetentionService:
             }
 
             # Review queue + actions
-            rq_rows = session.execute(
-                sa.select(review_queue).where(review_queue.c.case_id == case_id)
-            ).fetchall()
+            rq_rows = session.execute(sa.select(review_queue).where(review_queue.c.case_id == case_id)).fetchall()
             export["review_queue"] = [self._row_to_dict(r) for r in rq_rows]
 
             review_ids = [r._mapping["review_id"] for r in rq_rows]
@@ -296,9 +265,7 @@ class RetentionService:
                 export["review_actions"] = [self._row_to_dict(r) for r in ra_rows]
 
             # Intake records
-            ir_rows = session.execute(
-                sa.select(intake_records).where(intake_records.c.case_id == case_id)
-            ).fetchall()
+            ir_rows = session.execute(sa.select(intake_records).where(intake_records.c.case_id == case_id)).fetchall()
             export["intake_records"] = [self._row_to_dict(r) for r in ir_rows]
 
         # PII token metadata (no decrypted values)
@@ -314,7 +281,7 @@ class RetentionService:
                 LOGGER.warning("Could not export PII tokens for case %s", case_id)
                 export["pii_tokens"] = []
 
-        export["exported_at"] = datetime.now(timezone.utc).isoformat()
+        export["exported_at"] = datetime.now(UTC).isoformat()
         return export
 
     # ------------------------------------------------------------------
@@ -332,9 +299,7 @@ class RetentionService:
         """
         # Verify case exists
         with self._session_factory() as session:
-            row = session.execute(
-                sa.select(cases.c.case_id).where(cases.c.case_id == case_id)
-            ).fetchone()
+            row = session.execute(sa.select(cases.c.case_id).where(cases.c.case_id == case_id)).fetchone()
             if not row:
                 raise KeyError(f"Case {case_id} not found")
 
@@ -374,7 +339,7 @@ class RetentionService:
             "pii_tokens_removed": pii_count,
             "evidence_files_removed": evidence_deleted,
             "vector_embedding_removed": vector_deleted,
-            "deleted_at": datetime.now(timezone.utc).isoformat(),
+            "deleted_at": datetime.now(UTC).isoformat(),
         }
 
     # ------------------------------------------------------------------
@@ -394,7 +359,5 @@ class RetentionService:
 
     def _fetch_table_rows(self, session: Session, table, case_id: str) -> list[dict[str, Any]]:
         """Fetch all rows for a case from a table with a case_id column."""
-        rows = session.execute(
-            sa.select(table).where(table.c.case_id == case_id)
-        ).fetchall()
+        rows = session.execute(sa.select(table).where(table.c.case_id == case_id)).fetchall()
         return [self._row_to_dict(r) for r in rows]

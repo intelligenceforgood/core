@@ -18,8 +18,6 @@ import os
 import re
 from pathlib import Path
 
-from tqdm import tqdm
-
 # Try to import Hugging Face datasets (used for SMS and phishing mirrors)
 try:
     from datasets import load_dataset
@@ -151,7 +149,7 @@ def process_zenodo_scc(local_path, out_docs, chunk_chars):
     if not os.path.exists(local_path):
         print(f"[warn] Zenodo file not found at {local_path}")
         return
-    with open(local_path, "r", encoding="utf-8") as fh:
+    with open(local_path, encoding="utf-8") as fh:
         for i, line in enumerate(fh):
             try:
                 rec = json.loads(line.strip())

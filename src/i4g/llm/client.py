@@ -166,8 +166,7 @@ def _build_vertex_langchain(settings: Settings) -> Any:
         from google.genai import types
     except ImportError as exc:
         raise ImportError(
-            "Vertex AI requires 'google-genai'. "
-            "Install with: pip install 'google-genai>=1.0.0,<2.0'"
+            "Vertex AI requires 'google-genai'. " "Install with: pip install 'google-genai>=1.0.0,<2.0'"
         ) from exc
 
     project = settings.llm.vertex_ai_project or settings.secrets.project

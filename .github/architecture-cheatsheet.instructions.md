@@ -27,8 +27,8 @@ SSI FastAPI (port 8100, local dev only — NOT deployed standalone in cloud)
 
 ### Critical URL rule for browser-facing links
 
-**Core API returns API-relative paths** (e.g., `/cases/{id}/evidence/{doc_id}`).  
-**Browser links MUST be prefixed with `/api`** so they route through the Next.js proxy.  
+**Core API returns API-relative paths** (e.g., `/cases/{id}/evidence/{doc_id}`).
+**Browser links MUST be prefixed with `/api`** so they route through the Next.js proxy.
 Never generate absolute `http://localhost:8000/...` URLs in API responses — the browser cannot reach the core API directly in cloud.
 
 ```

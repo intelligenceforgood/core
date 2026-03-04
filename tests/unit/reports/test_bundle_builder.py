@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Dict, List
+from typing import Any
 
 from i4g.reports.bundle_builder import BundleBuilder, BundleCriteria, DossierCandidate
 from i4g.reports.bundle_candidates import BundleCandidateProvider
@@ -14,7 +14,7 @@ from i4g.store.dossier_queue_store import DossierQueueStore
 
 def test_generate_plans_filters_by_loss_and_recency() -> None:
     builder = BundleBuilder(queue_store=_MemoryQueueStore())
-    now = datetime(2025, 12, 3, tzinfo=timezone.utc)
+    now = datetime(2025, 12, 3, tzinfo=UTC)
     candidates = [
         DossierCandidate(
             case_id="case-high",
@@ -53,7 +53,7 @@ def test_build_and_enqueue_persists_queue(tmp_path) -> None:
     db_path = tmp_path / "queue.db"
     queue_store = DossierQueueStore(db_path=db_path)
     builder = BundleBuilder(queue_store=queue_store, shared_drive_parent_id="drive-folder-123")
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     candidates = [
         DossierCandidate(
             case_id="case-1",
@@ -125,7 +125,7 @@ class _MemoryQueueStore:
     """Minimal in-memory queue stub for builder tests."""
 
     def __init__(self) -> None:
-        self.plan_ids: List[str] = []
+        self.plan_ids: list[str] = []
 
     def enqueue_plan(self, plan, *, priority: str = "normal") -> str:  # noqa: D401 - used as a stub
         self.plan_ids.append(plan.plan_id)
@@ -136,7 +136,7 @@ class _MetricsReviewStore:
     def __init__(self) -> None:
         self.view_calls = 0
 
-    def list_dossier_candidates(self, status: str = "accepted", limit: int = 200) -> List[Dict[str, Any]]:  # noqa: D401
+    def list_dossier_candidates(self, status: str = "accepted", limit: int = 200) -> list[dict[str, Any]]:  # noqa: D401
         assert status == "accepted"
         self.view_calls += 1
         return [
@@ -149,12 +149,12 @@ class _MetricsReviewStore:
             }
         ]
 
-    def get_queue(self, status: str = "queued", limit: int = 25) -> List[Dict[str, Any]]:  # noqa: D401 - stub
+    def get_queue(self, status: str = "queued", limit: int = 25) -> list[dict[str, Any]]:  # noqa: D401 - stub
         raise AssertionError("metrics view should prevent queue fallback")
 
 
 class _StubReviewStore:
-    def get_queue(self, status: str = "queued", limit: int = 25) -> List[Dict[str, Any]]:  # noqa: D401 - stub interface
+    def get_queue(self, status: str = "queued", limit: int = 25) -> list[dict[str, Any]]:  # noqa: D401 - stub interface
         assert status == "accepted"
         return [
             {
@@ -168,7 +168,7 @@ class _EmptyViewReviewStore(_StubReviewStore):
     def __init__(self) -> None:
         self.view_calls = 0
 
-    def list_dossier_candidates(self, status: str = "accepted", limit: int = 200) -> List[Dict[str, Any]]:  # noqa: D401
+    def list_dossier_candidates(self, status: str = "accepted", limit: int = 200) -> list[dict[str, Any]]:  # noqa: D401
         assert status == "accepted"
         self.view_calls += 1
         return []
@@ -176,8 +176,8 @@ class _EmptyViewReviewStore(_StubReviewStore):
 
 @dataclass
 class _StubRecord:
-    metadata: Dict[str, Any]
-    entities: Dict[str, List[str]]
+    metadata: dict[str, Any]
+    entities: dict[str, list[str]]
 
 
 class _StubStructuredStore:

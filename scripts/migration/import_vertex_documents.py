@@ -19,8 +19,8 @@ from __future__ import annotations
 
 import argparse
 import logging
+from collections.abc import Iterable
 from concurrent import futures
-from typing import Iterable
 
 from google.cloud import discoveryengine_v1beta as discoveryengine
 

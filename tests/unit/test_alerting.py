@@ -8,7 +8,6 @@ import pytest
 
 from i4g.services.alerting import AlertingService, get_alerting_service, reset_alerting_service
 
-
 # ---------------------------------------------------------------------------
 # Stub observability for test isolation
 # ---------------------------------------------------------------------------
@@ -57,7 +56,9 @@ def alerting(stub_obs: StubObservability) -> AlertingService:
     svc._settings = FakeSettings()
     svc._obs = stub_obs
     svc._lock = threading.Lock()
-    svc._detokenization_windows = defaultdict(lambda: __import__("i4g.services.alerting", fromlist=["_AccessWindow"])._AccessWindow())
+    svc._detokenization_windows = defaultdict(
+        lambda: __import__("i4g.services.alerting", fromlist=["_AccessWindow"])._AccessWindow()
+    )
     return svc
 
 

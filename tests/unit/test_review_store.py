@@ -6,9 +6,8 @@ isolation and reproducibility. They verify queue management and
 action logging behaviors.
 """
 
-import pytest
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import sqlalchemy as sa
@@ -34,7 +33,7 @@ def _make_review_store(db_path: Path) -> ReviewStore:
 def test_table_initialization(tmp_path):
     """Verify tables are created properly on initialization."""
     db_path = tmp_path / "test_review_store.db"
-    store = _make_review_store(db_path)
+    _make_review_store(db_path)
 
     with sqlite3.connect(db_path) as conn:
         cur = conn.cursor()
@@ -117,7 +116,7 @@ def test_queue_and_actions_integration(tmp_path):
 def test_upsert_queue_entry_sets_custom_timestamps(tmp_path):
     db_path = tmp_path / "pilot_queue.db"
     store = _make_review_store(db_path)
-    accepted_at = datetime(2025, 12, 1, 8, 30, tzinfo=timezone.utc)
+    accepted_at = datetime(2025, 12, 1, 8, 30, tzinfo=UTC)
 
     review_id = store.upsert_queue_entry(
         review_id="pilot-review-1",
@@ -217,7 +216,7 @@ def test_list_dossier_candidates_returns_metrics(tmp_path):
             "victim_country": "US",
             "scammer_country": "RU",
         },
-        created_at=datetime(2025, 12, 1, tzinfo=timezone.utc),
+        created_at=datetime(2025, 12, 1, tzinfo=UTC),
     )
     structured.upsert_record(record)
 

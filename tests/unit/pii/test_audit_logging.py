@@ -1,14 +1,12 @@
 """Test audit logging for PII vault operations."""
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import sqlalchemy as sa
 import pytest
+import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
 
 from i4g.pii.tokenization import TokenizationService
-from i4g.store.pii_token_store import StoredToken
 from i4g.store.pii_token_store_sql import SqlAlchemyPiiTokenStore
 from i4g.store.sql import VAULT_METADATA, audit_log
 
@@ -41,16 +39,14 @@ def service(store):
         store=store,
         observability=MagicMock(),
         pepper="test-pepper",
-        encryption_key="test-key-must-be-32-bytes-long-encoded-in-base64="
+        encryption_key="test-key-must-be-32-bytes-long-encoded-in-base64=",
     )
 
 
 def _query_audit_log(session_factory, token_val):
     """Helper to query audit_log for a specific token."""
     with session_factory() as session:
-        row = session.execute(
-            sa.select(audit_log).where(audit_log.c.token == token_val)
-        ).fetchone()
+        row = session.execute(sa.select(audit_log).where(audit_log.c.token == token_val)).fetchone()
         return row._mapping if row else None
 
 
@@ -58,13 +54,13 @@ def test_detokenize_logs_access(service, store, vault_session_factory):
     # 1. Tokenize a value
     result = service.tokenize("sensitive@example.com", "EID")
     token = result.token
-    
+
     # 2. Detokenize
     service.detokenize(token, actor="analyst-alice", case_id="case-123")
-    
+
     # 3. Verify Audit Log
     row = _query_audit_log(vault_session_factory, token)
-        
+
     assert row is not None
     assert row["actor"] == "analyst-alice"
     assert row["action"] == "detokenize"
@@ -75,11 +71,11 @@ def test_detokenize_logs_access(service, store, vault_session_factory):
 
 def test_detokenize_missing_token_logs_failure(service, store, vault_session_factory):
     token = "EID-MISSING1"
-    
+
     service.detokenize(token, actor="analyst-bob")
-    
+
     row = _query_audit_log(vault_session_factory, token)
-        
+
     assert row is not None
     assert row["actor"] == "analyst-bob"
     assert row["action"] == "detokenize"

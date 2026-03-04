@@ -574,7 +574,7 @@ class SsiSettings(BaseSettings):
     events_endpoint: str = Field(
         default="",
         validation_alias=AliasChoices("SSI_EVENTS_ENDPOINT", "SSI__EVENTS_ENDPOINT"),
-        description="Core API endpoint prefix for pushing SSI events (e.g. https://api.example.com). Empty disables HTTP event sink.",
+        description="Core API endpoint prefix for pushing SSI events (e.g. https://api.example.com). Empty disables HTTP event sink.",  # noqa: E501
     )
 
 

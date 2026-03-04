@@ -7,7 +7,7 @@ These tests verify:
 - Embedding and Chroma components are mocked to avoid heavy dependencies.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

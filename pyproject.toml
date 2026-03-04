@@ -78,3 +78,19 @@ line-length = 120
 [tool.isort]
 line_length = 120
 profile = "black"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "N", "W", "UP", "B", "SIM"]  # "I" omitted: isort handles import ordering
+ignore = [
+  "B008",  # FastAPI Depends() in argument defaults is idiomatic — not a bug
+]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/migration/*" = ["E501"]
+"scripts/infra/*" = ["E501"]
+"tests/adhoc/*" = ["E501"]
+"tests/**" = ["N806", "N803"]  # PascalCase Mock class assignments are intentional

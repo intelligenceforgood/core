@@ -11,8 +11,7 @@ assigns the review to the current user.
 
 import json
 import logging
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -186,7 +185,9 @@ def annotate_review(
     return {"review_id": review_id, "annotated": True}
 
 
-@router.post("/{review_id}/feedback", summary="Submit analyst feedback on classification", response_model=FeedbackResponse)
+@router.post(
+    "/{review_id}/feedback", summary="Submit analyst feedback on classification", response_model=FeedbackResponse
+)
 def submit_feedback(
     review_id: str,
     payload: AnalystFeedbackRequest,
@@ -259,7 +260,7 @@ def _write_golden_candidate(
         "case_id": case_id,
         "review_id": review_id,
         "actor": actor,
-        "submitted_at": datetime.now(timezone.utc).isoformat(),
+        "submitted_at": datetime.now(UTC).isoformat(),
         "notes": notes,
         "input": input_text or "",
         "original_classification": original,
@@ -297,7 +298,7 @@ def decision(
     schedule background report generation.
     """
     _enforce_assignment(review_id, user, store)
-    if payload.decision not in {"accepted", "rejected", "needs_more_info", "in_review"}: 
+    if payload.decision not in {"accepted", "rejected", "needs_more_info", "in_review"}:
         raise HTTPException(status_code=400, detail="Invalid decision")
 
     logger.info(

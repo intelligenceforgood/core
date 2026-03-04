@@ -1,9 +1,8 @@
 """Unit tests for the FraudClassifier service."""
 
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from i4g.services.classifier import FraudClassifier, MockLLMClient, OllamaClient, VertexAIClient
+from i4g.services.classifier import FraudClassifier, MockLLMClient, OllamaClient
 from i4g.taxonomy.models import FraudClassificationResult
 
 

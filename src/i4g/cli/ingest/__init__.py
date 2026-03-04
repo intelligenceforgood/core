@@ -1,5 +1,7 @@
-import typer
 from pathlib import Path
+
+import typer
+
 from . import logic as ingest
 
 ingest_app = typer.Typer(help="Ingestion utilities and helpers.")

@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
 from unittest.mock import MagicMock
-
-import pytest
 
 from i4g.extraction.semantic_ner import (
     _add_confidence_scores,
@@ -15,7 +12,6 @@ from i4g.extraction.semantic_ner import (
     _safe_parse_json,
     extract_semantic_entities,
 )
-
 
 # ---------------------------------------------------------------------------
 # _safe_parse_json

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -30,7 +30,7 @@ class _StubStore:
 
 
 def _build_result() -> AccountListResult:
-    now = datetime(2025, 11, 28, tzinfo=timezone.utc)
+    now = datetime(2025, 11, 28, tzinfo=UTC)
     return AccountListResult(
         request_id="acct-1",
         generated_at=now,

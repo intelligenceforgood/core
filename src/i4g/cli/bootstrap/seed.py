@@ -6,15 +6,15 @@ This module backs `i4g bootstrap seed-sample` and static data loading.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
+from i4g.fixtures.sample_cases import CASES_RESPONSE
 from i4g.reports.bundle_builder import DossierCandidate, DossierPlan
+from i4g.services.factories import build_review_store, build_structured_store
 from i4g.settings import get_settings
 from i4g.store.dossier_queue_store import DossierQueueStore
-from i4g.fixtures.sample_cases import CASES_RESPONSE
-from i4g.services.factories import build_review_store, build_structured_store
 from i4g.store.schema import ScamRecord
 
 
@@ -40,14 +40,14 @@ def seed_sample_dossier() -> int:
         manifest_path.write_text(json.dumps(manifest_payload))
         (artifacts_dir / f"{plan_id}.pdf").write_text("pdf-bytes")
         (artifacts_dir / f"{plan_id}.md").write_text("# Pilot Dossier")
-        sig = {"algorithm": "sha256", "generated_at": datetime.now(timezone.utc).isoformat(), "artifacts": []}
+        sig = {"algorithm": "sha256", "generated_at": datetime.now(UTC).isoformat(), "artifacts": []}
         (artifacts_dir / f"{plan_id}.signatures.json").write_text(json.dumps(sig))
 
     store = DossierQueueStore()  # unified class; uses default session from settings
     candidate = DossierCandidate(
         case_id="case-1",
         loss_amount_usd=Decimal("125000"),
-        accepted_at=datetime(2025, 12, 1, tzinfo=timezone.utc),
+        accepted_at=datetime(2025, 12, 1, tzinfo=UTC),
         jurisdiction="US-CA",
         cross_border=True,
         primary_entities=("wallet:test",),
@@ -55,7 +55,7 @@ def seed_sample_dossier() -> int:
     plan = DossierPlan(
         plan_id=plan_id,
         jurisdiction_key="US-CA",
-        created_at=datetime(2025, 12, 2, tzinfo=timezone.utc),
+        created_at=datetime(2025, 12, 2, tzinfo=UTC),
         total_loss_usd=Decimal("125000"),
         cases=[candidate],
         bundle_reason="pilot-run",
@@ -74,7 +74,7 @@ def seed_static_review_cases() -> None:
     struct_store = build_structured_store()
     settings = get_settings()
 
-    print(f"Seeding static cases into ReviewStore...")
+    print("Seeding static cases into ReviewStore...")
 
     # Ensure artifacts directory for mocks
     root_dir = (
@@ -154,13 +154,13 @@ def seed_static_review_cases() -> None:
 
         record = ScamRecord(
             case_id=case_id,
-            text=f"INVESTIGATION REPORT: {case_data['title']}.\n\nThis case involves potential {case_data.get('priority')} priority activity. The subject has been flagged in queue '{case_data.get('queue')}'.\n\nAutomated extraction found multiple entities.",
+            text=f"INVESTIGATION REPORT: {case_data['title']}.\n\nThis case involves potential {case_data.get('priority')} priority activity. The subject has been flagged in queue '{case_data.get('queue')}'.\n\nAutomated extraction found multiple entities.",  # noqa: E501
             entities=entities,
             classification=case_data.get("tags", ["unknown"])[0] if case_data.get("tags") else "unknown",
             confidence=0.85,
             classification_result={"label": "fraud", "score": 0.85},
             tags=case_data.get("tags", []),
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
             metadata=props,
         )
 

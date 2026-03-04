@@ -8,13 +8,13 @@ PII value has been replaced by a token.
 LLM detection is disabled (``enable_llm=False``) so the test runs offline.
 """
 
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+
+from i4g.pii.observability import PiiVaultObservability
 from i4g.pii.tokenization import TokenizationService
 from i4g.store.pii_token_store import PiiTokenStore
-from i4g.pii.observability import PiiVaultObservability
-
 
 SAMPLE_DOCUMENT = """\
 CASE-ID: FRD twenty twenty five dash one two three four

@@ -14,10 +14,10 @@ Admin always has superset permissions.  The hierarchy is::
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class Role(str, Enum):
+class Role(StrEnum):
     """User roles for access control."""
 
     USER = "user"

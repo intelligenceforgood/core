@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -81,7 +82,7 @@ def semantic(*, input_path: str | Path, output_path: str | Path, model: str = "l
 def lea_pilot() -> int:
     import hashlib
     import tempfile
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     def _sha256_hex(path: Path) -> str:
         hasher = hashlib.sha256()
@@ -94,7 +95,7 @@ def lea_pilot() -> int:
         candidate = DossierCandidate(
             case_id="case-1",
             loss_amount_usd=125_000,
-            accepted_at=datetime(2025, 12, 1, tzinfo=timezone.utc),
+            accepted_at=datetime(2025, 12, 1, tzinfo=UTC),
             jurisdiction="US-CA",
             cross_border=True,
             primary_entities=("wallet:test",),
@@ -102,7 +103,7 @@ def lea_pilot() -> int:
         plan = DossierPlan(
             plan_id="pilot-plan-001",
             jurisdiction_key="US-CA",
-            created_at=datetime(2025, 12, 2, tzinfo=timezone.utc),
+            created_at=datetime(2025, 12, 2, tzinfo=UTC),
             total_loss_usd=125_000,
             cases=[candidate],
             bundle_reason="pilot-run",
@@ -128,7 +129,7 @@ def lea_pilot() -> int:
         sig_path = artifact_dir / f"{plan.plan_id}.signatures.json"
         sig = {
             "algorithm": "sha256",
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "artifacts": [
                 {
                     "label": "manifest",

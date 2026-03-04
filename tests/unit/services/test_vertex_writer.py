@@ -24,7 +24,7 @@ class _FakeClient:
         self.requests = []
 
     def branch_path(self, project: str, location: str, data_store: str, branch: str) -> str:
-        return f"projects/{project}/locations/{location}/collections/default_collection/dataStores/{data_store}/branches/{branch}"
+        return f"projects/{project}/locations/{location}/collections/default_collection/dataStores/{data_store}/branches/{branch}"  # noqa: E501
 
     def import_documents(self, request: discoveryengine.ImportDocumentsRequest) -> _FakeOperation:
         self.requests.append(request)

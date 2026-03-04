@@ -13,7 +13,11 @@ def _reset_env(monkeypatch):
 
 
 def _mock_settings(
-    intake_id=None, job_id=None, api_base=None, api_key=None, api_global_key="dev-analyst-token",
+    intake_id=None,
+    job_id=None,
+    api_base=None,
+    api_key=None,
+    api_global_key="dev-analyst-token",
 ) -> SimpleNamespace:
     return SimpleNamespace(
         env="local",

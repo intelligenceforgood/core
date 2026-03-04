@@ -207,14 +207,12 @@ def test_settings_file_override(tmp_path, monkeypatch: object) -> None:
 
     settings_file = tmp_path / "settings.local.toml"
     settings_file.write_text(
-        textwrap.dedent(
-            """
+        textwrap.dedent("""
             env = "dev"
 
             [ingestion]
             default_dataset = "toml_dataset"
-            """
-        ).strip(),
+            """).strip(),
         encoding="utf-8",
     )
 
@@ -269,14 +267,12 @@ def test_ingestion_local_config_dataset_override(tmp_path, monkeypatch: object) 
 
     local_file = tmp_path / "settings.local.toml"
     local_file.write_text(
-        textwrap.dedent(
-            """
+        textwrap.dedent("""
             env = "dev"
 
             [ingestion]
             default_dataset = "local_dataset"
-            """
-        ).strip(),
+            """).strip(),
         encoding="utf-8",
     )
 
@@ -299,14 +295,12 @@ def test_ingestion_default_config_dataset_override(tmp_path, monkeypatch: object
 
     default_file = tmp_path / "settings.default.toml"
     default_file.write_text(
-        textwrap.dedent(
-            """
+        textwrap.dedent("""
             env = "dev"
 
             [ingestion]
             default_dataset = "baseline_dataset"
-            """
-        ).strip(),
+            """).strip(),
         encoding="utf-8",
     )
 
@@ -328,14 +322,12 @@ def test_ingestion_dataset_path_from_config(tmp_path, monkeypatch: object) -> No
 
     local_file = tmp_path / "settings.local.toml"
     local_file.write_text(
-        textwrap.dedent(
-            """
+        textwrap.dedent("""
             env = "dev"
 
             [ingestion]
             dataset_path = "data/manual_demo/network_entities.jsonl"
-            """
-        ).strip(),
+            """).strip(),
         encoding="utf-8",
     )
 
@@ -367,14 +359,12 @@ def test_ingestion_batch_limit_from_config(tmp_path, monkeypatch: object) -> Non
 
     local_file = tmp_path / "settings.local.toml"
     local_file.write_text(
-        textwrap.dedent(
-            """
+        textwrap.dedent("""
             env = "dev"
 
             [ingestion]
             batch_limit = 25
-            """
-        ).strip(),
+            """).strip(),
         encoding="utf-8",
     )
     default_file = tmp_path / "settings.default.toml"

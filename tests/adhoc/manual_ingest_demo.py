@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import argparse
 import pprint
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from i4g.store.ingest import IngestPipeline
 from i4g.store.structured import StructuredStore

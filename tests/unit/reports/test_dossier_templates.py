@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from i4g.reports.bundle_builder import DossierCandidate, DossierPlan
@@ -11,7 +11,7 @@ from i4g.reports.dossier_templates import TemplatePart, TemplateRegistry
 
 
 def _plan() -> DossierPlan:
-    accepted_at = datetime(2025, 12, 3, tzinfo=timezone.utc)
+    accepted_at = datetime(2025, 12, 3, tzinfo=UTC)
     candidate = DossierCandidate(
         case_id="case-1",
         loss_amount_usd=Decimal("150000"),

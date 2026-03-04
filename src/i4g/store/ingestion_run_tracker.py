@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import logging
 import uuid
-from contextlib import contextmanager
-from datetime import datetime, timezone
-from typing import Literal
 from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime
+from typing import Literal
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session, sessionmaker
@@ -22,7 +22,7 @@ RunStatus = Literal["running", "succeeded", "failed", "partial"]
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class IngestionRunTracker:

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import random
 
-import pytest
-
 from i4g.cli.bootstrap.synthetic_coverage import (
     Scenario,
     _rand_amount,
@@ -18,7 +16,6 @@ from i4g.cli.bootstrap.synthetic_coverage import (
     build_scenarios,
     make_summary,
 )
-
 
 # ---------------------------------------------------------------------------
 # Pure helper tests

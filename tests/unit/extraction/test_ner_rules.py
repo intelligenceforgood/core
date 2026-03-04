@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from i4g.extraction.ner_rules import (
     extract_crypto_keywords,
     extract_entities,
@@ -12,7 +10,6 @@ from i4g.extraction.ner_rules import (
     extract_urls,
     extract_wallets,
 )
-
 
 # ---------------------------------------------------------------------------
 # extract_wallets

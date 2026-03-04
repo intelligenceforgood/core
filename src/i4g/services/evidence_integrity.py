@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import sqlalchemy as sa
@@ -81,18 +81,15 @@ class EvidenceIntegrityService:
         Returns:
             :class:`IntegrityReport` with per-file results.
         """
-        report = IntegrityReport(started_at=datetime.now(timezone.utc).isoformat())
+        report = IntegrityReport(started_at=datetime.now(UTC).isoformat())
 
         with self._session_factory() as session:
-            stmt = (
-                sa.select(
-                    source_documents.c.document_id,
-                    source_documents.c.case_id,
-                    source_documents.c.source_url,
-                    source_documents.c.file_sha256,
-                )
-                .where(source_documents.c.source_url.isnot(None))
-            )
+            stmt = sa.select(
+                source_documents.c.document_id,
+                source_documents.c.case_id,
+                source_documents.c.source_url,
+                source_documents.c.file_sha256,
+            ).where(source_documents.c.source_url.isnot(None))
             if limit is not None:
                 stmt = stmt.limit(limit)
             rows = session.execute(stmt).fetchall()
@@ -112,7 +109,7 @@ class EvidenceIntegrityService:
             else:
                 report.errors += 1
 
-        report.finished_at = datetime.now(timezone.utc).isoformat()
+        report.finished_at = datetime.now(UTC).isoformat()
 
         if report.mismatches > 0:
             LOGGER.warning(
@@ -202,18 +199,15 @@ class EvidenceIntegrityService:
             Number of documents updated.
         """
         with self._session_factory() as session:
-            stmt = (
-                sa.select(
-                    source_documents.c.document_id,
-                    source_documents.c.source_url,
-                )
-                .where(
-                    source_documents.c.source_url.isnot(None),
-                    sa.or_(
-                        source_documents.c.file_sha256.is_(None),
-                        source_documents.c.file_sha256 == "",
-                    ),
-                )
+            stmt = sa.select(
+                source_documents.c.document_id,
+                source_documents.c.source_url,
+            ).where(
+                source_documents.c.source_url.isnot(None),
+                sa.or_(
+                    source_documents.c.file_sha256.is_(None),
+                    source_documents.c.file_sha256 == "",
+                ),
             )
             rows = session.execute(stmt).fetchall()
 

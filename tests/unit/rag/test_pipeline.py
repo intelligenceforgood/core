@@ -17,9 +17,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-import pytest
-
-from i4g.rag.models import CitationSource, RagAssessment
+from i4g.rag.models import RagAssessment
 from i4g.rag.pipeline import (
     _format_golden_examples,
     _format_retrieved_docs,
@@ -27,7 +25,6 @@ from i4g.rag.pipeline import (
     _load_prompt_template,
     build_scam_detection_chain,
 )
-
 
 # ── Helpers ──────────────────────────────────────────────────────────
 
@@ -177,14 +174,16 @@ class TestBuildScamDetectionChainStructured:
     def test_uses_custom_prompt_and_examples(self, tmp_path: Path) -> None:
         prompt_file = tmp_path / "prompt.md"
         prompt_file.write_text(
-            "Custom prompt.\n"
-            "{{ context }}\n{{ question }}\n"
-            "{{ few_shot_examples }}\n{{ format_instructions }}"
+            "Custom prompt.\n" "{{ context }}\n{{ question }}\n" "{{ few_shot_examples }}\n{{ format_instructions }}"
         )
         examples_file = tmp_path / "examples.json"
-        examples_file.write_text(json.dumps([
-            {"context": "c", "question": "q", "output": {"is_scam": False}},
-        ]))
+        examples_file.write_text(
+            json.dumps(
+                [
+                    {"context": "c", "question": "q", "output": {"is_scam": False}},
+                ]
+            )
+        )
 
         docs = [_FakeDocument("Test doc", {"source_id": "doc_1"})]
         vs = _FakeVectorStore(docs)

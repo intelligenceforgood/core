@@ -9,13 +9,15 @@ import shutil
 import sys
 import tempfile
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterator
 
 from google.cloud import storage
 
+from i4g.observability import get_observability
 from i4g.ocr.tesseract import batch_extract_text
+from i4g.services.alerting import get_alerting_service
 from i4g.services.factories import (
     build_fraud_classifier,
     build_ingestion_retry_store,
@@ -23,8 +25,6 @@ from i4g.services.factories import (
     build_structured_store,
     build_vector_store,
 )
-from i4g.services.alerting import get_alerting_service
-from i4g.observability import get_observability
 from i4g.services.ingest_payloads import prepare_ingest_payload
 from i4g.settings import get_settings
 from i4g.store.ingest import IngestPipeline
@@ -85,7 +85,6 @@ def _process_images_and_yield(
 
         for result in results:
             filename = result["file"]
-            raw_text = result["text"]
 
             # Find original reference to construct URL
             original_ref = None
@@ -488,7 +487,9 @@ def main() -> int:
         obs = get_observability(component="ingestion", settings=settings)
         obs.increment("ingestion.records.processed", value=float(processed), tags={"dataset": dataset_name})
         obs.increment("ingestion.records.failed", value=float(failures), tags={"dataset": dataset_name})
-        obs.increment("ingestion.records.retries_scheduled", value=float(scheduled_retries), tags={"dataset": dataset_name})
+        obs.increment(
+            "ingestion.records.retries_scheduled", value=float(scheduled_retries), tags={"dataset": dataset_name}
+        )
         obs.emit_event(
             "ingestion.batch.complete",
             processed=processed,

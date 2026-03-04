@@ -59,7 +59,7 @@ def tokenize(
         )
     except ValueError as exc:
         logger.warning("tokenize: bad request: %s", exc)
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))  # noqa: B904
     except Exception as exc:  # pragma: no cover - unexpected errors mapped to 500
         logger.error("tokenize: unexpected error", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc

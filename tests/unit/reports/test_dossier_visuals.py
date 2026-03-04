@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from i4g.reports.bundle_builder import DossierCandidate, DossierPlan
@@ -49,7 +49,7 @@ def test_visual_builder_combines_assets(tmp_path) -> None:
 
 
 def _plan(jurisdictions: tuple[str, str]) -> DossierPlan:
-    now = datetime(2025, 12, 3, tzinfo=timezone.utc)
+    now = datetime(2025, 12, 3, tzinfo=UTC)
     cases = []
     for index, jurisdiction in enumerate(jurisdictions, start=1):
         cases.append(

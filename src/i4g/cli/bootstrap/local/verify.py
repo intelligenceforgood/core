@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
-from i4g.cli.utils import hash_file
 from i4g.cli.bootstrap.common import (
     DossierSmokeResult,
     SearchSmokeResult,
     VerificationReport,
 )
+from i4g.cli.utils import hash_file
 
 from .constants import (
     BUNDLES_DIR,
@@ -100,7 +100,7 @@ def verify_sandbox(
 
     report = VerificationReport(
         environment="local",
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         bundles={
             "files": [str(p.name) for p in bundles],
             "hashes": bundle_hashes,

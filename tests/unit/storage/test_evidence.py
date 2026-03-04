@@ -7,10 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from i4g.storage.evidence import EvidenceStorage, StoredAttachment
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

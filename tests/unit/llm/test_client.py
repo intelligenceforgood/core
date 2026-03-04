@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
 
 import pytest
 
 from i4g.llm.client import _resolve_model_name, build_langchain_llm, build_llm_client
-
 
 # ── helpers ──────────────────────────────────────────────────────────
 

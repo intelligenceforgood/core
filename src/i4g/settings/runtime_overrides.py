@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
-from collections.abc import Callable
 
 if TYPE_CHECKING:
     from i4g.settings.config import Settings
@@ -167,26 +168,96 @@ def apply_environment_overrides(
         value = read_env_value(*_legacy_env_keys(*keys))
         if value is None:
             return
-        try:
+        with contextlib.suppress(ValueError):
             ingestion_alias_updates[field] = int(value.strip())
-        except ValueError:
-            pass
 
-    _ingestion_bool("enable_scheduled_jobs", "INGESTION__ENABLE_SCHEDULED_JOBS", "INGESTION_ENABLE_SCHEDULED_JOBS", "INGEST__ENABLE_SCHEDULED_JOBS", "INGEST_ENABLE_SCHEDULED_JOBS")
-    _ingestion_bool("enable_sql", "INGESTION__ENABLE_SQL", "INGESTION_ENABLE_SQL", "INGEST__ENABLE_SQL", "INGEST_ENABLE_SQL")
-    _ingestion_bool("enable_vertex", "INGESTION__ENABLE_VERTEX", "INGESTION_ENABLE_VERTEX", "INGEST__ENABLE_VERTEX", "INGEST_ENABLE_VERTEX")
-    _ingestion_bool("enable_vector_store", "INGESTION__ENABLE_VECTOR_STORE", "INGESTION_ENABLE_VECTOR_STORE", "INGESTION__ENABLE_VECTOR", "INGESTION_ENABLE_VECTOR", "INGEST__ENABLE_VECTOR_STORE", "INGEST_ENABLE_VECTOR_STORE", "INGEST__ENABLE_VECTOR", "INGEST_ENABLE_VECTOR")
-    _ingestion_str("default_region", "INGESTION__DEFAULT_REGION", "INGESTION_DEFAULT_REGION", "INGEST__DEFAULT_REGION", "INGEST_DEFAULT_REGION")
-    _ingestion_str("scheduler_project", "INGESTION__SCHEDULER_PROJECT", "INGESTION_SCHEDULER_PROJECT", "INGEST__SCHEDULER_PROJECT", "INGEST_SCHEDULER_PROJECT")
-    _ingestion_str("default_service_account", "INGESTION__SERVICE_ACCOUNT", "INGESTION_SERVICE_ACCOUNT", "INGEST__SERVICE_ACCOUNT", "INGEST_SERVICE_ACCOUNT")
-    _ingestion_str("default_dataset", "INGESTION__DEFAULT_DATASET", "INGESTION_DEFAULT_DATASET", "INGEST__DEFAULT_DATASET", "INGEST_DEFAULT_DATASET")
-    _ingestion_str("dataset_path", "INGESTION__JSONL_PATH", "INGESTION_JSONL_PATH", "INGEST__JSONL_PATH", "INGEST_JSONL_PATH")
-    _ingestion_int("fanout_timeout_seconds", "INGESTION__FANOUT_TIMEOUT_SECONDS", "INGESTION_FANOUT_TIMEOUT_SECONDS", "INGEST__FANOUT_TIMEOUT_SECONDS", "INGEST_FANOUT_TIMEOUT_SECONDS")
-    _ingestion_int("batch_limit", "INGESTION__BATCH_LIMIT", "INGESTION_BATCH_LIMIT", "INGEST__BATCH_LIMIT", "INGEST_BATCH_LIMIT")
-    _ingestion_int("max_retries", "INGESTION__MAX_RETRIES", "INGESTION_MAX_RETRIES", "INGEST__MAX_RETRIES", "INGEST_MAX_RETRIES")
-    _ingestion_int("retry_delay_seconds", "INGESTION__RETRY_DELAY_SECONDS", "INGESTION_RETRY_DELAY_SECONDS", "INGEST__RETRY_DELAY_SECONDS", "INGEST_RETRY_DELAY_SECONDS")
+    _ingestion_bool(
+        "enable_scheduled_jobs",
+        "INGESTION__ENABLE_SCHEDULED_JOBS",
+        "INGESTION_ENABLE_SCHEDULED_JOBS",
+        "INGEST__ENABLE_SCHEDULED_JOBS",
+        "INGEST_ENABLE_SCHEDULED_JOBS",
+    )
+    _ingestion_bool(
+        "enable_sql", "INGESTION__ENABLE_SQL", "INGESTION_ENABLE_SQL", "INGEST__ENABLE_SQL", "INGEST_ENABLE_SQL"
+    )
+    _ingestion_bool(
+        "enable_vertex",
+        "INGESTION__ENABLE_VERTEX",
+        "INGESTION_ENABLE_VERTEX",
+        "INGEST__ENABLE_VERTEX",
+        "INGEST_ENABLE_VERTEX",
+    )
+    _ingestion_bool(
+        "enable_vector_store",
+        "INGESTION__ENABLE_VECTOR_STORE",
+        "INGESTION_ENABLE_VECTOR_STORE",
+        "INGESTION__ENABLE_VECTOR",
+        "INGESTION_ENABLE_VECTOR",
+        "INGEST__ENABLE_VECTOR_STORE",
+        "INGEST_ENABLE_VECTOR_STORE",
+        "INGEST__ENABLE_VECTOR",
+        "INGEST_ENABLE_VECTOR",
+    )
+    _ingestion_str(
+        "default_region",
+        "INGESTION__DEFAULT_REGION",
+        "INGESTION_DEFAULT_REGION",
+        "INGEST__DEFAULT_REGION",
+        "INGEST_DEFAULT_REGION",
+    )
+    _ingestion_str(
+        "scheduler_project",
+        "INGESTION__SCHEDULER_PROJECT",
+        "INGESTION_SCHEDULER_PROJECT",
+        "INGEST__SCHEDULER_PROJECT",
+        "INGEST_SCHEDULER_PROJECT",
+    )
+    _ingestion_str(
+        "default_service_account",
+        "INGESTION__SERVICE_ACCOUNT",
+        "INGESTION_SERVICE_ACCOUNT",
+        "INGEST__SERVICE_ACCOUNT",
+        "INGEST_SERVICE_ACCOUNT",
+    )
+    _ingestion_str(
+        "default_dataset",
+        "INGESTION__DEFAULT_DATASET",
+        "INGESTION_DEFAULT_DATASET",
+        "INGEST__DEFAULT_DATASET",
+        "INGEST_DEFAULT_DATASET",
+    )
+    _ingestion_str(
+        "dataset_path", "INGESTION__JSONL_PATH", "INGESTION_JSONL_PATH", "INGEST__JSONL_PATH", "INGEST_JSONL_PATH"
+    )
+    _ingestion_int(
+        "fanout_timeout_seconds",
+        "INGESTION__FANOUT_TIMEOUT_SECONDS",
+        "INGESTION_FANOUT_TIMEOUT_SECONDS",
+        "INGEST__FANOUT_TIMEOUT_SECONDS",
+        "INGEST_FANOUT_TIMEOUT_SECONDS",
+    )
+    _ingestion_int(
+        "batch_limit", "INGESTION__BATCH_LIMIT", "INGESTION_BATCH_LIMIT", "INGEST__BATCH_LIMIT", "INGEST_BATCH_LIMIT"
+    )
+    _ingestion_int(
+        "max_retries", "INGESTION__MAX_RETRIES", "INGESTION_MAX_RETRIES", "INGEST__MAX_RETRIES", "INGEST_MAX_RETRIES"
+    )
+    _ingestion_int(
+        "retry_delay_seconds",
+        "INGESTION__RETRY_DELAY_SECONDS",
+        "INGESTION_RETRY_DELAY_SECONDS",
+        "INGEST__RETRY_DELAY_SECONDS",
+        "INGEST_RETRY_DELAY_SECONDS",
+    )
     _ingestion_bool("dry_run", "INGESTION__DRY_RUN", "INGESTION_DRY_RUN", "INGEST__DRY_RUN", "INGEST_DRY_RUN")
-    _ingestion_bool("reset_vector", "INGESTION__RESET_VECTOR", "INGESTION_RESET_VECTOR", "INGEST__RESET_VECTOR", "INGEST_RESET_VECTOR")
+    _ingestion_bool(
+        "reset_vector",
+        "INGESTION__RESET_VECTOR",
+        "INGESTION_RESET_VECTOR",
+        "INGEST__RESET_VECTOR",
+        "INGEST_RESET_VECTOR",
+    )
 
     if ingestion_alias_updates:
         object.__setattr__(settings, "ingestion", settings.ingestion.model_copy(update=ingestion_alias_updates))

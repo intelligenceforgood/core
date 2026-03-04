@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 
 from i4g.reports.dossier_signatures import verify_manifest_file
 from i4g.settings import get_settings
@@ -112,7 +112,7 @@ def verify_ingestion_run(
     )
     print(summary)
     if verbose:
-        print({key: row[key] for key in row.keys()})
+        print({key: row[key] for key in row})
     return 0
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from pydantic import ValidationError
 
 from i4g.rag.models import RagAssessment
 from i4g.rag.output_parser import (
@@ -12,7 +13,6 @@ from i4g.rag.output_parser import (
     build_assessment_parser,
     parse_with_retry,
 )
-
 
 # ── Fixtures ─────────────────────────────────────────────────────────
 
@@ -57,11 +57,11 @@ class TestBuildAssessmentParser:
 
 class TestExtractJsonBlock:
     def test_extracts_from_markdown_fence(self) -> None:
-        text = "Here's the analysis:\n```json\n{\"is_scam\": true}\n```\nDone."
+        text = 'Here\'s the analysis:\n```json\n{"is_scam": true}\n```\nDone.'
         assert _extract_json_block(text) == '{"is_scam": true}'
 
     def test_extracts_from_fence_without_json_label(self) -> None:
-        text = "```\n{\"is_scam\": false}\n```"
+        text = '```\n{"is_scam": false}\n```'
         assert _extract_json_block(text) == '{"is_scam": false}'
 
     def test_extracts_bare_json_from_surrounding_prose(self) -> None:
@@ -171,9 +171,9 @@ class TestRagAssessmentModel:
         assert len(a.citations) == 1
 
     def test_confidence_bounds(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             RagAssessment(is_scam=True, confidence=-0.1, reasoning="test")
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             RagAssessment(is_scam=True, confidence=1.01, reasoning="test")
 
     def test_empty_citations_default(self) -> None:

@@ -15,7 +15,7 @@ import io
 import json
 import uuid
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -25,11 +25,10 @@ import sqlalchemy as sa
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from i4g.services.evidence_integrity import EvidenceIntegrityService, IntegrityReport
-from i4g.storage.evidence import EvidenceStorage, RetrievedEvidence, StoredAttachment
+from i4g.services.evidence_integrity import EvidenceIntegrityService
+from i4g.storage.evidence import EvidenceStorage, RetrievedEvidence
 from i4g.store.sql import METADATA, cases, source_documents
 from i4g.store.sql_writer import SourceDocumentPayload
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -75,7 +74,7 @@ def evidence_store(evidence_dir: Path) -> EvidenceStorage:
 
 def _insert_case(session_factory, case_id: str, status: str = "open") -> str:
     """Insert a minimal case row."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with session_factory() as session:
         session.execute(
             sa.insert(cases).values(
@@ -106,7 +105,7 @@ def _insert_document(
 ) -> str:
     """Insert a source_documents row and return the document_id."""
     doc_id = document_id or str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with session_factory() as session:
         session.execute(
             sa.insert(source_documents).values(
@@ -183,7 +182,7 @@ class TestChainOfCustody:
 
     def test_source_document_payload_has_file_sha256(self):
         """SourceDocumentPayload accepts file_sha256 and ingested_at."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         payload = SourceDocumentPayload(
             alias="primary",
             source_url="/evidence/file.pdf",
@@ -197,7 +196,7 @@ class TestChainOfCustody:
         """file_sha256 and ingested_at are stored and retrievable."""
         case_id = _insert_case(db_session_factory, "case-custody-1")
         sha = hashlib.sha256(b"evidence file content").hexdigest()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         doc_id = _insert_document(
             db_session_factory,
@@ -224,9 +223,7 @@ class TestChainOfCustody:
 
         with db_session_factory() as session:
             row = session.execute(
-                sa.select(source_documents.c.file_sha256).where(
-                    source_documents.c.document_id == doc_id
-                )
+                sa.select(source_documents.c.file_sha256).where(source_documents.c.document_id == doc_id)
             ).fetchone()
 
         assert row is not None
@@ -355,9 +352,7 @@ class TestEvidenceIntegrity:
 
         with db_session_factory() as session:
             row = session.execute(
-                sa.select(source_documents.c.file_sha256).where(
-                    source_documents.c.document_id == doc_id
-                )
+                sa.select(source_documents.c.file_sha256).where(source_documents.c.document_id == doc_id)
             ).fetchone()
 
         assert row.file_sha256 == hashlib.sha256(data).hexdigest()
@@ -479,9 +474,7 @@ class TestEvidenceAPIHelpers:
 
         # Both files named "file.txt" — the archive logic in the endpoint
         # handles dedup. Verify both can be saved and retrieved independently.
-        r1 = evidence_store.retrieve(
-            evidence_store.save("case-dup-1", "file.txt", b"first", None).storage_uri
-        )
+        r1 = evidence_store.retrieve(evidence_store.save("case-dup-1", "file.txt", b"first", None).storage_uri)
         r2 = evidence_store.retrieve(stored2.storage_uri)
         assert r1 is not None
         assert r2 is not None

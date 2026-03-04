@@ -154,7 +154,7 @@ class AccountEntityExtractor:
                 chunk = chunk[: max(0, remaining - 1)]
             remaining -= len(chunk)
             parts.append(
-                f"Case ID: {doc.case_id}\nClassification: {doc.classification or 'unknown'}\nDataset: {doc.dataset or 'unknown'}\nContent:\n{chunk}\n---"
+                f"Case ID: {doc.case_id}\nClassification: {doc.classification or 'unknown'}\nDataset: {doc.dataset or 'unknown'}\nContent:\n{chunk}\n---"  # noqa: E501
             )
             if remaining <= 0:
                 break

@@ -1,8 +1,5 @@
 """Unit tests for the template engine."""
 
-import os
-from pathlib import Path
-
 import pytest
 
 from i4g.reports.template_engine import TemplateEngine

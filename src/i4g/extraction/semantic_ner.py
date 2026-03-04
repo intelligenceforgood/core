@@ -66,7 +66,7 @@ _FEW_SHOT_EXAMPLES = [
         },
     },
     {
-        "input": "The New Jersey Devils investment club guarantees double profit. Contact us at @devilsprofit on Telegram.",
+        "input": "The New Jersey Devils investment club guarantees double profit. Contact us at @devilsprofit on Telegram.",  # noqa: E501
         "output": {
             "people": [],
             "organizations": ["The New Jersey Devils investment club"],
@@ -197,7 +197,6 @@ def _merge_results(llm_result: dict[str, Any], rule_result: dict[str, Any]) -> d
         A new dictionary with the merged and deduplicated entities.
     """
     merged = {}
-    all_keys = set(llm_result.keys()) | set(rule_result.keys())
     for key in _ENTITY_KEYS:
         llm_items = set(llm_result.get(key, [])) if isinstance(llm_result.get(key), list) else set()
         rule_items = set(rule_result.get(key, [])) if isinstance(rule_result.get(key), list) else set()

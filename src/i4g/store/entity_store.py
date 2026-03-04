@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import json
 import logging
-from contextlib import contextmanager
-from datetime import datetime, timezone
-from typing import Any, Literal
 from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from datetime import UTC, datetime
+from typing import Any, Literal
 
 import sqlalchemy as sa
 from sqlalchemy.exc import OperationalError
@@ -372,8 +372,8 @@ def _serialize_timestamp(value: Any) -> str | None:
     if value is None:
         return None
     if isinstance(value, datetime):
-        target = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-        return target.astimezone(timezone.utc).isoformat()
+        target = value if value.tzinfo else value.replace(tzinfo=UTC)
+        return target.astimezone(UTC).isoformat()
     if isinstance(value, str):
         return value
     return str(value)
@@ -385,9 +385,7 @@ def _is_missing_table_error(error: OperationalError) -> bool:
     message = str(error).lower()
     if "no such table" in message:
         return True
-    if "does not exist" in message:
-        return True
-    return False
+    return "does not exist" in message
 
 
 __all__ = ["EntityStore", "MatchMode"]

@@ -8,8 +8,8 @@ order while deduplicating.
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
 from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from i4g.pii.observability import PiiVaultObservability

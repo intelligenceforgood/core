@@ -13,7 +13,6 @@ from pydantic import Field
 
 from i4g.api.camel import CamelModel
 
-
 # ---------------------------------------------------------------------------
 # Generic / reusable envelopes
 # ---------------------------------------------------------------------------

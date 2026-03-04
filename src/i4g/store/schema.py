@@ -6,7 +6,7 @@ JSON-serializable so it can be stored in SQLite without additional DB layers.
 """
 
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -33,7 +33,7 @@ class ScamRecord:
     classification_status: str = "pending"
     classification_result: dict[str, Any] | None = None
     tags: list[str] | None = None
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     embedding: list[float] | None = None
     metadata: dict[str, Any] | None = None
 
@@ -71,7 +71,7 @@ class ScamRecord:
             classification_status=d.get("classification_status", "pending"),
             classification_result=d.get("classification_result"),
             tags=d.get("tags"),
-            created_at=created_at or datetime.now(timezone.utc),
+            created_at=created_at or datetime.now(UTC),
             embedding=d.get("embedding"),
             metadata=d.get("metadata"),
         )

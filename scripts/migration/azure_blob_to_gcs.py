@@ -21,8 +21,8 @@ import json
 import logging
 import os
 import tempfile
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Dict, Iterable, Optional, Tuple
 from urllib.parse import urlparse
 
 from azure.storage.blob import BlobClient, BlobServiceClient
@@ -42,9 +42,9 @@ class TransferStats:
     blobs_copied: int = 0
     bytes_transferred: int = 0
     skipped_existing: int = 0
-    failures: Dict[str, str] = field(default_factory=dict)
+    failures: dict[str, str] = field(default_factory=dict)
 
-    def as_dict(self) -> Dict[str, object]:
+    def as_dict(self) -> dict[str, object]:
         return {
             "blobs_seen": self.blobs_seen,
             "blobs_copied": self.blobs_copied,
@@ -54,8 +54,8 @@ class TransferStats:
         }
 
 
-def parse_container_mapping(values: Iterable[str]) -> Dict[str, ContainerTarget]:
-    mapping: Dict[str, ContainerTarget] = {}
+def parse_container_mapping(values: Iterable[str]) -> dict[str, ContainerTarget]:
+    mapping: dict[str, ContainerTarget] = {}
     for value in values:
         if "=" not in value:
             raise ValueError(f"Container mapping must be NAME=gs://bucket[/prefix]; got '{value}'")
@@ -77,7 +77,7 @@ def format_destination_path(target: ContainerTarget, blob_name: str) -> str:
     return blob_name
 
 
-def md5_matches(gcs_blob: storage.Blob, source_md5: Optional[bytes]) -> bool:
+def md5_matches(gcs_blob: storage.Blob, source_md5: bytes | None) -> bool:
     if not source_md5 or not gcs_blob.exists():
         return False
     # GCS stores md5_hash as base64-encoded string
@@ -90,7 +90,7 @@ def copy_blob(
     gcs_blob: storage.Blob,
     overwrite: bool,
     temp_dir: str,
-) -> Tuple[bool, int]:
+) -> tuple[bool, int]:
     """Download Azure blob to temp file and upload into GCS.
 
     Returns (copied?, bytes_transferred).
@@ -213,7 +213,7 @@ def main() -> None:
     service_client = BlobServiceClient.from_connection_string(args.connection_string)
     storage_client = storage.Client()
 
-    report: Dict[str, Dict[str, object]] = {}
+    report: dict[str, dict[str, object]] = {}
 
     with tempfile.TemporaryDirectory(dir=args.temp_dir) as temp_dir:
         for container_name, target in targets.items():

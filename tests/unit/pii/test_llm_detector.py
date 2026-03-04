@@ -1,11 +1,10 @@
 """Tests for LLM-assisted PII detection (F3)."""
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from i4g.pii.detectors import PiiMatch
 from i4g.pii.llm_detector import LlmPiiDetector, reset_circuit_breaker
 
 

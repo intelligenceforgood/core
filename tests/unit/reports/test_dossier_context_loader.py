@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Dict, Iterable
+from typing import Any
 
 from i4g.reports.bundle_builder import DossierCandidate, DossierPlan
 from i4g.reports.dossier_context import DossierContextLoader
@@ -22,7 +23,7 @@ def test_loader_hydrates_structured_and_review_context() -> None:
                 classification="crypto",
                 confidence=0.92,
                 metadata={"loss_amount_usd": 90000},
-                created_at=datetime(2025, 12, 1, tzinfo=timezone.utc),
+                created_at=datetime(2025, 12, 1, tzinfo=UTC),
             )
         }
     )
@@ -70,7 +71,7 @@ def _plan(case_id: str = "case-123") -> DossierPlan:
     candidate = DossierCandidate(
         case_id=case_id,
         loss_amount_usd=Decimal("100000"),
-        accepted_at=datetime(2025, 12, 2, tzinfo=timezone.utc),
+        accepted_at=datetime(2025, 12, 2, tzinfo=UTC),
         jurisdiction="US-CA",
         cross_border=False,
         primary_entities=("wallet:abc",),
@@ -78,7 +79,7 @@ def _plan(case_id: str = "case-123") -> DossierPlan:
     return DossierPlan(
         plan_id="plan-1",
         jurisdiction_key="US-CA",
-        created_at=datetime(2025, 12, 3, tzinfo=timezone.utc),
+        created_at=datetime(2025, 12, 3, tzinfo=UTC),
         total_loss_usd=Decimal("100000"),
         cases=[candidate],
         bundle_reason="test",
@@ -88,7 +89,7 @@ def _plan(case_id: str = "case-123") -> DossierPlan:
 
 
 class _StubStructuredStore:
-    def __init__(self, records: Dict[str, ScamRecord]) -> None:
+    def __init__(self, records: dict[str, ScamRecord]) -> None:
         self._records = records
 
     def get_by_id(self, case_id: str) -> ScamRecord | None:  # noqa: D401 - stub helper
@@ -96,8 +97,8 @@ class _StubStructuredStore:
 
 
 class _StubReviewStore:
-    def __init__(self, rows: Dict[str, Dict[str, Any]]) -> None:
+    def __init__(self, rows: dict[str, dict[str, Any]]) -> None:
         self._rows = rows
 
-    def get_cases(self, case_ids: Iterable[str]) -> Dict[str, Dict[str, Any]]:  # noqa: D401 - stub helper
+    def get_cases(self, case_ids: Iterable[str]) -> dict[str, dict[str, Any]]:  # noqa: D401 - stub helper
         return {case_id: self._rows[case_id] for case_id in case_ids if case_id in self._rows}

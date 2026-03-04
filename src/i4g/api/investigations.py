@@ -143,9 +143,7 @@ def _trigger_cloud_run_service(
             response.raise_for_status()
             logger.info("SSI service accepted investigation: %s", response.json())
     except httpx.HTTPStatusError as exc:
-        raise RuntimeError(
-            f"SSI service returned {exc.response.status_code}: {exc.response.text}"
-        ) from exc
+        raise RuntimeError(f"SSI service returned {exc.response.status_code}: {exc.response.text}") from exc
     except httpx.RequestError as exc:
         raise RuntimeError(f"Failed to reach SSI service at {endpoint}: {exc}") from exc
 
@@ -260,9 +258,7 @@ def trigger_ssi_investigation(
             "status": "failed",
             "message": f"Failed to trigger SSI service: {exc}",
         }
-        raise HTTPException(
-            status_code=502, detail=f"Failed to trigger SSI investigation: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"Failed to trigger SSI investigation: {exc}") from exc
 
 
 @router.get(

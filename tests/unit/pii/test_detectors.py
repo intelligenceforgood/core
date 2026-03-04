@@ -1,9 +1,6 @@
 """Tests for regex-based PII detectors (F1, F6)."""
 
-import pytest
-
 from i4g.pii.detectors import (
-    PiiMatch,
     detect_addresses,
     detect_all,
     detect_credit_cards,
@@ -13,7 +10,6 @@ from i4g.pii.detectors import (
     detect_phones,
     detect_ssns,
 )
-
 
 # ---------------------------------------------------------------------------
 # Email

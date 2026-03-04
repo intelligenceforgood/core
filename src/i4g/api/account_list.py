@@ -153,7 +153,7 @@ def _transform_artifacts(artifacts: dict[str, str], request: Request) -> dict[st
                 except Exception as exc:
                     LOGGER.warning("Failed to sign GCS URL: %s. Error: %s", path_or_url, exc)
                     # Fallback to an authenticated browser download link.
-                    # This relies on the user being logged into Google and having permission to view the object in the bucket.
+                    # This relies on the user being logged into Google and having permission to view the object in the bucket.  # noqa: E501
                     parts = path_or_url.replace("gs://", "").split("/", 1)
                     if len(parts) == 2:
                         transformed[key] = f"https://storage.cloud.google.com/{parts[0]}/{parts[1]}"

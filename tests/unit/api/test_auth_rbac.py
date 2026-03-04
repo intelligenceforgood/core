@@ -6,15 +6,11 @@ Tests verify:
 - Route-level authorization on admin-only endpoints.
 """
 
-from unittest.mock import MagicMock, patch
-
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from i4g.api.auth import require_role, require_token, reset_auth_state
-from i4g.api.roles import Role
-
 
 # ---------------------------------------------------------------------------
 # Helpers

@@ -6,15 +6,15 @@ fraud attempts based on the official taxonomy and few-shot examples.
 """
 
 import json
-import yaml
 import logging
-import requests
-from typing import Protocol, Any
+from typing import Any, Protocol
 
+import requests
+import yaml
+
+from i4g.classification.rules import detect_signals
 from i4g.settings import PROJECT_ROOT
 from i4g.taxonomy.models import FraudClassificationResult, ScoredLabel
-from i4g.classification.rules import detect_signals
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class OllamaClient:
             response.raise_for_status()
             return response.json().get("response", "")
         except requests.RequestException as e:
-            raise ValueError(f"Ollama request failed: {e}")
+            raise ValueError(f"Ollama request failed: {e}")  # noqa: B904
 
 
 class VertexAIClient:
@@ -53,8 +53,7 @@ class VertexAIClient:
             from google import genai
         except ImportError as exc:
             raise ImportError(
-                "Vertex AI requires 'google-genai'. "
-                "Install with: pip install 'google-genai>=1.0.0,<2.0'"
+                "Vertex AI requires 'google-genai'. " "Install with: pip install 'google-genai>=1.0.0,<2.0'"
             ) from exc
         self._model_name = model_name
         self._client = genai.Client(vertexai=True, project=project, location=location)
@@ -294,7 +293,7 @@ class FraudClassifier:
         last_error = None
         result = None
 
-        for attempt in range(max_retries):
+        for _attempt in range(max_retries):
             try:
                 response_text = self.llm_client.generate(prompt)
                 result = self._parse_response(response_text)
@@ -443,7 +442,7 @@ class FraudClassifier:
         except (json.JSONDecodeError, ValueError) as e:
             # In a real implementation, we would implement retry logic here
             # For now, we raise the error to be handled by the caller
-            raise ValueError(f"Failed to parse LLM response: {e}. Response was: {response_text}")
+            raise ValueError(f"Failed to parse LLM response: {e}. Response was: {response_text}")  # noqa: B904
 
     def _parse_batch_response(self, response_text: str) -> list[dict[str, Any]]:
         """Parse and validate the LLM batch response."""

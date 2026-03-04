@@ -10,17 +10,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 import sqlalchemy as sa
+from fastapi.testclient import TestClient
 from sqlalchemy.orm import sessionmaker
 
-from fastapi.testclient import TestClient
-
 from i4g.api.app import app
-from i4g.store.ssi_store import SsiStore
 from i4g.store.sql import METADATA
+from i4g.store.ssi_store import SsiStore
 
 client = TestClient(app)
 
@@ -235,12 +234,8 @@ class TestSearchWallets:
     def test_filter_by_token(self, store: SsiStore) -> None:
         """Token symbol filter works."""
         scan_id = _seed_scan(store)
-        store.add_wallet(
-            scan_id=scan_id, token_symbol="BTC", network_short="BTC", wallet_address="1A2b3C"
-        )
-        store.add_wallet(
-            scan_id=scan_id, token_symbol="ETH", network_short="ERC20", wallet_address="0x123"
-        )
+        store.add_wallet(scan_id=scan_id, token_symbol="BTC", network_short="BTC", wallet_address="1A2b3C")
+        store.add_wallet(scan_id=scan_id, token_symbol="ETH", network_short="ERC20", wallet_address="0x123")
         resp = client.get("/investigations/ssi/wallets", params={"token_symbol": "BTC"})
         data = resp.json()
         assert data["count"] == 1
@@ -374,9 +369,7 @@ class TestDownloadEvidenceBundle:
         assert resp.status_code == 307
         assert "signed" in resp.headers["location"]
 
-    def test_gcs_fallback_from_local_path(
-        self, store: SsiStore, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_gcs_fallback_from_local_path(self, store: SsiStore, monkeypatch: pytest.MonkeyPatch) -> None:
         """Legacy local evidence_path falls back to GCS via settings."""
         scan_id = _seed_scan(store)
         store.update_scan(scan_id, evidence_path="/tmp/ssi/investigations/example-com_a1b2c3d4")
@@ -507,9 +500,7 @@ class TestDownloadReportPdf:
         assert resp.status_code == 307
         assert "report.pdf" in resp.headers["location"]
 
-    def test_gcs_fallback_from_local_path(
-        self, store: SsiStore, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_gcs_fallback_from_local_path(self, store: SsiStore, monkeypatch: pytest.MonkeyPatch) -> None:
         """Legacy local evidence_path falls back to GCS via settings for PDF."""
         scan_id = _seed_scan(store)
         store.update_scan(scan_id, evidence_path="/tmp/ssi/investigations/example-com_a1b2c3d4")

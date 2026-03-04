@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -71,13 +71,9 @@ def run_search_smoke(
     if not smoke_search and not run_search_smoke:
         return SearchSmokeResult(status="skipped", message="Search smoke disabled.")
 
-    project = (
-        search_project or os.getenv("I4G_VECTOR__VERTEX_AI_PROJECT") or os.getenv("I4G_PROJECT")
-    )
+    project = search_project or os.getenv("I4G_VECTOR__VERTEX_AI_PROJECT") or os.getenv("I4G_PROJECT")
     data_store = search_data_store_id or os.getenv("I4G_VECTOR__VERTEX_AI_DATA_STORE")
-    serving_config = search_serving_config_id or os.getenv(
-        "I4G_VECTOR__VERTEX_AI_SERVING_CONFIG"
-    )
+    serving_config = search_serving_config_id or os.getenv("I4G_VECTOR__VERTEX_AI_SERVING_CONFIG")
     location = search_location or os.getenv("I4G_VECTOR__VERTEX_AI_LOCATION") or "global"
 
     if not project or not data_store or not serving_config:

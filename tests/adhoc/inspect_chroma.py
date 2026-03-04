@@ -1,12 +1,10 @@
 import sys
-import os
 from pathlib import Path
 
 # Add src to path
 sys.path.append(str(Path.cwd() / "src"))
 
 from i4g.store.vector import VectorStore
-from i4g.settings import get_settings
 
 try:
     store = VectorStore()
@@ -20,13 +18,11 @@ try:
     data = collection.peek(limit=5)
 
     embeddings = data.get("embeddings")
+    documents = data.get("documents")
 
-    has_embeddings = False
-    if embeddings is not None:
-        if isinstance(embeddings, list) and len(embeddings) > 0:
-            has_embeddings = True
-        elif hasattr(embeddings, "size") and embeddings.size > 0:
-            has_embeddings = True
+    has_embeddings = embeddings is not None and (
+        isinstance(embeddings, list) and len(embeddings) > 0 or hasattr(embeddings, "size") and embeddings.size > 0
+    )
 
     if has_embeddings:
         print(f"Type of embeddings: {type(embeddings)}")

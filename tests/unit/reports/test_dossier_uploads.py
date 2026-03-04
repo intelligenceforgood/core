@@ -17,10 +17,10 @@ class _DriveServiceStub:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str | None, str | None, bool | None]] = []
 
-    def files(self) -> "_DriveServiceStub":
+    def files(self) -> _DriveServiceStub:
         return self
 
-    def permissions(self) -> "_DriveServiceStub":
+    def permissions(self) -> _DriveServiceStub:
         return self
 
     def get(self, *, fileId: str, fields: str, supportsAllDrives: bool = True) -> _ListStub:

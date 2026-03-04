@@ -8,7 +8,7 @@ detail page.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -83,13 +83,13 @@ class SsiEventsStore:
         """
         event_id = event_id or str(uuid4())
         if timestamp is None:
-            ts = datetime.now(timezone.utc)
+            ts = datetime.now(UTC)
         elif isinstance(timestamp, str):
             ts = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         else:
             ts = timestamp
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             session.execute(
                 sa.insert(sql_schema.ssi_events).values(
@@ -120,7 +120,7 @@ class SsiEventsStore:
 
         rows: list[dict[str, Any]] = []
         ids: list[str] = []
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         for ev in events:
             event_id = ev.get("id") or str(uuid4())
@@ -176,12 +176,7 @@ class SsiEventsStore:
             ``timestamp`` (ISO-8601 string), ``data_json``, ``screenshot_url``.
         """
         tbl = sql_schema.ssi_events
-        stmt = (
-            sa.select(tbl)
-            .where(tbl.c.scan_id == scan_id)
-            .order_by(tbl.c.timestamp.asc())
-            .limit(limit)
-        )
+        stmt = sa.select(tbl).where(tbl.c.scan_id == scan_id).order_by(tbl.c.timestamp.asc()).limit(limit)
         if after_timestamp is not None:
             stmt = stmt.where(tbl.c.timestamp > after_timestamp)
 
@@ -200,10 +195,7 @@ class SsiEventsStore:
             Latest event timestamp or ``None`` if no events exist yet.
         """
         tbl = sql_schema.ssi_events
-        stmt = (
-            sa.select(sa.func.max(tbl.c.timestamp))
-            .where(tbl.c.scan_id == scan_id)
-        )
+        stmt = sa.select(sa.func.max(tbl.c.timestamp)).where(tbl.c.scan_id == scan_id)
         with self._session_factory() as session:
             result = session.execute(stmt).scalar()
         return result
@@ -234,7 +226,7 @@ class SsiEventsStore:
             The ``id`` of the inserted command row.
         """
         command_id = command_id or str(uuid4())
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         tbl = sql_schema.ssi_guidance_commands
         with self._session_factory() as session:
             session.execute(
@@ -283,12 +275,10 @@ class SsiEventsStore:
             ``True`` if the row was updated, ``False`` if not found.
         """
         tbl = sql_schema.ssi_guidance_commands
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             result = session.execute(
-                sa.update(tbl)
-                .where(tbl.c.id == command_id)
-                .values(acknowledged=True, acknowledged_at=now)
+                sa.update(tbl).where(tbl.c.id == command_id).values(acknowledged=True, acknowledged_at=now)
             )
             session.commit()
         return result.rowcount > 0

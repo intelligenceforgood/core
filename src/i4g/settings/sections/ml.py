@@ -92,7 +92,7 @@ class LLMSettings(BaseSettings):
     provider: Literal["ollama", "vertex_ai", "gemini", "mock"] = Field(
         default="ollama",
         validation_alias=AliasChoices("LLM_PROVIDER", "LLM__PROVIDER"),
-        description="LLM backend: 'vertex_ai'/'gemini' (synonyms) use Vertex AI via google-genai, 'ollama' uses local Ollama, 'mock' for tests.",
+        description="LLM backend: 'vertex_ai'/'gemini' (synonyms) use Vertex AI via google-genai, 'ollama' uses local Ollama, 'mock' for tests.",  # noqa: E501
     )
     chat_model: str = Field(
         default="llama3",

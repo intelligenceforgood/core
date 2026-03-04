@@ -79,7 +79,9 @@ def search_snapshot_schema(
     indent: int = typer.Option(2, "--indent", help="JSON indentation level."),
     timeout: float = typer.Option(30.0, "--timeout", help="HTTP timeout seconds."),
 ) -> None:
-    logic.refresh_hybrid_schema_snapshot(api_base=api_base, api_key=api_key, output=output, indent=indent, timeout=int(timeout))
+    logic.refresh_hybrid_schema_snapshot(
+        api_base=api_base, api_key=api_key, output=output, indent=indent, timeout=int(timeout)
+    )
 
 
 @search_app.command("annotate-saved-searches", help="Annotate saved-search exports with tags/schema version.")

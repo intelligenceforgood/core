@@ -10,7 +10,7 @@ import json
 import logging
 import uuid
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import sqlalchemy as sa
@@ -20,8 +20,9 @@ from fastapi.responses import Response, StreamingResponse
 from i4g.api.auth import require_role, require_token
 from i4g.api.camel import CamelModel
 from i4g.services.factories import build_evidence_storage
-from i4g.store.sql import cases, source_documents
+from i4g.store.sql import cases
 from i4g.store.sql import session_factory as build_sql_session_factory
+from i4g.store.sql import source_documents
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +67,7 @@ class EvidenceListResponse(CamelModel):
 
 def _get_case_or_404(session: Any, case_id: str) -> None:
     """Raise 404 if *case_id* does not exist."""
-    row = session.execute(
-        sa.select(cases.c.case_id).where(cases.c.case_id == case_id)
-    ).fetchone()
+    row = session.execute(sa.select(cases.c.case_id).where(cases.c.case_id == case_id)).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Case not found")
 
@@ -98,9 +97,7 @@ def list_evidence(case_id: str) -> EvidenceListResponse:
 
     with sf() as session:
         _get_case_or_404(session, case_id)
-        rows = session.execute(
-            sa.select(source_documents).where(source_documents.c.case_id == case_id)
-        ).fetchall()
+        rows = session.execute(sa.select(source_documents).where(source_documents.c.case_id == case_id)).fetchall()
 
     documents: list[EvidenceMetadata] = []
     for row in rows:
@@ -153,9 +150,7 @@ def export_evidence(case_id: str) -> StreamingResponse:
 
     with sf() as session:
         _get_case_or_404(session, case_id)
-        rows = session.execute(
-            sa.select(source_documents).where(source_documents.c.case_id == case_id)
-        ).fetchall()
+        rows = session.execute(sa.select(source_documents).where(source_documents.c.case_id == case_id)).fetchall()
 
     if not rows:
         raise HTTPException(status_code=404, detail="No documents found for this case")
@@ -206,7 +201,7 @@ def export_evidence(case_id: str) -> StreamingResponse:
 
         manifest = {
             "case_id": case_id,
-            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "exported_at": datetime.now(UTC).isoformat(),
             "total_documents": len(rows),
             "files_included": files_included,
             "documents": manifest_entries,
@@ -331,7 +326,7 @@ def upload_evidence(case_id: str, file: UploadFile) -> EvidenceUploadResponse:
 
     # Create source_documents row
     doc_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     with sf() as session:
         session.execute(

@@ -8,7 +8,7 @@ and save recognized text to JSONL for RAGFlow ingestion.
 
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytesseract
@@ -23,7 +23,7 @@ def ocr_image_to_doc(image_path):
         "metadata": {
             "source": "synthetic_chat",
             "filename": image_path.name,
-            "created_at": datetime.now(timezone.utc).isoformat() + "Z",
+            "created_at": datetime.now(UTC).isoformat() + "Z",
         },
     }
 

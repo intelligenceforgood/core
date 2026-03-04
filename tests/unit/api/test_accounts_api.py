@@ -4,14 +4,14 @@ Tests verify admin-only access, self-service /me endpoint,
 role changes, and deactivation through the API.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
-from i4g.api.accounts import get_account_store, router
+from i4g.api.accounts import get_account_store
 from i4g.api.app import app
-from i4g.api.auth import require_role, require_token
+from i4g.api.auth import require_token
 
 
 @pytest.fixture(autouse=True)

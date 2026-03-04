@@ -12,7 +12,7 @@ gateway endpoints can serve the same data without importing from the
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -85,7 +85,7 @@ class SsiStore:
             The ``scan_id`` (UUID string).
         """
         scan_id = scan_id or str(uuid4())
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             session.execute(
                 sa.insert(sql_schema.site_scans).values(
@@ -112,12 +112,10 @@ class SsiStore:
             scan_id: The scan to update.
             **fields: Column name/value pairs to set.
         """
-        fields["updated_at"] = datetime.now(timezone.utc)
+        fields["updated_at"] = datetime.now(UTC)
         with self._session_factory() as session:
             session.execute(
-                sa.update(sql_schema.site_scans)
-                .where(sql_schema.site_scans.c.scan_id == scan_id)
-                .values(**fields)
+                sa.update(sql_schema.site_scans).where(sql_schema.site_scans.c.scan_id == scan_id).values(**fields)
             )
             session.commit()
 
@@ -159,7 +157,7 @@ class SsiStore:
             evidence_path: GCS or local path to evidence bundle.
             evidence_zip_sha256: SHA-256 hash of the evidence ZIP.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         values: dict[str, Any] = {
             "status": status,
             "wallet_count": wallet_count,
@@ -191,9 +189,7 @@ class SsiStore:
 
         with self._session_factory() as session:
             session.execute(
-                sa.update(sql_schema.site_scans)
-                .where(sql_schema.site_scans.c.scan_id == scan_id)
-                .values(**values)
+                sa.update(sql_schema.site_scans).where(sql_schema.site_scans.c.scan_id == scan_id).values(**values)
             )
             session.commit()
         logger.info("Completed scan %s with status=%s", scan_id, status)
@@ -299,8 +295,8 @@ class SsiStore:
                 confidence=confidence,
                 site_url=site_url,
                 metadata=metadata or {},
-                harvested_at=harvested_at or datetime.now(timezone.utc),
-                created_at=datetime.now(timezone.utc),
+                harvested_at=harvested_at or datetime.now(UTC),
+                created_at=datetime.now(UTC),
             )
             stmt = stmt.on_conflict_do_update(
                 index_elements=["scan_id", "token_symbol", "network_short", "wallet_address"],
@@ -327,7 +323,7 @@ class SsiStore:
         """
         if not wallets:
             return 0
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         rows = []
         for w in wallets:
             rows.append(
@@ -396,27 +392,24 @@ class SsiStore:
         hw = sql_schema.harvested_wallets
 
         if deduplicate:
-            stmt = (
-                sa.select(
-                    hw.c.wallet_address,
-                    hw.c.token_symbol,
-                    hw.c.token_label,
-                    hw.c.network_short,
-                    hw.c.network_label,
-                    sa.func.max(hw.c.confidence).label("confidence"),
-                    sa.func.max(hw.c.source).label("source"),
-                    sa.func.max(hw.c.site_url).label("site_url"),
-                    sa.func.min(hw.c.harvested_at).label("first_seen_at"),
-                    sa.func.max(hw.c.harvested_at).label("last_seen_at"),
-                    sa.func.count().label("seen_count"),
-                )
-                .group_by(
-                    hw.c.wallet_address,
-                    hw.c.token_symbol,
-                    hw.c.token_label,
-                    hw.c.network_short,
-                    hw.c.network_label,
-                )
+            stmt = sa.select(
+                hw.c.wallet_address,
+                hw.c.token_symbol,
+                hw.c.token_label,
+                hw.c.network_short,
+                hw.c.network_label,
+                sa.func.max(hw.c.confidence).label("confidence"),
+                sa.func.max(hw.c.source).label("source"),
+                sa.func.max(hw.c.site_url).label("site_url"),
+                sa.func.min(hw.c.harvested_at).label("first_seen_at"),
+                sa.func.max(hw.c.harvested_at).label("last_seen_at"),
+                sa.func.count().label("seen_count"),
+            ).group_by(
+                hw.c.wallet_address,
+                hw.c.token_symbol,
+                hw.c.token_label,
+                hw.c.network_short,
+                hw.c.network_label,
             )
             if address is not None:
                 stmt = stmt.where(hw.c.wallet_address == address)
@@ -500,7 +493,7 @@ class SsiStore:
                     error=error,
                     sequence=sequence,
                     metadata=metadata or {},
-                    created_at=datetime.now(timezone.utc),
+                    created_at=datetime.now(UTC),
                 )
             )
             session.commit()
@@ -572,8 +565,8 @@ class SsiStore:
                     is_required=is_required,
                     was_submitted=was_submitted,
                     metadata=metadata or {},
-                    detected_at=detected_at or datetime.now(timezone.utc),
-                    created_at=datetime.now(timezone.utc),
+                    detected_at=detected_at or datetime.now(UTC),
+                    created_at=datetime.now(UTC),
                 )
             )
             session.commit()
@@ -591,7 +584,7 @@ class SsiStore:
         """
         if not exposures:
             return 0
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         rows = []
         for e in exposures:
             rows.append(

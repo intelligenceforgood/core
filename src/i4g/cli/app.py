@@ -2,7 +2,7 @@
 
 Config precedence: settings.default.toml -> settings.local.toml -> env vars (I4G_* with double underscores for nesting) -> CLI flags.
 Use ``--install-completion`` to enable shell tab completion (bash required; zsh/fish supported when available).
-"""
+"""  # noqa: E501
 
 from __future__ import annotations
 

@@ -110,9 +110,7 @@ def _wallet_rows_to_xlsx(wallets: list[dict[str, Any]], path: Path) -> None:
     try:
         from openpyxl import Workbook
     except ImportError as exc:
-        raise RuntimeError(
-            "openpyxl is required for XLSX export. Install it with: pip install openpyxl"
-        ) from exc
+        raise RuntimeError("openpyxl is required for XLSX export. Install it with: pip install openpyxl") from exc
 
     wb = Workbook()
     ws = wb.active

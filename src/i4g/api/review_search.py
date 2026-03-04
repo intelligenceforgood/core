@@ -13,21 +13,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, ValidationError
 
 from i4g.api.auth import require_token
-from i4g.api.review_search_utils import (
-    clean_text_value,
-    coerce_entities,
-    coerce_positive_int,
-    coerce_string_list,
-    coerce_time_range,
-    first_value,
-)
-from i4g.api.review_deps import (
-    SEARCH_AUDIT_REVIEW_ID,
-    SETTINGS,
-    get_campaign_service,
-    get_hybrid_search_service,
-    get_store,
-)
 from i4g.api.response_models import (
     AdvancedSearchResultsResponse,
     BulkTagResponse,
@@ -39,6 +24,21 @@ from i4g.api.response_models import (
     SavedSearchExportResponse,
     SearchResultsResponse,
     SearchSchemaResponse,
+)
+from i4g.api.review_deps import (
+    SEARCH_AUDIT_REVIEW_ID,
+    SETTINGS,
+    get_campaign_service,
+    get_hybrid_search_service,
+    get_store,
+)
+from i4g.api.review_search_utils import (
+    clean_text_value,
+    coerce_entities,
+    coerce_positive_int,
+    coerce_string_list,
+    coerce_time_range,
+    first_value,
 )
 from i4g.services.campaigns import CampaignService
 from i4g.services.hybrid_search import HybridSearchQuery, HybridSearchService, QueryEntityFilter, QueryTimeRange
@@ -197,7 +197,11 @@ def search_history(
     return {"events": actions, "count": len(actions)}
 
 
-@router.post("/search/query", summary="Execute advanced hybrid search with structured filters", response_model=AdvancedSearchResultsResponse)
+@router.post(
+    "/search/query",
+    summary="Execute advanced hybrid search with structured filters",
+    response_model=AdvancedSearchResultsResponse,
+)
 def search_cases_advanced(
     payload: HybridSearchRequest,
     search_service: HybridSearchService = Depends(get_hybrid_search_service),
@@ -205,7 +209,12 @@ def search_cases_advanced(
     store: ReviewStore = Depends(get_store),
 ):
     """Execute advanced hybrid search with structured filters."""
-    logger.info("search_cases_advanced: text=%r filters=%d offset=%d", payload.text, len(payload.classifications), payload.offset)
+    logger.info(
+        "search_cases_advanced: text=%r filters=%d offset=%d",
+        payload.text,
+        len(payload.classifications),
+        payload.offset,
+    )
     query = _build_hybrid_query_from_request(payload)
     query_result = search_service.search(query)
     search_id = f"search:{uuid.uuid4()}"
@@ -291,7 +300,7 @@ def save_search(
             if ":" in msg:
                 owner_val = msg.split(":", 1)[1]
                 owner = owner_val or "shared"
-            raise HTTPException(
+            raise HTTPException(  # noqa: B904
                 status_code=409,
                 detail=f"Saved search name already exists (owner={owner})",
             )
@@ -321,7 +330,9 @@ def list_saved_searches(
     return {"items": items, "count": len(items)}
 
 
-@router.get("/search/tag-presets", summary="List tag presets derived from saved searches", response_model=PresetListResponse)
+@router.get(
+    "/search/tag-presets", summary="List tag presets derived from saved searches", response_model=PresetListResponse
+)
 def list_tag_presets(
     limit: int = Query(50, ge=1, le=200),
     owner_only: bool = Query(False, description="If true, only return tag presets owned by the caller"),
@@ -393,7 +404,7 @@ def patch_saved_search(
             if ":" in msg:
                 owner_val = msg.split(":", 1)[1]
                 owner = owner_val or "shared"
-            raise HTTPException(
+            raise HTTPException(  # noqa: B904
                 status_code=409,
                 detail=f"Saved search name already exists (owner={owner})",
             )
@@ -403,7 +414,9 @@ def patch_saved_search(
     return {"updated": True, "search_id": search_id}
 
 
-@router.post("/search/saved/{search_id}/share", summary="Promote a saved search to shared scope", response_model=IdResponse)
+@router.post(
+    "/search/saved/{search_id}/share", summary="Promote a saved search to shared scope", response_model=IdResponse
+)
 def share_saved_search(
     search_id: str,
     store: ReviewStore = Depends(get_store),
@@ -415,13 +428,13 @@ def share_saved_search(
     except ValueError as exc:
         msg = str(exc)
         if msg == "saved_search_not_found":
-            raise HTTPException(status_code=404, detail="Saved search not found")
+            raise HTTPException(status_code=404, detail="Saved search not found")  # noqa: B904
         if msg.startswith("duplicate_saved_search"):
             owner = "shared"
             if ":" in msg:
                 owner_val = msg.split(":", 1)[1]
                 owner = owner_val or "shared"
-            raise HTTPException(
+            raise HTTPException(  # noqa: B904
                 status_code=409,
                 detail=f"Shared search name already exists (owner={owner})",
             )
@@ -429,7 +442,11 @@ def share_saved_search(
     return {"search_id": shared_id}
 
 
-@router.get("/search/saved/{search_id}/export", summary="Export a saved search configuration", response_model=SavedSearchExportResponse)
+@router.get(
+    "/search/saved/{search_id}/export",
+    summary="Export a saved search configuration",
+    response_model=SavedSearchExportResponse,
+)
 def export_saved_search(
     search_id: str,
     store: ReviewStore = Depends(get_store),
@@ -462,11 +479,11 @@ def import_saved_search(
             if ":" in msg:
                 owner_val = msg.split(":", 1)[1]
                 owner = owner_val or "shared"
-            raise HTTPException(
+            raise HTTPException(  # noqa: B904
                 status_code=409,
                 detail=f"Saved search name already exists (owner={owner})",
             )
-        raise HTTPException(status_code=400, detail="Invalid saved search payload")
+        raise HTTPException(status_code=400, detail="Invalid saved search payload")  # noqa: B904
     return {"search_id": search_id}
 
 
@@ -537,7 +554,9 @@ def _normalize_saved_search_params(params: dict[str, Any], *, strict: bool = Tru
         return _apply_saved_search_schema_version(dict(params))
     except ValidationError as exc:
         if strict:
-            raise HTTPException(status_code=400, detail=f"Invalid saved search params: {exc.errors()[0]['msg']}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid saved search params: {exc.errors()[0]['msg']}"
+            ) from exc
         return _apply_saved_search_schema_version(dict(params))
 
     normalized = request_model.model_dump(exclude_none=True)
@@ -648,5 +667,3 @@ def _apply_saved_search_schema_version(params: dict[str, Any], provided: Any | N
     else:
         normalized.pop("schema_version", None)
     return normalized
-
-

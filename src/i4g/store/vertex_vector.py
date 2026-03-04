@@ -60,7 +60,7 @@ class _VertexAIBackend:
         # We'll map our texts and metadata to Discovery Engine Documents
 
         documents = []
-        for text, metadata, doc_id in zip(texts, metadatas, ids):
+        for text, metadata, doc_id in zip(texts, metadatas, ids, strict=False):
             # Convert metadata to struct/json format expected by Vertex AI
             # Note: Vertex AI Search schema must be configured to accept these fields
             # For unstructured data stores, we primarily use 'content' (text) and 'struct_data' (metadata)
@@ -99,7 +99,7 @@ class _VertexAIBackend:
         # or use a small batch import if possible.
         # Discovery Engine API has a `import_documents` method which is LRO.
         # It doesn't have a `batch_write_documents`.
-        # So we loop `create_document` (or `update_document` / `write_document` isn't a thing, it's create/delete/patch).
+        # So we loop `create_document` (or `update_document` / `write_document` isn't a thing, it's create/delete/patch).  # noqa: E501
         # Actually, `import_documents` allows inline source.
 
         # Let's use inline import for the batch.
@@ -118,10 +118,9 @@ class _VertexAIBackend:
         # Wait for operation to complete (blocking, as per interface contract)
         # In a production high-throughput scenario, we might want to make this async
         # or use a different pattern, but for now we block.
-        response = operation.result()
+        operation.result()
 
         # Check for failures in response
-        # response.error_samples could contain errors
 
         return list(ids)
 
@@ -229,7 +228,7 @@ class _VertexAIBackend:
         # No-op for managed service
         pass
 
-    def as_retriever(self, search_kwargs: Optional[Dict[str, Any]] = None):
+    def as_retriever(self, search_kwargs: dict[str, Any] | None = None):
         # Return a LangChain retriever wrapper if needed,
         # or self if we implement the interface.
         # For now, the VectorStore wrapper handles this.

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from i4g.settings import Settings, get_settings
@@ -37,7 +37,7 @@ class AccountListService:
         """Execute an extraction run and return normalized indicators."""
 
         request_id = f"account-run-{uuid4().hex[:8]}"
-        generated_at = datetime.now(tz=timezone.utc)
+        generated_at = datetime.now(tz=UTC)
         categories = request.categories or [query.slug for query in list_indicator_queries()]
         indicators: list[FinancialIndicator] = []
         source_lookup: dict[str, SourceDocument] = {}

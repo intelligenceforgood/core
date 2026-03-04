@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
-from collections.abc import Iterator
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session, sessionmaker
@@ -20,7 +20,7 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 @dataclass(slots=True)

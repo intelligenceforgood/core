@@ -7,9 +7,9 @@ import hashlib
 import hmac
 import logging
 import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
-from collections.abc import Iterable, Mapping
 
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -232,9 +232,7 @@ class TokenizationService:
         result = text
         for match in all_matches:
             det_label = detector or match.detector
-            token_result = self.tokenize(
-                match.value, match.prefix, detector=det_label, case_id=case_id
-            )
+            token_result = self.tokenize(match.value, match.prefix, detector=det_label, case_id=case_id)
             # Record detector confidence for observability / tuning
             self.observability.record_detector_confidence(
                 detector=match.detector,
@@ -260,10 +258,7 @@ class TokenizationService:
     ) -> Any:
         """Recursively walk a structure and tokenize values where keys match PII types."""
         if isinstance(data, dict):
-            return {
-                k: self._tokenize_value_if_pii(k, v, detector=detector, case_id=case_id)
-                for k, v in data.items()
-            }
+            return {k: self._tokenize_value_if_pii(k, v, detector=detector, case_id=case_id) for k, v in data.items()}
         if isinstance(data, list):
             return [self.tokenize_tree(item, detector=detector, case_id=case_id) for item in data]
         return data
@@ -339,7 +334,7 @@ class TokenizationService:
         actor_name = actor or "unknown"
         stored = self.store.fetch(token)
         outcome = "success" if stored and stored.canonical_value else "not_found"
-        
+
         self.observability.record_detokenization_attempt(
             actor=actor_name,
             prefix=stored.prefix if stored else None,
@@ -347,7 +342,7 @@ class TokenizationService:
             reason=None if stored else "missing",
             case_id=case_id,
         )
-        
+
         self.store.log_access(
             actor=actor_name,
             action="detokenize",
@@ -357,7 +352,7 @@ class TokenizationService:
             reason=None if stored else "missing",
             case_id=case_id,
         )
-        
+
         return stored
 
     @staticmethod

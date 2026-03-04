@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -73,7 +73,7 @@ def build_manifest(
     manifest = {
         "bundle_id": bundle_id,
         "root": str(bundle_dir),
-        "generated_at": datetime.now(timezone.utc).strftime(ISO_FORMAT),
+        "generated_at": datetime.now(UTC).strftime(ISO_FORMAT),
         "provenance": provenance or "",
         "license": license_name or "",
         "pii": bool(pii),

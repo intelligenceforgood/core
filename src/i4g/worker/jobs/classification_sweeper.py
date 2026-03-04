@@ -6,13 +6,13 @@ import logging
 import time
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from i4g.services.factories import build_fraud_classifier
 from i4g.observability import get_observability
+from i4g.services.factories import build_fraud_classifier
 from i4g.settings import get_settings
 from i4g.store import sql as sql_schema
 from i4g.store.sql import session_factory as default_session_factory
@@ -183,7 +183,7 @@ def _update_batch(
 ) -> None:
     """Update classification status and results for the batch."""
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     for i, case_id in enumerate(case_ids):
         result = results[i]
@@ -199,9 +199,7 @@ def _update_batch(
                     "classification_status": "classified",
                     "classification": "UNKNOWN",
                     "classification_result": result.model_dump(),
-                    "confidence": (
-                        result.risk_score / 100.0 if result.risk_score is not None else 0.0
-                    ),
+                    "confidence": (result.risk_score / 100.0 if result.risk_score is not None else 0.0),
                     "risk_score": result.risk_score if result.risk_score is not None else 0.0,
                     "taxonomy_version": result.taxonomy_version,
                 }

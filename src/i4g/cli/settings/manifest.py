@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import json
 import types
+from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Union, get_args, get_origin
-from collections.abc import Sequence
 
 import yaml
 from pydantic.fields import FieldInfo, PydanticUndefined
@@ -23,7 +23,7 @@ SMOKE_COMMAND = (
 INTRO_TEXT = (
     "Intelligence for Good spans three steady-state runtime profiles, so configuration lives in environment variables "
     "instead of hard-coded values.\n\n"
-    "- Local sandbox runs on every developer laptop with mock identity, SQLite/Chroma, and Ollama so feature work stays "
+    "- Local sandbox runs on every developer laptop with mock identity, SQLite/Chroma, and Ollama so feature work stays "  # noqa: E501
     "fast and offline.\n"
     "- `i4g-dev` hosts the shared cloud deployment used for integration tests and stakeholder demos.\n"
     "- `i4g-prod` serves analysts and partners; it must stay isolated from experimental changes.\n\n"
@@ -34,14 +34,14 @@ INTRO_TEXT = (
     "2. When adding or changing a setting, update `src/i4g/settings/config.py`, extend "
     "`tests/unit/settings/`, and rerun `i4g settings export-manifest` (pass `--docs-repo ../docs` when the "
     "docs checkout is available) before committing.\n"
-    "3. Store credentials in `.env.local` or Secret Manager rather than committing secrets here; laptop runs can source "
+    "3. Store credentials in `.env.local` or Secret Manager rather than committing secrets here; laptop runs can source "  # noqa: E501
     "the file via `direnv` or the built-in dotenv loader.\n"
-    "4. Keep `I4G_ENV=local` for sandbox testing; other values assume GCP services (Cloud SQL, Cloud Storage, Vertex AI) "
+    "4. Keep `I4G_ENV=local` for sandbox testing; other values assume GCP services (Cloud SQL, Cloud Storage, Vertex AI) "  # noqa: E501
     "are reachable.\n"
     "5. Machine-readable manifests live next to this page (`docs/config/settings_manifest.{json,yaml}` in core, "
     "`config/settings.yaml` in the docs site) for automation and CI validation.\n\n"
     "This catalog is assembled by `i4g settings export-manifest` directly from "
-    "`src/i4g/settings/config.py`. The descriptions below are automatically generated—do not hand-edit them; change the "
+    "`src/i4g/settings/config.py`. The descriptions below are automatically generated—do not hand-edit them; change the "  # noqa: E501
     "implementation defaults and rerun the exporter instead."
 )
 
@@ -229,7 +229,7 @@ def write_json(records: list[SettingRecord], output_dir: Path) -> Path:
     """Write the JSON manifest to the given directory."""
 
     payload = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "source": "src/i4g/settings/config.py",
         "env_prefix": Settings.model_config.get("env_prefix", "") or "",
         "fields": [record.as_jsonable() for record in records],
@@ -243,7 +243,7 @@ def write_yaml(records: list[SettingRecord], output_dir: Path) -> Path:
     """Write the YAML manifest."""
 
     payload = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "source": "src/i4g/settings/config.py",
         "env_prefix": Settings.model_config.get("env_prefix", "") or "",
         "fields": [record.as_jsonable() for record in records],
@@ -345,7 +345,7 @@ def write_docs_repo(records: list[SettingRecord], docs_repo: Path) -> None:
     )
     md_path.write_text(md_content, encoding="utf-8")
     yaml_payload = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "fields": [record.as_jsonable() for record in records],
     }
     yaml_path.write_text(yaml.safe_dump(yaml_payload, sort_keys=False), encoding="utf-8")

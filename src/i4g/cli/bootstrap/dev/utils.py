@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import logging
 import subprocess
-from pathlib import Path
 from collections.abc import Iterable, Sequence
+from pathlib import Path
 
 from i4g.cli.utils import hash_file
 from i4g.settings import get_settings

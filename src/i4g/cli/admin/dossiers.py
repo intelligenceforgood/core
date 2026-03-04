@@ -30,14 +30,11 @@ def build_dossiers(
     candidates = provider.list_candidates(limit=limit)
     if not candidates:
         console.print(
-            f"[yellow]No accepted cases found for bundling (limit={limit}). "
-            "Review queue state before rerunning."
+            f"[yellow]No accepted cases found for bundling (limit={limit}). " "Review queue state before rerunning."
         )
         return
 
-    min_loss_value = (
-        Decimal(str(min_loss)) if min_loss is not None else Decimal(str(SETTINGS.report.min_loss_usd))
-    )
+    min_loss_value = Decimal(str(min_loss)) if min_loss is not None else Decimal(str(SETTINGS.report.min_loss_usd))
     criteria = BundleCriteria(
         min_loss_usd=min_loss_value,
         recency_days=recency_days or SETTINGS.report.recency_days,
@@ -95,7 +92,7 @@ def process_dossiers(
         return
 
     console.print(
-        "[green]\u2705 Processed {processed} plan(s) \u2014 completed={completed} failed={failed} dry_run={dry}[/green]".format(
+        "[green]\u2705 Processed {processed} plan(s) \u2014 completed={completed} failed={failed} dry_run={dry}[/green]".format(  # noqa: E501
             processed=summary.processed,
             completed=summary.completed,
             failed=summary.failed,

@@ -2,17 +2,11 @@
 
 from __future__ import annotations
 
-import pytest
-
 from i4g.classification.rules import (
     BTC_PATTERN,
-    EMAIL_PATTERN,
     ETH_PATTERN,
-    PHONE_PATTERN,
-    URL_PATTERN,
     detect_signals,
 )
-
 
 # ---------------------------------------------------------------------------
 # Pattern-level unit tests
@@ -95,10 +89,7 @@ class TestDetectSignals:
         assert "CHANNEL.EMAIL" in labels
 
     def test_multiple_signals(self):
-        text = (
-            "Send bitcoin to 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa "
-            "or visit https://scam.com and email scam@evil.com"
-        )
+        text = "Send bitcoin to 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa " "or visit https://scam.com and email scam@evil.com"
         result = detect_signals(text)
         action_labels = {s.label for s in result["actions"]}
         channel_labels = {s.label for s in result["channel"]}

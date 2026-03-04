@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from i4g.cli.bootstrap.common import VerificationReport, get_bundles
@@ -281,7 +281,7 @@ def verify_cloud_state(args: argparse.Namespace) -> VerificationReport:
 
     return VerificationReport(
         environment="dev",
-        timestamp=datetime.now(timezone.utc).isoformat(),
+        timestamp=datetime.now(UTC).isoformat(),
         bundles=bundles_state,
         storage=storage_stats,
         smoke_tests={},

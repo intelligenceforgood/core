@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any, Literal
-from collections.abc import Sequence
 
 from i4g.observability import Observability, get_observability
 from i4g.services.factories import build_entity_store
 from i4g.settings import Settings, get_settings
+from i4g.store.entity_store import EntityStore
 from i4g.store.retriever import HybridRetriever
 
 

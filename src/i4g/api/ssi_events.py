@@ -22,10 +22,12 @@ Authentication:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Any, AsyncIterator
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -229,11 +231,11 @@ async def ingest_ssi_events(
             "id": event_id,
             "scan_id": scan_id,
             "event_type": ev.event_type,
-            "timestamp": ev.timestamp or datetime.now(timezone.utc).isoformat(),
+            "timestamp": ev.timestamp or datetime.now(UTC).isoformat(),
             "data": ev.data,
             "screenshot_url": ev.screenshot_url,
         }
-        for event_id, ev in zip(ids, body.events)
+        for event_id, ev in zip(ids, body.events, strict=False)
     ]
     await _publish_events(scan_id, redis_events)
 
@@ -270,10 +272,8 @@ def get_ssi_events(
     """
     after_ts: datetime | None = None
     if after:
-        try:
+        with contextlib.suppress(ValueError):
             after_ts = datetime.fromisoformat(after.replace("Z", "+00:00"))
-        except ValueError:
-            pass
     store = build_ssi_events_store()
     events = store.get_events(scan_id, after_timestamp=after_ts, limit=limit)
     # Rename data_json → data for the wire format.
@@ -426,10 +426,8 @@ async def _stream_from_db(
     if existing:
         last_ts_str = existing[-1].get("timestamp")
         if last_ts_str:
-            try:
+            with contextlib.suppress(ValueError):
                 after_ts = datetime.fromisoformat(last_ts_str.replace("Z", "+00:00"))
-            except ValueError:
-                pass
 
     logger.info("SSE: polling DB for scan %s every %.1fs", scan_id, poll_interval)
 
@@ -453,10 +451,8 @@ async def _stream_from_db(
         if new_events:
             last_ts_str = new_events[-1].get("timestamp")
             if last_ts_str:
-                try:
+                with contextlib.suppress(ValueError):
                     after_ts = datetime.fromisoformat(last_ts_str.replace("Z", "+00:00"))
-                except ValueError:
-                    pass
 
 
 # ---------------------------------------------------------------------------
@@ -492,7 +488,7 @@ async def submit_guidance(
     if body.action not in VALID_GUIDANCE_ACTIONS:
         raise HTTPException(
             status_code=422,
-            detail=f"Invalid guidance action '{body.action}'. Must be one of: {', '.join(sorted(VALID_GUIDANCE_ACTIONS))}",
+            detail=f"Invalid guidance action '{body.action}'. Must be one of: {', '.join(sorted(VALID_GUIDANCE_ACTIONS))}",  # noqa: E501
         )
 
     store = build_ssi_events_store()
@@ -518,14 +514,17 @@ async def submit_guidance(
             event_type="guidance_submitted",
             data_json={"action": body.action, "value": body.value, "reason": body.reason, "command_id": cmd_id},
         )
-        await _publish_events(scan_id, [
-            {
-                "scan_id": scan_id,
-                "event_type": "guidance_submitted",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "data": {"action": body.action, "value": body.value, "reason": body.reason, "command_id": cmd_id},
-            }
-        ])
+        await _publish_events(
+            scan_id,
+            [
+                {
+                    "scan_id": scan_id,
+                    "event_type": "guidance_submitted",
+                    "timestamp": datetime.now(UTC).isoformat(),
+                    "data": {"action": body.action, "value": body.value, "reason": body.reason, "command_id": cmd_id},
+                }
+            ],
+        )
     except Exception as exc:
         logger.warning("Failed to insert guidance_submitted event: %s", exc)
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from logging.config import fileConfig
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
@@ -38,7 +38,7 @@ def _resolve_database_url() -> str:
     return f"sqlite:///{normalized}"
 
 
-def _prepare_config_section() -> Dict[str, Any]:
+def _prepare_config_section() -> dict[str, Any]:
     """Update the Alembic config section with the resolved database URL."""
 
     section = config.get_section(config.config_ini_section, {})

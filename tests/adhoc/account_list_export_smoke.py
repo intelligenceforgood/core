@@ -8,10 +8,10 @@ can verify artifact export paths without relying on the full LLM workflow.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Iterable, List, Sequence
 
 from i4g.services.account_list.exporters import AccountListExporter
 from i4g.services.account_list.models import AccountListRequest, FinancialIndicator, SourceDocument
@@ -34,7 +34,7 @@ class _StaticRetriever:
         top_k: int,
         start_time: datetime | None,
         end_time: datetime | None,
-    ) -> List[SourceDocument]:
+    ) -> list[SourceDocument]:
         del indicator_query, start_time, end_time
         return list(self.documents[:top_k])
 
@@ -47,8 +47,8 @@ class _StaticExtractor:
         *,
         query: IndicatorQuery,
         documents: Iterable[SourceDocument],
-    ) -> List[FinancialIndicator]:
-        indicators: List[FinancialIndicator] = []
+    ) -> list[FinancialIndicator]:
+        indicators: list[FinancialIndicator] = []
         for idx, doc in enumerate(documents, start=1):
             indicators.append(
                 FinancialIndicator(
@@ -66,11 +66,11 @@ class _StaticExtractor:
         return indicators
 
 
-def _build_documents(count: int) -> List[SourceDocument]:
+def _build_documents(count: int) -> list[SourceDocument]:
     """Create synthetic documents for the smoke test."""
 
-    now = datetime.now(tz=timezone.utc)
-    documents: List[SourceDocument] = []
+    now = datetime.now(tz=UTC)
+    documents: list[SourceDocument] = []
     for idx in range(count):
         documents.append(
             SourceDocument(
@@ -139,7 +139,7 @@ def main() -> None:
         exporter=exporter,
     )
 
-    window_end = datetime.now(tz=timezone.utc)
+    window_end = datetime.now(tz=UTC)
     request = AccountListRequest(
         start_time=window_end - timedelta(days=14),
         end_time=window_end,

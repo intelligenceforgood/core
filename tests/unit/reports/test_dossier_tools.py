@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from pathlib import Path
 
 from langchain_core.tools import BaseTool
 
@@ -25,7 +23,7 @@ from i4g.reports.dossier_visuals import DossierVisualAssets
 
 
 def _sample_plan() -> DossierPlan:
-    accepted_at = datetime(2025, 12, 3, tzinfo=timezone.utc)
+    accepted_at = datetime(2025, 12, 3, tzinfo=UTC)
     candidate = DossierCandidate(
         case_id="case-1",
         loss_amount_usd=Decimal("125000"),
@@ -149,7 +147,7 @@ def test_tool_suite_times_out_long_running_tool(tmp_path) -> None:
 
 
 def test_geo_reasoner_ranks_primary_regions() -> None:
-    accepted = datetime(2025, 12, 2, tzinfo=timezone.utc)
+    accepted = datetime(2025, 12, 2, tzinfo=UTC)
     plan = DossierPlan(
         plan_id="geo-plan",
         jurisdiction_key="mixed",
@@ -199,7 +197,7 @@ def test_timeline_synthesizer_handles_empty_cases() -> None:
     plan = DossierPlan(
         plan_id="timeline-empty",
         jurisdiction_key="none",
-        created_at=datetime(2025, 12, 2, tzinfo=timezone.utc),
+        created_at=datetime(2025, 12, 2, tzinfo=UTC),
         total_loss_usd=Decimal("0"),
         cases=[],
         bundle_reason="empty",
@@ -215,7 +213,7 @@ def test_timeline_synthesizer_handles_empty_cases() -> None:
 
 
 def test_entity_graph_clusters_and_counts() -> None:
-    accepted = datetime(2025, 12, 2, tzinfo=timezone.utc)
+    accepted = datetime(2025, 12, 2, tzinfo=UTC)
     plan = DossierPlan(
         plan_id="entities-plan",
         jurisdiction_key="mixed",

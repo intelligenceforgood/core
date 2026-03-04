@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
@@ -24,7 +24,7 @@ class _StubAccountListService:
 def test_extract_accounts_success(monkeypatch):
     result = AccountListResult(
         request_id="acc-test-1",
-        generated_at=datetime.now(tz=timezone.utc),
+        generated_at=datetime.now(tz=UTC),
         indicators=[
             FinancialIndicator(
                 category="bank",
@@ -83,7 +83,7 @@ def test_extract_accounts_rejects_large_top_k():
     app.dependency_overrides[get_account_list_service] = lambda: _StubAccountListService(
         AccountListResult(
             request_id="unused",
-            generated_at=datetime.now(tz=timezone.utc),
+            generated_at=datetime.now(tz=UTC),
             indicators=[],
             sources=[],
             warnings=[],
@@ -130,7 +130,7 @@ def test_extract_accounts_requires_api_key():
     app.dependency_overrides[get_account_list_service] = lambda: _StubAccountListService(
         AccountListResult(
             request_id="unused",
-            generated_at=datetime.now(tz=timezone.utc),
+            generated_at=datetime.now(tz=UTC),
             indicators=[],
             sources=[],
             warnings=[],
@@ -148,7 +148,7 @@ def test_extract_accounts_requires_api_key():
 
 
 def test_list_account_runs_returns_audit_entries(monkeypatch):
-    generated_at = datetime.now(tz=timezone.utc).isoformat()
+    generated_at = datetime.now(tz=UTC).isoformat()
     store_calls: list[dict[str, object]] = []
 
     class _StubStore:

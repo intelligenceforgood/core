@@ -7,16 +7,11 @@ an in-memory SQLite database.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from decimal import Decimal
-
-import pytest
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
 
-from i4g.store.ssi_store import SsiStore
 from i4g.store.sql import METADATA
-
+from i4g.store.ssi_store import SsiStore
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -322,8 +317,12 @@ class TestSearchWallets:
         """Seed two scans with overlapping wallets."""
         sid1 = store.create_scan(url="https://scam1.com")
         sid2 = store.create_scan(url="https://scam2.com")
-        store.add_wallet(scan_id=sid1, token_symbol="ETH", network_short="ERC20", wallet_address="0xAAA", confidence=0.5)
-        store.add_wallet(scan_id=sid2, token_symbol="ETH", network_short="ERC20", wallet_address="0xAAA", confidence=0.8)
+        store.add_wallet(
+            scan_id=sid1, token_symbol="ETH", network_short="ERC20", wallet_address="0xAAA", confidence=0.5
+        )
+        store.add_wallet(
+            scan_id=sid2, token_symbol="ETH", network_short="ERC20", wallet_address="0xAAA", confidence=0.8
+        )
         store.add_wallet(scan_id=sid1, token_symbol="BTC", network_short="BTC", wallet_address="1btc")
         return sid1, sid2
 
@@ -546,10 +545,13 @@ class TestFullInvestigationWorkflow:
         assert store.get_scan(scan_id)["status"] == "running"
 
         # Add wallets
-        store.add_wallets_bulk(scan_id, [
-            {"token_symbol": "ETH", "network_short": "ERC20", "wallet_address": "0x111"},
-            {"token_symbol": "BTC", "network_short": "BTC", "wallet_address": "1btc"},
-        ])
+        store.add_wallets_bulk(
+            scan_id,
+            [
+                {"token_symbol": "ETH", "network_short": "ERC20", "wallet_address": "0x111"},
+                {"token_symbol": "BTC", "network_short": "BTC", "wallet_address": "1btc"},
+            ],
+        )
         assert len(store.get_wallets(scan_id)) == 2
 
         # Add agent actions
@@ -559,10 +561,13 @@ class TestFullInvestigationWorkflow:
         assert len(store.get_agent_actions(scan_id)) == 3
 
         # Add PII exposures
-        store.add_pii_exposures_bulk(scan_id, [
-            {"field_type": "email"},
-            {"field_type": "password"},
-        ])
+        store.add_pii_exposures_bulk(
+            scan_id,
+            [
+                {"field_type": "email"},
+                {"field_type": "password"},
+            ],
+        )
         assert len(store.get_pii_exposures(scan_id)) == 2
 
         # Complete scan

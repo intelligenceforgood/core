@@ -12,9 +12,9 @@ Covers:
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 import sqlalchemy as sa
@@ -80,7 +80,7 @@ def _insert_case(
     updated_at: datetime | None = None,
 ) -> str:
     """Helper to insert a case row into the test database."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     with session_factory() as session:
         session.execute(
             sa.insert(cases).values(
@@ -108,8 +108,8 @@ def _insert_source_document(session_factory, case_id: str, source_url: str | Non
                 document_id=doc_id,
                 case_id=case_id,
                 source_url=source_url,
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
             )
         )
         session.commit()
@@ -123,7 +123,7 @@ def _insert_review(session_factory, case_id: str) -> str:
             sa.insert(review_queue).values(
                 review_id=review_id,
                 case_id=case_id,
-                queued_at=datetime.now(timezone.utc),
+                queued_at=datetime.now(UTC),
                 status="new",
             )
         )
@@ -140,7 +140,7 @@ def _insert_review_action(session_factory, review_id: str) -> str:
                 review_id=review_id,
                 actor="test",
                 action="test_action",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
         )
         session.commit()
@@ -153,7 +153,7 @@ def _insert_scam_record(session_factory, case_id: str) -> None:
             sa.insert(scam_records).values(
                 case_id=case_id,
                 text="test scam text",
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
         )
         session.commit()
@@ -211,9 +211,9 @@ class TestSoftDelete:
 
     def test_soft_deletes_resolved_cases(self, service, db_session_factory):
         """Resolved cases older than retention window are soft-deleted."""
-        old_date = datetime.now(timezone.utc) - timedelta(days=100)
+        old_date = datetime.now(UTC) - timedelta(days=100)
         _insert_case(db_session_factory, "case-old", status="closed", resolved_at=old_date)
-        _insert_case(db_session_factory, "case-recent", status="closed", resolved_at=datetime.now(timezone.utc))
+        _insert_case(db_session_factory, "case-recent", status="closed", resolved_at=datetime.now(UTC))
         _insert_case(db_session_factory, "case-open", status="open", updated_at=old_date)
 
         result = service.soft_delete_expired_cases(retention_days=90)
@@ -234,7 +234,7 @@ class TestSoftDelete:
 
     def test_respects_resolved_statuses(self, service, db_session_factory):
         """Only terminal statuses are eligible for soft-delete."""
-        old_date = datetime.now(timezone.utc) - timedelta(days=100)
+        old_date = datetime.now(UTC) - timedelta(days=100)
         for s in RESOLVED_STATUSES:
             _insert_case(db_session_factory, f"case-{s}", status=s, resolved_at=old_date)
         _insert_case(db_session_factory, "case-in-review", status="in_review", updated_at=old_date)
@@ -245,7 +245,7 @@ class TestSoftDelete:
 
     def test_uses_updated_at_fallback(self, service, db_session_factory):
         """Falls back to updated_at when resolved_at is NULL."""
-        old_date = datetime.now(timezone.utc) - timedelta(days=100)
+        old_date = datetime.now(UTC) - timedelta(days=100)
         _insert_case(db_session_factory, "case-no-resolved", status="accepted", resolved_at=None, updated_at=old_date)
 
         result = service.soft_delete_expired_cases(retention_days=90)
@@ -253,7 +253,7 @@ class TestSoftDelete:
 
     def test_skips_already_deleted(self, service, db_session_factory):
         """Cases already marked is_deleted are not soft-deleted again."""
-        old_date = datetime.now(timezone.utc) - timedelta(days=100)
+        old_date = datetime.now(UTC) - timedelta(days=100)
         _insert_case(
             db_session_factory,
             "already-deleted",
@@ -276,7 +276,7 @@ class TestHardPurge:
 
     def test_hard_purge_cascades(self, service, db_session_factory, mock_vault, mock_evidence, mock_vector):
         """Hard purge removes case + related data + PII + evidence + vectors."""
-        old_deleted = datetime.now(timezone.utc) - timedelta(days=40)
+        old_deleted = datetime.now(UTC) - timedelta(days=40)
         case_id = _insert_case(
             db_session_factory, "case-purge", status="closed", is_deleted=True, deleted_at=old_deleted
         )
@@ -295,7 +295,7 @@ class TestHardPurge:
 
     def test_skips_recently_deleted(self, service, db_session_factory):
         """Cases soft-deleted within the grace period are not hard-purged."""
-        recent = datetime.now(timezone.utc) - timedelta(days=5)
+        recent = datetime.now(UTC) - timedelta(days=5)
         _insert_case(db_session_factory, "case-recent-del", status="closed", is_deleted=True, deleted_at=recent)
 
         result = service.hard_purge_deleted_cases(grace_days=30)
@@ -304,7 +304,7 @@ class TestHardPurge:
 
     def test_hard_purge_cleans_review_chain(self, service, db_session_factory):
         """Review queue + review actions are cleaned before case deletion."""
-        old_deleted = datetime.now(timezone.utc) - timedelta(days=40)
+        old_deleted = datetime.now(UTC) - timedelta(days=40)
         case_id = _insert_case(
             db_session_factory, "case-reviews", status="closed", is_deleted=True, deleted_at=old_deleted
         )
@@ -397,7 +397,7 @@ class TestMinimalService:
     def test_purge_without_optional_stores(self, db_session_factory):
         """Hard purge succeeds when optional stores are None."""
         svc = RetentionService(db_session_factory)
-        old_deleted = datetime.now(timezone.utc) - timedelta(days=40)
+        old_deleted = datetime.now(UTC) - timedelta(days=40)
         _insert_case(db_session_factory, "case-minimal", status="closed", is_deleted=True, deleted_at=old_deleted)
 
         result = svc.hard_purge_deleted_cases(grace_days=30)

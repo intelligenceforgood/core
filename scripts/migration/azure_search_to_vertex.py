@@ -32,8 +32,8 @@ import base64
 import hashlib
 import json
 import logging
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
 
 
 class IndexMapping:
@@ -44,27 +44,27 @@ class IndexMapping:
         index_type: str,
         content_fields: Iterable[str],
         struct_fields: Iterable[str],
-        title_field: Optional[str] = None,
+        title_field: str | None = None,
     ) -> None:
         self.index_type = index_type
-        self.content_fields: List[str] = list(content_fields)
-        self.struct_fields: List[str] = list(struct_fields)
+        self.content_fields: list[str] = list(content_fields)
+        self.struct_fields: list[str] = list(struct_fields)
         self.title_field = title_field
 
-    def build_document(self, raw: Dict[str, object]) -> Optional[Dict[str, object]]:
+    def build_document(self, raw: dict[str, object]) -> dict[str, object] | None:
         doc_id = str(raw.get("id"))
         if not doc_id or doc_id == "None":
             logging.warning("Skipping document without id: %s", raw)
             return None
 
-        parts: List[str] = []
+        parts: list[str] = []
         for field in self.content_fields:
             value = raw.get(field)
             if value:
                 parts.append(str(value).strip())
         content = "\n\n".join(part for part in parts if part)
 
-        struct: Dict[str, object] = {}
+        struct: dict[str, object] = {}
         for field in self.struct_fields:
             value = raw.get(field)
             if value in (None, "", [], {}):
@@ -74,10 +74,10 @@ class IndexMapping:
         if not struct.get("source"):
             struct["source"] = self.index_type
 
-        doc: Dict[str, object] = {"id": doc_id}
+        doc: dict[str, object] = {"id": doc_id}
         content_text = content.strip()
         if not content_text:
-            fallback_parts: List[str] = []
+            fallback_parts: list[str] = []
             for field in self.struct_fields:
                 value = raw.get(field)
                 if isinstance(value, str) and value.strip():
@@ -120,7 +120,7 @@ class IndexMapping:
         return doc
 
 
-INDEX_MAPPINGS: Dict[str, IndexMapping] = {
+INDEX_MAPPINGS: dict[str, IndexMapping] = {
     "groupsio-search": IndexMapping(
         index_type="groupsio-search",
         content_fields=("subject", "body", "content"),

@@ -146,9 +146,7 @@ class TestUpdateRole:
         # Check account_actions table for the audit entry.
         with db_session_factory() as session:
             rows = session.execute(
-                sa.select(sql_schema.account_actions).where(
-                    sql_schema.account_actions.c.action == "role_change"
-                )
+                sa.select(sql_schema.account_actions).where(sql_schema.account_actions.c.action == "role_change")
             ).all()
             assert len(rows) == 1
             row = dict(rows[0]._mapping)

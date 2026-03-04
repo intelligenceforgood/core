@@ -11,11 +11,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
-from collections.abc import Callable
 
 import requests
+
 from i4g.observability import Observability, get_observability
 from i4g.task_status_store import TASK_STATUS
 

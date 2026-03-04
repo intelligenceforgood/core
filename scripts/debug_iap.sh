@@ -27,7 +27,7 @@ test_token() {
     local name=$1
     local token=$2
     echo -e "\n--- Test: $name ---"
-    
+
     # Decode payload
     echo "Payload:"
     echo "$token" | cut -d. -f2 | base64 -d 2>/dev/null || echo "$token" | cut -d. -f2 | base64 -D 2>/dev/null
@@ -39,5 +39,3 @@ test_token() {
 
 test_token "With Email" "$TOKEN_WITH_EMAIL"
 test_token "Without Email" "$TOKEN_NO_EMAIL"
-
-

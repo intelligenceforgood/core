@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from pathlib import Path
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -157,7 +157,7 @@ def generate_signature_manifest(
             ArtifactSignature(label=label, path=manifest_path, size_bytes=size_bytes, hash_value=hash_value)
         )
 
-    timestamp = generated_at or datetime.now(timezone.utc)
+    timestamp = generated_at or datetime.now(UTC)
     return SignatureManifest(
         algorithm=algorithm,
         generated_at=timestamp,

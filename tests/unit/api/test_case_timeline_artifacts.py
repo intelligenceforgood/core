@@ -12,9 +12,8 @@ import uuid
 
 import pytest
 import sqlalchemy as sa
-from sqlalchemy.orm import sessionmaker
-
 from fastapi.testclient import TestClient
+from sqlalchemy.orm import sessionmaker
 
 from i4g.api.app import app
 from i4g.store.review_store import ReviewStore
@@ -249,9 +248,7 @@ class TestArtifactsFromEvidence:
     def test_ssi_pdf_report_artifact(self) -> None:
         """Cases with ssi_investigation_id in metadata include a PDF report artifact."""
         inv_id = str(uuid.uuid4())
-        case_id = _create_case(
-            metadata={"title": "SSI Case", "ssi_investigation_id": inv_id}
-        )
+        case_id = _create_case(metadata={"title": "SSI Case", "ssi_investigation_id": inv_id})
         resp = client.get(f"/cases/{case_id}")
         assert resp.status_code == 200
         detail = resp.json()

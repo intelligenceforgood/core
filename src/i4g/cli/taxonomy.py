@@ -1,8 +1,9 @@
-import typer
-import yaml
 import json
 from pathlib import Path
 from typing import Any
+
+import typer
+import yaml
 
 taxonomy_app = typer.Typer(help="Manage fraud taxonomy definitions and code generation.")
 
@@ -125,10 +126,10 @@ def generate_typescript_interfaces(data: dict[str, Any]):
         " * are provided for convenience so that consumers can import from either",
         " * @i4g/sdk or @i4g/types.",
         " */",
-        'export type {',
-        '  TaxonomyItem,',
-        '  TaxonomyAxis,',
-        '  TaxonomyResponse as TaxonomyDefinitions,',
+        "export type {",
+        "  TaxonomyItem,",
+        "  TaxonomyAxis,",
+        "  TaxonomyResponse as TaxonomyDefinitions,",
         '} from "@i4g/sdk";',
         "",
     ]
@@ -174,7 +175,7 @@ def generate_markdown_docs(data: dict[str, Any]):
     typer.echo(f"Generated {DOCS_PATH}")
 
 
-import subprocess
+import subprocess  # noqa: E402
 
 
 @taxonomy_app.command("refresh")
@@ -185,7 +186,7 @@ def refresh_taxonomy():
     try:
         data = load_definitions()
         # generate_python_enums(data) # backend models usually need this, but we are moving to dynamic.
-        # Keeping generate_python_enums for now as models.py depends on it, but updating docstring to reflect primary artifacts.
+        # Keeping generate_python_enums for now as models.py depends on it, but updating docstring to reflect primary artifacts.  # noqa: E501
         generate_python_enums(data)
         generate_taxonomy_data(data)
         generate_typescript_interfaces(data)
@@ -208,4 +209,4 @@ def refresh_taxonomy():
         typer.echo("Taxonomy refresh complete.")
     except Exception as e:
         typer.echo(f"Error refreshing taxonomy: {e}", err=True)
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1)  # noqa: B904

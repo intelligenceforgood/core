@@ -72,15 +72,17 @@ def normalize_credit_card(value: str) -> str:
         raise NormalizationError(f"Invalid credit card format: {value}")
     return digits
 
+
 def normalize_name(value: str) -> str:
     """
     Normalize person name: collapse whitespace, strip.
     """
     if not value:
         raise NormalizationError("Name cannot be empty")
-    
+
     # Collapse multiple spaces to single space
-    return re.sub(r'\s+', ' ', value.strip())
+    return re.sub(r"\s+", " ", value.strip())
+
 
 def normalize_tin(value: str) -> str:
     """
@@ -88,9 +90,10 @@ def normalize_tin(value: str) -> str:
     """
     if not value:
         raise NormalizationError("TIN cannot be empty")
-    
+
     # Remove dashes and spaces
-    return re.sub(r'[\s-]', '', value)
+    return re.sub(r"[\s-]", "", value)
+
 
 def normalize_generic(value: str) -> str:
     """
@@ -99,6 +102,7 @@ def normalize_generic(value: str) -> str:
     if not value:
         raise NormalizationError("Value cannot be empty")
     return value.strip()
+
 
 NORMALIZERS = {
     "EID": normalize_email,
@@ -132,28 +136,29 @@ NORMALIZERS = {
     "PLC": normalize_generic,
 }
 
+
 def normalize(pii_type: str, value: str) -> str:
     """
     Normalize a PII value based on its type.
-    
+
     Args:
         pii_type: The 3-char PII type prefix (e.g., 'EID', 'PHN').
         value: The raw value to normalize.
-        
+
     Returns:
         The normalized string.
-        
+
     Raises:
         NormalizationError: If the value is invalid for the type.
     """
     if pii_type not in NORMALIZERS:
         # Fallback to generic normalization if type is unknown but valid 3-char
         # Or should we raise? Design says "reject-on-invalid per prefix".
-        # For now, let's allow unknown types but warn/log? 
+        # For now, let's allow unknown types but warn/log?
         # Or strictly follow the catalog.
         # Let's default to generic for now to be safe, or raise if strict.
         # Given "reject-on-invalid per prefix", maybe we should be strict about KNOWN types.
         # But for "UNK" type it uses generic.
         return normalize_generic(value)
-        
+
     return NORMALIZERS[pii_type](value)

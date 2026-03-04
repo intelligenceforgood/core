@@ -3,10 +3,11 @@
 Audit script to list all tables in the Azure SQL database and their row counts.
 Use this to verify if we are missing any tables in the migration.
 """
-import argparse
+
 import struct
-import pyodbc
 import sys
+
+import pyodbc
 from azure.identity import DefaultAzureCredential
 
 SERVER = "intelforgood.database.windows.net"
@@ -40,25 +41,25 @@ def audit_tables():
 
             # Query to get all tables and their row counts
             query = """
-            SELECT 
+            SELECT
                 s.name AS SchemaName,
                 t.name AS TableName,
                 SUM(p.rows) AS RowCounts
-            FROM 
+            FROM
                 sys.tables t
-            INNER JOIN      
+            INNER JOIN
                 sys.indexes i ON t.object_id = i.object_id
-            INNER JOIN 
+            INNER JOIN
                 sys.partitions p ON i.object_id = p.object_id AND i.index_id = p.index_id
-            INNER JOIN 
+            INNER JOIN
                 sys.schemas s ON t.schema_id = s.schema_id
-            WHERE 
+            WHERE
                 t.is_ms_shipped = 0
-                AND i.object_id > 255 
+                AND i.object_id > 255
                 AND i.index_id <= 1
-            GROUP BY 
+            GROUP BY
                 t.name, s.name
-            ORDER BY 
+            ORDER BY
                 RowCounts DESC;
             """
 

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
-from collections.abc import Iterable, Sequence
 
 from i4g.reports.bundle_builder import DossierCandidate
 from i4g.reports.bundle_metrics import compute_bundle_metrics

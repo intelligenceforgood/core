@@ -10,11 +10,12 @@ Key features:
 - Unified behavior across environments
 """
 
+import contextlib
 import json
 import uuid
-from datetime import datetime, timezone
-from typing import Any
 from collections.abc import Iterable
+from datetime import UTC, datetime
+from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
@@ -25,9 +26,9 @@ from i4g.store.sql import session_factory as default_session_factory
 
 def _iso_timestamp(value: datetime | None) -> str:
     """Return an ISO-8601 string, defaulting to UTC now when value is None."""
-    dt = value or datetime.now(timezone.utc)
+    dt = value or datetime.now(UTC)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt.isoformat()
 
 
@@ -48,7 +49,7 @@ def _summarize_dashboard_rows(
     }
     cases_list = []
 
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today_str = datetime.now(UTC).strftime("%Y-%m-%d")
 
     queues_map = {
         "Rapid Response": 0,
@@ -65,10 +66,8 @@ def _summarize_dashboard_rows(
         raw_meta = d_row.get("metadata")
         if raw_meta:
             if isinstance(raw_meta, str):
-                try:
+                with contextlib.suppress(Exception):
                     meta = json.loads(raw_meta)
-                except Exception:
-                    pass
             elif isinstance(raw_meta, dict):
                 meta = raw_meta
 
@@ -105,9 +104,8 @@ def _summarize_dashboard_rows(
         if queue_filter and row_queue != queue_filter:
             continue
 
-        if due_date_filter == "today":
-            if not (due_at and due_at[:10] <= today_str):
-                continue
+        if due_date_filter == "today" and not (due_at and due_at[:10] <= today_str):
+            continue
 
         if len(cases_list) < limit:
             tags = []
@@ -137,22 +135,30 @@ def _summarize_dashboard_rows(
                     classification = None
             # Validate classification has required shape for SDK schema
             if isinstance(classification, dict):
-                required_keys = {"intent", "channel", "techniques", "actions", "persona", "risk_score", "taxonomy_version"}
+                required_keys = {
+                    "intent",
+                    "channel",
+                    "techniques",
+                    "actions",
+                    "persona",
+                    "risk_score",
+                    "taxonomy_version",
+                }
                 if not required_keys.issubset(classification.keys()):
                     classification = None
 
             case_entry: dict[str, Any] = {
-                    "id": d_row["case_id"],
-                    "title": meta.get("title", f"Case {d_row['case_id'][:8]}"),
-                    "priority": current_priority,
-                    "status": ui_status,
-                    "updatedAt": updated_at,
-                    "assignee": d_row.get("assigned_to"),
-                    "queue": row_queue or "General",
-                    "tags": tags,
-                    "progress": meta.get("progress", 0),
-                    "dueAt": due_at,
-                }
+                "id": d_row["case_id"],
+                "title": meta.get("title", f"Case {d_row['case_id'][:8]}"),
+                "priority": current_priority,
+                "status": ui_status,
+                "updatedAt": updated_at,
+                "assignee": d_row.get("assigned_to"),
+                "queue": row_queue or "General",
+                "tags": tags,
+                "progress": meta.get("progress", 0),
+                "dueAt": due_at,
+            }
             if classification is not None:
                 case_entry["classification"] = classification
             cases_list.append(case_entry)
@@ -347,14 +353,14 @@ class ReviewStore:
             review_id=None,
             case_id=case_id,
             status="new",
-            queued_at=datetime.now(timezone.utc),
+            queued_at=datetime.now(UTC),
             priority=priority,
             classification_result=classification_result,
             tags=tags,
         )
 
     def update_status(self, review_id: str, status: str, notes: str | None = None) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             stmt = (
                 sa.update(sql_schema.review_queue)
@@ -429,7 +435,7 @@ class ReviewStore:
 
     def ensure_placeholder_review(self, review_id: str, case_id: str) -> None:
         """Ensure a placeholder review exists for audit logging purposes."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             try:
                 session.execute(
@@ -457,12 +463,12 @@ class ReviewStore:
         payload: dict[str, Any] | None = None,
     ) -> str:
         action_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             # Special handling for search history: ensure the "search" review exists
             if review_id == "search":
-                try:
-                    # Try to insert the dummy search review if it doesn't exist
+                with contextlib.suppress(Exception):  # Ignore race conditions on insert
+                    # Ensure the dummy search review exists
                     session.execute(
                         sa.dialects.postgresql.insert(sql_schema.review_queue)
                         .values(
@@ -475,9 +481,6 @@ class ReviewStore:
                         )
                         .on_conflict_do_nothing()
                     )
-                except Exception:
-                    # Ignore errors if it already exists or race condition
-                    pass
 
             stmt = sa.insert(sql_schema.review_actions).values(
                 action_id=action_id,
@@ -523,7 +526,7 @@ class ReviewStore:
         Returns:
             The case_id that was updated, or None if the review was not found.
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         with self._session_factory() as session:
             case_id = _get_case_id_for_review(session, review_id)
             if not case_id:
@@ -584,7 +587,7 @@ class ReviewStore:
         tags: list[str] | None = None,
     ) -> str:
         sid = search_id or str(uuid.uuid4())
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         tags_json = tags or []
 
         with self._session_factory() as session:

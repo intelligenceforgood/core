@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
 
 from i4g.reports.bundle_builder import DossierPlan
 from i4g.reports.dossier_agent_payload import build_agent_payload
@@ -62,7 +62,7 @@ class DossierGenerator:
         self._exporter = exporter or DossierExporter(base_dir=base_dir)
         self._uploader = uploader or DossierUploader()
         self._hash_algorithm = settings.report.hash_algorithm
-        self._now = now_provider or (lambda: datetime.now(timezone.utc))
+        self._now = now_provider or (lambda: datetime.now(UTC))
 
     def generate_from_plan(self, plan: DossierPlan) -> DossierGenerationResult:
         """Persist a serialized dossier plan and return the artifact location."""

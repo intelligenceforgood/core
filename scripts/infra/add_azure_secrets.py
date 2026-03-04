@@ -26,8 +26,8 @@ from __future__ import annotations
 
 import argparse
 import os
+from collections.abc import Iterable
 from getpass import getpass
-from typing import Iterable, List, Optional
 
 from google.api_core import exceptions
 from google.cloud import secretmanager
@@ -76,7 +76,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def select_specs(selected: Optional[Iterable[str]]) -> List[dict]:
+def select_specs(selected: Iterable[str] | None) -> list[dict]:
     if not selected:
         return list(SECRET_SPECS)
     wanted = set(selected)
@@ -105,7 +105,7 @@ def ensure_secret(
     secret_id: str,
     *,
     auto_create: bool,
-    replication_location: Optional[str],
+    replication_location: str | None,
 ) -> bool:
     secret_name = client.secret_path(project, secret_id)
     try:

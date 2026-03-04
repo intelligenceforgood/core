@@ -6,13 +6,13 @@ import os
 import shutil
 from pathlib import Path
 
-from i4g.cli.utils import stage_bundle
-from i4g.cli.bootstrap.common import (
-    download_bundles as common_download_bundles,
-    run_search_smoke,
-    run_dossier_smoke,
-)
 from i4g.cli.admin.seed import seed_campaigns
+from i4g.cli.bootstrap.common import download_bundles as common_download_bundles
+from i4g.cli.bootstrap.common import (
+    run_dossier_smoke,
+    run_search_smoke,
+)
+from i4g.cli.utils import stage_bundle
 
 from .constants import BUNDLES_DIR, DATA_DIR
 from .steps import (
@@ -66,8 +66,7 @@ def run_local(
 
     if dry_run:
         print(
-            "[dry-run] Would reset=%s skip_vector=%s bundle_uri=%s verify_only=%s"
-            % (reset, skip_vector, bundle_uri, verify_only)
+            f"[dry-run] Would reset={reset} skip_vector={skip_vector} bundle_uri={bundle_uri} verify_only={verify_only}"
         )
         return
 

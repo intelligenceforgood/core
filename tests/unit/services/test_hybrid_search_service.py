@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -65,7 +65,7 @@ def _retriever_payload() -> dict[str, object]:
                 "record": {
                     "case_id": "case-001",
                     "confidence": 0.8,
-                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "created_at": datetime.now(UTC).isoformat(),
                     "classification": "romance",
                     "metadata": {"dataset": "retrieval_poc_dev"},
                 },
@@ -76,7 +76,7 @@ def _retriever_payload() -> dict[str, object]:
                 "record": {
                     "case_id": "case-002",
                     "confidence": 0.6,
-                    "created_at": (datetime.now(timezone.utc) - timedelta(days=10)).isoformat(),
+                    "created_at": (datetime.now(UTC) - timedelta(days=10)).isoformat(),
                     "classification": "pig_butcher",
                     "metadata": {},
                 },
@@ -90,8 +90,8 @@ def _retriever_payload() -> dict[str, object]:
 
 def test_search_merges_scores_and_applies_time_range(retriever_payload):
     retriever = _StubRetriever(retriever_payload)
-    start = datetime.now(timezone.utc) - timedelta(days=1)
-    end = datetime.now(timezone.utc) + timedelta(days=1)
+    start = datetime.now(UTC) - timedelta(days=1)
+    end = datetime.now(UTC) + timedelta(days=1)
     query = HybridSearchQuery(
         text="romance scam",
         time_range=QueryTimeRange(start=start, end=end),
@@ -240,7 +240,7 @@ def test_weighted_scores_control_result_ordering():
 
 
 def test_diagnostics_capture_overlap_and_time_filter_counts():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "results": [
             {
@@ -365,7 +365,7 @@ def test_score_policy_reports_winner_counts():
 
 
 def test_search_redacts_text_and_metadata():
-    created_at = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(UTC).isoformat()
     payload = {
         "results": [
             {
