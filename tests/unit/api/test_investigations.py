@@ -43,7 +43,8 @@ class TestTriggerSsiInvestigation:
         assert resp.status_code == 202
         data = resp.json()
         assert data["status"] == "running"
-        assert data["taskId"].startswith("ssi-")
+        # task_id is now the scan UUID (36 chars): task_id == scan_id for DB-fallback support
+        assert len(data["taskId"]) == 36
         assert "message" in data
 
     @patch("i4g.api.investigations._trigger_cloud_run_service")
@@ -73,7 +74,8 @@ class TestTriggerSsiInvestigation:
         )
         assert resp.status_code == 202
         data = resp.json()
-        assert data["taskId"].startswith("ssi-")
+        # task_id is now a UUID (same as scan_id)
+        assert len(data["taskId"]) == 36
 
     def test_trigger_requires_url(self) -> None:
         """Request without URL returns 422."""

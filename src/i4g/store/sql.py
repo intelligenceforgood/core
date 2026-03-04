@@ -518,6 +518,31 @@ sa.Index("idx_ssi_events_scan_id", ssi_events.c.scan_id)
 sa.Index("idx_ssi_events_timestamp", ssi_events.c.scan_id, ssi_events.c.timestamp)
 sa.Index("idx_ssi_events_event_type", ssi_events.c.event_type)
 
+ssi_guidance_commands = sa.Table(
+    "ssi_guidance_commands",
+    METADATA,
+    sa.Column("id", UUID_TYPE, primary_key=True),
+    sa.Column(
+        "scan_id",
+        UUID_TYPE,
+        sa.ForeignKey("site_scans.scan_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("action", sa.Text(), nullable=False),
+    sa.Column("value", sa.Text(), nullable=True, default=""),
+    sa.Column("reason", sa.Text(), nullable=True, default=""),
+    sa.Column("acknowledged", sa.Boolean(), nullable=False, default=False, server_default=sa.false()),
+    sa.Column("acknowledged_at", TIMESTAMP, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_ssi_guidance_scan_id", ssi_guidance_commands.c.scan_id)
+sa.Index(
+    "idx_ssi_guidance_pending",
+    ssi_guidance_commands.c.scan_id,
+    ssi_guidance_commands.c.acknowledged,
+    ssi_guidance_commands.c.created_at,
+)
+
 
 def dialect_insert(session: Session, table: sa.Table):
     """Return a dialect-aware INSERT construct that supports ``on_conflict_do_update``.

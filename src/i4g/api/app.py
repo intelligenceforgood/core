@@ -55,6 +55,31 @@ def get_task_status(task_id: str) -> dict[str, Any]:
         A dictionary containing the task ID, status, and any associated message.
     """
     if task_id not in TASK_STATUS:
+        # DB fallback for SSI investigations: scan_id == task_id, so a direct
+        # lookup works across Cloud Run instances that don't share in-memory
+        # TASK_STATUS.  Gracefully skip non-SSI task_ids (store returns None).
+        try:
+            from i4g.services.factories import build_ssi_store
+
+            _store = build_ssi_store()
+            _scan = _store.get_scan(task_id)
+            if _scan:
+                _status = str(_scan.get("status", "running"))
+                _url = str(_scan.get("url", ""))
+                _msg = f"Investigation {_status}: {_url}"
+                if _status == "failed" and _scan.get("error_message"):
+                    _msg = str(_scan["error_message"])
+                return {
+                    "task_id": task_id,
+                    "status": _status,
+                    "message": _msg,
+                    "investigation_id": task_id,
+                    "risk_score": float(_scan["risk_score"]) if _scan.get("risk_score") is not None else None,
+                    "case_id": _scan.get("case_id"),
+                    "duration_seconds": float(_scan["duration_seconds"]) if _scan.get("duration_seconds") is not None else None,
+                }
+        except Exception as _e:
+            logging.getLogger(__name__).debug("SSI DB fallback failed for task %s: %s", task_id, _e)
         return {"task_id": task_id, "status": "unknown", "message": "Task not found"}
 
     task = TASK_STATUS[task_id]

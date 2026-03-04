@@ -85,6 +85,31 @@ class SsiEventsListResponse(CamelModel):
     scan_id: str
 
 
+class SsiGuidanceRequest(CamelModel):
+    """Analyst guidance command submitted via the UI."""
+
+    action: str = Field(..., description="Guidance action: click, type, goto, skip, continue")
+    value: str = Field(default="", description="Action-specific value (CSS selector, URL, text)")
+    reason: str = Field(default="", description="Human-readable reason for the guidance")
+
+
+class SsiGuidanceResponse(CamelModel):
+    """Acknowledgement for a submitted guidance command."""
+
+    id: str
+    scan_id: str
+    action: str
+    status: str = "pending"
+
+
+class SsiPendingGuidanceResponse(CamelModel):
+    """List of unacknowledged guidance commands for SSI to consume."""
+
+    commands: list[dict[str, Any]]
+    count: int
+    scan_id: str
+
+
 # ---------------------------------------------------------------------------
 # Redis helpers (optional — graceful degradation when Redis is absent)
 # ---------------------------------------------------------------------------
@@ -432,3 +457,153 @@ async def _stream_from_db(
                     after_ts = datetime.fromisoformat(last_ts_str.replace("Z", "+00:00"))
                 except ValueError:
                     pass
+
+
+# ---------------------------------------------------------------------------
+# Guidance endpoints (Phase 3C)
+# ---------------------------------------------------------------------------
+
+VALID_GUIDANCE_ACTIONS = {"click", "type", "goto", "skip", "continue"}
+
+
+@router.post(
+    "/{scan_id}/guidance",
+    summary="Submit analyst guidance command for a live investigation",
+    status_code=202,
+    response_model=SsiGuidanceResponse,
+    dependencies=[Depends(require_token)],
+)
+async def submit_guidance(
+    scan_id: str,
+    body: SsiGuidanceRequest,
+) -> dict[str, Any]:
+    """Accept a guidance command from an analyst and store it for SSI pickup.
+
+    The command is persisted in ``ssi_guidance_commands`` and optionally
+    published to a Redis channel for immediate notification.
+
+    Args:
+        scan_id: The SSI investigation scan ID.
+        body: Guidance command payload.
+
+    Returns:
+        Acknowledgement with the command ``id`` and ``pending`` status.
+    """
+    if body.action not in VALID_GUIDANCE_ACTIONS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid guidance action '{body.action}'. Must be one of: {', '.join(sorted(VALID_GUIDANCE_ACTIONS))}",
+        )
+
+    store = build_ssi_events_store()
+    try:
+        cmd_id = store.insert_guidance_command(
+            scan_id=scan_id,
+            action=body.action,
+            value=body.value,
+            reason=body.reason,
+        )
+    except Exception as exc:
+        logger.error("Failed to insert guidance command for scan %s: %s", scan_id, exc, exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to persist guidance command") from exc
+
+    # Publish to Redis for immediate notification to SSI polling.
+    await _publish_guidance(scan_id, {"id": cmd_id, "action": body.action, "value": body.value, "reason": body.reason})
+
+    # Also store the guidance as an event in ssi_events so it appears in the
+    # live event stream (SSE) for all connected viewers.
+    try:
+        store.insert_event(
+            scan_id=scan_id,
+            event_type="guidance_submitted",
+            data_json={"action": body.action, "value": body.value, "reason": body.reason, "command_id": cmd_id},
+        )
+        await _publish_events(scan_id, [
+            {
+                "scan_id": scan_id,
+                "event_type": "guidance_submitted",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "data": {"action": body.action, "value": body.value, "reason": body.reason, "command_id": cmd_id},
+            }
+        ])
+    except Exception as exc:
+        logger.warning("Failed to insert guidance_submitted event: %s", exc)
+
+    logger.info("Guidance command %s submitted for scan %s: action=%s", cmd_id, scan_id, body.action)
+    return {"id": cmd_id, "scan_id": scan_id, "action": body.action, "status": "pending"}
+
+
+@router.get(
+    "/{scan_id}/guidance/pending",
+    summary="Get pending guidance commands for SSI to consume",
+    response_model=SsiPendingGuidanceResponse,
+    dependencies=[Depends(require_token)],
+)
+def get_pending_guidance(
+    scan_id: str,
+    limit: int = 10,
+) -> dict[str, Any]:
+    """Return unacknowledged guidance commands for the SSI service to poll.
+
+    SSI calls this endpoint at a regular interval during investigations
+    to check for analyst-submitted commands.
+
+    Args:
+        scan_id: The SSI investigation scan ID.
+        limit: Maximum commands to return.
+
+    Returns:
+        ``SsiPendingGuidanceResponse`` with pending commands.
+    """
+    store = build_ssi_events_store()
+    commands = store.get_pending_guidance(scan_id, limit=limit)
+    return {"commands": commands, "count": len(commands), "scan_id": scan_id}
+
+
+@router.post(
+    "/{scan_id}/guidance/{command_id}/ack",
+    summary="Acknowledge a guidance command (called by SSI after applying it)",
+    status_code=200,
+    dependencies=[Depends(require_token)],
+)
+def acknowledge_guidance(
+    scan_id: str,
+    command_id: str,
+) -> dict[str, Any]:
+    """Mark a guidance command as acknowledged by the SSI service.
+
+    Args:
+        scan_id: The SSI investigation scan ID.
+        command_id: The guidance command ID to acknowledge.
+
+    Returns:
+        Acknowledgement status.
+    """
+    store = build_ssi_events_store()
+    updated = store.acknowledge_guidance(command_id)
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Guidance command {command_id} not found")
+    logger.info("Guidance command %s acknowledged for scan %s", command_id, scan_id)
+    return {"id": command_id, "scan_id": scan_id, "acknowledged": True}
+
+
+async def _publish_guidance(scan_id: str, command: dict[str, Any]) -> None:
+    """Publish a guidance command to the Redis pub/sub channel.
+
+    Uses a separate channel prefix ``ssi:guidance:{scan_id}`` so SSI
+    can subscribe independently of the event stream.
+
+    Args:
+        scan_id: The scan identifier.
+        command: Serialised command dict.
+    """
+    client = _get_redis_client()
+    if client is None:
+        return
+    try:
+        prefix = get_settings().redis.channel_prefix
+        channel = f"{prefix}:guidance:{scan_id}"
+        async with client:
+            await client.publish(channel, json.dumps(command, default=str))
+    except Exception as exc:
+        logger.warning("Redis guidance publish failed for scan %s: %s", scan_id, exc)

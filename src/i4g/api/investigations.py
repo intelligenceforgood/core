@@ -184,7 +184,6 @@ def trigger_ssi_investigation(
         Task ID and initial status for the investigation.
     """
     settings = get_settings()
-    task_id = f"ssi-{uuid.uuid4().hex[:12]}"
 
     # Extract domain slug for the scan record.
     try:
@@ -194,10 +193,15 @@ def trigger_ssi_investigation(
     except Exception:
         domain = None
 
+    # scan_id is also used as the task_id so that any Cloud Run instance
+    # can perform a DB fallback lookup in get_task_status() without needing
+    # the in-memory TASK_STATUS entry (which is not shared across instances).
+    scan_id = str(uuid.uuid4())
+    task_id = scan_id  # task_id == scan_id intentionally
+
     # Create the scan row *before* triggering the service so that:
     # 1. get_task_status can poll the scan from the DB.
     # 2. The SSI service uses the same scan_id as its investigation_id.
-    scan_id = str(uuid.uuid4())
     try:
         ssi_store = build_ssi_store()
         ssi_store.create_scan(

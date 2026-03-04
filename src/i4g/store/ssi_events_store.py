@@ -208,6 +208,91 @@ class SsiEventsStore:
             result = session.execute(stmt).scalar()
         return result
 
+    # ------------------------------------------------------------------
+    # Guidance commands (Phase 3C)
+    # ------------------------------------------------------------------
+
+    def insert_guidance_command(
+        self,
+        *,
+        scan_id: str,
+        action: str,
+        value: str = "",
+        reason: str = "",
+        command_id: str | None = None,
+    ) -> str:
+        """Insert a guidance command submitted by an analyst.
+
+        Args:
+            scan_id: The SSI investigation scan ID.
+            action: Guidance action (click, type, goto, skip, continue).
+            value: Action-specific value (CSS selector, URL, text, etc.).
+            reason: Optional human-readable reason.
+            command_id: Optional pre-assigned UUID.  Generates one if absent.
+
+        Returns:
+            The ``id`` of the inserted command row.
+        """
+        command_id = command_id or str(uuid4())
+        now = datetime.now(timezone.utc)
+        tbl = sql_schema.ssi_guidance_commands
+        with self._session_factory() as session:
+            session.execute(
+                sa.insert(tbl).values(
+                    id=command_id,
+                    scan_id=scan_id,
+                    action=action,
+                    value=value,
+                    reason=reason,
+                    acknowledged=False,
+                    created_at=now,
+                )
+            )
+            session.commit()
+        return command_id
+
+    def get_pending_guidance(self, scan_id: str, limit: int = 10) -> list[dict[str, Any]]:
+        """Return unacknowledged guidance commands for a scan.
+
+        Args:
+            scan_id: The scan to query.
+            limit: Maximum commands to return.
+
+        Returns:
+            List of command dicts ordered by creation time ascending.
+        """
+        tbl = sql_schema.ssi_guidance_commands
+        stmt = (
+            sa.select(tbl)
+            .where(tbl.c.scan_id == scan_id)
+            .where(tbl.c.acknowledged == False)  # noqa: E712
+            .order_by(tbl.c.created_at.asc())
+            .limit(limit)
+        )
+        with self._session_factory() as session:
+            rows = session.execute(stmt).mappings().all()
+        return [_serialize_guidance(dict(row)) for row in rows]
+
+    def acknowledge_guidance(self, command_id: str) -> bool:
+        """Mark a guidance command as acknowledged by SSI.
+
+        Args:
+            command_id: The command row ID.
+
+        Returns:
+            ``True`` if the row was updated, ``False`` if not found.
+        """
+        tbl = sql_schema.ssi_guidance_commands
+        now = datetime.now(timezone.utc)
+        with self._session_factory() as session:
+            result = session.execute(
+                sa.update(tbl)
+                .where(tbl.c.id == command_id)
+                .values(acknowledged=True, acknowledged_at=now)
+            )
+            session.commit()
+        return result.rowcount > 0
+
 
 def _serialize_event(row: dict[str, Any]) -> dict[str, Any]:
     """Convert a raw DB row to a JSON-safe dict.
@@ -219,6 +304,22 @@ def _serialize_event(row: dict[str, Any]) -> dict[str, Any]:
         Dict with datetime values replaced by ISO-8601 strings.
     """
     for key in ("timestamp", "created_at"):
+        val = row.get(key)
+        if isinstance(val, datetime):
+            row[key] = val.isoformat()
+    return row
+
+
+def _serialize_guidance(row: dict[str, Any]) -> dict[str, Any]:
+    """Convert a guidance command DB row to a JSON-safe dict.
+
+    Args:
+        row: Raw row dict from SQLAlchemy mappings.
+
+    Returns:
+        Dict with datetime values replaced by ISO-8601 strings.
+    """
+    for key in ("created_at", "acknowledged_at"):
         val = row.get(key)
         if isinstance(val, datetime):
             row[key] = val.isoformat()
