@@ -69,7 +69,7 @@ def build_llm_client(*, settings: Settings | None = None) -> LLMClient:
             model=s.llm.chat_model,
         )
 
-    if provider == "vertex_ai":
+    if provider in ("vertex_ai", "gemini"):
         if not s.llm.vertex_ai_project:
             raise ValueError("Vertex AI project not configured (settings.llm.vertex_ai_project).")
         model_name = _resolve_model_name(s)
@@ -117,12 +117,12 @@ def build_langchain_llm(*, settings: Settings | None = None) -> Any:
             temperature=s.llm.temperature,
         )
 
-    if provider == "vertex_ai":
+    if provider in ("vertex_ai", "gemini"):
         return _build_vertex_langchain(s)
 
     raise RuntimeError(
         f"Unsupported LLM provider '{provider}'. "
-        "Configure 'ollama', 'vertex_ai', or 'mock' via I4G_LLM__PROVIDER."
+        "Configure 'ollama', 'gemini' (or 'vertex_ai'), or 'mock' via I4G_LLM__PROVIDER."
     )
 
 
@@ -157,28 +157,32 @@ class MockLangChainLLM:
 
 
 def _build_vertex_langchain(settings: Settings) -> Any:
-    """Build a Vertex AI adapter matching the LangChain Runnable ``.invoke()`` interface."""
+    """Build a Vertex AI adapter matching the LangChain Runnable ``.invoke()`` interface.
+
+    Uses the ``google-genai`` unified SDK (``genai.Client(vertexai=True)``).
+    """
     try:
-        import vertexai
-        from vertexai.generative_models import GenerationConfig, GenerativeModel
+        from google import genai
+        from google.genai import types
     except ImportError as exc:
         raise ImportError(
-            "Vertex AI requires 'google-cloud-aiplatform'. "
-            "Install with: pip install google-cloud-aiplatform"
+            "Vertex AI requires 'google-genai'. "
+            "Install with: pip install 'google-genai>=1.0.0,<2.0'"
         ) from exc
 
     project = settings.llm.vertex_ai_project or settings.secrets.project
     location = settings.llm.vertex_ai_location or "us-central1"
     model_name = _resolve_model_name(settings)
 
-    vertexai.init(project=project, location=location)
+    client = genai.Client(vertexai=True, project=project, location=location)
     LOGGER.info("Initialized Vertex AI LangChain adapter", extra={"project": project, "model": model_name})
 
     class _VertexLangChainAdapter:
-        """Wraps ``GenerativeModel`` to satisfy the LangChain Runnable interface."""
+        """Wraps ``genai.Client`` to satisfy the LangChain Runnable interface."""
 
-        def __init__(self, model: GenerativeModel, temperature: float) -> None:
-            self._model = model
+        def __init__(self, genai_client: Any, model: str, temperature: float) -> None:
+            self._client = genai_client
+            self._model_name = model
             self._temperature = temperature
 
         def invoke(self, messages: Any) -> Any:
@@ -195,12 +199,16 @@ def _build_vertex_langchain(settings: Settings) -> Any:
             else:
                 full_prompt = str(messages)
 
-            config = GenerationConfig(
+            config = types.GenerateContentConfig(
                 temperature=self._temperature,
                 response_mime_type="application/json",
             )
             try:
-                response = self._model.generate_content(full_prompt, generation_config=config)
+                response = self._client.models.generate_content(
+                    model=self._model_name,
+                    contents=full_prompt,
+                    config=config,
+                )
             except Exception:
                 LOGGER.exception("Vertex AI generation failed")
                 raise
@@ -212,6 +220,7 @@ def _build_vertex_langchain(settings: Settings) -> Any:
             return _MessageResponse(response.text)
 
     return _VertexLangChainAdapter(
-        model=GenerativeModel(model_name),
+        genai_client=client,
+        model=model_name,
         temperature=settings.llm.temperature,
     )

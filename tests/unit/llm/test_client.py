@@ -45,8 +45,8 @@ class TestResolveModelName:
         assert _resolve_model_name(s) == "gemini-2.5-flash"
 
     def test_returns_vertex_model_when_chat_is_llama3(self) -> None:
-        s = _make_settings(chat_model="llama3", vertex_ai_model="gemini-pro")
-        assert _resolve_model_name(s) == "gemini-pro"
+        s = _make_settings(chat_model="llama3", vertex_ai_model="gemini-2.5-flash")
+        assert _resolve_model_name(s) == "gemini-2.5-flash"
 
     def test_returns_llama3_when_no_vertex_override(self) -> None:
         s = _make_settings(chat_model="llama3", vertex_ai_model=None)

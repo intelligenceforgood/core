@@ -11,13 +11,6 @@ import logging
 import requests
 from typing import Protocol, Any
 
-try:
-    import vertexai
-    from vertexai.generative_models import GenerativeModel
-except ImportError:
-    vertexai = None
-    GenerativeModel = None
-
 from i4g.settings import PROJECT_ROOT
 from i4g.taxonomy.models import FraudClassificationResult, ScoredLabel
 from i4g.classification.rules import detect_signals
@@ -53,20 +46,42 @@ class OllamaClient:
 
 
 class VertexAIClient:
-    """Client for Google Vertex AI."""
+    """Client for Google Vertex AI via the ``google-genai`` unified SDK."""
 
-    def __init__(self, project: str, location: str, model_name: str):
-        if not vertexai:
-            raise ImportError("vertexai module is not installed.")
-        vertexai.init(project=project, location=location)
-        self.model = GenerativeModel(model_name)
+    def __init__(self, project: str, location: str, model_name: str) -> None:
+        try:
+            from google import genai
+        except ImportError as exc:
+            raise ImportError(
+                "Vertex AI requires 'google-genai'. "
+                "Install with: pip install 'google-genai>=1.0.0,<2.0'"
+            ) from exc
+        self._model_name = model_name
+        self._client = genai.Client(vertexai=True, project=project, location=location)
 
     def generate(self, prompt: str) -> str:
+        """Generate text from a prompt using the Gemini model.
+
+        Args:
+            prompt: The text prompt to send to the model.
+
+        Returns:
+            The model's text response.
+
+        Raises:
+            ValueError: If the Vertex AI request fails.
+        """
+        from google.genai import types
+
         try:
-            response = self.model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
+            response = self._client.models.generate_content(
+                model=self._model_name,
+                contents=prompt,
+                config=types.GenerateContentConfig(response_mime_type="application/json"),
+            )
             return response.text
-        except Exception as e:
-            raise ValueError(f"Vertex AI request failed: {e}")
+        except Exception as exc:
+            raise ValueError(f"Vertex AI request failed: {exc}") from exc
 
 
 class MockLLMClient:
