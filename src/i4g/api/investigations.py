@@ -172,8 +172,8 @@ def trigger_ssi_investigation(
 
     The client polls ``GET /tasks/{task_id}`` for progress updates.
 
-    The SSI service pushes investigation results back to core via the
-    ``CoreBridge`` when ``push_to_core=True`` (default), creating a
+    The SSI service writes investigation results directly to the shared
+    database when ``push_to_core=True`` (default), creating a
     case record with attached evidence.
 
     Args:

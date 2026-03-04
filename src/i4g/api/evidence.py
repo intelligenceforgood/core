@@ -284,7 +284,7 @@ def _safe_iso(val: Any) -> str | None:
     return None
 
 
-# --- Evidence upload endpoint (used by SSI CoreBridge) ---
+# --- Evidence upload endpoint (used by SSI direct DB writes) ---
 
 
 class EvidenceUploadResponse(CamelModel):

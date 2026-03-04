@@ -1,6 +1,6 @@
 """Unit tests for the programmatic case creation endpoints (Phase 2.3).
 
-These endpoints are called by the SSI CoreBridge to push investigation
+These endpoints are called by the SSI ScanStore to push investigation
 results into the core platform.
 
 Tests use a disposable in-memory SQLite database via monkeypatch so they

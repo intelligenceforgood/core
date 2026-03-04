@@ -139,27 +139,27 @@ data/evidence/{case_id}/
 
 ## 4. SSI ↔ Core Integration
 
-### CoreBridge (`ssi/src/ssi/integration/core_bridge.py`)
+### Direct Database Writes (`ssi/src/ssi/store/scan_store.py`)
 
-The bridge pushes SSI investigation results into the core platform:
+SSI writes investigation results directly to the shared database via `ScanStore.create_case_record()`:
 
 ```
-push_investigation(result: InvestigationResult)
-  ├── _create_case()          → POST /cases (creates case + review_queue entry)
-  ├── _push_indicators()      → POST /cases/{id}/indicators (wallet addresses)
-  ├── _push_entities()        → POST /cases/{id}/entities (domains, IPs, registrants)
-  ├── _upload_evidence()      → POST /cases/{id}/evidence (files from evidence dir)
-  ├── _create_timeline_events() → POST /cases/{id}/timeline (6 event types)
-  └── returns case_id
+create_case_record(scan_id, result, dataset)
+  ├── INSERT cases            (case record + dedup via content hash)
+  ├── INSERT scam_records     (dashboard join)
+  ├── INSERT review_queue     (analyst queue entry)
+  ├── _insert_timeline_events()   (review_actions rows)
+  ├── _insert_evidence_documents() (source_documents rows)
+  └── UPDATE site_scans       (link scan → case)
 ```
 
 ### Case metadata from SSI
 
-When CoreBridge creates a case, it stores `ssi_investigation_id` in case metadata:
+When `ScanStore` creates a case, it stores `ssi_investigation_id` in case metadata:
 
 ```python
 "metadata": {
-    "ssi_investigation_id": str(result.investigation_id),
+    "ssi_investigation_id": str(scan_id),
     "scan_type": result.scan_type,
     ...
 }

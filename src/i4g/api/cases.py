@@ -469,7 +469,7 @@ def _format_timeline_description(action: str, payload: Any) -> str:
     return label
 
 
-# --- Write endpoints (used by SSI CoreBridge) ---
+# --- Write endpoints (used by SSI direct DB writes) ---
 
 
 def _get_or_404(session: Any, case_id: str) -> None:
@@ -485,7 +485,8 @@ def _get_or_404(session: Any, case_id: str) -> None:
 def create_case(body: CreateCaseRequest) -> CreateCaseResponse:
     """Create a case record and enqueue it for review.
 
-    Called by SSI's ``CoreBridge`` after an investigation completes.
+    Called by SSI's ``ScanStore.create_case_record()`` after an investigation
+    completes.
     Inserts into the ``cases`` table and creates a ``review_queue`` entry
     so the analyst console can display the case immediately.
 
@@ -605,7 +606,7 @@ def create_case(body: CreateCaseRequest) -> CreateCaseResponse:
 def update_case(case_id: str, body: UpdateCaseRequest) -> dict[str, Any]:
     """Update mutable fields on an existing case.
 
-    Typically called by SSI ``CoreBridge._store_classification`` to push
+    Typically called by SSI ``ScanStore`` to push
     the fraud taxonomy result after case creation.
 
     Args:
@@ -796,7 +797,8 @@ def add_timeline_events(case_id: str, body: BatchTimelineRequest) -> BatchTimeli
     """Append one or more timeline events to a case's audit trail.
 
     Each event is inserted as a ``review_actions`` row so it appears in
-    the case detail timeline.  Typically called by SSI's ``CoreBridge``
+    the case detail timeline.  Typically called by SSI's
+    ``ScanStore._insert_timeline_events()``
     to record investigation milestones (scan started, classification
     completed, wallets found, report generated, etc.).
 
