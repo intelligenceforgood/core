@@ -113,7 +113,6 @@ def apply_environment_overrides(
 
         llm_update = {
             "provider": "ollama",
-            "vertex_ai_model": None,
             "vertex_ai_project": None,
         }
         object.__setattr__(settings, "llm", settings.llm.model_copy(update=llm_update))

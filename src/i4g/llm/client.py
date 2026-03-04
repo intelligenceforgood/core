@@ -31,19 +31,6 @@ class LLMClient(Protocol):
         ...
 
 
-def _resolve_model_name(settings: Settings) -> str:
-    """Resolve the effective model name from settings with legacy fallback.
-
-    Priority: ``chat_model`` unless it is the default ``"llama3"`` *and*
-    ``vertex_ai_model`` is explicitly set (backwards-compat shim).
-    """
-    chat_model = settings.llm.chat_model
-    vertex_model = settings.llm.vertex_ai_model
-    if chat_model == "llama3" and vertex_model:
-        return vertex_model
-    return chat_model
-
-
 def build_llm_client(*, settings: Settings | None = None) -> LLMClient:
     """Return a simple ``LLMClient`` based on the configured provider.
 
@@ -72,7 +59,7 @@ def build_llm_client(*, settings: Settings | None = None) -> LLMClient:
     if provider in ("vertex_ai", "gemini"):
         if not s.llm.vertex_ai_project:
             raise ValueError("Vertex AI project not configured (settings.llm.vertex_ai_project).")
-        model_name = _resolve_model_name(s)
+        model_name = s.llm.chat_model
         return VertexAIClient(
             project=s.llm.vertex_ai_project,
             location=s.llm.vertex_ai_location or "us-central1",
@@ -171,7 +158,7 @@ def _build_vertex_langchain(settings: Settings) -> Any:
 
     project = settings.llm.vertex_ai_project or settings.secrets.project
     location = settings.llm.vertex_ai_location or "us-central1"
-    model_name = _resolve_model_name(settings)
+    model_name = settings.llm.chat_model
 
     client = genai.Client(vertexai=True, project=project, location=location)
     LOGGER.info("Initialized Vertex AI LangChain adapter", extra={"project": project, "model": model_name})

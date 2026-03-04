@@ -44,7 +44,6 @@
 # ollama_base_url = "http://127.0.0.1:11434"
 # vertex_ai_project = ""
 # vertex_ai_location = "us-central1"
-# vertex_ai_model = ""
 
 [observability]
 # structured_logging = true

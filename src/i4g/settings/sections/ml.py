@@ -107,11 +107,6 @@ class LLMSettings(BaseSettings):
         default="http://127.0.0.1:11434",
         validation_alias=AliasChoices("OLLAMA_BASE_URL", "LLM__OLLAMA_BASE_URL"),
     )
-    vertex_ai_model: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("LLM_VERTEX_AI_MODEL", "LLM__VERTEX_AI__MODEL"),
-        description="Legacy override for Vertex AI model. Prefer 'chat_model'.",
-    )
     vertex_ai_project: str | None = Field(
         default=None,
         validation_alias=AliasChoices("LLM_VERTEX_AI_PROJECT", "LLM__VERTEX_AI__PROJECT"),
