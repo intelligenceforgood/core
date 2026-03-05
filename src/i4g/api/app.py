@@ -18,6 +18,7 @@ from i4g.api.cases import router as cases_router
 from i4g.api.dashboard import router as dashboard_router
 from i4g.api.discovery import router as discovery_router
 from i4g.api.evidence import router as evidence_router
+from i4g.api.feedback import router as feedback_router
 from i4g.api.intake import router as intake_router
 from i4g.api.investigations import router as investigations_router
 from i4g.api.reports import router as reports_router
@@ -171,6 +172,7 @@ def create_app() -> FastAPI:
 
     app.include_router(discovery_router)
     app.include_router(evidence_router)
+    app.include_router(feedback_router)
     app.include_router(intake_router)
     # SSI routers registered before investigations_router so static paths
     # (/history, /active, /wallets) resolve before the catch-all {task_id}.

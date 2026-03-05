@@ -605,3 +605,27 @@ class RedisSettings(BaseSettings):
         validation_alias=AliasChoices("REDIS_POLL_INTERVAL", "REDIS__POLL_INTERVAL"),
         description="DB polling interval (seconds) when Redis is unavailable.",
     )
+
+
+class FeedbackSettings(BaseSettings):
+    """Inline feedback collection via Google Sheets.
+
+    When ``sheet_id`` is empty, the :class:`LoggingFeedbackService` is used
+    instead (stdout only).  Set ``enabled = false`` to hide the feedback UI
+    and reject API submissions.
+
+    Env vars: ``I4G_FEEDBACK__SHEET_ID``, ``I4G_FEEDBACK__ENABLED``.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("FEEDBACK_ENABLED", "FEEDBACK__ENABLED"),
+        description="Master switch for the feedback feature.",
+    )
+    sheet_id: str = Field(
+        default="",
+        validation_alias=AliasChoices("FEEDBACK_SHEET_ID", "FEEDBACK__SHEET_ID"),
+        description="Google Sheet spreadsheet ID for feedback storage.",
+    )

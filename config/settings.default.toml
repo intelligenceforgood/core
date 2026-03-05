@@ -125,6 +125,10 @@ vertex_ai_data_store = "retrieval-poc"
 # classification_presets = ["romance", "pig_butcher", "tech_support"]
 # time_presets = ["7d", "30d", "90d"]
 
+[feedback]
+# enabled = true
+# sheet_id = ""
+
 [search.saved_search]
 # migration_tag = "hybrid-v1"
 # schema_version = ""

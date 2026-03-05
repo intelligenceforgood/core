@@ -5,6 +5,7 @@ from i4g.settings.sections.jobs import (
     AccountJobSettings,
     AccountListSettings,
     DossierJobSettings,
+    FeedbackSettings,
     IngestionSettings,
     IngestRetryJobSettings,
     IntakeJobSettings,
@@ -43,4 +44,5 @@ __all__ = [
     "IntakeJobSettings",
     "RedisSettings",
     "SsiSettings",
+    "FeedbackSettings",
 ]

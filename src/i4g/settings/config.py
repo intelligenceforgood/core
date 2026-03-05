@@ -18,6 +18,7 @@ from i4g.settings.sections import (
     APISettings,
     CryptoSettings,
     DossierJobSettings,
+    FeedbackSettings,
     IdentitySettings,
     IngestionSettings,
     IngestRetryJobSettings,
@@ -210,6 +211,7 @@ class Settings(BaseSettings):
     smoke: SmokeSettings = Field(default_factory=SmokeSettings)
     ssi: SsiSettings = Field(default_factory=SsiSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
+    feedback: FeedbackSettings = Field(default_factory=FeedbackSettings)
     env_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
     config_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
 
