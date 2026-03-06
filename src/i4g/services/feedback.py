@@ -179,17 +179,17 @@ class GoogleSheetsFeedbackService:
         timestamp = f"{now_et.strftime('%b')} {now_et.day}, {now_et.year} " f"{hour12}:{now_et.strftime('%M %p')} ET"
 
         row = [
-            timestamp,  # A: Timestamp
-            tab_name,  # B: Page
-            section,  # C: Section
-            payload.feedback_type,  # D: Type
-            payload.priority,  # E: Priority
-            payload.subject,  # F: Subject
-            payload.description,  # G: Description
-            payload.submitter,  # H: Submitter
-            "New",  # I: Status
-            "",  # J: Owner
-            "",  # K: Effort
+            payload.feedback_type,  # A: Type
+            payload.priority,  # B: Priority
+            "New",  # C: Status
+            "",  # D: Effort
+            timestamp,  # E: Create Date
+            tab_name,  # F: Page
+            section,  # G: Section
+            payload.subject,  # H: Subject
+            payload.description,  # I: Description
+            payload.submitter,  # J: Submitter
+            "",  # K: Owner
             payload.page_url,  # L: Page URL
             payload.user_agent,  # M: User Agent
             "",  # N: Resolution Notes

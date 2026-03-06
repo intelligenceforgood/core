@@ -24,6 +24,9 @@ from googleapiclient.errors import HttpError
 
 SHEET_ID = "1o8iSyLtFbSxdqEtT-L7OQvSqKTealP1H8f0VZzZKTw8"
 
+SUMMARY_TAB = "Summary"
+SUMMARY_STATUSES = ["New", "Accepted", "In Progress", "Done", "Won't Fix"]
+
 # Tab name → page route (for reference; route is not written to the sheet)
 TABS: dict[str, str] = {
     "Dashboard": "/dashboard",
@@ -45,24 +48,26 @@ TABS: dict[str, str] = {
 }
 
 HEADERS = [
-    "Timestamp",  # A
-    "Page",  # B
-    "Section",  # C
-    "Type",  # D
-    "Priority",  # E
-    "Subject",  # F
-    "Description",  # G
-    "Submitter",  # H
-    "Status",  # I
-    "Owner",  # J
-    "Effort",  # K
+    "Type",  # A - dropdown
+    "Priority",  # B - dropdown
+    "Status",  # C - dropdown
+    "Effort",  # D - dropdown
+    "Create Date",  # E
+    "Page",  # F
+    "Section",  # G
+    "Subject",  # H
+    "Description",  # I
+    "Submitter",  # J
+    "Owner",  # K
     "Page URL",  # L
     "User Agent",  # M
     "Resolution Notes",  # N
 ]
 
 # Column widths in pixels (14 columns A–N)
-COLUMN_WIDTHS = [160, 100, 120, 120, 100, 250, 400, 200, 100, 150, 60, 280, 220, 300]
+# Order: Type, Priority, Status, Effort, Create Date, Page, Section,
+# Subject, Description, Submitter, Owner, Page URL, User Agent, Resolution Notes
+COLUMN_WIDTHS = [120, 100, 100, 60, 160, 100, 120, 250, 400, 200, 150, 280, 220, 300]
 
 # Colours
 HEADER_BG = {"red": 0.216, "green": 0.278, "blue": 0.31}  # #37474F
@@ -82,37 +87,37 @@ def _hex_to_rgb(h: str) -> dict[str, float]:
 
 # Conditional-format rules: (column_index, value, hex_bg)
 COND_FORMATS: list[tuple[int, str, str]] = [
-    # D — Type
-    (3, "Bug", "#FFD7D7"),
-    (3, "Feature Request", "#D7E8FF"),
-    (3, "UX Issue", "#FFE8CC"),
-    (3, "Question", "#FFF9C4"),
-    (3, "Other", "#F0F0F0"),
-    # E — Priority
-    (4, "P0-Critical", "#F4CCCC"),
-    (4, "P1-High", "#FCE5CD"),
-    (4, "P2-Medium", "#FFF2CC"),
-    (4, "P3-Low", "#EFEFEF"),
-    # I — Status
-    (8, "New", "#D7E8FF"),
-    (8, "Accepted", "#D9EAD3"),
-    (8, "In Progress", "#FFF2CC"),
-    (8, "Done", "#C9DAF8"),
-    (8, "Won't Fix", "#F0F0F0"),
-    # K — Effort
-    (10, "XS", "#D9EAD3"),
-    (10, "S", "#B6D7A8"),
-    (10, "M", "#FFF2CC"),
-    (10, "L", "#FCE5CD"),
-    (10, "XL", "#F4CCCC"),
+    # A — Type
+    (0, "Bug", "#FFD7D7"),
+    (0, "Feature Request", "#D7E8FF"),
+    (0, "UX Issue", "#FFE8CC"),
+    (0, "Question", "#FFF9C4"),
+    (0, "Other", "#F0F0F0"),
+    # B — Priority
+    (1, "P0-Critical", "#F4CCCC"),
+    (1, "P1-High", "#FCE5CD"),
+    (1, "P2-Medium", "#FFF2CC"),
+    (1, "P3-Low", "#EFEFEF"),
+    # C — Status
+    (2, "New", "#D7E8FF"),
+    (2, "Accepted", "#D9EAD3"),
+    (2, "In Progress", "#FFF2CC"),
+    (2, "Done", "#C9DAF8"),
+    (2, "Won't Fix", "#F0F0F0"),
+    # D — Effort
+    (3, "XS", "#D9EAD3"),
+    (3, "S", "#B6D7A8"),
+    (3, "M", "#FFF2CC"),
+    (3, "L", "#FCE5CD"),
+    (3, "XL", "#F4CCCC"),
 ]
 
 # Data validation dropdown values per column index
 DROPDOWNS: dict[int, list[str]] = {
-    3: ["Bug", "Feature Request", "UX Issue", "Question", "Other"],  # Type
-    4: ["P0-Critical", "P1-High", "P2-Medium", "P3-Low"],  # Priority
-    8: ["New", "Accepted", "In Progress", "Done", "Won't Fix"],  # Status
-    10: ["XS", "S", "M", "L", "XL"],  # Effort
+    0: ["Bug", "Feature Request", "UX Issue", "Question", "Other"],  # Type
+    1: ["P0-Critical", "P1-High", "P2-Medium", "P3-Low"],  # Priority
+    2: ["New", "Accepted", "In Progress", "Done", "Won't Fix"],  # Status
+    3: ["XS", "S", "M", "L", "XL"],  # Effort
 }
 
 
@@ -165,7 +170,7 @@ def _recreate_tabs(service) -> dict[str, int]:
     (which would be rejected).
     """
     existing = _get_existing_tabs(service)
-    feedback_tabs_to_delete = [name for name in existing if name in TABS]
+    tabs_to_delete = [name for name in existing if name in TABS or name == SUMMARY_TAB]
 
     # Create a temporary placeholder so we can safely delete everything else.
     tmp_name = "_setup_tmp"
@@ -180,14 +185,14 @@ def _recreate_tabs(service) -> dict[str, int]:
     tmp_id = add_resp["replies"][0]["addSheet"]["properties"]["sheetId"]
     print(f"Created temporary tab '{tmp_name}' (id={tmp_id})")
 
-    # Delete all old feedback tabs.
-    if feedback_tabs_to_delete:
-        delete_requests = [{"deleteSheet": {"sheetId": existing[name]}} for name in feedback_tabs_to_delete]
+    # Delete all old tabs (feedback + summary).
+    if tabs_to_delete:
+        delete_requests = [{"deleteSheet": {"sheetId": existing[name]}} for name in tabs_to_delete]
         service.spreadsheets().batchUpdate(
             spreadsheetId=SHEET_ID,
             body={"requests": delete_requests},
         ).execute()
-        print(f"Deleted {len(feedback_tabs_to_delete)} tabs: {', '.join(feedback_tabs_to_delete)}")
+        print(f"Deleted {len(tabs_to_delete)} tabs: {', '.join(tabs_to_delete)}")
 
     # Create all feedback tabs fresh.
     add_requests = [{"addSheet": {"properties": {"title": name}}} for name in TABS]
@@ -433,6 +438,260 @@ def _format_tabs(service, tab_sheet_ids: dict[str, int]) -> None:
         print(f"Applied formatting ({len(requests)} operations across {len(TABS)} tabs)")
 
 
+def _setup_summary_tab(service, tab_sheet_ids: dict[str, int]) -> dict[str, int]:
+    """Create or update the Summary tab at spreadsheet position 0.
+
+    Writes COUNTIF formulas aggregating Status counts (column C) from
+    every feedback tab, producing one row per tab plus a grand-total row.
+    Always re-writes formulas so the tab stays current on subsequent runs.
+    """
+    summary_id = tab_sheet_ids.get(SUMMARY_TAB)
+
+    if summary_id is None:
+        resp = (
+            service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=SHEET_ID,
+                body={"requests": [{"addSheet": {"properties": {"title": SUMMARY_TAB, "index": 0}}}]},
+            )
+            .execute()
+        )
+        summary_id = resp["replies"][0]["addSheet"]["properties"]["sheetId"]
+        print(f"Created '{SUMMARY_TAB}' tab at position 0")
+    else:
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=SHEET_ID,
+            body={
+                "requests": [
+                    {
+                        "updateSheetProperties": {
+                            "properties": {"sheetId": summary_id, "index": 0},
+                            "fields": "index",
+                        }
+                    }
+                ]
+            },
+        ).execute()
+        print(f"Moved '{SUMMARY_TAB}' tab to position 0")
+
+    # Re-fetch so the returned mapping is authoritative.
+    meta = service.spreadsheets().get(spreadsheetId=SHEET_ID).execute()
+    updated_ids = {s["properties"]["title"]: s["properties"]["sheetId"] for s in meta.get("sheets", [])}
+    summary_id = updated_ids[SUMMARY_TAB]
+
+    # ── Write header row + COUNTIF formulas ────────────────────────────────
+    # Status is column C (index 2) in each feedback tab after the reorder.
+    headers_row = ["Page"] + SUMMARY_STATUSES + ["Total"]
+    num_cols = len(headers_row)
+    last_status_col = chr(ord("A") + len(SUMMARY_STATUSES))  # "F" for 5 statuses
+    last_col = chr(ord("A") + num_cols - 1)  # "G" for 7 columns total
+
+    rows: list[list[str]] = [headers_row]
+    tab_names = list(TABS.keys())
+    for tab_name in tab_names:
+        safe = tab_name.replace("'", "\\'")
+        row_num = len(rows) + 1
+        countifs = [f"=COUNTIF('{safe}'!C:C,\"{s}\")" for s in SUMMARY_STATUSES]
+        total = f"=SUM(B{row_num}:{last_status_col}{row_num})"
+        rows.append([tab_name] + countifs + [total])
+
+    # Grand-total row
+    data_start = 2
+    data_end = 1 + len(tab_names)
+    grand_totals = [
+        f"=SUM({chr(ord('A') + col_num)}{data_start}:{chr(ord('A') + col_num)}{data_end})"
+        for col_num in range(1, num_cols)
+    ]
+    rows.append(["Total"] + grand_totals)
+
+    service.spreadsheets().values().update(
+        spreadsheetId=SHEET_ID,
+        range=f"'{SUMMARY_TAB}'!A1:{last_col}{len(rows)}",
+        valueInputOption="USER_ENTERED",
+        body={"values": rows},
+    ).execute()
+    print(f"Wrote summary formulas ({len(tab_names)} tabs \u00d7 {len(SUMMARY_STATUSES)} statuses)")
+
+    # ── Format summary tab ──────────────────────────────────────────────────
+    light_gray = {"red": 0.95, "green": 0.95, "blue": 0.95}
+    total_row_bg = {"red": 0.85, "green": 0.85, "blue": 0.85}
+    requests = []
+
+    # Header row: same style as feedback tab headers
+    requests.append(
+        {
+            "repeatCell": {
+                "range": {
+                    "sheetId": summary_id,
+                    "startRowIndex": 0,
+                    "endRowIndex": 1,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": num_cols,
+                },
+                "cell": {
+                    "userEnteredFormat": {
+                        "backgroundColor": HEADER_BG,
+                        "textFormat": {
+                            "bold": True,
+                            "fontFamily": "Montserrat",
+                            "fontSize": 10,
+                            "foregroundColor": HEADER_FG,
+                        },
+                        "wrapStrategy": "WRAP",
+                        "verticalAlignment": "MIDDLE",
+                        "horizontalAlignment": "CENTER",
+                    }
+                },
+                "fields": (
+                    "userEnteredFormat("
+                    "backgroundColor,"
+                    "textFormat.bold,"
+                    "textFormat.fontFamily,"
+                    "textFormat.fontSize,"
+                    "textFormat.foregroundColor,"
+                    "wrapStrategy,"
+                    "verticalAlignment,"
+                    "horizontalAlignment)"
+                ),
+            }
+        }
+    )
+
+    # Data rows: alternating white / light-gray stripes
+    for row_offset, _ in enumerate(tab_names):
+        bg = WHITE if row_offset % 2 == 0 else light_gray
+        requests.append(
+            {
+                "repeatCell": {
+                    "range": {
+                        "sheetId": summary_id,
+                        "startRowIndex": row_offset + 1,
+                        "endRowIndex": row_offset + 2,
+                        "startColumnIndex": 0,
+                        "endColumnIndex": num_cols,
+                    },
+                    "cell": {
+                        "userEnteredFormat": {
+                            "backgroundColor": bg,
+                            "textFormat": {"fontFamily": "Inter", "fontSize": 10},
+                            "wrapStrategy": "CLIP",
+                            "verticalAlignment": "MIDDLE",
+                            "horizontalAlignment": "LEFT",
+                        }
+                    },
+                    "fields": (
+                        "userEnteredFormat("
+                        "backgroundColor,"
+                        "textFormat.fontFamily,"
+                        "textFormat.fontSize,"
+                        "wrapStrategy,"
+                        "verticalAlignment,"
+                        "horizontalAlignment)"
+                    ),
+                }
+            }
+        )
+        # Center-align the numeric columns (B onward)
+        requests.append(
+            {
+                "repeatCell": {
+                    "range": {
+                        "sheetId": summary_id,
+                        "startRowIndex": row_offset + 1,
+                        "endRowIndex": row_offset + 2,
+                        "startColumnIndex": 1,
+                        "endColumnIndex": num_cols,
+                    },
+                    "cell": {"userEnteredFormat": {"horizontalAlignment": "CENTER"}},
+                    "fields": "userEnteredFormat(horizontalAlignment)",
+                }
+            }
+        )
+
+    # Grand-total row: bold, gray background
+    total_row_idx = len(tab_names) + 1  # 0-based
+    requests.append(
+        {
+            "repeatCell": {
+                "range": {
+                    "sheetId": summary_id,
+                    "startRowIndex": total_row_idx,
+                    "endRowIndex": total_row_idx + 1,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": num_cols,
+                },
+                "cell": {
+                    "userEnteredFormat": {
+                        "backgroundColor": total_row_bg,
+                        "textFormat": {"bold": True, "fontFamily": "Inter", "fontSize": 10},
+                        "horizontalAlignment": "CENTER",
+                    }
+                },
+                "fields": (
+                    "userEnteredFormat("
+                    "backgroundColor,"
+                    "textFormat.bold,"
+                    "textFormat.fontFamily,"
+                    "textFormat.fontSize,"
+                    "horizontalAlignment)"
+                ),
+            }
+        }
+    )
+    # Left-align the "Total" label in column A
+    requests.append(
+        {
+            "repeatCell": {
+                "range": {
+                    "sheetId": summary_id,
+                    "startRowIndex": total_row_idx,
+                    "endRowIndex": total_row_idx + 1,
+                    "startColumnIndex": 0,
+                    "endColumnIndex": 1,
+                },
+                "cell": {"userEnteredFormat": {"horizontalAlignment": "LEFT"}},
+                "fields": "userEnteredFormat(horizontalAlignment)",
+            }
+        }
+    )
+
+    # Freeze row 1
+    requests.append(
+        {
+            "updateSheetProperties": {
+                "properties": {
+                    "sheetId": summary_id,
+                    "gridProperties": {"frozenRowCount": 1},
+                },
+                "fields": "gridProperties.frozenRowCount",
+            }
+        }
+    )
+
+    # Column widths: Page=200, each status col=110, Total=80
+    col_widths = [200] + [110] * len(SUMMARY_STATUSES) + [80]
+    for col_idx, width in enumerate(col_widths):
+        requests.append(
+            {
+                "updateDimensionProperties": {
+                    "range": {
+                        "sheetId": summary_id,
+                        "dimension": "COLUMNS",
+                        "startIndex": col_idx,
+                        "endIndex": col_idx + 1,
+                    },
+                    "properties": {"pixelSize": width},
+                    "fields": "pixelSize",
+                }
+            }
+        )
+
+    service.spreadsheets().batchUpdate(spreadsheetId=SHEET_ID, body={"requests": requests}).execute()
+    print(f"Formatted '{SUMMARY_TAB}' tab")
+
+    return updated_ids
+
+
 def _delete_default_sheet(service, tab_sheet_ids: dict[str, int]) -> None:
     """Delete the default 'Sheet1' tab if it exists and is empty."""
     default_name = "Sheet1"
@@ -497,6 +756,7 @@ def main() -> None:
 
     _write_headers(service, tab_sheet_ids)
     _format_tabs(service, tab_sheet_ids)
+    tab_sheet_ids = _setup_summary_tab(service, tab_sheet_ids)
 
     if not args.recreate:
         _delete_default_sheet(service, tab_sheet_ids)
@@ -504,6 +764,7 @@ def main() -> None:
     print()
     print("Done! Sheet is ready for feedback collection.")
     print(f"Columns: {', '.join(HEADERS)}")
+    print(f"Summary tab: '{SUMMARY_TAB}' (position 0, counts issues by status per page)")
     print(f"URL: https://docs.google.com/spreadsheets/d/{SHEET_ID}/edit")
 
 

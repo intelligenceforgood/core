@@ -1,7 +1,10 @@
+from datetime import UTC, datetime, timedelta
+from unittest.mock import MagicMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
 
-from i4g.api.app import app
+from i4g.api.app import _stale_running_scan, app
 from i4g.task_status_store import TASK_STATUS
 
 client = TestClient(app)
@@ -91,3 +94,64 @@ def test_update_task_status_with_null_values():
     assert data["investigationId"] == "scan-uuid"
     # case_id is None → excluded by response_model_exclude_none
     assert "caseId" not in data
+
+
+# ---------------------------------------------------------------------------
+# Staleness detection unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_stale_running_scan_detects_old_scan() -> None:
+    """A scan whose updated_at is >2 h ago should be considered stale."""
+    old_ts = datetime.now(UTC) - timedelta(hours=3)
+    assert _stale_running_scan({"updated_at": old_ts}) is True
+
+
+def test_stale_running_scan_recent_scan() -> None:
+    """A scan updated recently is NOT stale."""
+    recent_ts = datetime.now(UTC) - timedelta(minutes=10)
+    assert _stale_running_scan({"updated_at": recent_ts}) is False
+
+
+def test_stale_running_scan_falls_back_to_started_at() -> None:
+    """When updated_at is absent the fallback is started_at."""
+    old_ts = datetime.now(UTC) - timedelta(hours=3)
+    assert _stale_running_scan({"started_at": old_ts}) is True
+
+
+def test_stale_running_scan_no_timestamp() -> None:
+    """A scan with no timestamp columns is not considered stale (safe default)."""
+    assert _stale_running_scan({}) is False
+
+
+def test_get_task_status_auto_fails_stale_running_scan() -> None:
+    """GET /tasks/{task_id} must return 'failed' for a stale orphaned scan."""
+    task_id = "stale-scan-uuid"
+    stale_ts = datetime.now(UTC) - timedelta(hours=3)
+    fake_scan = {
+        "scan_id": task_id,
+        "url": "https://example-scam.com",
+        "status": "running",
+        "updated_at": stale_ts,
+        "risk_score": None,
+        "case_id": None,
+        "duration_seconds": None,
+        "error_message": None,
+    }
+
+    mock_store = MagicMock()
+    mock_store.get_scan.return_value = fake_scan
+
+    with patch("i4g.services.factories.build_ssi_store", return_value=mock_store):
+        response = client.get(f"/tasks/{task_id}")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "failed"
+    assert "interrupted" in data["message"].lower()
+    # The store should have been told to persist the failure.
+    mock_store.update_scan.assert_called_once_with(
+        task_id,
+        status="failed",
+        error_message="Investigation was interrupted (service restarted while it was running).",
+    )

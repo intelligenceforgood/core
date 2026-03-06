@@ -2,6 +2,7 @@
 
 import logging
 import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,36 @@ from i4g.task_status_store import TASK_STATUS
 
 task_router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(require_token)])
 
+# Scans that have been "running" longer than this with no DB update are
+# considered orphaned (e.g. SSI process killed mid-investigation).
+_STALE_RUNNING_THRESHOLD = timedelta(hours=2)
+
+
+def _stale_running_scan(scan: dict[str, Any]) -> bool:
+    """Return True when a 'running' scan has not been updated recently.
+
+    Uses ``updated_at`` (kept current by TaskStatusReporter) with a
+    fallback to ``started_at``.  Returns False when neither column is set
+    so that scans without timestamps are not incorrectly failed.
+
+    Args:
+        scan: Row dict from ``SsiStore.get_scan()``.
+
+    Returns:
+        True if the scan is older than ``_STALE_RUNNING_THRESHOLD``.
+    """
+    ts = scan.get("updated_at") or scan.get("started_at")
+    if not ts:
+        return False
+    if isinstance(ts, str):
+        try:
+            ts = datetime.fromisoformat(ts)
+        except ValueError:
+            return False
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=UTC)
+    return datetime.now(UTC) - ts > _STALE_RUNNING_THRESHOLD
+
 
 @task_router.get("/{task_id}", response_model=TaskStatusResponse, response_model_exclude_none=True)
 def get_task_status(task_id: str) -> dict[str, Any]:
@@ -65,6 +96,15 @@ def get_task_status(task_id: str) -> dict[str, Any]:
             _scan = _store.get_scan(task_id)
             if _scan:
                 _status = str(_scan.get("status", "running"))
+                if _status == "running" and _stale_running_scan(_scan):
+                    _url = str(_scan.get("url", ""))
+                    _err = "Investigation was interrupted (service restarted while it was running)."
+                    try:
+                        _store.update_scan(task_id, status="failed", error_message=_err)
+                    except Exception as _ue:
+                        logging.getLogger(__name__).warning("Could not mark stale scan %s as failed: %s", task_id, _ue)
+                    _status = "failed"
+                    _scan = {**_scan, "status": "failed", "error_message": _err}
                 _url = str(_scan.get("url", ""))
                 _msg = f"Investigation {_status}: {_url}"
                 if _status == "failed" and _scan.get("error_message"):
@@ -94,8 +134,16 @@ def get_task_status(task_id: str) -> dict[str, Any]:
             store = build_ssi_store()
             scan = store.get_scan(scan_id)
             if scan:
-                # Update task with latest from DB
+                # Update task with latest from DB; auto-fail orphaned running scans.
                 status = scan["status"]
+                if status == "running" and _stale_running_scan(scan):
+                    err_msg = "Investigation was interrupted (service restarted while it was running)."
+                    try:
+                        store.update_scan(scan_id, status="failed", error_message=err_msg)
+                    except Exception as _ue:
+                        logging.getLogger(__name__).warning("Could not mark stale scan %s as failed: %s", scan_id, _ue)
+                    status = "failed"
+                    scan = {**scan, "status": "failed", "error_message": err_msg}
                 message = f"Investigation {status}: {task.get('url', 'unknown URL')}"
                 if status == "failed" and scan.get("error_message"):
                     message = scan["error_message"]
