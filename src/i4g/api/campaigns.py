@@ -58,6 +58,18 @@ def list_campaigns(service: CampaignService = Depends(get_service)):
     return service.list_active_campaigns()
 
 
+@router.get("/{campaign_id}")
+def get_campaign(
+    campaign_id: str,
+    service: CampaignService = Depends(get_service),
+) -> dict[str, Any]:
+    """Get a single campaign with linked cases."""
+    detail = service.get_campaign_detail(campaign_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="Campaign not found.")
+    return detail
+
+
 @router.post("", response_model=str)
 def create_campaign(
     payload: CreateCampaignRequest,

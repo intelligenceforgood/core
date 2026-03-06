@@ -6,7 +6,7 @@ from typing import Any
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from i4g.store.sql import campaigns
+from i4g.store.sql import campaigns, cases
 from i4g.taxonomy.data import TAXONOMY_DEFINITIONS
 from i4g.taxonomy.models import FraudClassificationResult
 
@@ -109,6 +109,52 @@ class CampaignService:
             }
             for row in results
         ]
+
+    def get_campaign_detail(self, campaign_id: str) -> dict[str, Any] | None:
+        """Get a single campaign with its linked cases.
+
+        Args:
+            campaign_id: UUID of the campaign.
+
+        Returns:
+            Campaign dict with a ``linked_cases`` list, or ``None`` if not found.
+        """
+        row = self.session.execute(sa.select(campaigns).where(campaigns.c.campaign_id == campaign_id)).first()
+        if not row:
+            return None
+
+        # Fetch cases linked to this campaign
+        linked = self.session.execute(
+            sa.select(
+                cases.c.case_id,
+                cases.c.dataset,
+                cases.c.classification,
+                cases.c.status,
+                cases.c.risk_score,
+                cases.c.created_at,
+            ).where(cases.c.campaign_id == campaign_id)
+        ).fetchall()
+
+        return {
+            "id": row.campaign_id,
+            "name": row.name,
+            "description": row.description,
+            "taxonomy_labels": row.taxonomy_labels if isinstance(row.taxonomy_labels, dict) else None,
+            "taxonomy_rollup": list(row.taxonomy_rollup) if isinstance(row.taxonomy_rollup, list) else [],
+            "status": row.status,
+            "created_at": str(row.created_at) if row.created_at else None,
+            "linked_cases": [
+                {
+                    "case_id": c.case_id,
+                    "dataset": c.dataset,
+                    "classification": c.classification,
+                    "status": c.status,
+                    "risk_score": float(c.risk_score) if c.risk_score else 0,
+                    "created_at": str(c.created_at) if c.created_at else None,
+                }
+                for c in linked
+            ],
+        }
 
     def create_campaign(
         self,
