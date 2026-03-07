@@ -78,6 +78,33 @@ a quick skim.
 
 ---
 
+## 4b. Pre-Commit Hooks (repo-specific — mandatory double-pass)
+
+Each repo has its own `.pre-commit-config.yaml` and its own conda environment.
+**Always run `pre-commit` through the correct conda env and from that repo's root directory.**
+Do NOT run plain `pre-commit` — it will use the wrong Python environment and produce incorrect results.
+
+| Repo    | Conda env   | Command |
+|---------|-------------|----------------------------------------------------------|
+| `core/` | `i4g`       | `conda run -n i4g pre-commit run --all-files`            |
+| `ssi/`  | `i4g-ssi`   | `conda run -n i4g-ssi pre-commit run --all-files`        |
+
+**Procedure for every repo in scope:**
+
+```bash
+cd <repo-root>                            # must be the repo containing .pre-commit-config.yaml
+conda run -n <env> pre-commit run --all-files   # Pass 1 — formatter hooks auto-fix files
+git add -u                                # stage auto-fixed files (black, isort, ruff --fix)
+conda run -n <env> pre-commit run --all-files   # Pass 2 — must exit clean, zero files modified
+```
+
+- Pass 1 routinely modifies files (Black reformats, isort reorders, ruff auto-fixes). This is expected.
+- After Pass 1, **always** `git add -u` the auto-fixed files before Pass 2.
+- Pass 2 must show every hook as **Passed** with no files modified. If any hook still fails, fix the root cause — do not re-run in a loop.
+- The pre-merge review is **not complete** until a clean Pass 2 is confirmed for every repo that has changes.
+
+---
+
 ## 5. Docs & Config
 
 - If behavior or environment variables changed, update:
