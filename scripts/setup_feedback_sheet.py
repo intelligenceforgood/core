@@ -8,8 +8,16 @@ Usage:
     # Normal run (adds missing tabs, leaves existing data intact):
     conda run -n i4g python scripts/setup_feedback_sheet.py
 
-    # Recreate all tabs from scratch (DELETES ALL DATA on the 16 feedback tabs):
+    # Safe update: add new pages, rename tabs, reorder, refresh Summary (keeps all data):
+    conda run -n i4g python scripts/setup_feedback_sheet.py --update
+
+    # Recreate all tabs from scratch (DELETES ALL DATA on all feedback tabs):
     conda run -n i4g python scripts/setup_feedback_sheet.py --recreate
+
+When a page is added to the console, add it to TABS in nav-bar order and run --update.
+When a page is renamed, add the old→new mapping to RENAMES and run --update.
+When a page is removed, delete it from TABS and run --update (the stale tab is preserved
+with its data; delete it manually in the sheet after verifying nothing needs to be kept).
 """
 
 from __future__ import annotations
@@ -44,8 +52,14 @@ TABS: dict[str, str] = {
     "SSI Investigations": "/ssi/investigations",
     "SSI Investigation Detail": "/ssi/investigations/[id]",
     "SSI Wallets": "/ssi/wallets",
+    "SSI Submissions": "/ssi/submissions",
     "Admin Users": "/admin/users",
 }
+
+# When a page is renamed in the console, add the mapping here BEFORE running --update.
+# Format: {"Old Tab Name": "New Tab Name"}
+# Remove entries after a successful --update run to keep this clean.
+RENAMES: dict[str, str] = {}
 
 HEADERS = [
     "Type",  # A - dropdown
@@ -227,6 +241,114 @@ def _create_tabs(service, existing: dict[str, int]) -> dict[str, int]:
     # Re-fetch to get sheetIds
     meta = service.spreadsheets().get(spreadsheetId=SHEET_ID).execute()
     return {s["properties"]["title"]: s["properties"]["sheetId"] for s in meta.get("sheets", [])}
+
+
+def _rename_tabs(service, existing: dict[str, int]) -> dict[str, int]:
+    """Apply pending renames from the RENAMES map.
+
+    For each entry in RENAMES: if the old tab exists and the new name does not,
+    the tab is renamed in-place so all existing row data is preserved.
+    Returns an updated tab_name → sheetId mapping.
+    """
+    if not RENAMES:
+        return existing
+
+    requests = []
+    applied: list[tuple[str, str]] = []
+    for old_name, new_name in RENAMES.items():
+        sheet_id = existing.get(old_name)
+        if sheet_id is None:
+            print(f"  RENAME skip: '{old_name}' not found in sheet")
+            continue
+        if new_name in existing:
+            print(f"  RENAME skip: '{new_name}' already exists ('{old_name}' remains unchanged)")
+            continue
+        requests.append(
+            {
+                "updateSheetProperties": {
+                    "properties": {"sheetId": sheet_id, "title": new_name},
+                    "fields": "title",
+                }
+            }
+        )
+        applied.append((old_name, new_name))
+
+    if requests:
+        service.spreadsheets().batchUpdate(spreadsheetId=SHEET_ID, body={"requests": requests}).execute()
+        for old_name, new_name in applied:
+            print(f"  Renamed '{old_name}' → '{new_name}'")
+
+    meta = service.spreadsheets().get(spreadsheetId=SHEET_ID).execute()
+    return {s["properties"]["title"]: s["properties"]["sheetId"] for s in meta.get("sheets", [])}
+
+
+def _reorder_tabs(service, all_ids: dict[str, int]) -> None:
+    """Move tabs to match the canonical TABS order.
+
+    Target order: Summary at index 0, then each entry in TABS in dict order,
+    then any stale (unknown) tabs at the end.
+    """
+    canonical = list(TABS.keys())
+    stale = [name for name in all_ids if name not in TABS and name != SUMMARY_TAB]
+
+    desired: list[str] = []
+    if SUMMARY_TAB in all_ids:
+        desired.append(SUMMARY_TAB)
+    desired.extend(name for name in canonical if name in all_ids)
+    desired.extend(name for name in stale if name in all_ids)
+
+    requests = [
+        {
+            "updateSheetProperties": {
+                "properties": {"sheetId": all_ids[name], "index": idx},
+                "fields": "index",
+            }
+        }
+        for idx, name in enumerate(desired)
+    ]
+
+    if requests:
+        service.spreadsheets().batchUpdate(spreadsheetId=SHEET_ID, body={"requests": requests}).execute()
+        print(f"Reordered {len(desired)} tabs to match canonical nav order")
+
+
+def _update_tabs(service, existing: dict[str, int]) -> tuple[dict[str, int], list[str]]:
+    """Safe update: rename, add missing tabs, warn about stale tabs, then reorder.
+
+    Existing tab data is never modified or deleted.  New tabs are created and
+    then placed in the correct nav-bar position.  Stale tabs (present in the
+    sheet but absent from TABS after renames are applied) generate a warning
+    and are left untouched so no submitted feedback is lost.
+
+    Returns:
+        A tuple of (all_tab_ids, new_tab_names) where new_tab_names lists
+        every tab that was just created so callers can limit re-formatting to
+        only those tabs.
+    """
+    print("Applying renames...")
+    existing = _rename_tabs(service, existing)
+
+    stale = [name for name in existing if name not in TABS and name != SUMMARY_TAB]
+    if stale:
+        print(f"WARNING: {len(stale)} tab(s) exist in the sheet but are not in TABS:")
+        for name in stale:
+            print(f"  '{name}' — data preserved, tab not deleted")
+        print("  Add an entry to RENAMES (if renamed) or delete the tab manually in the sheet.")
+
+    to_create = [name for name in TABS if name not in existing]
+    if to_create:
+        requests = [{"addSheet": {"properties": {"title": name}}} for name in to_create]
+        service.spreadsheets().batchUpdate(spreadsheetId=SHEET_ID, body={"requests": requests}).execute()
+        print(f"Created {len(to_create)} new tab(s): {', '.join(to_create)}")
+    else:
+        print("No new tabs to create")
+
+    meta = service.spreadsheets().get(spreadsheetId=SHEET_ID).execute()
+    all_ids = {s["properties"]["title"]: s["properties"]["sheetId"] for s in meta.get("sheets", [])}
+
+    _reorder_tabs(service, all_ids)
+
+    return all_ids, to_create
 
 
 def _write_headers(service, tab_sheet_ids: dict[str, int]) -> None:
@@ -718,11 +840,21 @@ def _delete_default_sheet(service, tab_sheet_ids: dict[str, int]) -> None:
 def _parse_args():
     """Parse command-line arguments."""
     parser = ArgumentParser(description="Set up the i4g feedback Google Sheet.")
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--update",
+        action="store_true",
+        help=(
+            "Safe update: apply RENAMES, add missing tabs in nav order, warn about stale "
+            "tabs, and reorder all tabs to match the canonical TABS sequence. "
+            "Existing feedback data is never modified or deleted."
+        ),
+    )
+    group.add_argument(
         "--recreate",
         action="store_true",
         help=(
-            "Delete all 16 feedback tabs and recreate them from scratch. "
+            f"Delete all {len(TABS)} feedback tabs and recreate them from scratch. "
             "WARNING: this destroys all existing feedback data."
         ),
     )
@@ -736,6 +868,8 @@ def main() -> None:
     print(f"Setting up feedback sheet: {SHEET_ID}")
     if args.recreate:
         print("MODE: --recreate  (all existing feedback data will be DELETED)")
+    elif args.update:
+        print("MODE: --update  (safe: adds missing tabs, renames, reorders, refreshes Summary)")
     print(f"Tabs: {len(TABS)}  |  Columns: {len(HEADERS)} (A–{chr(ord('A') + len(HEADERS) - 1)})")
     print()
 
@@ -749,13 +883,25 @@ def main() -> None:
     if args.recreate:
         print("Recreating all tabs...")
         tab_sheet_ids = _recreate_tabs(service)
+        _write_headers(service, tab_sheet_ids)
+        _format_tabs(service, tab_sheet_ids)
+    elif args.update:
+        existing = _get_existing_tabs(service)
+        print(f"Existing tabs: {len(existing)}")
+        tab_sheet_ids, new_tab_names = _update_tabs(service, existing)
+        # Only write headers and format newly created tabs to avoid duplicating
+        # conditional-format rules on tabs that were already fully set up.
+        if new_tab_names:
+            new_tab_ids = {name: tab_sheet_ids[name] for name in new_tab_names if name in tab_sheet_ids}
+            _write_headers(service, new_tab_ids)
+            _format_tabs(service, new_tab_ids)
     else:
         existing = _get_existing_tabs(service)
         print(f"Existing tabs: {set(existing) or '(none)'}")
         tab_sheet_ids = _create_tabs(service, existing)
+        _write_headers(service, tab_sheet_ids)
+        _format_tabs(service, tab_sheet_ids)
 
-    _write_headers(service, tab_sheet_ids)
-    _format_tabs(service, tab_sheet_ids)
     tab_sheet_ids = _setup_summary_tab(service, tab_sheet_ids)
 
     if not args.recreate:
