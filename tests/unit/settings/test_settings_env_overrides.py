@@ -625,7 +625,7 @@ def test_ssi_defaults(monkeypatch: object) -> None:
 
     settings = reload_settings(env="dev")
     assert settings.ssi.service_url == ""
-    assert settings.ssi.core_api_url == "https://api.intelligenceforgood.org"
+    assert settings.ssi.core_api_url == "https://api.dev.intelligenceforgood.org"
     assert settings.ssi.playbook_dir  # should have a default value
 
 

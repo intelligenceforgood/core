@@ -58,7 +58,7 @@ gcloud run services update core-svc \
 4. Export runtime env for the smoke (dev values shown; swap host/client ID for other envs):
 
 ```bash
-export CORE_API_BASE=https://api.intelligenceforgood.org
+export CORE_API_BASE=https://api.dev.intelligenceforgood.org
 export IAP_CLIENT_ID=544936845045-a87u04lgc7go7asc4nhed36ka50iqh0h.apps.googleusercontent.com
 export I4G_API_KEY=dev-analyst-token
 ```

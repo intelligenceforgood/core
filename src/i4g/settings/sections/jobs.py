@@ -562,7 +562,7 @@ class SsiSettings(BaseSettings):
         description="Base URL of the SSI Cloud Run Service.",
     )
     core_api_url: str = Field(
-        default="https://api.intelligenceforgood.org",
+        default="https://api.dev.intelligenceforgood.org",
         validation_alias=AliasChoices("SSI_CORE_API_URL", "SSI__CORE_API_URL"),
         description="Core API base URL for task status callbacks from the SSI service.",
     )

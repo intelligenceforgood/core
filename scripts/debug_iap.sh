@@ -6,7 +6,7 @@ PROJECT_ID="i4g-dev"
 REGION="us-central1"
 IAP_CLIENT_ID="544936845045-a87u04lgc7go7asc4nhed36ka50iqh0h.apps.googleusercontent.com"
 SA_EMAIL="sa-app@i4g-dev.iam.gserviceaccount.com"
-API_URL="https://api.intelligenceforgood.org/tasks/debug-test"
+API_URL="https://api.dev.intelligenceforgood.org/tasks/debug-test"
 
 echo "--- Debugging IAP Auth ---"
 echo "Project: $PROJECT_ID"

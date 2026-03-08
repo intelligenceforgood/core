@@ -1424,7 +1424,7 @@
       "path": "ssi.core_api_url",
       "section": "ssi",
       "type": "str",
-      "default": "https://api.intelligenceforgood.org",
+      "default": "https://api.dev.intelligenceforgood.org",
       "env_vars": [
         "I4G_SSI__CORE_API_URL",
         "SSI_CORE_API_URL",
