@@ -8,7 +8,7 @@ The scenarios are split into two groups:
 - **GCP smoke tests** hit the deployed FastAPI gateway and Cloud Run jobs in the dev project (`i4g-dev`).
 - **UI smoke tests** boot the Next.js analyst console and verify core filters render (see below).
 
-For detailed environment bootstrapping and verification instructions, see [Bootstrap Environments](../development/bootstrap_environments.md).
+For detailed environment bootstrapping and verification instructions, see [Bootstrap Environments](bootstrap_environments.md).
 
 ## Vault Secrets Smoke (GCP)
 

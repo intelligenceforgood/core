@@ -117,6 +117,55 @@ ALEMBIC_DATABASE_URL="postgresql+psycopg2://postgres:YOUR_PASSWORD@127.0.0.1:543
 >   `i4g.settings` and `i4g.store.sql`, so the package must be importable.
 > - Replace `YOUR_PASSWORD` with the actual `postgres` user password.
 
+### First-time vault migration: setting the postgres password
+
+When the vault instance is first provisioned via Terraform, only an IAM-based
+admin user exists — the built-in `postgres` user has no password set, which
+blocks Alembic. Follow these steps before running the migration for the first
+time.
+
+1. **Set a temporary password** for the `postgres` user:
+
+   ```bash
+   gcloud sql users set-password postgres \
+       --instance=i4g-vault-dev-db \
+       --project=i4g-pii-vault-dev \
+       --password=<YOUR_TEMP_PASSWORD>
+   ```
+
+2. **Switch gcloud context** to the vault project (the proxy picks it up
+   automatically, but explicit is safer):
+
+   ```bash
+   gcloud config set project i4g-pii-vault-dev
+   ```
+
+3. **Start the proxy** for the vault instance on port 5433 (or any free port):
+
+   ```bash
+   cloud-sql-proxy i4g-pii-vault-dev:us-central1:i4g-vault-dev-db?port=5433
+   ```
+
+4. **Run the Alembic migration** in a separate terminal:
+
+   ```bash
+   ALEMBIC_DATABASE_URL="postgresql+psycopg2://postgres:<YOUR_TEMP_PASSWORD>@127.0.0.1:5433/vault_db" \
+     conda run -n i4g alembic -c alembic_vault.ini upgrade head
+   ```
+
+5. **Verify** via psql:
+
+   ```bash
+   psql "host=127.0.0.1 port=5433 sslmode=disable user=postgres dbname=vault_db"
+   # \dt  — should list pii_tokens and alembic_version
+   ```
+
+6. **Restore gcloud context** after you are done:
+
+   ```bash
+   gcloud config set project i4g-dev
+   ```
+
 ---
 
 ## 3. Permission Management

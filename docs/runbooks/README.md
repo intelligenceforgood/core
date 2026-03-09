@@ -9,6 +9,7 @@ Use these when you need to act quickly in production or lower environments.
 - Dossier handoff: [dossiers_subpoena_handoff.md](dossiers_subpoena_handoff.md)
 - Dossier deploy checklist: [dossiers_deployment_checklist.md](dossiers_deployment_checklist.md)
 - Hybrid search deployment checklist: [hybrid_search_deployment_checklist.md](hybrid_search_deployment_checklist.md)
+- PII vault database migration: [cookbooks/cloud_sql_primer.md](../cookbooks/cloud_sql_primer.md#first-time-vault-migration-setting-the-postgres-password)
 - Retention purge: [retention_purge.md](retention_purge.md)
 
 > Tip: If you landed here from an old link to `docs/analyst_runbook.md`, this is the new index.
