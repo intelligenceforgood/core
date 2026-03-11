@@ -60,9 +60,99 @@ gcloud beta sql connect i4g-vault-dev-db --user=postgres --quiet --project=i4g-p
 
 ---
 
-## 2. Schema Management (Re-initializing the DB)
+## 2. `i4g db` CLI (Recommended)
 
-If you need to reset the environment to a "virgin" state (e.g., during a full bootstrap reset), follow these steps.
+The `i4g db` CLI automates proxy lifecycle, Alembic migrations, and permission
+grants. It reads passwords from `config/settings.local.toml` under `[db_admin]`,
+so you only configure credentials once.
+
+### Prerequisites
+
+1. Install `cloud-sql-proxy` (must be on `$PATH`).
+2. Add passwords to `config/settings.local.toml`:
+
+   ```toml
+   [db_admin]
+   dev_password = "..."
+   prod_password = "..."
+   dev_vault_password = "..."
+   prod_vault_password = "..."
+   ```
+
+   Alternatively, set env vars: `I4G_DB_ADMIN__DEV_PASSWORD`, etc.
+
+### Running Migrations
+
+```bash
+# Dev main DB
+i4g db migrate dev
+
+# Dev vault DB
+i4g db migrate dev --vault
+
+# Prod main DB
+i4g db migrate prod
+
+# Prod vault DB
+i4g db migrate prod --vault
+
+# Preview without executing
+i4g db migrate dev --dry-run
+```
+
+Each command starts cloud-sql-proxy, runs `alembic upgrade head` with the
+correct config (`alembic.ini` for app, `alembic_vault.ini` for vault), and
+stops the proxy automatically.
+
+### Granting Permissions
+
+```bash
+# Dev main DB — grants to all SAs + admin users
+i4g db grant-permissions dev
+
+# Dev vault DB
+i4g db grant-permissions dev --vault
+
+# Preview the SQL without executing
+i4g db grant-permissions prod --dry-run
+```
+
+This grants `USAGE`, `ALL PRIVILEGES` on existing tables/sequences, and sets
+`ALTER DEFAULT PRIVILEGES` so future Alembic-created objects are automatically
+accessible. Principals that don't exist on the target instance are skipped
+with a warning.
+
+### Checking Migration Status
+
+```bash
+# Show current Alembic revision
+i4g db status dev
+i4g db status prod --vault
+```
+
+### Port Assignments
+
+The CLI uses fixed ports per environment to avoid conflicts when multiple
+proxies are running:
+
+| Target     | Port |
+| ---------- | ---- |
+| dev app    | 5432 |
+| dev vault  | 5433 |
+| prod app   | 5434 |
+| prod vault | 5435 |
+
+> **Tip:** For quick ad-hoc SQL queries, use `gcloud beta sql connect` (section
+> 1 Method B) instead. The CLI is designed for automated schema management, not
+> interactive sessions.
+
+---
+
+## 3. Schema Management (Re-initializing the DB)
+
+If you need to reset the environment to a "virgin" state (e.g., during a full
+bootstrap reset), follow these manual steps. For routine migrations, use
+`i4g db migrate` (section 2) instead.
 
 ### Step 1: Wipe the Databases
 
@@ -168,9 +258,11 @@ time.
 
 ---
 
-## 3. Permission Management
+## 4. Permission Management (Manual)
 
-After re-initializing the schema, you must ensure that the application service accounts have the correct permissions.
+After re-initializing the schema, you must ensure that the application service
+accounts have the correct permissions. **Prefer `i4g db grant-permissions`
+(section 2)** — it runs all the statements below automatically.
 
 ### Key Accounts
 
@@ -250,7 +342,7 @@ GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "sa-app@i4g-dev.iam";
 
 ---
 
-## 4. Common Queries
+## 5. Common Queries
 
 ### Check Ingestion Status
 
@@ -293,11 +385,11 @@ WHERE document_id IN (
 
 ---
 
-## 5. Alembic Migration Workflow
+## 6. Alembic Migration Workflow (Manual)
 
 ### Checking Migration Status
 
-Always check the current state before running migrations:
+For quick checks use `i4g db status <env>` (section 2). For manual inspection:
 
 ```bash
 ALEMBIC_DATABASE_URL="postgresql+psycopg2://postgres:YOUR_PASSWORD@127.0.0.1:5432/i4g_db" \
@@ -387,7 +479,7 @@ VALUES ('jerry@intelligenceforgood.org', 'admin', 'Jerry', true);
 
 ---
 
-## 6. Troubleshooting
+## 7. Troubleshooting
 
 ### "FATAL: database '...' does not exist"
 

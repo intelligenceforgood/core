@@ -17,6 +17,7 @@ from i4g.settings.sections import (
     AccountListSettings,
     APISettings,
     CryptoSettings,
+    DbAdminSettings,
     DossierJobSettings,
     FeedbackSettings,
     IdentitySettings,
@@ -212,6 +213,7 @@ class Settings(BaseSettings):
     ssi: SsiSettings = Field(default_factory=SsiSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
     feedback: FeedbackSettings = Field(default_factory=FeedbackSettings)
+    db_admin: DbAdminSettings = Field(default_factory=DbAdminSettings)
     env_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
     config_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
 

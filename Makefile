@@ -1,5 +1,11 @@
 .PHONY: setup install install-dev test test-all lint format clean serve \
-        build-dev deploy-dev build-prod deploy-prod rehydrate
+        build-dev deploy-dev build-prod deploy-prod \
+        build-ingest-dev deploy-ingest-dev build-ingest-prod deploy-ingest-prod \
+        build-intake-dev deploy-intake-dev build-intake-prod deploy-intake-prod \
+        build-report-dev deploy-report-dev build-report-prod deploy-report-prod \
+        build-account-dev deploy-account-dev build-account-prod deploy-account-prod \
+        build-dossier-dev deploy-dossier-dev build-dossier-prod deploy-dossier-prod \
+        deploy-all-jobs-dev deploy-all-jobs-prod rehydrate
 
 # ---------- Setup ----------
 # Full first-time setup: install Python deps in editable mode.
@@ -52,6 +58,109 @@ deploy-prod: build-prod
 		--image us-central1-docker.pkg.dev/i4g-prod/applications/core-svc:prod \
 		--region us-central1 \
 		--project i4g-prod
+
+# ---------- Jobs (Dev) ----------
+build-ingest-dev:
+	scripts/build_image.sh ingest-job dev
+
+deploy-ingest-dev: build-ingest-dev
+	gcloud run jobs deploy ingest-bootstrap \
+		--image us-central1-docker.pkg.dev/i4g-dev/applications/ingest-job:dev \
+		--region us-central1 \
+		--project i4g-dev
+
+build-intake-dev:
+	scripts/build_image.sh intake-job dev
+
+deploy-intake-dev: build-intake-dev
+	gcloud run jobs deploy process-intakes \
+		--image us-central1-docker.pkg.dev/i4g-dev/applications/intake-job:dev \
+		--region us-central1 \
+		--project i4g-dev
+
+build-report-dev:
+	scripts/build_image.sh report-job dev
+
+deploy-report-dev: build-report-dev
+	gcloud run jobs deploy generate-reports \
+		--image us-central1-docker.pkg.dev/i4g-dev/applications/report-job:dev \
+		--region us-central1 \
+		--project i4g-dev
+
+build-account-dev:
+	scripts/build_image.sh account-job dev
+
+deploy-account-dev: build-account-dev
+	gcloud run jobs deploy account-list \
+		--image us-central1-docker.pkg.dev/i4g-dev/applications/account-job:dev \
+		--region us-central1 \
+		--project i4g-dev
+
+build-dossier-dev:
+	scripts/build_image.sh dossier-job dev
+
+deploy-dossier-dev: build-dossier-dev
+	gcloud run jobs deploy dossier-queue \
+		--image us-central1-docker.pkg.dev/i4g-dev/applications/dossier-job:dev \
+		--region us-central1 \
+		--project i4g-dev
+
+deploy-all-jobs-dev: deploy-ingest-dev deploy-intake-dev deploy-report-dev deploy-account-dev deploy-dossier-dev
+	@echo "✅ All dev jobs deployed."
+
+# ---------- Jobs (Prod) ----------
+build-ingest-prod:
+	scripts/build_image.sh ingest-job prod \
+		--registry us-central1-docker.pkg.dev/i4g-prod/applications
+
+deploy-ingest-prod: build-ingest-prod
+	gcloud run jobs deploy ingest-bootstrap \
+		--image us-central1-docker.pkg.dev/i4g-prod/applications/ingest-job:prod \
+		--region us-central1 \
+		--project i4g-prod
+
+build-intake-prod:
+	scripts/build_image.sh intake-job prod \
+		--registry us-central1-docker.pkg.dev/i4g-prod/applications
+
+deploy-intake-prod: build-intake-prod
+	gcloud run jobs deploy process-intakes \
+		--image us-central1-docker.pkg.dev/i4g-prod/applications/intake-job:prod \
+		--region us-central1 \
+		--project i4g-prod
+
+build-report-prod:
+	scripts/build_image.sh report-job prod \
+		--registry us-central1-docker.pkg.dev/i4g-prod/applications
+
+deploy-report-prod: build-report-prod
+	gcloud run jobs deploy generate-reports \
+		--image us-central1-docker.pkg.dev/i4g-prod/applications/report-job:prod \
+		--region us-central1 \
+		--project i4g-prod
+
+build-account-prod:
+	scripts/build_image.sh account-job prod \
+		--registry us-central1-docker.pkg.dev/i4g-prod/applications
+
+deploy-account-prod: build-account-prod
+	gcloud run jobs deploy account-list \
+		--image us-central1-docker.pkg.dev/i4g-prod/applications/account-job:prod \
+		--region us-central1 \
+		--project i4g-prod
+
+build-dossier-prod:
+	scripts/build_image.sh dossier-job prod \
+		--registry us-central1-docker.pkg.dev/i4g-prod/applications
+
+deploy-dossier-prod: build-dossier-prod
+	gcloud run jobs deploy dossier-queue \
+		--image us-central1-docker.pkg.dev/i4g-prod/applications/dossier-job:prod \
+		--region us-central1 \
+		--project i4g-prod
+
+deploy-all-jobs-prod: deploy-ingest-prod deploy-intake-prod deploy-report-prod deploy-account-prod deploy-dossier-prod
+	@echo "✅ All prod jobs deployed."
 
 # ---------- Clean ----------
 clean:
