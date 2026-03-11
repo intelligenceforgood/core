@@ -41,11 +41,16 @@ Currently, the WIF attribute condition only trusts `intelligenceforgood/core`. U
 
 ### Option A: Trust specific repos (more secure)
 
-Edit [infra/environments/app/dev/main.tf](../../infra/environments/app/dev/main.tf) and [infra/environments/app/prod/main.tf](../../infra/environments/app/prod/main.tf):
+Edit [infra/stacks/app/main.tf](../../infra/stacks/app/main.tf) (the unified stack — applies to both dev and prod):
+
+> **Note (post-DRY refactor):** `environments/app/{dev,prod}/main.tf` are now thin wrappers that
+> call `module "app" { source = "../../../stacks/app" … }`. All resource logic, including the
+> WIF module, lives in `stacks/app/`. Edit the stack directly; the environment wrapper passes
+> values through `terraform.tfvars`.
 
 ```terraform
 module "github_wif" {
-  source              = "../../../modules/iam/workload_identity_github"
+  source              = "../../modules/iam/workload_identity_github"
   project_id          = var.project_id
   pool_id             = local.github_wif.pool_id
   provider_id         = local.github_wif.provider_id
