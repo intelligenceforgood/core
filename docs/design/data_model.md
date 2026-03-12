@@ -11,10 +11,10 @@ migrations. The platform uses two separate `MetaData` instances to enforce PII i
 
 ## 1. Database Topology
 
-| Database | MetaData | Backend (local) | Backend (cloud) | Purpose |
-|----------|----------|-----------------|-----------------|---------|
-| Main | `METADATA` | SQLite | Cloud SQL (PostgreSQL) | Cases, ingestion, reviews, search, intake |
-| PII Vault | `VAULT_METADATA` | SQLite (separate file) | Cloud SQL (isolated project) | Tokenized PII only |
+| Database  | MetaData         | Backend (local)        | Backend (cloud)              | Purpose                                   |
+| --------- | ---------------- | ---------------------- | ---------------------------- | ----------------------------------------- |
+| Main      | `METADATA`       | SQLite                 | Cloud SQL (PostgreSQL)       | Cases, ingestion, reviews, search, intake |
+| PII Vault | `VAULT_METADATA` | SQLite (separate file) | Cloud SQL (isolated project) | Tokenized PII only                        |
 
 Engine construction is handled by `build_engine()` in `sql.py`, with caching for the
 default-settings path. Cloud SQL connections use `google-cloud-sql-connector` with
@@ -26,56 +26,76 @@ default-settings path. Cloud SQL connections use `google-cloud-sql-connector` wi
 
 ### 2.1 Ingestion & Campaign Domain
 
-| Table | PK | Purpose |
-|-------|-----|---------|
-| `ingestion_runs` | `run_id` (UUID) | Tracks each batch ingestion run (dataset, counts, status, timing) |
-| `campaigns` | `campaign_id` (UUID) | Groups cases by investigation campaign; carries taxonomy rollups |
-| `ingestion_retry_queue` | `retry_id` (UUID) | Failed writes queued for retry (case_id + backend + payload) |
+| Table                   | PK                   | Purpose                                                           |
+| ----------------------- | -------------------- | ----------------------------------------------------------------- |
+| `ingestion_runs`        | `run_id` (UUID)      | Tracks each batch ingestion run (dataset, counts, status, timing) |
+| `campaigns`             | `campaign_id` (UUID) | Groups cases by investigation campaign; carries taxonomy rollups  |
+| `ingestion_retry_queue` | `retry_id` (UUID)    | Failed writes queued for retry (case_id + backend + payload)      |
 
 ### 2.2 Case & Evidence Domain
 
-| Table | PK | Purpose |
-|-------|-----|---------|
-| `cases` | `case_id` (text) | Central entity — one row per reported scam incident. Links to ingestion run and campaign. Carries classification, status, tags. |
-| `source_documents` | `document_id` (UUID) | Evidence documents/chunks tied to a case (text, URL, mime type, score) |
-| `entities` | `entity_id` (UUID) | Extracted entities (person, phone, email, etc.) per case, with confidence |
-| `entity_mentions` | `(entity_id, document_id, span_start)` | Join table linking entities to specific text spans in source documents |
-| `indicators` | `indicator_id` (UUID) | Fraud indicators (phone numbers, wallet addresses, URLs) linked to cases |
-| `indicator_sources` | `(indicator_id, document_id)` | Join table linking indicators to source documents with evidence scores |
+| Table               | PK                                     | Purpose                                                                                                                         |
+| ------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `cases`             | `case_id` (text)                       | Central entity — one row per reported scam incident. Links to ingestion run and campaign. Carries classification, status, tags. |
+| `source_documents`  | `document_id` (UUID)                   | Evidence documents/chunks tied to a case (text, URL, mime type, score)                                                          |
+| `entities`          | `entity_id` (UUID)                     | Extracted entities (person, phone, email, etc.) per case, with confidence                                                       |
+| `entity_mentions`   | `(entity_id, document_id, span_start)` | Join table linking entities to specific text spans in source documents                                                          |
+| `indicators`        | `indicator_id` (UUID)                  | Fraud indicators (phone numbers, wallet addresses, URLs) linked to cases                                                        |
+| `indicator_sources` | `(indicator_id, document_id)`          | Join table linking indicators to source documents with evidence scores                                                          |
 
 ### 2.3 Review & Analyst Workflow
 
-| Table | PK | Purpose |
-|-------|-----|---------|
-| `review_queue` | `review_id` (text) | Analyst review work queue — status, priority, assignment, classification results |
-| `review_actions` | `action_id` (text) | Audit log of analyst actions on reviews (actor, action, payload, timestamp) |
-| `saved_searches` | `search_id` (text) | Persisted search queries with owner, params, favorites, and tags |
+| Table            | PK                 | Purpose                                                                          |
+| ---------------- | ------------------ | -------------------------------------------------------------------------------- |
+| `review_queue`   | `review_id` (text) | Analyst review work queue — status, priority, assignment, classification results |
+| `review_actions` | `action_id` (text) | Audit log of analyst actions on reviews (actor, action, payload, timestamp)      |
+| `saved_searches` | `search_id` (text) | Persisted search queries with owner, params, favorites, and tags                 |
 
 ### 2.4 Dossier & Report Generation
 
-| Table | PK | Purpose |
-|-------|-----|---------|
+| Table           | PK               | Purpose                                                                     |
+| --------------- | ---------------- | --------------------------------------------------------------------------- |
 | `dossier_queue` | `plan_id` (text) | Report generation queue — priority, payload (JSON), status, errors/warnings |
 
 ### 2.5 Intake (Victim Submission)
 
-| Table | PK | Purpose |
-|-------|-----|---------|
-| `intake_records` | `intake_id` (text) | Victim-submitted incident reports (contact info, summary, details, loss amount) |
+| Table                | PK                     | Purpose                                                                          |
+| -------------------- | ---------------------- | -------------------------------------------------------------------------------- |
+| `intake_records`     | `intake_id` (text)     | Victim-submitted incident reports (contact info, summary, details, loss amount)  |
 | `intake_attachments` | `attachment_id` (text) | Files attached to intake records (filename, content type, storage URI, checksum) |
-| `intake_jobs` | `job_id` (text) | Async processing jobs for intake records (status, message, metadata) |
+| `intake_jobs`        | `job_id` (text)        | Async processing jobs for intake records (status, message, metadata)             |
 
 ### 2.6 Legacy / Compatibility
 
-| Table | PK | Purpose |
-|-------|-----|---------|
+| Table          | PK               | Purpose                                                                                     |
+| -------------- | ---------------- | ------------------------------------------------------------------------------------------- |
 | `scam_records` | `case_id` (text) | Flat denormalized view used by the RAG pipeline (text, entities, classification, embedding) |
 
 ### 2.7 PII Vault (Isolated Database)
 
-| Table | PK | Purpose |
-|-------|-----|---------|
+| Table        | PK                         | Purpose                                                                                                                             |
+| ------------ | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `pii_tokens` | `token` (string, 20 chars) | HMAC-based PII tokens. Stores digest, normalized/canonical values, optional encrypted blob, prefix for entity type, pepper version. |
+
+### 2.8 Threat Intelligence & Analytics (TIFAP)
+
+| Table                    | PK                               | Purpose                                                                                                   |
+| ------------------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `threat_campaigns`       | `campaign_id` (text)             | Analyst-managed campaign groupings with lifecycle status, risk score, origin, and taxonomy rollup.        |
+| `threat_campaign_cases`  | `(campaign_id, case_id)`         | Junction table linking cases to threat campaigns. Supports many-to-many with link metadata.               |
+| `intake_indicator_links` | `(intake_id, indicator_id)`      | Links intake records to financial indicators with confidence scores from LLM extraction or manual review. |
+| `entity_stats`           | `(entity_type, canonical_value)` | Pre-computed per-entity aggregate metrics (case count, loss sum, risk scores, campaign IDs).              |
+| `indicator_stats`        | `indicator_id`                   | Pre-computed per-indicator aggregate metrics (case count, loss sum, risk score).                          |
+| `campaign_stats`         | `campaign_id`                    | Pre-computed per-campaign aggregate metrics (case count, loss, risk score, taxonomy rollup).              |
+| `platform_kpis`          | `(period_type, period_start)`    | Daily/weekly operational KPI snapshots (cases, loss, indicators, entities).                               |
+
+**New columns on existing tables** (added by migration `20260312_01`):
+
+- `cases.ingestion_batch_id` — replaces overloaded `campaign_id` for ingestion grouping.
+- `intake_records.loss_currency` — ISO 4217 currency code for the reported loss.
+- `intake_records.victim_country` — ISO 3166-1 alpha-2 country code.
+
+See `docs/design/threat_intelligence_analytics_tdd.md` for the full data architecture.
 
 ---
 

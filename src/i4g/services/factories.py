@@ -21,6 +21,7 @@ from i4g.services.retention import RetentionService
 from i4g.services.vertex_writer import VertexDocumentWriter
 from i4g.settings import Settings, get_settings
 from i4g.storage import EvidenceStorage
+from i4g.store.analytics_store import AnalyticsStore
 from i4g.store.dossier_queue_store import DossierQueueStore
 from i4g.store.entity_store import EntityStore
 from i4g.store.ingestion_retry_store import IngestionRetryStore
@@ -35,6 +36,7 @@ from i4g.store.sql_writer import SqlWriter
 from i4g.store.ssi_events_store import SsiEventsStore
 from i4g.store.ssi_store import SsiStore
 from i4g.store.structured import StructuredStore
+from i4g.store.threat_campaign_store import ThreatCampaignStore
 from i4g.store.vector import VectorStore
 
 try:
@@ -243,6 +245,40 @@ def build_ssi_events_store(db_path: str | Path | None = None) -> SsiEventsStore:
     if backend == "cloudsql":
         return SsiEventsStore(session_factory=build_sql_session_factory())
     return SsiEventsStore(db_path=db_path)
+
+
+def build_threat_campaign_store(db_path: str | Path | None = None) -> ThreatCampaignStore:
+    """Return a :class:`ThreatCampaignStore` aligned with the structured backend.
+
+    Args:
+        db_path: Optional path override for local SQLite.  Ignored when the
+            configured backend is Cloud SQL.
+
+    Returns:
+        Instantiated :class:`ThreatCampaignStore`.
+    """
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return ThreatCampaignStore(session_factory=build_sql_session_factory())
+    return ThreatCampaignStore(db_path=db_path)
+
+
+def build_analytics_store(db_path: str | Path | None = None) -> AnalyticsStore:
+    """Return an :class:`AnalyticsStore` aligned with the structured backend.
+
+    Args:
+        db_path: Optional path override for local SQLite.  Ignored when the
+            configured backend is Cloud SQL.
+
+    Returns:
+        Instantiated :class:`AnalyticsStore`.
+    """
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return AnalyticsStore(session_factory=build_sql_session_factory())
+    return AnalyticsStore(db_path=db_path)
 
 
 def build_tokenization_service() -> TokenizationService:

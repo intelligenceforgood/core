@@ -18,6 +18,8 @@ This document serves as the authoritative inventory of background jobs and worke
 | **Classification Sweeper** | Batch fraud classification of pending cases using taxonomy + LLM.                                                                                                          | `src/i4g/worker/jobs/classification_sweeper.py` | _Shared with Ingest_     | `i4g jobs classify`               |
 | **PII Backfill**           | Tokenizes existing PII in the StructuredStore (backfill utility).                                                                                                          | `src/i4g/worker/jobs/pii_backfill.py`           | _Shared with Ingest_     | `i4g jobs pii-backfill`           |
 | **Retention Purge**        | Two-phase data retention: soft-deletes resolved cases past their retention window, then hard-purges after a grace period (including PII vault, evidence, and vector data). | `src/i4g/worker/jobs/retention_purge.py`        | _Shared with Ingest_     | `i4g jobs retention-purge`        |
+| **Analytics Aggregation**  | Pre-computes entity, indicator, campaign stats and platform KPIs. Includes campaign risk scoring, lifecycle transitions, and PII anonymization.                            | `src/i4g/worker/jobs/analytics_aggregation.py`  | _Shared with Ingest_     | `i4g jobs analytics`              |
+| **Linkage Extraction**     | LLM-driven extraction of financial indicators from intake narratives, writing `intake_indicator_links` with confidence scores.                                             | `src/i4g/worker/jobs/linkage_extract.py`        | _Shared with Ingest_     | `i4g jobs linkage-extract`        |
 
 ## Detailed Job Descriptions
 
@@ -77,6 +79,30 @@ This document serves as the authoritative inventory of background jobs and worke
   - Supports `--dry-run` for safe pre-production validation.
 - **Infrastructure:** Cloud Run Job (Scheduled via Cloud Scheduler, daily at 03:00 UTC).
 - **Runbook:** [docs/runbooks/retention_purge.md](../runbooks/retention_purge.md)
+
+### 7. Analytics Aggregation (`analytics`)
+
+- **Responsibility:** Pre-compute aggregate tables from raw data for dashboard queries.
+- **Key Logic:**
+  - Refreshes `entity_stats`, `indicator_stats`, `campaign_stats`, and `platform_kpis`.
+  - Computes campaign risk scores (PRD Section 7.5 weighted formula).
+  - Performs automatic lifecycle transitions (emerging → active → declining → dormant).
+  - Computes taxonomy rollup from member case classifications.
+  - Anonymizes entity_stats for fully purged cases (PII soft-anonymization).
+- **Env Vars:** `I4G_ANALYTICS__REFRESH_INTERVAL_MINUTES` (default 15), `I4G_ANALYTICS__CAMPAIGN_RISK_WEIGHTS`.
+- **Infrastructure:** Cloud Run Job (Scheduled via Cloud Scheduler, every 15 minutes).
+
+### 8. Linkage Extraction (`linkage-extract`)
+
+- **Responsibility:** Identify financial indicators in intake narratives using LLM.
+- **Key Logic:**
+  - Selects intake records without existing `intake_indicator_links`.
+  - Sends narrative text to the configured LLM provider.
+  - Parses structured JSON response and matches against the `indicators` table.
+  - Writes `intake_indicator_links` with confidence scores.
+  - Supports `--backfill` flag to reprocess all intakes.
+- **Env Vars:** `I4G_ANALYTICS__LOSS_LINKAGE_CONFIDENCE_THRESHOLD` (default 0.6), `I4G_LLM__PROVIDER`.
+- **Infrastructure:** Cloud Run Job (Triggered after intake processing or scheduled).
 
 ## Docker & Deployment
 

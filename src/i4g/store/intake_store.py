@@ -235,6 +235,69 @@ class IntakeStore:
         return True
 
     # ------------------------------------------------------------------
+    # Intake-Indicator Links (S1-14)
+    # ------------------------------------------------------------------
+
+    def link_indicator(
+        self,
+        intake_id: str,
+        indicator_id: str,
+        *,
+        confidence: float = 0.0,
+        linked_by: str = "system",
+    ) -> None:
+        """Create an intake-indicator link.
+
+        Args:
+            intake_id: The intake record ID.
+            indicator_id: The indicator UUID.
+            confidence: LLM extraction confidence (0.0–1.0).
+            linked_by: Who/what created the link.
+        """
+        now = datetime.now(UTC)
+        with self._session_factory() as session:
+            session.execute(
+                sql_schema.dialect_insert(session, sql_schema.intake_indicator_links)
+                .values(
+                    intake_id=intake_id,
+                    indicator_id=indicator_id,
+                    confidence=confidence,
+                    linked_by=linked_by,
+                    created_at=now,
+                )
+                .on_conflict_do_nothing(constraint="pk_intake_indicator_links")
+            )
+            session.commit()
+
+    def get_indicator_links(self, intake_id: str) -> list[dict[str, Any]]:
+        """List all indicator links for an intake record.
+
+        Args:
+            intake_id: The intake record ID.
+
+        Returns:
+            List of link dicts.
+        """
+        iil = sql_schema.intake_indicator_links
+        with self._session_factory() as session:
+            rows = session.execute(sa.select(iil).where(iil.c.intake_id == intake_id)).all()
+            return [dict(r._mapping) for r in rows]
+
+    def get_intakes_for_indicator(self, indicator_id: str) -> list[dict[str, Any]]:
+        """List all intake records linked to an indicator.
+
+        Args:
+            indicator_id: The indicator UUID.
+
+        Returns:
+            List of link dicts.
+        """
+        iil = sql_schema.intake_indicator_links
+        with self._session_factory() as session:
+            rows = session.execute(sa.select(iil).where(iil.c.indicator_id == indicator_id)).all()
+            return [dict(r._mapping) for r in rows]
+
+    # ------------------------------------------------------------------
     # Retrieval helpers
     # ------------------------------------------------------------------
 

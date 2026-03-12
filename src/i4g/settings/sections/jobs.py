@@ -607,6 +607,44 @@ class RedisSettings(BaseSettings):
     )
 
 
+class AnalyticsSettings(BaseSettings):
+    """Threat-intelligence analytics aggregation configuration.
+
+    Controls the scheduled aggregation job that populates the pre-computed
+    ``entity_stats``, ``indicator_stats``, ``campaign_stats``, and
+    ``platform_kpis`` tables.
+
+    Env vars: ``I4G_ANALYTICS__REFRESH_INTERVAL_MINUTES``, etc.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    refresh_interval_minutes: int = Field(
+        default=15,
+        validation_alias=AliasChoices("ANALYTICS_REFRESH_INTERVAL_MINUTES", "ANALYTICS__REFRESH_INTERVAL_MINUTES"),
+        description="Minutes between automatic aggregation refreshes.",
+    )
+    loss_linkage_confidence_threshold: float = Field(
+        default=0.6,
+        validation_alias=AliasChoices(
+            "ANALYTICS_LOSS_LINKAGE_CONFIDENCE_THRESHOLD",
+            "ANALYTICS__LOSS_LINKAGE_CONFIDENCE_THRESHOLD",
+        ),
+        description="Minimum LLM confidence for intake-indicator link acceptance (0.0–1.0).",
+    )
+    campaign_risk_weights: dict[str, float] = Field(
+        default_factory=lambda: {
+            "case_count": 0.15,
+            "loss_sum": 0.30,
+            "avg_risk": 0.25,
+            "recency": 0.15,
+            "indicator_diversity": 0.15,
+        },
+        validation_alias=AliasChoices("ANALYTICS_CAMPAIGN_RISK_WEIGHTS", "ANALYTICS__CAMPAIGN_RISK_WEIGHTS"),
+        description="Weight factors for campaign risk score computation.",
+    )
+
+
 class FeedbackSettings(BaseSettings):
     """Inline feedback collection via Google Sheets.
 

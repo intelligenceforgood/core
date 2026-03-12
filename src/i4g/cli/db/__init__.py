@@ -128,7 +128,9 @@ def _get_password(cfg: dict) -> str:
 
 def _build_database_url(cfg: dict, password: str) -> str:
     """Build a PostgreSQL connection URL for the cloud-sql-proxy local port."""
-    return f"postgresql+psycopg2://postgres:{password}@127.0.0.1:{cfg['port']}/{cfg['database']}"
+    from urllib.parse import quote_plus
+
+    return f"postgresql+psycopg2://postgres:{quote_plus(password)}@127.0.0.1:{cfg['port']}/{cfg['database']}"
 
 
 def _start_proxy(cfg: dict) -> subprocess.Popen:

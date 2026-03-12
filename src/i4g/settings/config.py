@@ -15,6 +15,7 @@ from i4g.settings.runtime_overrides import apply_environment_overrides, apply_lo
 from i4g.settings.sections import (
     AccountJobSettings,
     AccountListSettings,
+    AnalyticsSettings,
     APISettings,
     CryptoSettings,
     DbAdminSettings,
@@ -213,6 +214,7 @@ class Settings(BaseSettings):
     ssi: SsiSettings = Field(default_factory=SsiSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
     feedback: FeedbackSettings = Field(default_factory=FeedbackSettings)
+    analytics: AnalyticsSettings = Field(default_factory=AnalyticsSettings)
     db_admin: DbAdminSettings = Field(default_factory=DbAdminSettings)
     env_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
     config_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)

@@ -294,6 +294,34 @@ that shared folder.
 
 There are also targeted demos under `tests/adhoc/` if you want to exercise a single feature (OCR, extraction, reporting, etc.); check the README in that folder for usage details.
 
+### Analytics Aggregation
+
+The analytics subsystem pre-computes aggregate tables for dashboard queries. Two new stores and two new CLI commands are available:
+
+**Stores:**
+
+- `ThreatCampaignStore` — campaign CRUD, merge, split (built via `build_threat_campaign_store()`)
+- `AnalyticsStore` — read-only queries for entity_stats, indicator_stats, campaign_stats, platform_kpis (built via `build_analytics_store()`)
+
+**CLI commands:**
+
+```bash
+# Run the aggregation job (refreshes all stats tables)
+conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev i4g jobs analytics
+
+# Run the LLM indicator linkage extraction
+conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g jobs linkage-extract
+
+# Backfill all intake records (reprocess even those already linked)
+conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g jobs linkage-extract --backfill
+```
+
+**Key settings** (see `docs/config/` for full reference):
+
+- `I4G_ANALYTICS__REFRESH_INTERVAL_MINUTES` — aggregation frequency (default: 15)
+- `I4G_ANALYTICS__LOSS_LINKAGE_CONFIDENCE_THRESHOLD` — minimum confidence for LLM-extracted links (default: 0.6)
+- `I4G_ANALYTICS__CAMPAIGN_RISK_WEIGHTS` — JSON dict of weighted risk factors
+
 ## Database Migrations
 
 Dual-extraction work now ships with Alembic migrations. Apply the latest schema before running

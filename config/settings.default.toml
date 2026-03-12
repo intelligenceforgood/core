@@ -129,6 +129,10 @@ vertex_ai_data_store = "retrieval-poc"
 # enabled = true
 # sheet_id = ""
 
+[analytics]
+# refresh_interval_minutes = 15
+# loss_linkage_confidence_threshold = 0.6
+
 [search.saved_search]
 # migration_tag = "hybrid-v1"
 # schema_version = ""

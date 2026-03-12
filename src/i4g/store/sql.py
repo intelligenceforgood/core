@@ -124,6 +124,7 @@ cases = sa.Table(
         "ingestion_run_id", UUID_TYPE, sa.ForeignKey("ingestion_runs.run_id", ondelete="SET NULL"), nullable=True
     ),
     sa.Column("campaign_id", UUID_TYPE, sa.ForeignKey("campaigns.campaign_id", ondelete="SET NULL"), nullable=True),
+    sa.Column("ingestion_batch_id", UUID_TYPE, nullable=True),
     sa.Column("dataset", sa.Text(), nullable=False),
     sa.Column("source_type", sa.Text(), nullable=False),
     sa.Column("classification", sa.Text(), nullable=True),  # Changed from JSON_TYPE to Text for label
@@ -359,6 +360,8 @@ intake_records = sa.Table(
     sa.Column("job_id", sa.Text(), nullable=True),
     sa.Column("job_status", sa.Text(), nullable=True),
     sa.Column("job_message", sa.Text(), nullable=True),
+    sa.Column("loss_currency", sa.Text(), nullable=True, server_default="USD"),
+    sa.Column("victim_country", sa.Text(), nullable=True),
     sa.Column("metadata", JSON_TYPE, nullable=True),
     sa.Column("created_at", TIMESTAMP, nullable=True),
     sa.Column("updated_at", TIMESTAMP, nullable=True),
@@ -545,6 +548,149 @@ sa.Index(
     ssi_guidance_commands.c.scan_id,
     ssi_guidance_commands.c.acknowledged,
     ssi_guidance_commands.c.created_at,
+)
+
+# ---------------------------------------------------------------------------
+# TIFAP: Threat Intelligence & Fraud Analytics Platform tables
+# ---------------------------------------------------------------------------
+
+threat_campaigns = sa.Table(
+    "threat_campaigns",
+    METADATA,
+    sa.Column("campaign_id", UUID_TYPE, primary_key=True),
+    sa.Column("name", sa.Text(), nullable=False),
+    sa.Column("description", sa.Text(), nullable=True),
+    sa.Column("origin", sa.Text(), nullable=False, server_default="manual"),
+    sa.Column("status", sa.Text(), nullable=False, server_default="emerging"),
+    sa.Column("risk_score", sa.Numeric(5, 1), nullable=False, server_default="0"),
+    sa.Column("taxonomy_rollup", JSON_TYPE, nullable=True),
+    sa.Column("metadata", JSON_TYPE, nullable=True),
+    sa.Column("created_by", sa.Text(), nullable=False, server_default="system"),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_threat_campaigns_status", threat_campaigns.c.status)
+sa.Index("idx_threat_campaigns_risk_score", threat_campaigns.c.risk_score)
+
+threat_campaign_cases = sa.Table(
+    "threat_campaign_cases",
+    METADATA,
+    sa.Column(
+        "campaign_id",
+        UUID_TYPE,
+        sa.ForeignKey("threat_campaigns.campaign_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("case_id", sa.Text(), sa.ForeignKey("cases.case_id", ondelete="CASCADE"), nullable=False),
+    sa.Column("linked_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("linked_by", sa.Text(), nullable=False, server_default="manual"),
+    sa.Column("link_reason", sa.Text(), nullable=True),
+    sa.UniqueConstraint("campaign_id", "case_id", name="uq_threat_campaign_cases"),
+)
+sa.Index("idx_tcc_campaign_id", threat_campaign_cases.c.campaign_id)
+sa.Index("idx_tcc_case_id", threat_campaign_cases.c.case_id)
+
+intake_indicator_links = sa.Table(
+    "intake_indicator_links",
+    METADATA,
+    sa.Column("intake_id", sa.Text(), sa.ForeignKey("intake_records.intake_id", ondelete="CASCADE"), nullable=False),
+    sa.Column(
+        "indicator_id",
+        UUID_TYPE,
+        sa.ForeignKey("indicators.indicator_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("confidence", sa.Numeric(5, 4), nullable=False, server_default="0"),
+    sa.Column("linked_by", sa.Text(), nullable=False, server_default="system"),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.PrimaryKeyConstraint("intake_id", "indicator_id", name="pk_intake_indicator_links"),
+)
+sa.Index("idx_iil_indicator_id", intake_indicator_links.c.indicator_id)
+
+entity_stats = sa.Table(
+    "entity_stats",
+    METADATA,
+    sa.Column("entity_type", sa.Text(), nullable=False),
+    sa.Column("canonical_value", sa.Text(), nullable=False),
+    sa.Column("case_count", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("victim_count", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("loss_sum", sa.Numeric(14, 2), nullable=False, server_default="0"),
+    sa.Column("loss_currency", sa.Text(), nullable=False, server_default="USD"),
+    sa.Column("max_risk_score", sa.Numeric(5, 1), nullable=False, server_default="0"),
+    sa.Column("avg_risk_score", sa.Numeric(5, 1), nullable=False, server_default="0"),
+    sa.Column("first_seen_at", TIMESTAMP, nullable=True),
+    sa.Column("last_seen_at", TIMESTAMP, nullable=True),
+    sa.Column("status", sa.Text(), nullable=False, server_default="active"),
+    sa.Column("campaign_ids", JSON_TYPE, nullable=True),
+    sa.Column("top_classifications", JSON_TYPE, nullable=True),
+    sa.Column("ecx_submitted", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+    sa.Column("ecx_hit", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+    sa.Column("purge_status", sa.Text(), nullable=True),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.PrimaryKeyConstraint("entity_type", "canonical_value", name="pk_entity_stats"),
+)
+sa.Index("idx_entity_stats_status", entity_stats.c.status)
+sa.Index("idx_entity_stats_case_count", entity_stats.c.case_count)
+sa.Index("idx_entity_stats_loss_sum", entity_stats.c.loss_sum)
+
+indicator_stats = sa.Table(
+    "indicator_stats",
+    METADATA,
+    sa.Column("indicator_id", UUID_TYPE, primary_key=True),
+    sa.Column("category", sa.Text(), nullable=False),
+    sa.Column("item", sa.Text(), nullable=True),
+    sa.Column("type", sa.Text(), nullable=False),
+    sa.Column("number", sa.Text(), nullable=False),
+    sa.Column("case_count", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("loss_sum", sa.Numeric(14, 2), nullable=False, server_default="0"),
+    sa.Column("first_seen_at", TIMESTAMP, nullable=True),
+    sa.Column("last_seen_at", TIMESTAMP, nullable=True),
+    sa.Column("max_risk_score", sa.Numeric(5, 1), nullable=False, server_default="0"),
+    sa.Column("ecx_status", sa.Text(), nullable=False, server_default="not_submitted"),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_indicator_stats_category", indicator_stats.c.category)
+sa.Index("idx_indicator_stats_case_count", indicator_stats.c.case_count)
+
+campaign_stats = sa.Table(
+    "campaign_stats",
+    METADATA,
+    sa.Column(
+        "campaign_id",
+        UUID_TYPE,
+        sa.ForeignKey("threat_campaigns.campaign_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("case_count", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("indicator_count", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("entity_types", JSON_TYPE, nullable=True),
+    sa.Column("loss_sum", sa.Numeric(14, 2), nullable=False, server_default="0"),
+    sa.Column("victim_count", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("risk_score", sa.Numeric(5, 1), nullable=False, server_default="0"),
+    sa.Column("taxonomy_rollup", JSON_TYPE, nullable=True),
+    sa.Column("first_case_at", TIMESTAMP, nullable=True),
+    sa.Column("last_case_at", TIMESTAMP, nullable=True),
+    sa.Column("status", sa.Text(), nullable=False, server_default="emerging"),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+
+platform_kpis = sa.Table(
+    "platform_kpis",
+    METADATA,
+    sa.Column("period_type", sa.Text(), nullable=False),
+    sa.Column("period_start", sa.Date(), nullable=False),
+    sa.Column("total_cases", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("proactive_cases", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("reactive_cases", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("total_loss", sa.Numeric(14, 2), nullable=False, server_default="0"),
+    sa.Column("new_indicators", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("new_entities", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("site_scans", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("ecx_submissions", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("cases_actioned", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("median_action_hours", sa.Numeric(10, 2), nullable=True),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.PrimaryKeyConstraint("period_type", "period_start", name="pk_platform_kpis"),
 )
 
 

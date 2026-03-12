@@ -46,3 +46,9 @@
 15. **UI Build Procedure** – To build the UI image, always change directory to the UI root first (`cd ui/`) and run the build script from there: `scripts/build_image.sh i4g-console dev`. Do not attempt to build from the workspace root.
 
 16. **Entire Tool Integration** – The Entire tool tracks AI conversation context per commit in `.entire/` and `.claud/` folders. These folders are present in each repo root. `settings.json` is committed (shared config); `logs/`, `metadata/`, and `tmp/` are gitignored (local). Do NOT modify, delete, or overwrite files in `.entire/` or `.claud/` — they are managed exclusively by the Entire tool. During rehydration, read any available context from these folders to understand recent session history.
+
+17. **Post-Sprint Deliverables** – After completing each sprint in an implementation plan, always deliver:
+    - **Task checkboxes:** Check off (`- [x]`) every completed task in the implementation plan file immediately.
+    - **Manual steps:** List any manual steps the user must perform (e.g., `i4g db migrate dev` / `i4g db migrate prod` for Alembic migrations against Cloud SQL, Docker image builds, Cloud Run deploys). Include the exact commands.
+    - **Risk assessment:** Identify risks of breaking existing functionality. List quick validation tests the user can run locally and/or on dev (e.g., `i4g bootstrap local reset`, specific API calls, UI smoke checks).
+    - **Merge readiness:** State whether this is a good merge point and any blockers or caveats.

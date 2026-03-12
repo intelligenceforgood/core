@@ -2,7 +2,7 @@ import os
 
 import typer
 
-jobs_app = typer.Typer(help="Invoke background jobs (ingest, report, intake, dossier, account).")
+jobs_app = typer.Typer(help="Invoke background jobs (ingest, report, intake, dossier, account, analytics).")
 
 
 def _exit_from_return(code: int | None) -> None:
@@ -100,3 +100,19 @@ def jobs_evidence_integrity(
     from i4g.worker.jobs import evidence_integrity
 
     _exit_from_return(evidence_integrity.main(backfill=backfill, limit=limit))
+
+
+@jobs_app.command("analytics", help="Refresh pre-computed analytics aggregates.")
+def jobs_analytics() -> None:
+    from i4g.worker.jobs import analytics_aggregation
+
+    _exit_from_return(analytics_aggregation.main())
+
+
+@jobs_app.command("linkage-extract", help="Extract indicator links from intake narratives via LLM.")
+def jobs_linkage_extract(
+    backfill: bool = typer.Option(False, "--backfill", help="Process all intakes, not just unlinked ones."),
+) -> None:
+    from i4g.worker.jobs import linkage_extract
+
+    _exit_from_return(linkage_extract.main(backfill=backfill))
