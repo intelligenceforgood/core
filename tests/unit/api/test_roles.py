@@ -9,6 +9,7 @@ class TestRoleEnum:
     """Verify the Role enum values match PRD FR-2."""
 
     def test_role_values(self):
+        assert Role.RESEARCHER.value == "researcher"
         assert Role.USER.value == "user"
         assert Role.ANALYST.value == "analyst"
         assert Role.ADMIN.value == "admin"
@@ -27,13 +28,13 @@ class TestRoleEnum:
             Role("superuser")
 
     def test_role_hierarchy_admin_has_all(self):
-        assert ROLE_HIERARCHY[Role.ADMIN] == {Role.USER, Role.ANALYST, Role.LEO}
+        assert ROLE_HIERARCHY[Role.ADMIN] == {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.LEO}
 
     def test_role_hierarchy_analyst_has_user(self):
-        assert ROLE_HIERARCHY[Role.ANALYST] == {Role.USER}
+        assert ROLE_HIERARCHY[Role.ANALYST] == {Role.RESEARCHER, Role.USER}
 
-    def test_role_hierarchy_user_has_none(self):
-        assert ROLE_HIERARCHY[Role.USER] == set()
+    def test_role_hierarchy_user_has_researcher(self):
+        assert ROLE_HIERARCHY[Role.USER] == {Role.RESEARCHER}
 
 
 class TestHasRole:

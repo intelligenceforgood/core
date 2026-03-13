@@ -152,16 +152,66 @@ anonymization check runs as the final step of each aggregation cycle.
 
 ---
 
-## 6. Graph Service Interface (Future)
+## 6. Graph Service (Sprint 2)
 
-Sprint 1 lays the relational foundation. A future sprint will add a graph service layer
-(Neo4j or similar) for traversal queries such as "find all campaigns connected to wallet
-X within 2 hops." The current schema supports this via the junction tables
-(`threat_campaign_cases`, `intake_indicator_links`) which model graph edges.
+The `GraphService` (`src/i4g/services/graph_service.py`) implements in-memory
+co-occurrence analysis using NetworkX. It accepts entity → case adjacency data
+and builds an undirected weighted graph where edges represent shared cases.
+
+### 6.1 Operations
+
+| Method              | Description                                                  |
+| ------------------- | ------------------------------------------------------------ |
+| `get_neighbors()`   | 1- or 2-hop BFS with optional entity-type filter             |
+| `get_subgraph()`    | Extract a subgraph for a list of node IDs                    |
+| `detect_clusters()` | Louvain community detection (fallback: connected components) |
+| `compute_layout()`  | Server-side spring layout for graphs ≥ 500 nodes             |
+| `serialize()`       | Full graph payload (nodes, edges, counts, optional layout)   |
+
+### 6.2 Protocol
+
+`GraphServiceProtocol` allows future swaps (e.g., Neo4j) without changing
+callers. The existing `EntityGraphTool` in `dossier_tools.py` delegates to
+`GraphService` with a `try/except` fallback to the legacy path.
 
 ---
 
-## 7. Key Files
+## 7. Intelligence API (Sprint 2)
+
+### 7.1 Endpoints
+
+| Route                                                              | Method | Description                             |
+| ------------------------------------------------------------------ | ------ | --------------------------------------- |
+| `/intelligence/entities`                                           | GET    | Paginated entity stats list             |
+| `/intelligence/entities/{entity_type}/{canonical_value}`           | GET    | Entity detail with campaign links       |
+| `/intelligence/entities/{entity_type}/{canonical_value}/activity`  | GET    | Weekly sparkline data                   |
+| `/intelligence/entities/{entity_type}/{canonical_value}/neighbors` | GET    | 1-hop co-occurrence graph               |
+| `/intelligence/indicators`                                         | GET    | Paginated indicator stats list          |
+| `/intelligence/indicators/{indicator_id}`                          | GET    | Indicator detail                        |
+| `/intelligence/dashboard`                                          | GET    | Widget aggregates                       |
+| `/intelligence/search/facets`                                      | GET    | Entity type / indicator category facets |
+| `/exports/entities`                                                | GET    | Entity CSV/XLSX export                  |
+| `/exports/indicators`                                              | GET    | Indicator CSV/XLSX/STIX export          |
+
+### 7.2 Role-based Access (D16)
+
+The `researcher` role (below `user` in the hierarchy) receives anonymized data:
+
+- **Entity list**: `canonical_value` masked to `***` + last 4 chars.
+- **Entity/Indicator detail**: returns HTTP 403.
+- **Indicator list**: `indicator_value` masked similarly.
+- **Exports**: bank indicator values masked to `****` + last 4 digits by default.
+  `?unmask=true` requires `analyst` or higher role.
+
+### 7.3 Response Models
+
+All response models inherit `CamelModel` (JSON output is camelCase).
+Key models: `EntityListResponse`, `IndicatorListResponse`,
+`DashboardWidgetsResponse`, `NeighborGraphResponse`.
+
+---
+
+## 8. Key Files
 
 | File                                                          | Purpose                                         |
 | ------------------------------------------------------------- | ----------------------------------------------- |
@@ -172,4 +222,8 @@ X within 2 hops." The current schema supports this via the junction tables
 | `src/i4g/worker/jobs/linkage_extract.py`                      | LLM indicator extraction job                    |
 | `src/i4g/settings/sections/jobs.py`                           | `AnalyticsSettings` configuration               |
 | `src/i4g/services/factories.py`                               | Store factory functions                         |
+| `src/i4g/services/graph_service.py`                           | GraphService — NetworkX co-occurrence analysis  |
+| `src/i4g/api/intelligence.py`                                 | Intelligence API router (entities, indicators)  |
+| `src/i4g/api/exports.py`                                      | Export router (CSV, XLSX, STIX 2.1)             |
+| `src/i4g/api/roles.py`                                        | Role enum, hierarchy, `has_role()`              |
 | `src/i4g/migrations/versions/20260312_01_add_tifap_tables.py` | Alembic migration                               |

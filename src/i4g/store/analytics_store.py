@@ -284,3 +284,149 @@ class AnalyticsStore:
             if not row:
                 return None
             return dict(row._mapping)
+
+    # ------------------------------------------------------------------
+    # Entity Activity (sparkline data)
+    # ------------------------------------------------------------------
+
+    def get_entity_activity(
+        self,
+        entity_type: str,
+        canonical_value: str,
+    ) -> list[dict[str, Any]]:
+        """Return weekly case counts for an entity over its lifetime.
+
+        Computes a weekly time-series by joining entities → cases and
+        grouping by ISO week. Used for sparkline rendering.
+
+        Args:
+            entity_type: The entity type.
+            canonical_value: The normalized entity value.
+
+        Returns:
+            List of dicts with ``week`` (ISO date string) and ``case_count``.
+        """
+        entities_t = sql_schema.entities
+        cases_t = sql_schema.cases
+
+        with self._session_scope() as session:
+            # Find case IDs linked to this entity
+            case_ids_q = sa.select(entities_t.c.case_id).where(
+                sa.and_(
+                    entities_t.c.entity_type == entity_type,
+                    entities_t.c.canonical_value == canonical_value,
+                )
+            )
+            case_id_rows = session.execute(case_ids_q).all()
+            if not case_id_rows:
+                return []
+
+            case_ids = [r[0] for r in case_id_rows]
+
+            # Group cases by week
+            rows = session.execute(
+                sa.select(cases_t.c.created_at)
+                .where(cases_t.c.case_id.in_(case_ids))
+                .order_by(cases_t.c.created_at.asc())
+            ).all()
+
+            from collections import defaultdict
+            from datetime import datetime as dt
+
+            weekly: dict[str, int] = defaultdict(int)
+            for (created_at,) in rows:
+                if created_at is None:
+                    continue
+                if isinstance(created_at, str):
+                    try:
+                        created_at = dt.fromisoformat(created_at)
+                    except ValueError:
+                        continue
+                # ISO week start (Monday)
+                iso_cal = created_at.isocalendar()
+                week_key = f"{iso_cal[0]}-W{iso_cal[1]:02d}"
+                weekly[week_key] += 1
+
+            return [{"week": k, "case_count": v} for k, v in sorted(weekly.items())]
+
+    # ------------------------------------------------------------------
+    # Entity Neighbors (1-hop co-occurrence graph)
+    # ------------------------------------------------------------------
+
+    def get_entity_neighbors(
+        self,
+        entity_type: str,
+        canonical_value: str,
+        *,
+        limit: int = 20,
+    ) -> list[dict[str, Any]]:
+        """Return entities that co-occur in the same cases as the seed entity.
+
+        Finds shared case IDs between the seed and other entities, then
+        returns the top neighbors by number of shared cases.
+
+        Args:
+            entity_type: Seed entity type.
+            canonical_value: Seed entity value.
+            limit: Max neighbors to return.
+
+        Returns:
+            List of neighbor dicts with entity_type, canonical_value,
+            case_count, shared_cases count.
+        """
+        entities_t = sql_schema.entities
+        es = sql_schema.entity_stats
+
+        with self._session_scope() as session:
+            # Step 1: Find case IDs for the seed entity
+            seed_cases_q = sa.select(entities_t.c.case_id).where(
+                sa.and_(
+                    entities_t.c.entity_type == entity_type,
+                    entities_t.c.canonical_value == canonical_value,
+                )
+            )
+            seed_rows = session.execute(seed_cases_q).all()
+            if not seed_rows:
+                return []
+
+            seed_case_ids = [r[0] for r in seed_rows]
+
+            # Step 2: Find other entities in those cases
+            neighbor_q = (
+                sa.select(
+                    entities_t.c.entity_type,
+                    entities_t.c.canonical_value,
+                    sa.func.count(sa.distinct(entities_t.c.case_id)).label("shared_cases"),
+                )
+                .where(entities_t.c.case_id.in_(seed_case_ids))
+                .where(
+                    sa.or_(
+                        entities_t.c.entity_type != entity_type,
+                        entities_t.c.canonical_value != canonical_value,
+                    )
+                )
+                .group_by(entities_t.c.entity_type, entities_t.c.canonical_value)
+                .order_by(sa.desc("shared_cases"))
+                .limit(limit)
+            )
+            neighbor_rows = session.execute(neighbor_q).all()
+
+            results = []
+            for row in neighbor_rows:
+                n_et = row[0]
+                n_cv = row[1]
+                n_shared = row[2]
+                # Look up stats for case_count
+                stat = session.execute(
+                    sa.select(es.c.case_count).where(sa.and_(es.c.entity_type == n_et, es.c.canonical_value == n_cv))
+                ).first()
+                results.append(
+                    {
+                        "entity_type": n_et,
+                        "canonical_value": n_cv,
+                        "case_count": stat[0] if stat else 0,
+                        "shared_cases": n_shared,
+                    }
+                )
+
+            return results

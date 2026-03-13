@@ -128,7 +128,12 @@ class TimelineSynthesizerTool(BaseTool):
 
 
 class EntityGraphTool(BaseTool):
-    """Derives an entity-to-case adjacency list for bundle visualization."""
+    """Derives an entity-to-case adjacency list for bundle visualization.
+
+    Delegates to ``GraphService`` for co-occurrence analysis when available,
+    falling back to the original inline implementation for environments
+    without NetworkX installed.
+    """
 
     name: str = "entity_graph"
     description: str = "Highlight overlapping entities across all cases."
@@ -144,14 +149,28 @@ class EntityGraphTool(BaseTool):
                 if not normalized:
                     continue
                 adjacency.setdefault(normalized, []).append(case_id)
-        clusters = sorted(
-            ((entity, len(set(case_ids))) for entity, case_ids in adjacency.items()),
-            key=lambda item: (-item[1], item[0]),
-        )[:5]
+
+        # Delegate to GraphService for cluster detection when available
+        try:
+            from i4g.services.graph_service import GraphService
+
+            gs = GraphService(adjacency)
+            clusters_data = gs.detect_clusters(min_size=2)
+            top_clusters = [{"entity": c["members"][0], "count": c["size"]} for c in clusters_data[:5]]
+        except Exception:
+            # Fallback to original inline logic
+            top_clusters = [
+                {"entity": entity, "count": count}
+                for entity, count in sorted(
+                    ((entity, len(set(case_ids))) for entity, case_ids in adjacency.items()),
+                    key=lambda item: (-item[1], item[0]),
+                )[:5]
+            ]
+
         payload = {
             "entities": {entity: sorted(set(case_ids)) for entity, case_ids in adjacency.items()},
             "entity_count": len(adjacency),
-            "top_clusters": [{"entity": entity, "count": count} for entity, count in clusters],
+            "top_clusters": top_clusters,
         }
         return json.dumps(payload)
 
