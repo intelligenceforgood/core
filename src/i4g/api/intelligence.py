@@ -11,7 +11,6 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import Field
-from pydantic.alias_generators import to_camel
 
 from i4g.api.auth import require_token
 from i4g.api.camel import CamelModel
@@ -49,22 +48,12 @@ def _is_researcher(user: dict[str, str]) -> bool:
     return user.get("role") == Role.RESEARCHER and not has_role(user.get("role", ""), Role.USER)
 
 
-def _camelize_keys(item: dict[str, Any]) -> dict[str, Any]:
-    """Convert dict keys from snake_case to camelCase for wire format."""
-    return {to_camel(k): v for k, v in item.items()}
-
-
-def _prepare_entity(item: dict[str, Any]) -> dict[str, Any]:
-    """Camelize entity dict keys for wire format."""
-    return _camelize_keys(item)
-
-
-def _prepare_indicator(item: dict[str, Any]) -> dict[str, Any]:
-    """Camelize indicator dict keys, mapping ``number`` → ``indicatorValue``."""
-    camelized = _camelize_keys(item)
-    if "number" in camelized:
-        camelized["indicatorValue"] = camelized.pop("number")
-    return camelized
+def _map_indicator_fields(item: dict[str, Any]) -> dict[str, Any]:
+    """Map DB column ``number`` to API field ``indicator_value``."""
+    mapped = dict(item)
+    if "number" in mapped:
+        mapped["indicator_value"] = mapped.pop("number")
+    return mapped
 
 
 def _anonymize_entity(item: dict[str, Any]) -> dict[str, Any]:
@@ -94,10 +83,55 @@ def _anonymize_indicator(item: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+class EntityStatResponse(CamelModel):
+    """Pre-computed entity statistics."""
+
+    entity_type: str
+    canonical_value: str
+    case_count: int
+    victim_count: int = 0
+    loss_sum: float = 0.0
+    loss_currency: str = "USD"
+    max_risk_score: float = 0.0
+    avg_risk_score: float = 0.0
+    first_seen_at: str | None = None
+    last_seen_at: str | None = None
+    status: str = "active"
+    campaign_ids: list[str] | None = None
+    top_classifications: Any | None = None
+    ecx_submitted: bool | None = None
+    ecx_hit: bool | None = None
+    purge_status: str | None = None
+    updated_at: str | None = None
+
+
+class EntityDetailResponse(EntityStatResponse):
+    """Entity stats with campaign linkage."""
+
+    campaigns: list[dict[str, str]] = Field(default_factory=list)
+
+
+class IndicatorStatResponse(CamelModel):
+    """Pre-computed indicator statistics."""
+
+    indicator_id: str
+    indicator_value: str
+    category: str
+    item: str | None = None
+    type: str = ""
+    case_count: int = 0
+    loss_sum: float = 0.0
+    max_risk_score: float = 0.0
+    first_seen_at: str | None = None
+    last_seen_at: str | None = None
+    ecx_status: str | None = None
+    updated_at: str | None = None
+
+
 class EntityListResponse(CamelModel):
     """Paginated entity stats list."""
 
-    items: list[dict[str, Any]]
+    items: list[EntityStatResponse]
     count: int
     limit: int
     offset: int
@@ -106,7 +140,7 @@ class EntityListResponse(CamelModel):
 class IndicatorListResponse(CamelModel):
     """Paginated indicator stats list."""
 
-    items: list[dict[str, Any]]
+    items: list[IndicatorStatResponse]
     count: int
     limit: int
     offset: int
@@ -203,17 +237,22 @@ def list_entities(
     )
     if _is_researcher(user):
         items = [_anonymize_entity(i) for i in items]
-    return EntityListResponse(items=[_prepare_entity(i) for i in items], count=len(items), limit=limit, offset=offset)
+    return EntityListResponse(
+        items=[EntityStatResponse.model_validate(i) for i in items],
+        count=len(items),
+        limit=limit,
+        offset=offset,
+    )
 
 
-@router.get("/entities/{entity_type}/{canonical_value}")
+@router.get("/entities/{entity_type}/{canonical_value}", response_model=EntityDetailResponse)
 def get_entity(
     entity_type: str,
     canonical_value: str,
     store: AnalyticsStore = Depends(get_analytics_store),
     campaign_store: ThreatCampaignStore = Depends(get_campaign_store),
     user: dict[str, str] = Depends(require_token),
-) -> dict[str, Any]:
+) -> EntityDetailResponse:
     """Fetch detail for a specific entity with real-time drill-down.
 
     Combines pre-computed stats with campaign linkage information.
@@ -249,7 +288,7 @@ def get_entity(
         if campaign:
             campaigns.append({"id": cid, "name": campaign.get("name", "")})
 
-    return _prepare_entity({**stat, "campaigns": campaigns})
+    return EntityDetailResponse.model_validate({**stat, "campaigns": campaigns})
 
 
 # ---------------------------------------------------------------------------
@@ -257,12 +296,12 @@ def get_entity(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/entities/{entity_type}/{canonical_value}/activity")
+@router.get("/entities/{entity_type}/{canonical_value}/activity", response_model=list[ActivityPoint])
 def get_entity_activity(
     entity_type: str,
     canonical_value: str,
     store: AnalyticsStore = Depends(get_analytics_store),
-) -> list[dict[str, Any]]:
+) -> list[ActivityPoint]:
     """Return weekly case counts over the entity's lifetime for sparkline rendering.
 
     Args:
@@ -281,7 +320,7 @@ def get_entity_activity(
         raise HTTPException(status_code=404, detail="Entity not found")
 
     activity = store.get_entity_activity(entity_type, canonical_value)
-    return [_camelize_keys(a) for a in activity]
+    return [ActivityPoint.model_validate(a) for a in activity]
 
 
 # ---------------------------------------------------------------------------
@@ -395,17 +434,21 @@ def list_indicators(
     )
     if _is_researcher(user):
         items = [_anonymize_indicator(i) for i in items]
+    prepared = [_map_indicator_fields(i) for i in items]
     return IndicatorListResponse(
-        items=[_prepare_indicator(i) for i in items], count=len(items), limit=limit, offset=offset
+        items=[IndicatorStatResponse.model_validate(p) for p in prepared],
+        count=len(items),
+        limit=limit,
+        offset=offset,
     )
 
 
-@router.get("/indicators/{indicator_id}")
+@router.get("/indicators/{indicator_id}", response_model=IndicatorStatResponse)
 def get_indicator(
     indicator_id: str,
     store: AnalyticsStore = Depends(get_analytics_store),
     user: dict[str, str] = Depends(require_token),
-) -> dict[str, Any]:
+) -> IndicatorStatResponse:
     """Fetch detail for a specific indicator.
 
     Args:
@@ -427,7 +470,7 @@ def get_indicator(
     stat = store.get_indicator_stat(indicator_id)
     if not stat:
         raise HTTPException(status_code=404, detail="Indicator not found")
-    return _prepare_indicator(stat)
+    return IndicatorStatResponse.model_validate(_map_indicator_fields(stat))
 
 
 # ---------------------------------------------------------------------------
