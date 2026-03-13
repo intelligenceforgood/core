@@ -100,7 +100,7 @@ class TestResearcherRole:
         assert resp.status_code == 200
         items = resp.json()["items"]
         assert len(items) == 1
-        val = items[0]["canonical_value"]
+        val = items[0]["canonicalValue"]
         # Long value → last 4 chars shown with ***
         assert val.startswith("***")
         assert val.endswith("7890")
@@ -117,7 +117,7 @@ class TestResearcherRole:
         resp = client.get("/intelligence/indicators")
         assert resp.status_code == 200
         items = resp.json()["items"]
-        val = items[0]["indicator_value"]
+        val = items[0]["indicatorValue"]
         assert val.startswith("***")
 
     def test_indicator_detail_forbidden(self, mock_store: MagicMock, mock_camp: MagicMock) -> None:
@@ -140,7 +140,7 @@ class TestAnalystRole:
         client = _build_client("analyst", mock_store, mock_camp)
         resp = client.get("/intelligence/entities")
         items = resp.json()["items"]
-        assert items[0]["canonical_value"] == "0xABCDEF1234567890"
+        assert items[0]["canonicalValue"] == "0xABCDEF1234567890"
 
     def test_entity_detail_allowed(self, mock_store: MagicMock, mock_camp: MagicMock) -> None:
         """Analyst can access entity detail."""
@@ -183,7 +183,7 @@ class TestLeoAndAdminRoles:
         client = _build_client(role, mock_store, mock_camp)
         resp = client.get("/intelligence/entities")
         items = resp.json()["items"]
-        assert items[0]["canonical_value"] == "0xABCDEF1234567890"
+        assert items[0]["canonicalValue"] == "0xABCDEF1234567890"
 
 
 # ---------------------------------------------------------------------------
@@ -205,4 +205,4 @@ class TestUserRole:
         client = _build_client("user", mock_store, mock_camp)
         resp = client.get("/intelligence/entities")
         items = resp.json()["items"]
-        assert items[0]["canonical_value"] == "0xABCDEF1234567890"
+        assert items[0]["canonicalValue"] == "0xABCDEF1234567890"

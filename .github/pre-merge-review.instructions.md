@@ -78,18 +78,19 @@ a quick skim.
 
 ---
 
-## 4b. Pre-Commit Hooks (repo-specific — mandatory double-pass)
+## 4b. Quality Gates (repo-specific — mandatory)
 
-Each repo has its own `.pre-commit-config.yaml` and its own conda environment.
-**Always run `pre-commit` through the correct conda env and from that repo's root directory.**
-Do NOT run plain `pre-commit` — it will use the wrong Python environment and produce incorrect results.
+Each repo has its own quality gate. **Always run from that repo's root directory
+using the correct environment.**
 
-| Repo    | Conda env   | Command |
-|---------|-------------|----------------------------------------------------------|
-| `core/` | `i4g`       | `conda run -n i4g pre-commit run --all-files`            |
-| `ssi/`  | `i4g-ssi`   | `conda run -n i4g-ssi pre-commit run --all-files`        |
+### Python repos (pre-commit double-pass)
 
-**Procedure for every repo in scope:**
+| Repo    | Conda env | Command                                           |
+| ------- | --------- | ------------------------------------------------- |
+| `core/` | `i4g`     | `conda run -n i4g pre-commit run --all-files`     |
+| `ssi/`  | `i4g-ssi` | `conda run -n i4g-ssi pre-commit run --all-files` |
+
+**Procedure:**
 
 ```bash
 cd <repo-root>                            # must be the repo containing .pre-commit-config.yaml
@@ -97,6 +98,21 @@ conda run -n <env> pre-commit run --all-files   # Pass 1 — formatter hooks aut
 git add -u                                # stage auto-fixed files (black, isort, ruff --fix)
 conda run -n <env> pre-commit run --all-files   # Pass 2 — must exit clean, zero files modified
 ```
+
+### UI repo
+
+The UI repo has no pre-commit hooks. Run the following gates in order:
+
+```bash
+cd ui/
+make check       # pnpm format && pnpm lint && pnpm test (unit)
+make test-smoke  # pnpm --filter web test:smoke
+make build       # pnpm build (Next.js production build)
+```
+
+All steps must pass with zero errors. If `pnpm format` modifies files,
+stage them and re-run `make check` to confirm a clean pass.
+`make build` catches type errors and import issues that unit tests miss.
 
 - Pass 1 routinely modifies files (Black reformats, isort reorders, ruff auto-fixes). This is expected.
 - After Pass 1, **always** `git add -u` the auto-fixed files before Pass 2.

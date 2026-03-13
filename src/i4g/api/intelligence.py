@@ -11,6 +11,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import Field
+from pydantic.alias_generators import to_camel
 
 from i4g.api.auth import require_token
 from i4g.api.camel import CamelModel
@@ -48,6 +49,24 @@ def _is_researcher(user: dict[str, str]) -> bool:
     return user.get("role") == Role.RESEARCHER and not has_role(user.get("role", ""), Role.USER)
 
 
+def _camelize_keys(item: dict[str, Any]) -> dict[str, Any]:
+    """Convert dict keys from snake_case to camelCase for wire format."""
+    return {to_camel(k): v for k, v in item.items()}
+
+
+def _prepare_entity(item: dict[str, Any]) -> dict[str, Any]:
+    """Camelize entity dict keys for wire format."""
+    return _camelize_keys(item)
+
+
+def _prepare_indicator(item: dict[str, Any]) -> dict[str, Any]:
+    """Camelize indicator dict keys, mapping ``number`` → ``indicatorValue``."""
+    camelized = _camelize_keys(item)
+    if "number" in camelized:
+        camelized["indicatorValue"] = camelized.pop("number")
+    return camelized
+
+
 def _anonymize_entity(item: dict[str, Any]) -> dict[str, Any]:
     """Return a copy of entity stats with PII redacted for researcher role."""
     redacted = dict(item)
@@ -62,11 +81,11 @@ def _anonymize_entity(item: dict[str, Any]) -> dict[str, Any]:
 def _anonymize_indicator(item: dict[str, Any]) -> dict[str, Any]:
     """Return a copy of indicator stats with value redacted for researcher role."""
     redacted = dict(item)
-    val = redacted.get("indicator_value", "")
+    val = redacted.get("number", "")
     if len(val) > 4:
-        redacted["indicator_value"] = "***" + val[-4:]
+        redacted["number"] = "***" + val[-4:]
     else:
-        redacted["indicator_value"] = "****"
+        redacted["number"] = "****"
     return redacted
 
 
@@ -184,7 +203,7 @@ def list_entities(
     )
     if _is_researcher(user):
         items = [_anonymize_entity(i) for i in items]
-    return EntityListResponse(items=items, count=len(items), limit=limit, offset=offset)
+    return EntityListResponse(items=[_prepare_entity(i) for i in items], count=len(items), limit=limit, offset=offset)
 
 
 @router.get("/entities/{entity_type}/{canonical_value}")
@@ -230,7 +249,7 @@ def get_entity(
         if campaign:
             campaigns.append({"id": cid, "name": campaign.get("name", "")})
 
-    return {**stat, "campaigns": campaigns}
+    return _prepare_entity({**stat, "campaigns": campaigns})
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +281,7 @@ def get_entity_activity(
         raise HTTPException(status_code=404, detail="Entity not found")
 
     activity = store.get_entity_activity(entity_type, canonical_value)
-    return activity
+    return [_camelize_keys(a) for a in activity]
 
 
 # ---------------------------------------------------------------------------
@@ -376,7 +395,9 @@ def list_indicators(
     )
     if _is_researcher(user):
         items = [_anonymize_indicator(i) for i in items]
-    return IndicatorListResponse(items=items, count=len(items), limit=limit, offset=offset)
+    return IndicatorListResponse(
+        items=[_prepare_indicator(i) for i in items], count=len(items), limit=limit, offset=offset
+    )
 
 
 @router.get("/indicators/{indicator_id}")
@@ -406,7 +427,7 @@ def get_indicator(
     stat = store.get_indicator_stat(indicator_id)
     if not stat:
         raise HTTPException(status_code=404, detail="Indicator not found")
-    return stat
+    return _prepare_indicator(stat)
 
 
 # ---------------------------------------------------------------------------

@@ -120,7 +120,7 @@ def test_list_entities_returns_items(client: TestClient, mock_analytics_store: M
     assert resp.status_code == 200
     body = resp.json()
     assert body["count"] == 2
-    assert body["items"][0]["entity_type"] == "crypto_wallet"
+    assert body["items"][0]["entityType"] == "crypto_wallet"
     mock_analytics_store.list_entity_stats.assert_called_once()
 
 
@@ -148,7 +148,7 @@ def test_get_entity_returns_detail(client: TestClient) -> None:
     resp = client.get("/intelligence/entities/crypto_wallet/0xABCDEF1234567890")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["entity_type"] == "crypto_wallet"
+    assert body["entityType"] == "crypto_wallet"
     assert body["campaigns"][0]["name"] == "Pig Butchering Ring"
 
 
@@ -170,7 +170,7 @@ def test_get_entity_activity(client: TestClient) -> None:
     assert resp.status_code == 200
     body = resp.json()
     assert len(body) == 2
-    assert body[0]["week"] == "2025-W01"
+    assert body[0]["week"] == "2025-W01"  # single-word keys stay the same
 
 
 def test_get_entity_activity_not_found(client: TestClient, mock_analytics_store: MagicMock) -> None:
@@ -233,7 +233,7 @@ def test_get_indicator(client: TestClient) -> None:
     resp = client.get("/intelligence/indicators/ind-001")
     assert resp.status_code == 200
     body = resp.json()
-    assert body["indicator_id"] == "ind-001"
+    assert body["indicatorId"] == "ind-001"
 
 
 def test_get_indicator_not_found(client: TestClient, mock_analytics_store: MagicMock) -> None:
