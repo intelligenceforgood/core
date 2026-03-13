@@ -1,0 +1,120 @@
+# LAW ENFORCEMENT EVIDENCE DOSSIER
+
+**Classification:** {{ tlp | default("TLP:RED") }}
+**Dossier ID:** {{ dossier_id }}
+**Generated:** {{ generated_at }}
+**Prepared by:** {{ prepared_by | default("i4g Platform") }}
+
+---
+
+## Cover Sheet
+
+| Field | Value |
+|-------|-------|
+| Subject | {{ subject | default("N/A") }} |
+| Case Reference(s) | {{ case_references | join(", ") if case_references else "N/A" }} |
+| Period of Activity | {{ period_start }} – {{ period_end }} |
+| Total Estimated Loss | ${{ "{:,.2f}".format(total_loss) if total_loss else "0.00" }} |
+| Jurisdiction(s) | {{ jurisdictions | join(", ") if jurisdictions else "N/A" }} |
+
+---
+
+## Indicator Declarations
+
+{% if indicators %}
+| # | Type | Value | First Seen | Last Seen | Case Count |
+|---|------|-------|------------|-----------|------------|
+{% for ind in indicators %}
+| {{ loop.index }} | {{ ind.type }} | {{ ind.value }} | {{ ind.first_seen }} | {{ ind.last_seen }} | {{ ind.case_count }} |
+{% endfor %}
+{% else %}
+_No indicators declared._
+{% endif %}
+
+---
+
+## Entity Summary
+
+{% if entities %}
+{% for entity in entities %}
+### {{ entity.name }} ({{ entity.type }})
+
+- **Total Loss:** ${{ "{:,.2f}".format(entity.total_loss) }}
+- **Associated Cases:** {{ entity.case_count }}
+- **Risk Score:** {{ entity.risk_score | default("N/A") }}
+{% if entity.notes %}
+- **Notes:** {{ entity.notes }}
+{% endif %}
+
+{% endfor %}
+{% else %}
+_No entities identified._
+{% endif %}
+
+---
+
+## Evidence Exhibits
+
+{% if exhibits %}
+{% for exhibit in exhibits %}
+### Exhibit {{ loop.index }}: {{ exhibit.title }}
+
+- **Type:** {{ exhibit.type }}
+- **Source:** {{ exhibit.source }}
+- **Collected:** {{ exhibit.collected_at }}
+- **SHA-256:** `{{ exhibit.sha256 }}`
+
+{% if exhibit.description %}
+{{ exhibit.description }}
+{% endif %}
+
+{% endfor %}
+{% else %}
+_No evidence exhibits attached._
+{% endif %}
+
+---
+
+## Case History
+
+{% if case_history %}
+| Date | Action | Actor | Details |
+|------|--------|-------|---------|
+{% for entry in case_history %}
+| {{ entry.date }} | {{ entry.action }} | {{ entry.actor }} | {{ entry.details }} |
+{% endfor %}
+{% else %}
+_No case history available._
+{% endif %}
+
+---
+
+## Integrity Manifest
+
+**Hash Algorithm:** SHA-256
+**Manifest Generated:** {{ generated_at }}
+
+{% if manifest_entries %}
+| Artifact | SHA-256 Hash |
+|----------|-------------|
+{% for entry in manifest_entries %}
+| {{ entry.artifact }} | `{{ entry.sha256 }}` |
+{% endfor %}
+{% endif %}
+
+**Aggregate Hash:** `{{ aggregate_hash | default("N/A") }}`
+
+---
+
+## Certification
+
+I certify that the information contained in this dossier was produced from automated analysis
+of data held within the i4g Threat Intelligence & Fraud Analytics Platform. The integrity of
+each artifact is verifiable via the SHA-256 hashes listed in the Integrity Manifest above.
+
+**Platform Version:** {{ platform_version | default("N/A") }}
+**Export Timestamp:** {{ generated_at }}
+
+---
+
+_{{ tlp | default("TLP:RED") }} — Distribution restricted to law enforcement and authorized judicial entities only._

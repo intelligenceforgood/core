@@ -6,16 +6,19 @@ fetching dashboard widget data, entity sparklines, and entity neighbor graphs.
 
 from __future__ import annotations
 
+import json
 import logging
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from i4g.api.auth import require_token
 from i4g.api.camel import CamelModel
 from i4g.api.roles import Role, has_role
 from i4g.services.factories import build_analytics_store, build_threat_campaign_store
+from i4g.services.lea_referral import LeaReferralEngine
 from i4g.store.analytics_store import AnalyticsStore
 from i4g.store.threat_campaign_store import ThreatCampaignStore
 
@@ -104,6 +107,20 @@ class EntityStatResponse(CamelModel):
     purge_status: str | None = None
     updated_at: str | None = None
 
+    @field_validator("campaign_ids", mode="before")
+    @classmethod
+    def _parse_campaign_ids(cls, v: Any) -> list[str] | None:
+        if isinstance(v, str):
+            return json.loads(v)
+        return v
+
+    @field_validator("first_seen_at", "last_seen_at", "updated_at", mode="before")
+    @classmethod
+    def _coerce_datetimes(cls, v: Any) -> str | None:
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return v
+
 
 class EntityDetailResponse(EntityStatResponse):
     """Entity stats with campaign linkage."""
@@ -126,6 +143,13 @@ class IndicatorStatResponse(CamelModel):
     last_seen_at: str | None = None
     ecx_status: str | None = None
     updated_at: str | None = None
+
+    @field_validator("first_seen_at", "last_seen_at", "updated_at", mode="before")
+    @classmethod
+    def _coerce_datetimes(cls, v: Any) -> str | None:
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return v
 
 
 class EntityListResponse(CamelModel):
@@ -192,6 +216,15 @@ class DashboardWidgetsResponse(CamelModel):
 # ---------------------------------------------------------------------------
 # Entity endpoints (S2-01)
 # ---------------------------------------------------------------------------
+
+
+@router.get("/entities/types", response_model=list[str])
+def list_entity_types(
+    store: AnalyticsStore = Depends(get_analytics_store),
+    _user: dict[str, str] = Depends(require_token),
+) -> list[str]:
+    """Return distinct entity types present in entity_stats."""
+    return store.list_entity_types()
 
 
 @router.get("/entities", response_model=EntityListResponse)
@@ -569,3 +602,432 @@ def get_search_facets(
         "entity_types": [{"type": k, "count": v} for k, v in sorted(entity_type_counts.items())],
         "indicator_categories": [{"category": k, "count": v} for k, v in sorted(indicator_category_counts.items())],
     }
+
+
+# ---------------------------------------------------------------------------
+# Campaign Intelligence endpoints (S3-04)
+# ---------------------------------------------------------------------------
+
+
+class ThreatCampaignResponse(CamelModel):
+    """Threat campaign list item."""
+
+    campaign_id: str
+    name: str
+    description: str | None = None
+    origin: str = "manual"
+    status: str = "emerging"
+    risk_score: float = 0.0
+    taxonomy_rollup: Any | None = None
+    metadata: Any | None = None
+    created_by: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+    case_count: int = 0
+    loss_sum: float = 0.0
+    indicator_count: int = 0
+
+
+class ThreatCampaignListResponse(CamelModel):
+    """Paginated threat campaign list."""
+
+    items: list[ThreatCampaignResponse]
+    count: int
+    limit: int
+    offset: int
+
+
+class ThreatCampaignDetailResponse(ThreatCampaignResponse):
+    """Campaign detail with linked entities, timeline, and eCX status."""
+
+    cases: list[dict[str, Any]] = Field(default_factory=list)
+    entity_types: dict[str, int] = Field(default_factory=dict)
+    ssi_links: list[dict[str, Any]] = Field(default_factory=list)
+    ecx_status: str | None = None
+
+
+class CampaignTimelinePoint(CamelModel):
+    """A single point on the campaign timeline."""
+
+    date: str
+    case_count: int = 0
+
+
+class CampaignManagementRequest(CamelModel):
+    """Request body for campaign management operations."""
+
+    action: str
+    name: str | None = None
+    description: str | None = None
+    status: str | None = None
+    case_ids: list[str] | None = None
+    annotation: str | None = None
+    merge_source_ids: list[str] | None = None
+    split_groups: dict[str, list[str]] | None = None
+
+
+@router.get("/campaigns", response_model=ThreatCampaignListResponse)
+def list_threat_campaigns(
+    status: str | None = Query(None, description="Filter by lifecycle status"),
+    order_by: str = Query("updated_at", description="Sort column"),
+    descending: bool = Query(True, description="Sort direction"),
+    limit: int = Query(50, ge=1, le=500, description="Page size"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+    campaign_store: ThreatCampaignStore = Depends(get_campaign_store),
+    analytics_store: AnalyticsStore = Depends(get_analytics_store),
+) -> ThreatCampaignListResponse:
+    """List threat campaigns with stats enrichment.
+
+    Combines campaign metadata from ``threat_campaigns`` with pre-computed
+    stats from ``campaign_stats``.
+
+    Args:
+        status: Lifecycle status filter.
+        order_by: Sort column name.
+        descending: Sort descending when True.
+        limit: Page size.
+        offset: Pagination offset.
+        campaign_store: Injected ThreatCampaignStore.
+        analytics_store: Injected AnalyticsStore.
+
+    Returns:
+        Paginated list of campaigns with stats.
+    """
+    campaigns = campaign_store.list_campaigns(status=status, limit=limit, offset=offset)
+    items = []
+    for c in campaigns:
+        cid = c.get("campaign_id", "")
+        stat = analytics_store.get_campaign_stat(cid) or {}
+        items.append(
+            ThreatCampaignResponse(
+                campaign_id=cid,
+                name=c.get("name", ""),
+                description=c.get("description"),
+                origin=c.get("origin", "manual"),
+                status=c.get("status", "emerging"),
+                risk_score=float(c.get("risk_score") or stat.get("risk_score", 0)),
+                taxonomy_rollup=c.get("taxonomy_rollup"),
+                metadata=c.get("metadata"),
+                created_by=c.get("created_by"),
+                created_at=str(c["created_at"]) if c.get("created_at") else None,
+                updated_at=str(c["updated_at"]) if c.get("updated_at") else None,
+                case_count=int(stat.get("case_count", 0)),
+                loss_sum=float(stat.get("loss_sum", 0)),
+                indicator_count=int(stat.get("indicator_count", 0)),
+            )
+        )
+    return ThreatCampaignListResponse(items=items, count=len(items), limit=limit, offset=offset)
+
+
+@router.get("/campaigns/{campaign_id}", response_model=ThreatCampaignDetailResponse)
+def get_threat_campaign_detail(
+    campaign_id: str,
+    campaign_store: ThreatCampaignStore = Depends(get_campaign_store),
+    analytics_store: AnalyticsStore = Depends(get_analytics_store),
+) -> ThreatCampaignDetailResponse:
+    """Get detailed threat campaign view with metrics, cases, and entity breakdown.
+
+    Args:
+        campaign_id: The campaign UUID.
+        campaign_store: Injected ThreatCampaignStore.
+        analytics_store: Injected AnalyticsStore.
+
+    Returns:
+        Campaign detail including linked cases and entity type counts.
+
+    Raises:
+        HTTPException: If the campaign is not found.
+    """
+    campaign = campaign_store.get_campaign(campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    stat = analytics_store.get_campaign_stat(campaign_id) or {}
+    linked_cases = campaign_store.get_campaign_cases(campaign_id)
+    entity_types = stat.get("entity_count_by_type") or {}
+    if isinstance(entity_types, str):
+        import json
+
+        entity_types = json.loads(entity_types)
+
+    return ThreatCampaignDetailResponse(
+        campaign_id=campaign_id,
+        name=campaign.get("name", ""),
+        description=campaign.get("description"),
+        origin=campaign.get("origin", "manual"),
+        status=campaign.get("status", "emerging"),
+        risk_score=float(campaign.get("risk_score") or stat.get("risk_score", 0)),
+        taxonomy_rollup=campaign.get("taxonomy_rollup"),
+        metadata=campaign.get("metadata"),
+        created_by=campaign.get("created_by"),
+        created_at=str(campaign["created_at"]) if campaign.get("created_at") else None,
+        updated_at=str(campaign["updated_at"]) if campaign.get("updated_at") else None,
+        case_count=int(stat.get("case_count", 0)),
+        loss_sum=float(stat.get("loss_sum", 0)),
+        indicator_count=int(stat.get("indicator_count", 0)),
+        cases=linked_cases,
+        entity_types=entity_types if isinstance(entity_types, dict) else {},
+    )
+
+
+# ---------------------------------------------------------------------------
+# S3-05  Campaign management: rename, merge, split, link/unlink, status, annotate
+# ---------------------------------------------------------------------------
+
+
+@router.post("/campaigns/{campaign_id}/manage")
+def manage_campaign(
+    campaign_id: str,
+    payload: CampaignManagementRequest,
+    campaign_store: ThreatCampaignStore = Depends(get_campaign_store),
+    user: dict[str, str] = Depends(require_token),
+) -> dict[str, Any]:
+    """Execute a management action on a threat campaign.
+
+    Supported actions: rename, update_status, link_cases, unlink_cases,
+    merge, split, annotate.
+
+    Args:
+        campaign_id: The campaign UUID.
+        payload: Management action request.
+        campaign_store: Injected ThreatCampaignStore.
+        user: Authenticated user context.
+
+    Returns:
+        Dict with action result.
+
+    Raises:
+        HTTPException: 404 if campaign not found, 400 for invalid action.
+    """
+    campaign = campaign_store.get_campaign(campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    username = user.get("username", "unknown")
+    action = payload.action
+
+    if action == "rename":
+        if not payload.name:
+            raise HTTPException(status_code=400, detail="Name required for rename")
+        campaign_store.update_campaign(campaign_id, name=payload.name, description=payload.description)
+        logger.info("Campaign %s renamed to %r by %s", campaign_id, payload.name, username)
+        return {"action": "rename", "campaign_id": campaign_id, "success": True}
+
+    if action == "update_status":
+        if not payload.status:
+            raise HTTPException(status_code=400, detail="Status required")
+        campaign_store.update_status(campaign_id, status=payload.status)
+        logger.info("Campaign %s status → %s by %s", campaign_id, payload.status, username)
+        return {"action": "update_status", "campaign_id": campaign_id, "success": True}
+
+    if action == "link_cases":
+        for case_id in payload.case_ids or []:
+            campaign_store.link_case(campaign_id, case_id, linked_by=f"manual:{username}")
+        return {"action": "link_cases", "campaign_id": campaign_id, "linked": len(payload.case_ids or [])}
+
+    if action == "unlink_cases":
+        for case_id in payload.case_ids or []:
+            campaign_store.unlink_case(campaign_id, case_id)
+        return {"action": "unlink_cases", "campaign_id": campaign_id, "unlinked": len(payload.case_ids or [])}
+
+    if action == "merge":
+        source_ids = payload.merge_source_ids or []
+        if not source_ids:
+            raise HTTPException(status_code=400, detail="merge_source_ids required")
+        new_id = campaign_store.merge_campaigns(
+            [campaign_id, *source_ids],
+            target_name=payload.name or campaign.get("name", "Merged Campaign"),
+            merged_by=username,
+        )
+        logger.info("Campaigns merged into %s by %s", new_id, username)
+        return {"action": "merge", "new_campaign_id": new_id, "success": True}
+
+    if action == "split":
+        groups = payload.split_groups or {}
+        if not groups:
+            raise HTTPException(status_code=400, detail="split_groups required")
+        result = campaign_store.split_campaign(campaign_id, case_groups=groups, split_by=username)
+        logger.info("Campaign %s split into %d groups by %s", campaign_id, len(result), username)
+        return {"action": "split", "new_campaigns": result, "success": True}
+
+    if action == "annotate":
+        # Store annotation in campaign metadata
+        meta = campaign.get("metadata") or {}
+        if isinstance(meta, str):
+            import json
+
+            meta = json.loads(meta)
+        annotations = meta.get("annotations", [])
+        annotations.append({"text": payload.annotation, "by": username})
+        meta["annotations"] = annotations
+        campaign_store.update_campaign(campaign_id, metadata=meta)
+        return {"action": "annotate", "campaign_id": campaign_id, "success": True}
+
+    raise HTTPException(status_code=400, detail=f"Unknown action: {action}")
+
+
+# ---------------------------------------------------------------------------
+# S3-06  Campaign timeline
+# ---------------------------------------------------------------------------
+
+
+@router.get("/campaigns/{campaign_id}/timeline", response_model=list[CampaignTimelinePoint])
+def get_campaign_timeline(
+    campaign_id: str,
+    campaign_store: ThreatCampaignStore = Depends(get_campaign_store),
+) -> list[CampaignTimelinePoint]:
+    """Return cases per day over the campaign lifetime for timeline chart.
+
+    Args:
+        campaign_id: The campaign UUID.
+        campaign_store: Injected ThreatCampaignStore.
+
+    Returns:
+        List of daily case count data points.
+
+    Raises:
+        HTTPException: If the campaign is not found.
+    """
+    campaign = campaign_store.get_campaign(campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    linked = campaign_store.get_campaign_cases(campaign_id)
+
+    # Aggregate by date
+    date_counts: dict[str, int] = {}
+    for link in linked:
+        linked_at = link.get("linked_at", "")
+        if linked_at:
+            day = str(linked_at)[:10]
+            date_counts[day] = date_counts.get(day, 0) + 1
+
+    return [CampaignTimelinePoint(date=d, case_count=c) for d, c in sorted(date_counts.items())]
+
+
+# ---------------------------------------------------------------------------
+# S3-07  Campaign network graph
+# ---------------------------------------------------------------------------
+
+
+@router.get("/campaigns/{campaign_id}/graph")
+def get_campaign_graph(
+    campaign_id: str,
+    campaign_store: ThreatCampaignStore = Depends(get_campaign_store),
+    analytics_store: AnalyticsStore = Depends(get_analytics_store),
+) -> dict[str, Any]:
+    """Return a scoped entity co-occurrence graph for a campaign.
+
+    Builds a graph of entities that appear across the campaign's linked
+    cases, with edges representing co-occurrence within the same case.
+
+    Args:
+        campaign_id: The campaign UUID.
+        campaign_store: Injected ThreatCampaignStore.
+        analytics_store: Injected AnalyticsStore.
+
+    Returns:
+        Graph payload with nodes and edges.
+
+    Raises:
+        HTTPException: If the campaign is not found.
+    """
+    campaign = campaign_store.get_campaign(campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    linked = campaign_store.get_campaign_cases(campaign_id)
+    case_ids = [link["case_id"] for link in linked]
+
+    if not case_ids:
+        return {"nodes": [], "edges": [], "node_count": 0, "edge_count": 0}
+
+    # Collect entity stats for entities involved in campaign cases
+    all_entities = analytics_store.list_entity_stats(limit=10000)
+    campaign_entities = [e for e in all_entities if any(cid in str(e.get("campaign_ids", "")) for cid in case_ids)]
+
+    # Build nodes
+    nodes = []
+    for ent in campaign_entities[:200]:  # Cap at 200 nodes for performance
+        node_id = f"{ent.get('entity_type', '')}:{ent.get('canonical_value', '')}"
+        nodes.append(
+            {
+                "id": node_id,
+                "label": ent.get("canonical_value", ""),
+                "entityType": ent.get("entity_type", ""),
+                "caseCount": ent.get("case_count", 0),
+                "riskScore": float(ent.get("max_risk_score", 0)),
+            }
+        )
+
+    # Build co-occurrence edges (simplified — entities that share campaign)
+    edges = []
+    for i, n1 in enumerate(nodes):
+        for n2 in nodes[i + 1 :]:
+            if n1["entityType"] != n2["entityType"]:
+                edges.append(
+                    {
+                        "source": n1["id"],
+                        "target": n2["id"],
+                        "weight": 1,
+                        "edgeType": "same-campaign",
+                    }
+                )
+
+    return {
+        "nodes": nodes,
+        "edges": edges[:500],  # Cap edges
+        "node_count": len(nodes),
+        "edge_count": len(edges),
+    }
+
+
+# ---------------------------------------------------------------------------
+# S3-11  LEA referral suggestions
+# ---------------------------------------------------------------------------
+
+
+class LeaSuggestionItem(CamelModel):
+    """A single LEA referral suggestion."""
+
+    suggestion_id: str
+    target_type: str
+    target_id: str
+    target_label: str
+    reasons: list[str]
+    loss_sum: float = 0.0
+    case_count: int = 0
+    risk_score: float = 0.0
+    ecx_corroborated: bool = False
+
+
+class LeaSuggestionResponse(CamelModel):
+    """Wrapped response for LEA referral suggestions."""
+
+    suggestions: list[LeaSuggestionItem]
+    count: int
+
+
+@router.get("/lea-suggestions", response_model=LeaSuggestionResponse)
+def get_lea_suggestions(
+    limit: int = Query(20, ge=1, le=100, description="Max suggestions"),
+    analytics_store: AnalyticsStore = Depends(get_analytics_store),
+    campaign_store: ThreatCampaignStore = Depends(get_campaign_store),
+) -> LeaSuggestionResponse:
+    """List entities and campaigns meeting LEA referral thresholds.
+
+    Evaluates all entities and campaigns against configurable criteria:
+    cumulative loss >$50K, >5 linked cases, or eCrimeX corroboration.
+
+    Args:
+        limit: Maximum number of suggestions.
+        analytics_store: Injected AnalyticsStore.
+        campaign_store: Injected ThreatCampaignStore.
+
+    Returns:
+        Wrapped LEA referral suggestions sorted by loss descending.
+    """
+    engine = LeaReferralEngine(analytics_store, campaign_store)
+    suggestions = engine.get_suggestions(limit=limit)
+    items = [LeaSuggestionItem(**s.to_dict()) for s in suggestions]
+    return LeaSuggestionResponse(suggestions=items, count=len(items))

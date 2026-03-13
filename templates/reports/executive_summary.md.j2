@@ -1,0 +1,59 @@
+# {{ title | default("Executive Impact Summary") }}
+
+**Classification:** {{ tlp | default("TLP:AMBER") }}
+**Generated:** {{ generated_at }}
+**Period:** {{ period_label | default("Last 30 days") }}
+**Prepared by:** {{ prepared_by | default("i4g Platform") }}
+
+---
+
+## Key Performance Indicators
+
+| Metric | Value | Trend |
+|--------|-------|-------|
+{% for kpi in kpis %}
+| {{ kpi.label }} | {{ kpi.value }} | {{ kpi.change }} |
+{% endfor %}
+
+## Loss Distribution by Fraud Type
+
+{% if taxonomy_loss %}
+{% for item in taxonomy_loss %}
+- **{{ item.label }}**: ${{ "{:,.0f}".format(item.loss_sum) }} ({{ item.case_count }} cases)
+{% endfor %}
+{% else %}
+_No taxonomy loss data available for this period._
+{% endif %}
+
+## Detection Velocity
+
+{% if velocity_data %}
+| Period | Proactive | Reactive | Total |
+|--------|-----------|----------|-------|
+{% for point in velocity_data %}
+| {{ point.period }} | {{ point.proactive }} | {{ point.reactive }} | {{ point.total }} |
+{% endfor %}
+{% else %}
+_No detection velocity data available._
+{% endif %}
+
+## Pipeline Throughput
+
+{% if funnel %}
+{% for stage in funnel %}
+- **{{ stage.stage }}**: {{ stage.count }}
+{% endfor %}
+{% else %}
+_No pipeline data available._
+{% endif %}
+
+{% if narrative %}
+## Executive Narrative
+
+{{ narrative }}
+{% endif %}
+
+---
+
+_This report was generated automatically by the i4g Threat Intelligence & Fraud Analytics Platform._
+_{{ tlp | default("TLP:AMBER") }} — Distribution restricted to authorized recipients._

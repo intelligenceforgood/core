@@ -304,12 +304,47 @@ def _hash_file(path: Path, *, algorithm: str) -> str:
     return digest.hexdigest()
 
 
+def compute_aggregate_hash(
+    hashes: Iterable[str],
+    *,
+    algorithm: str = "sha256",
+) -> str:
+    """Compute an aggregate hash from a sequence of individual artifact hashes.
+
+    Used for two-tier chain-of-custody: LEA dossiers hash each artifact individually,
+    while executive summaries use a single aggregate hash over all content hashes.
+    """
+
+    digest = hashlib.new(algorithm)
+    for h in sorted(hashes):
+        digest.update(h.encode("utf-8"))
+    return digest.hexdigest()
+
+
+def hash_content(
+    content: str | bytes,
+    *,
+    algorithm: str = "sha256",
+) -> str:
+    """Hash arbitrary content (string or bytes) and return the hex digest."""
+
+    digest = hashlib.new(algorithm)
+    if isinstance(content, str):
+        digest.update(content.encode("utf-8"))
+    else:
+        digest.update(content)
+    return digest.hexdigest()
+
+
 __all__ = [
     "ArtifactSignature",
     "ArtifactVerification",
     "ManifestVerificationReport",
     "SignatureManifest",
+    "UploadedArtifactSignature",
+    "compute_aggregate_hash",
     "generate_signature_manifest",
+    "hash_content",
     "verify_manifest_payload",
     "verify_manifest_file",
 ]

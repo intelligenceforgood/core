@@ -57,6 +57,13 @@ class AnalyticsStore:
     # Entity Stats
     # ------------------------------------------------------------------
 
+    def list_entity_types(self) -> list[str]:
+        """Return distinct entity types from entity_stats, sorted alphabetically."""
+        es = sql_schema.entity_stats
+        with self._session_scope() as session:
+            rows = session.execute(sa.select(sa.distinct(es.c.entity_type)).order_by(es.c.entity_type)).all()
+            return [r[0] for r in rows]
+
     def list_entity_stats(
         self,
         *,

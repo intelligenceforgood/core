@@ -43,6 +43,7 @@ from i4g.store.sql import (
     threat_campaigns,
 )
 from i4g.task_status import TaskStatusReporter
+from i4g.utils.entity_types import normalize_entity_type
 from i4g.worker.logging import configure_job_logging
 
 logger = logging.getLogger(__name__)
@@ -292,7 +293,7 @@ def _refresh_entity_stats(session: Session) -> int:
     # Collect loss + victim data per entity from intake_records via intake_indicator_links
     # For now, loss linkage is based on case-level loss from intake_records
     for row in rows:
-        etype = row.entity_type
+        etype = normalize_entity_type(row.entity_type)
         evalue = row.canonical_value
 
         # Get loss data from intake_records linked to the same cases

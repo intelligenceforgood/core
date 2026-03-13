@@ -286,6 +286,133 @@ class DossierVisualBuilder:
         )
 
 
+class ReportChartRenderer:
+    """Generates chart images for embedding in report templates."""
+
+    def __init__(self, output_dir: Path) -> None:
+        self._output_dir = output_dir
+        self._output_dir.mkdir(parents=True, exist_ok=True)
+        self._font = ImageFont.load_default()
+
+    def render_bar_chart(
+        self,
+        data: Sequence[tuple[str, float]],
+        *,
+        title: str = "Bar Chart",
+        file_name: str = "bar_chart.png",
+        width: int = 800,
+        height: int = 400,
+    ) -> Path:
+        """Render a horizontal bar chart and return the output path."""
+
+        margin = 60
+        image = Image.new("RGB", (width, height), "white")
+        draw = ImageDraw.Draw(image)
+        draw.text((margin, 10), title, font=self._font, fill="#111")
+
+        if not data:
+            draw.text((margin, height // 2), "No data", font=self._font, fill="#666")
+            out = self._output_dir / file_name
+            image.save(out, format="PNG")
+            return out
+
+        max_val = max(v for _, v in data) or 1.0
+        usable_width = width - margin * 2
+        bar_height = min(30, (height - margin * 2) // len(data))
+        spacing = 5
+
+        for i, (label, value) in enumerate(data):
+            y = margin + i * (bar_height + spacing)
+            bar_w = (value / max_val) * usable_width
+            draw.rectangle((margin, y, margin + bar_w, y + bar_height), fill="#3b82f6")
+            draw.text((margin + bar_w + 5, y + 2), f"${value:,.0f}", font=self._font, fill="#111")
+            draw.text((5, y + 2), label[:12], font=self._font, fill="#333")
+
+        out = self._output_dir / file_name
+        image.save(out, format="PNG")
+        return out
+
+    def render_line_chart(
+        self,
+        series: Mapping[str, Sequence[tuple[str, float]]],
+        *,
+        title: str = "Line Chart",
+        file_name: str = "line_chart.png",
+        width: int = 800,
+        height: int = 400,
+    ) -> Path:
+        """Render a multi-series line chart and return the output path."""
+
+        margin = 60
+        image = Image.new("RGB", (width, height), "white")
+        draw = ImageDraw.Draw(image)
+        draw.text((margin, 10), title, font=self._font, fill="#111")
+
+        colors = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b"]
+        all_values = [v for points in series.values() for _, v in points]
+        max_val = max(all_values) if all_values else 1.0
+        usable_w = width - margin * 2
+        usable_h = height - margin * 2
+
+        for idx, (label, points) in enumerate(series.items()):
+            color = colors[idx % len(colors)]
+            if len(points) < 2:
+                continue
+            step = usable_w / (len(points) - 1)
+            coords: list[tuple[float, float]] = []
+            for i, (_, value) in enumerate(points):
+                x = margin + i * step
+                y = margin + usable_h - (value / max_val) * usable_h
+                coords.append((x, y))
+            for j in range(len(coords) - 1):
+                draw.line([coords[j], coords[j + 1]], fill=color, width=2)
+            draw.text((width - margin, margin + idx * 15), label, font=self._font, fill=color)
+
+        out = self._output_dir / file_name
+        image.save(out, format="PNG")
+        return out
+
+    def render_funnel_chart(
+        self,
+        stages: Sequence[tuple[str, int]],
+        *,
+        title: str = "Pipeline Funnel",
+        file_name: str = "funnel_chart.png",
+        width: int = 600,
+        height: int = 400,
+    ) -> Path:
+        """Render a pipeline-funnel chart and return the output path."""
+
+        margin = 60
+        image = Image.new("RGB", (width, height), "white")
+        draw = ImageDraw.Draw(image)
+        draw.text((margin, 10), title, font=self._font, fill="#111")
+
+        if not stages:
+            draw.text((margin, height // 2), "No data", font=self._font, fill="#666")
+            out = self._output_dir / file_name
+            image.save(out, format="PNG")
+            return out
+
+        max_count = max(c for _, c in stages) or 1
+        usable_w = width - margin * 2
+        bar_height = min(40, (height - margin * 2) // len(stages))
+        spacing = 8
+        colors = ["#3b82f6", "#6366f1", "#8b5cf6", "#a855f7", "#c084fc"]
+
+        for i, (label, count) in enumerate(stages):
+            y = margin + i * (bar_height + spacing)
+            bar_w = (count / max_count) * usable_w
+            x_offset = (usable_w - bar_w) / 2
+            color = colors[i % len(colors)]
+            draw.rectangle((margin + x_offset, y, margin + x_offset + bar_w, y + bar_height), fill=color)
+            draw.text((margin + x_offset + bar_w / 2 - 20, y + 5), f"{label}: {count}", font=self._font, fill="white")
+
+        out = self._output_dir / file_name
+        image.save(out, format="PNG")
+        return out
+
+
 def _format_label(value: datetime) -> str:
     if not value:
         return ""

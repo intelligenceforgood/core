@@ -1,7 +1,7 @@
 # Threat Intelligence & Fraud Analytics — Technical Design Document
 
-> **Status**: Active (v1.0)
-> **Sprint**: S1 — Data Foundation
+> **Status**: Active (v1.1)
+> **Sprint**: S1–S3 — Data Foundation through Impact Analytics
 > **Last Updated**: March 2026
 
 ---
@@ -227,3 +227,127 @@ Key models: `EntityListResponse`, `IndicatorListResponse`,
 | `src/i4g/api/exports.py`                                      | Export router (CSV, XLSX, STIX 2.1)             |
 | `src/i4g/api/roles.py`                                        | Role enum, hierarchy, `has_role()`              |
 | `src/i4g/migrations/versions/20260312_01_add_tifap_tables.py` | Alembic migration                               |
+
+---
+
+## 9. Impact Analytics API (Sprint 3)
+
+The Impact Dashboard provides KPI cards, loss treemap, detection velocity,
+pipeline funnel, and cumulative indicator charts. All endpoints live in
+`src/i4g/api/impact.py`.
+
+### 9.1 Endpoints
+
+| Method | Path                            | Description                              |
+| ------ | ------------------------------- | ---------------------------------------- |
+| GET    | `/impact/dashboard`             | KPI cards with vs-prior-period trends    |
+| GET    | `/impact/loss-by-taxonomy`      | Loss sums grouped by case classification |
+| GET    | `/impact/detection-velocity`    | Proactive vs reactive weekly breakdown   |
+| GET    | `/impact/pipeline-funnel`       | Intake→action drop-off stages            |
+| GET    | `/impact/cumulative-indicators` | Running totals by indicator category     |
+
+### 9.2 KPI Trend Calculation
+
+Each KPI compares the current period (e.g., last 30 days) against the prior
+period of equal length. `_calculate_trend()` returns a direction (`up`, `down`,
+`flat`) and a human-readable change string (e.g., `+12 (+8.3%)`).
+
+---
+
+## 10. Campaign Intelligence API (Sprint 3)
+
+Extends `src/i4g/api/intelligence.py` with campaign browsing, management, and
+timeline endpoints.
+
+### 10.1 Endpoints
+
+| Method | Path                                    | Description                               |
+| ------ | --------------------------------------- | ----------------------------------------- |
+| GET    | `/intelligence/campaigns`               | List campaigns with pagination            |
+| GET    | `/intelligence/campaigns/{id}`          | Campaign detail with linked cases         |
+| POST   | `/intelligence/campaigns/{id}/manage`   | Rename, merge, split, link/unlink cases   |
+| GET    | `/intelligence/campaigns/{id}/timeline` | Daily case counts for a campaign          |
+| GET    | `/intelligence/campaigns/{id}/graph`    | Co-occurrence graph for campaign entities |
+| GET    | `/intelligence/lea-suggestions`         | LEA referral suggestions scored by risk   |
+
+### 10.2 LEA Referral Engine
+
+`src/i4g/services/lea_referral.py` contains the `LeaReferralEngine` class. It
+queries entity-level and campaign-level aggregates, scoring candidates by loss
+sum, case count, and risk score. Suggestions exceeding configurable thresholds
+(`DEFAULT_LOSS_THRESHOLD = $50k`, `DEFAULT_MIN_CASES = 5`) are surfaced in the
+Intelligence Dashboard.
+
+---
+
+## 11. Report Generation & Templates (Sprint 3)
+
+### 11.1 Report API
+
+Extends `src/i4g/api/reports.py` with generation, library, and download endpoints.
+
+| Method | Path                     | Description                          |
+| ------ | ------------------------ | ------------------------------------ |
+| POST   | `/reports/generate`      | Queue a report for generation        |
+| GET    | `/reports/library`       | List generated reports with metadata |
+| GET    | `/reports/{id}/download` | Download a generated report file     |
+
+### 11.2 TLP Labeling
+
+Each template has a default TLP classification per D10:
+
+| Template            | Default TLP |
+| ------------------- | ----------- |
+| `executive_summary` | TLP:AMBER   |
+| `lea_dossier`       | TLP:RED     |
+| `campaign_bulletin` | TLP:AMBER   |
+| `sar_supplement`    | TLP:AMBER   |
+
+Admin users can override TLP via `options.tlp` in the request body. Invalid
+TLP values are rejected with HTTP 400.
+
+### 11.3 Report Templates
+
+- **Executive Summary** (`templates/reports/executive_summary.md.j2`): KPI table,
+  loss distribution, detection velocity, pipeline throughput, executive narrative.
+- **LEA Dossier** (`templates/reports/lea_dossier.md.j2`): Cover sheet, indicator
+  declarations, entity summary, evidence exhibits with SHA-256, integrity manifest.
+
+### 11.4 Chart Rendering
+
+`ReportChartRenderer` in `src/i4g/reports/dossier_visuals.py` generates bar,
+line, and funnel charts as PNG images using PIL. Charts are embedded in PDF
+reports.
+
+### 11.5 Chain-of-Custody (Two-Tier Hashing)
+
+`src/i4g/reports/dossier_signatures.py` extends the existing signing infrastructure:
+
+- `hash_content()`: SHA-256 hash of a string or bytes content.
+- `compute_aggregate_hash()`: Sorts per-record hashes lexicographically and
+  computes a single aggregate SHA-256, providing tamper evidence for the full bundle.
+
+---
+
+## 12. Export Adapters (Sprint 3)
+
+`src/i4g/services/export_adapters.py` implements a protocol-based adapter pattern:
+
+- `ExportAdapter` (Protocol): `serialize(rows, columns) → bytes`, `content_type`,
+  `file_extension` properties.
+- `CsvAdapter`: Standard CSV with configurable column selection.
+- `XlsxAdapter`: Excel workbook via openpyxl (falls back to CSV if unavailable).
+- `StixAdapter`: STIX 2.1 JSON bundle with deterministic IDs.
+- `get_adapter(format)`: Factory function returning the appropriate adapter.
+
+---
+
+## 13. Key Files (Sprint 3)
+
+| File                                        | Purpose                              |
+| ------------------------------------------- | ------------------------------------ |
+| `src/i4g/api/impact.py`                     | Impact Dashboard API router          |
+| `src/i4g/services/lea_referral.py`          | LEA referral suggestion engine       |
+| `src/i4g/services/export_adapters.py`       | CSV/XLSX/STIX export adapters        |
+| `templates/reports/executive_summary.md.j2` | Executive Summary Jinja2 template    |
+| `templates/reports/lea_dossier.md.j2`       | LEA Evidence Dossier Jinja2 template |

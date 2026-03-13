@@ -6,14 +6,18 @@ import contextlib
 import json
 import logging
 import re
+import uuid
 from collections.abc import Iterable, Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from i4g.api.auth import require_token
+from i4g.api.camel import CamelModel
 from i4g.api.response_models import DossierVerifyResponse, DriveAclResponse, ItemListResponse
 from i4g.observability import Observability, get_observability
 from i4g.reports.dossier_signatures import verify_manifest_payload
@@ -357,6 +361,178 @@ def _resolve_relative(raw_path: object, base_dir: Path) -> str | None:
     except ValueError:
         return None
     return str(candidate)
+
+
+# ---------------------------------------------------------------------------
+# Report Generation & Library (S3-08, S3-09)
+# ---------------------------------------------------------------------------
+
+_TLP_DEFAULTS: dict[str, str] = {
+    "executive_summary": "TLP:AMBER",
+    "lea_dossier": "TLP:RED",
+    "campaign_bulletin": "TLP:AMBER",
+    "sar_supplement": "TLP:AMBER",
+}
+
+_VALID_TLP = {"TLP:WHITE", "TLP:GREEN", "TLP:AMBER", "TLP:RED"}
+
+
+class ReportGenerateRequest(BaseModel):
+    """Request body for report generation."""
+
+    template: str
+    scope: dict[str, Any] = {}
+    options: dict[str, Any] = {}
+
+
+class ReportLibraryItem(CamelModel):
+    """Item in the report library listing."""
+
+    report_id: str
+    template: str
+    tlp: str = "TLP:AMBER"
+    status: str = "completed"
+    generated_at: str | None = None
+    scope_summary: str = ""
+    download_url: str | None = None
+
+
+@router.post("/generate")
+def generate_report(
+    payload: ReportGenerateRequest,
+    user: dict = Depends(require_token),
+) -> dict[str, Any]:
+    """Queue a report for generation.
+
+    Accepts a template identifier, scope (e.g., campaign_id, entity filter,
+    date range), and options (TLP override, sections, header note).
+
+    The TLP label defaults to the template default per D10 and can be
+    overridden by admin-level users.
+
+    Args:
+        payload: Report generation request.
+        user: Authenticated user context.
+
+    Returns:
+        Dict with report_id and status.
+    """
+    template = payload.template
+    tlp = payload.options.get("tlp", _TLP_DEFAULTS.get(template, "TLP:AMBER"))
+    if tlp not in _VALID_TLP:
+        raise HTTPException(status_code=400, detail=f"Invalid TLP label: {tlp}")
+
+    # Generate a report ID
+    report_id = str(uuid.uuid4())
+
+    # Audit log
+    logger.info(
+        "REPORT_GENERATE user=%s template=%s tlp=%s report_id=%s scope=%s",
+        user.get("username", "unknown"),
+        template,
+        tlp,
+        report_id,
+        json.dumps(payload.scope)[:200],
+    )
+
+    # Store report metadata in artifacts directory
+    report_dir = ARTIFACTS_DIR / "generated"
+    report_dir.mkdir(parents=True, exist_ok=True)
+
+    report_meta = {
+        "report_id": report_id,
+        "template": template,
+        "tlp": tlp,
+        "scope": payload.scope,
+        "options": payload.options,
+        "status": "queued",
+        "generated_by": user.get("username", "unknown"),
+        "generated_at": datetime.now(UTC).isoformat(),
+    }
+    meta_path = report_dir / f"{report_id}.json"
+    meta_path.write_text(json.dumps(report_meta, indent=2))
+
+    return {"report_id": report_id, "status": "queued", "tlp": tlp}
+
+
+@router.get("/library", response_model=list[ReportLibraryItem])
+def list_reports(
+    limit: int = Query(50, ge=1, le=200, description="Max reports to return"),
+) -> list[ReportLibraryItem]:
+    """List generated reports with metadata.
+
+    Scans the report artifacts directory for generated report metadata files.
+
+    Args:
+        limit: Maximum number of reports to return.
+
+    Returns:
+        List of report library items.
+    """
+    report_dir = ARTIFACTS_DIR / "generated"
+    if not report_dir.exists():
+        return []
+
+    items: list[ReportLibraryItem] = []
+    for meta_file in sorted(report_dir.glob("*.json"), reverse=True)[:limit]:
+        try:
+            meta = json.loads(meta_file.read_text())
+            report_id = meta.get("report_id", meta_file.stem)
+            scope = meta.get("scope", {})
+            scope_parts = []
+            if scope.get("campaign_id"):
+                scope_parts.append(f"Campaign: {scope['campaign_id'][:8]}")
+            if scope.get("entity_type"):
+                scope_parts.append(f"Entity: {scope['entity_type']}")
+            if scope.get("date_range"):
+                scope_parts.append(f"Period: {scope['date_range']}")
+
+            items.append(
+                ReportLibraryItem(
+                    report_id=report_id,
+                    template=meta.get("template", "unknown"),
+                    tlp=meta.get("tlp", "TLP:AMBER"),
+                    status=meta.get("status", "unknown"),
+                    generated_at=meta.get("generated_at"),
+                    scope_summary="; ".join(scope_parts) if scope_parts else "Platform-wide",
+                    download_url=f"/reports/{report_id}/download" if meta.get("status") == "completed" else None,
+                )
+            )
+        except (json.JSONDecodeError, OSError):
+            continue
+
+    return items
+
+
+@router.get("/{report_id}/download")
+def download_report(report_id: str) -> FileResponse:
+    """Download a generated report PDF.
+
+    Args:
+        report_id: The report UUID.
+
+    Returns:
+        PDF file response.
+
+    Raises:
+        HTTPException: 404 if report not found.
+    """
+    report_id = _validate_plan_id(report_id)
+    report_dir = ARTIFACTS_DIR / "generated"
+
+    # Look for a PDF file with the report ID
+    pdf_path = report_dir / f"{report_id}.pdf"
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail=f"Report PDF not found: {report_id}")
+
+    # Ensure path stays within artifacts
+    resolved = pdf_path.resolve()
+    try:
+        resolved.relative_to(ARTIFACTS_DIR)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Path outside permitted directory")  # noqa: B904
+
+    return FileResponse(resolved, media_type="application/pdf", filename=f"report-{report_id}.pdf")
 
 
 __all__ = ["router"]

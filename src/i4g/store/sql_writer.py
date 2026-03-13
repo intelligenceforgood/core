@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from i4g.store import sql as sql_schema
 from i4g.store.sql import session_factory as default_session_factory
+from i4g.utils.entity_types import normalize_entity_type
 
 LOGGER = logging.getLogger(__name__)
 
@@ -367,7 +368,7 @@ class SqlWriter:
             values = {
                 "entity_id": entity_id,
                 "case_id": case_id,
-                "entity_type": entity.entity_type,
+                "entity_type": normalize_entity_type(entity.entity_type),
                 "canonical_value": entity.canonical_value,
                 "raw_value": entity.raw_value,
                 "confidence": _quantize_decimal(entity.confidence),
@@ -388,7 +389,7 @@ class SqlWriter:
     def _lookup_entity_id(self, session: Session, case_id: str, entity: EntityPayload) -> str | None:
         stmt = sa.select(sql_schema.entities.c.entity_id).where(
             sql_schema.entities.c.case_id == case_id,
-            sql_schema.entities.c.entity_type == entity.entity_type,
+            sql_schema.entities.c.entity_type == normalize_entity_type(entity.entity_type),
             sql_schema.entities.c.canonical_value == entity.canonical_value,
         )
         return session.execute(stmt).scalar_one_or_none()

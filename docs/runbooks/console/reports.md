@@ -7,6 +7,7 @@ your local dossier directory; download chips and client-side verification use th
 ![Reports tab list view](../../assets/console/dossiers-list.png)
 
 ## Prerequisites
+
 - Sign into the console at `https://i4g-console-y5jge5w2cq-uc.a.run.app/reports/dossiers` (IAP-protected).
 - Ensure the dossier queue contains at least one `completed` plan. Run `i4g-admin process-dossiers --batch-size 3` or
   kick the Cloud Run job if the list is empty.
@@ -14,6 +15,7 @@ your local dossier directory; download chips and client-side verification use th
   pagination on poor connections.
 
 ## 1. Filter and review the queue
+
 1. Use the filter card to select a **Status** (Completed, Pending, Failed, All) and adjust the **Rows to load** limit.
    Submitting the form refreshes the list and updates the badge that reports how many plans were returned.
 2. Each dossier card highlights:
@@ -42,6 +44,7 @@ your local dossier directory; download chips and client-side verification use th
    see both the console output and the `.signatures.json` file when reviewing a handoff.
 
 ## 3. Share dossiers with partners
+
 1. Download the manifest, markdown dossier, and signature-manifest from the chips at the top of the card or from the
    side panel that opens after you click a file path.
 2. When sending artifacts to LEA contacts, provide:
@@ -66,6 +69,7 @@ your local dossier directory; download chips and client-side verification use th
 4. Capture the banner text and first eight hash characters in your notes for the handoff ticket.
 
 ## 4. Troubleshooting
+
 - **Missing cards** — queue probably lacks completed plans. Run the CLI job or confirm Cloud Run completed the latest
   batch.
 - **Repeated verification failures** — re-run `i4g-admin process-dossiers --plan-id ...` to regenerate the manifest. If
@@ -74,6 +78,7 @@ your local dossier directory; download chips and client-side verification use th
   verification for most triage flows.
 
 ## 5. Related resources
+
 - Dossier architecture and queue settings: [development/dev_guide.md](../../development/dev_guide.md).
 - Bundle criteria and milestone scope: `planning/milestone4_agentic_evidence_dossiers.md`.
 - Golden regression harness that backs the console data: `tests/unit/reports/test_dossier_golden_regression.py`.
@@ -85,6 +90,7 @@ We recommend a nightly smoke run to validate that newly generated dossiers remai
 uploads contain the expected exports. The repo includes a sample GitHub Action workflow (`.github/workflows/nightly-smoke-dossiers.yml`) that boots a local FastAPI instance, runs `scripts/smoke_dossiers.py`, and fails if any verification returns mismatches or missing artifacts.
 
 Alerting suggestion (StatsD/Grafana):
+
 - Metric: `reports.dossiers.verify` with tags `all_verified=false` or `mismatch=<n>`
 - Threshold: Trigger a PagerDuty/Slack alert when `mismatch > 0` or when `missing_count > 0` for more than 5 minutes.
 
@@ -92,6 +98,46 @@ Example Grafana query (StatsD/Prometheus translation):
 `sum by (job) (increase(reports_dossiers_verify_mismatch_total[5m])) > 0`
 
 If the nightly smoke fails, the workflow will report a failure and a reviewer should:
+
 1. Fetch `/reports/dossiers` and select a recent completed plan.
 2. Re-run `i4g-admin process-dossiers --plan-id <plan_id>` to rebuild the manifest and artifacts.
 3. Re-run the smoke or open a bug for persistent failures.
+
+---
+
+## 7. Executive Summary & LEA Dossier Generation (Sprint 3)
+
+Sprint 3 adds two new report templates accessible from **Reports → Builder**:
+
+### Executive Summary
+
+1. Navigate to **Reports → Builder**.
+2. Select **Executive Summary** template (default TLP: AMBER).
+3. Define scope (optional campaign or date range filter).
+4. Click **Generate**. The report is queued and appears in the Library.
+
+The template renders KPI cards, loss distribution, detection velocity metrics,
+pipeline funnel throughput, and an optional executive narrative.
+
+### LEA Evidence Dossier
+
+1. Select **LEA Evidence Dossier** template (default TLP: RED).
+2. Define scope (typically a specific campaign or entity set).
+3. Generate. The dossier packages indicators, entities, evidence exhibits with
+   per-artifact SHA-256 hashes, and an integrity manifest.
+
+### TLP override procedures
+
+TLP labels default per template (see table below). To override:
+
+1. In the Builder form, select a different TLP from the dropdown.
+2. Only valid TLP values are accepted: `TLP:WHITE`, `TLP:GREEN`, `TLP:AMBER`,
+   `TLP:RED`.
+3. Invalid values return HTTP 400.
+
+| Template             | Default TLP |
+| -------------------- | ----------- |
+| Executive Summary    | TLP:AMBER   |
+| LEA Evidence Dossier | TLP:RED     |
+| Campaign Bulletin    | TLP:AMBER   |
+| SAR Supplement       | TLP:AMBER   |
