@@ -349,8 +349,8 @@ def _refresh_entity_stats(session: Session) -> int:
             "avg_risk_score": round(float(row.avg_risk_score or 0), 1),
             "first_seen_at": row.first_seen_at,
             "last_seen_at": row.last_seen_at,
-            "campaign_ids": json.dumps(campaign_ids),
-            "top_classifications": json.dumps(top_cls),
+            "campaign_ids": [str(c) for c in campaign_ids],
+            "top_classifications": top_cls,
             "updated_at": now,
         }
         upsert = ins.on_conflict_do_update(
@@ -527,11 +527,11 @@ def _refresh_campaign_stats(session: Session, weights: dict[str, float] | None =
             "campaign_id": cid,
             "case_count": case_count,
             "indicator_count": indicator_count,
-            "entity_types": json.dumps(entity_types),
+            "entity_types": entity_types,
             "loss_sum": loss_sum,
             "victim_count": victim_count,
             "risk_score": risk_score,
-            "taxonomy_rollup": json.dumps(rollup),
+            "taxonomy_rollup": rollup,
             "first_case_at": first_case_at,
             "last_case_at": last_case_at,
             "status": status,
@@ -550,7 +550,7 @@ def _refresh_campaign_stats(session: Session, weights: dict[str, float] | None =
             .values(
                 risk_score=risk_score,
                 status=status,
-                taxonomy_rollup=json.dumps(rollup),
+                taxonomy_rollup=rollup,
                 updated_at=now,
             )
         )

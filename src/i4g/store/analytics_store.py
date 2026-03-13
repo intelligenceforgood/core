@@ -64,6 +64,48 @@ class AnalyticsStore:
             rows = session.execute(sa.select(sa.distinct(es.c.entity_type)).order_by(es.c.entity_type)).all()
             return [r[0] for r in rows]
 
+    @staticmethod
+    def _entity_filters(
+        *,
+        entity_type: str | None = None,
+        status: str | None = None,
+        min_case_count: int | None = None,
+        min_loss: float | None = None,
+    ) -> list[sa.ColumnElement]:
+        """Return WHERE clauses for entity_stats queries."""
+        es = sql_schema.entity_stats
+        clauses: list[sa.ColumnElement] = []
+        if entity_type:
+            clauses.append(es.c.entity_type == entity_type)
+        if status:
+            clauses.append(es.c.status == status)
+        if min_case_count is not None:
+            clauses.append(es.c.case_count >= min_case_count)
+        if min_loss is not None:
+            clauses.append(es.c.loss_sum >= min_loss)
+        return clauses
+
+    def count_entity_stats(
+        self,
+        *,
+        entity_type: str | None = None,
+        status: str | None = None,
+        min_case_count: int | None = None,
+        min_loss: float | None = None,
+    ) -> int:
+        """Return total count of entity_stats matching the given filters."""
+        es = sql_schema.entity_stats
+        stmt = sa.select(sa.func.count()).select_from(es)
+        for clause in self._entity_filters(
+            entity_type=entity_type,
+            status=status,
+            min_case_count=min_case_count,
+            min_loss=min_loss,
+        ):
+            stmt = stmt.where(clause)
+        with self._session_scope() as session:
+            return session.execute(stmt).scalar() or 0
+
     def list_entity_stats(
         self,
         *,
@@ -93,15 +135,13 @@ class AnalyticsStore:
         """
         es = sql_schema.entity_stats
         stmt = sa.select(es)
-
-        if entity_type:
-            stmt = stmt.where(es.c.entity_type == entity_type)
-        if status:
-            stmt = stmt.where(es.c.status == status)
-        if min_case_count is not None:
-            stmt = stmt.where(es.c.case_count >= min_case_count)
-        if min_loss is not None:
-            stmt = stmt.where(es.c.loss_sum >= min_loss)
+        for clause in self._entity_filters(
+            entity_type=entity_type,
+            status=status,
+            min_case_count=min_case_count,
+            min_loss=min_loss,
+        ):
+            stmt = stmt.where(clause)
 
         sort_col = getattr(es.c, order_by, es.c.case_count)
         stmt = stmt.order_by(sort_col.desc() if descending else sort_col.asc())
@@ -159,11 +199,8 @@ class AnalyticsStore:
         """
         ist = sql_schema.indicator_stats
         stmt = sa.select(ist)
-
-        if category:
-            stmt = stmt.where(ist.c.category == category)
-        if min_case_count is not None:
-            stmt = stmt.where(ist.c.case_count >= min_case_count)
+        for clause in self._indicator_filters(category=category, min_case_count=min_case_count):
+            stmt = stmt.where(clause)
 
         sort_col = getattr(ist.c, order_by, ist.c.case_count)
         stmt = stmt.order_by(sort_col.desc() if descending else sort_col.asc())
@@ -172,6 +209,35 @@ class AnalyticsStore:
         with self._session_scope() as session:
             rows = session.execute(stmt).all()
             return [dict(r._mapping) for r in rows]
+
+    @staticmethod
+    def _indicator_filters(
+        *,
+        category: str | None = None,
+        min_case_count: int | None = None,
+    ) -> list[sa.ColumnElement]:
+        """Return WHERE clauses for indicator_stats queries."""
+        ist = sql_schema.indicator_stats
+        clauses: list[sa.ColumnElement] = []
+        if category:
+            clauses.append(ist.c.category == category)
+        if min_case_count is not None:
+            clauses.append(ist.c.case_count >= min_case_count)
+        return clauses
+
+    def count_indicator_stats(
+        self,
+        *,
+        category: str | None = None,
+        min_case_count: int | None = None,
+    ) -> int:
+        """Return total count of indicator_stats matching the given filters."""
+        ist = sql_schema.indicator_stats
+        stmt = sa.select(sa.func.count()).select_from(ist)
+        for clause in self._indicator_filters(category=category, min_case_count=min_case_count):
+            stmt = stmt.where(clause)
+        with self._session_scope() as session:
+            return session.execute(stmt).scalar() or 0
 
     def get_indicator_stat(self, indicator_id: str) -> dict[str, Any] | None:
         """Fetch stats for a specific indicator.

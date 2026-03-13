@@ -68,8 +68,10 @@ def mock_analytics_store() -> MagicMock:
     """Create a mock AnalyticsStore."""
     store = MagicMock()
     store.list_entity_stats.return_value = list(_SAMPLE_ENTITIES)
+    store.count_entity_stats.return_value = len(_SAMPLE_ENTITIES)
     store.get_entity_stat.return_value = dict(_SAMPLE_ENTITIES[0])
     store.list_indicator_stats.return_value = list(_SAMPLE_INDICATORS)
+    store.count_indicator_stats.return_value = len(_SAMPLE_INDICATORS)
     store.get_indicator_stat.return_value = dict(_SAMPLE_INDICATORS[0])
     store.get_entity_activity.return_value = [
         {"week": "2025-W01", "case_count": 1},

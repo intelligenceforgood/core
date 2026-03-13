@@ -268,11 +268,17 @@ def list_entities(
         limit=limit,
         offset=offset,
     )
+    total = store.count_entity_stats(
+        entity_type=entity_type,
+        status=status,
+        min_case_count=min_case_count,
+        min_loss=min_loss,
+    )
     if _is_researcher(user):
         items = [_anonymize_entity(i) for i in items]
     return EntityListResponse(
         items=[EntityStatResponse.model_validate(i) for i in items],
-        count=len(items),
+        count=total,
         limit=limit,
         offset=offset,
     )
@@ -465,12 +471,16 @@ def list_indicators(
         limit=limit,
         offset=offset,
     )
+    total = store.count_indicator_stats(
+        category=category,
+        min_case_count=min_case_count,
+    )
     if _is_researcher(user):
         items = [_anonymize_indicator(i) for i in items]
     prepared = [_map_indicator_fields(i) for i in items]
     return IndicatorListResponse(
         items=[IndicatorStatResponse.model_validate(p) for p in prepared],
-        count=len(items),
+        count=total,
         limit=limit,
         offset=offset,
     )

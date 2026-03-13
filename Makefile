@@ -5,6 +5,7 @@
         build-report-dev deploy-report-dev build-report-prod deploy-report-prod \
         build-account-dev deploy-account-dev build-account-prod deploy-account-prod \
         build-dossier-dev deploy-dossier-dev build-dossier-prod deploy-dossier-prod \
+        deploy-analytics-dev deploy-analytics-prod \
         deploy-all-jobs-dev deploy-all-jobs-prod rehydrate
 
 # ---------- Setup ----------
@@ -105,7 +106,14 @@ deploy-dossier-dev: build-dossier-dev
 		--region us-central1 \
 		--project i4g-dev
 
-deploy-all-jobs-dev: deploy-ingest-dev deploy-intake-dev deploy-report-dev deploy-account-dev deploy-dossier-dev
+# analytics-refresh reuses the ingest-job image (no separate build target).
+deploy-analytics-dev:
+	gcloud run jobs deploy analytics-refresh \
+		--image us-central1-docker.pkg.dev/i4g-dev/applications/ingest-job:dev \
+		--region us-central1 \
+		--project i4g-dev
+
+deploy-all-jobs-dev: deploy-ingest-dev deploy-intake-dev deploy-report-dev deploy-account-dev deploy-dossier-dev deploy-analytics-dev
 	@echo "✅ All dev jobs deployed."
 
 # ---------- Jobs (Prod) ----------
@@ -159,7 +167,14 @@ deploy-dossier-prod: build-dossier-prod
 		--region us-central1 \
 		--project i4g-prod
 
-deploy-all-jobs-prod: deploy-ingest-prod deploy-intake-prod deploy-report-prod deploy-account-prod deploy-dossier-prod
+# analytics-refresh reuses the ingest-job image (no separate build target).
+deploy-analytics-prod:
+	gcloud run jobs deploy analytics-refresh \
+		--image us-central1-docker.pkg.dev/i4g-prod/applications/ingest-job:prod \
+		--region us-central1 \
+		--project i4g-prod
+
+deploy-all-jobs-prod: deploy-ingest-prod deploy-intake-prod deploy-report-prod deploy-account-prod deploy-dossier-prod deploy-analytics-prod
 	@echo "✅ All prod jobs deployed."
 
 # ---------- Clean ----------

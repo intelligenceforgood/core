@@ -90,7 +90,7 @@ This document serves as the authoritative inventory of background jobs and worke
   - Computes taxonomy rollup from member case classifications.
   - Anonymizes entity_stats for fully purged cases (PII soft-anonymization).
 - **Env Vars:** `I4G_ANALYTICS__REFRESH_INTERVAL_MINUTES` (default 15), `I4G_ANALYTICS__CAMPAIGN_RISK_WEIGHTS`.
-- **Infrastructure:** Cloud Run Job (Scheduled via Cloud Scheduler, every 15 minutes).
+- **Infrastructure:** Cloud Run Job `analytics-refresh` (Scheduled via Cloud Scheduler, every 4 hours). Reuses `ingest-job` Docker image.
 
 ### 8. Linkage Extraction (`linkage-extract`)
 
