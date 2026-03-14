@@ -855,6 +855,111 @@ def export_case(case_id: str) -> JSONResponse:
     return JSONResponse(content=payload)
 
 
+# ---------------------------------------------------------------------------
+# LEA Referral Tracking (S6-06, S6-07)
+# ---------------------------------------------------------------------------
+
+
+class LeaReferralRequest(CamelModel):
+    """Payload for creating or updating an LEA referral on a case."""
+
+    agency: str = Field(..., description="Name of the law enforcement agency.")
+    case_number: str | None = Field(None, description="Agency case/reference number.")
+
+
+class LeaReferralResponse(CamelModel):
+    """LEA referral status for a case."""
+
+    case_id: str
+    lea_referred_at: str | None = None
+    lea_agency: str | None = None
+    lea_case_number: str | None = None
+
+
+@router.post(
+    "/{case_id}/lea-referral",
+    summary="Log LEA referral",
+    response_model=LeaReferralResponse,
+    dependencies=[Depends(require_role("analyst"))],
+)
+def create_lea_referral(case_id: str, body: LeaReferralRequest) -> LeaReferralResponse:
+    """Log or update an LEA referral for a case.
+
+    Records the referral date, agency name, and optional agency case number.
+    If a referral already exists, it is updated with the new values.
+
+    Args:
+        case_id: The case to refer.
+        body: LEA referral details.
+
+    Returns:
+        The updated referral record.
+    """
+    sf = build_sql_session_factory()
+    now = datetime.now(UTC)
+
+    with sf() as session:
+        _get_or_404(session, case_id)
+        session.execute(
+            sa.update(sql_schema.cases)
+            .where(sql_schema.cases.c.case_id == case_id)
+            .values(
+                lea_referred_at=now,
+                lea_agency=body.agency,
+                lea_case_number=body.case_number,
+                updated_at=now,
+            )
+        )
+        session.commit()
+
+    logger.info("LEA referral logged for case %s → %s", case_id, body.agency)
+    return LeaReferralResponse(
+        case_id=case_id,
+        lea_referred_at=now.isoformat(),
+        lea_agency=body.agency,
+        lea_case_number=body.case_number,
+    )
+
+
+@router.get(
+    "/{case_id}/lea-referral",
+    summary="Get LEA referral status",
+    response_model=LeaReferralResponse,
+)
+def get_lea_referral(case_id: str) -> LeaReferralResponse:
+    """Retrieve the LEA referral status for a case.
+
+    Args:
+        case_id: The case ID.
+
+    Returns:
+        Current referral status (may be empty if not yet referred).
+    """
+    sf = build_sql_session_factory()
+    with sf() as session:
+        row = session.execute(
+            sa.select(
+                sql_schema.cases.c.case_id,
+                sql_schema.cases.c.lea_referred_at,
+                sql_schema.cases.c.lea_agency,
+                sql_schema.cases.c.lea_case_number,
+            ).where(sql_schema.cases.c.case_id == case_id)
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Case not found")
+
+    referred_at = row.lea_referred_at
+    if isinstance(referred_at, datetime):
+        referred_at = referred_at.isoformat()
+
+    return LeaReferralResponse(
+        case_id=row.case_id,
+        lea_referred_at=referred_at,
+        lea_agency=row.lea_agency,
+        lea_case_number=row.lea_case_number,
+    )
+
+
 @router.delete(
     "/{case_id}",
     summary="GDPR deletion",

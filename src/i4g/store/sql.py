@@ -156,6 +156,8 @@ sa.Index("idx_cases_classification", cases.c.classification)
 sa.Index("idx_cases_tags", cases.c.tags, postgresql_using="gin")  # GIN index for tags array
 sa.Index("idx_cases_status", cases.c.status)
 sa.Index("idx_cases_risk_score", cases.c.risk_score)
+sa.Index("idx_cases_created_at", cases.c.created_at)
+sa.Index("idx_cases_created_at_classification", cases.c.created_at, cases.c.classification)
 
 source_documents = sa.Table(
     "source_documents",
@@ -197,6 +199,7 @@ entities = sa.Table(
     sa.UniqueConstraint("case_id", "entity_type", "canonical_value", name="uq_entities_case_type_value"),
 )
 sa.Index("idx_entities_type_value", entities.c.entity_type, entities.c.canonical_value)
+sa.Index("idx_entities_case_id", entities.c.case_id)
 
 entity_mentions = sa.Table(
     "entity_mentions",
@@ -372,6 +375,9 @@ intake_records = sa.Table(
     sa.Column("created_at", TIMESTAMP, nullable=True),
     sa.Column("updated_at", TIMESTAMP, nullable=True),
 )
+sa.Index("idx_intake_records_created_at", intake_records.c.created_at)
+sa.Index("idx_intake_records_case_id", intake_records.c.case_id)
+sa.Index("idx_intake_records_victim_country", intake_records.c.victim_country)
 
 intake_attachments = sa.Table(
     "intake_attachments",
@@ -659,6 +665,7 @@ indicator_stats = sa.Table(
 )
 sa.Index("idx_indicator_stats_category", indicator_stats.c.category)
 sa.Index("idx_indicator_stats_case_count", indicator_stats.c.case_count)
+sa.Index("idx_indicator_stats_first_seen_at", indicator_stats.c.first_seen_at)
 
 campaign_stats = sa.Table(
     "campaign_stats",
@@ -681,6 +688,8 @@ campaign_stats = sa.Table(
     sa.Column("status", sa.Text(), nullable=False, server_default="emerging"),
     sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
 )
+sa.Index("idx_campaign_stats_status", campaign_stats.c.status)
+sa.Index("idx_campaign_stats_risk_score", campaign_stats.c.risk_score)
 
 platform_kpis = sa.Table(
     "platform_kpis",
@@ -814,6 +823,45 @@ chart_share_tokens = sa.Table(
     sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
 )
 sa.Index("idx_chart_tokens_expires", chart_share_tokens.c.expires_at)
+
+# ---------------------------------------------------------------------------
+# Partner indicator feed (S6-09, S6-10, S6-11)
+# ---------------------------------------------------------------------------
+
+partner_api_keys = sa.Table(
+    "partner_api_keys",
+    METADATA,
+    sa.Column("key_id", UUID_TYPE, primary_key=True),
+    sa.Column("partner_name", sa.Text(), nullable=False),
+    sa.Column("key_hash", sa.Text(), nullable=False),
+    sa.Column("key_prefix", sa.String(length=8), nullable=False),
+    sa.Column("scopes", JSON_TYPE, nullable=True),
+    sa.Column("rate_limit_per_minute", sa.Integer(), nullable=False, server_default=sa.text("60")),
+    sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+    sa.Column("created_by", sa.Text(), nullable=False),
+    sa.Column("last_used_at", TIMESTAMP, nullable=True),
+    sa.Column("expires_at", TIMESTAMP, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_partner_keys_prefix", partner_api_keys.c.key_prefix)
+sa.Index("idx_partner_keys_active", partner_api_keys.c.is_active)
+
+partner_feed_audit = sa.Table(
+    "partner_feed_audit",
+    METADATA,
+    sa.Column("audit_id", UUID_TYPE, primary_key=True),
+    sa.Column("key_id", UUID_TYPE, nullable=False),
+    sa.Column("partner_name", sa.Text(), nullable=False),
+    sa.Column("endpoint", sa.Text(), nullable=False),
+    sa.Column("method", sa.Text(), nullable=False),
+    sa.Column("query_params", JSON_TYPE, nullable=True),
+    sa.Column("result_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
+    sa.Column("response_code", sa.Integer(), nullable=False),
+    sa.Column("ip_address", sa.Text(), nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_partner_audit_key", partner_feed_audit.c.key_id)
+sa.Index("idx_partner_audit_created", partner_feed_audit.c.created_at)
 
 
 def dialect_insert(session: Session, table: sa.Table):

@@ -312,21 +312,24 @@ flowchart LR
 
 **Key Endpoints (FastAPI Routers)**:
 
-| Prefix                   | Router            | Description                                            |
-| ------------------------ | ----------------- | ------------------------------------------------------ |
-| `/reviews`               | `review.py`       | Search, queue ops, saved-search CRUD, review actions   |
-| `/cases`                 | `cases.py`        | Case detail view (GET /cases/{id})                     |
-| `/intakes`               | `intake.py`       | Victim submission pipeline                             |
-| `/reports`               | `reports.py`      | Dossier listing, artifacts, signature verification     |
-| `/accounts`              | `account_list.py` | Account list extraction runs and artifacts             |
-| `/analytics`             | `analytics.py`    | Overview metrics, trends, intake stats                 |
-| `/dashboard`             | `dashboard.py`    | Overview stats (active investigations, recent actions) |
-| `/campaigns`             | `campaigns.py`    | Fraud campaign CRUD                                    |
-| `/discovery`             | `discovery.py`    | Vertex AI Discovery search                             |
-| `/taxonomy`              | `taxonomy.py`     | Fraud taxonomy hierarchy tree                          |
-| `/tokenization`          | `tokenization.py` | PII tokenize/detokenize endpoints                      |
-| `/tasks/{task_id}`       | `app.py`          | Background task status polling                         |
-| `POST /reports/generate` | `app.py`          | Guarded report generation trigger                      |
+| Prefix                     | Router            | Description                                             |
+| -------------------------- | ----------------- | ------------------------------------------------------- |
+| `/reviews`                 | `review.py`       | Search, queue ops, saved-search CRUD, review actions    |
+| `/cases`                   | `cases.py`        | Case detail view (GET /cases/{id})                      |
+| `/intakes`                 | `intake.py`       | Victim submission pipeline                              |
+| `/reports`                 | `reports.py`      | Dossier listing, artifacts, signature verification      |
+| `/accounts`                | `account_list.py` | Account list extraction runs and artifacts              |
+| `/analytics`               | `analytics.py`    | Overview metrics, trends, intake stats                  |
+| `/dashboard`               | `dashboard.py`    | Overview stats (active investigations, recent actions)  |
+| `/campaigns`               | `campaigns.py`    | Fraud campaign CRUD                                     |
+| `/discovery`               | `discovery.py`    | Vertex AI Discovery search                              |
+| `/taxonomy`                | `taxonomy.py`     | Fraud taxonomy hierarchy tree                           |
+| `/tokenization`            | `tokenization.py` | PII tokenize/detokenize endpoints                       |
+| `/tasks/{task_id}`         | `app.py`          | Background task status polling                          |
+| `POST /reports/generate`   | `app.py`          | Guarded report generation trigger                       |
+| `/intelligence`            | `intelligence.py` | Graph, watchlist, chart sharing, entity/indicator views |
+| `/feeds`                   | `partner_feed.py` | Partner indicator feed (API key auth, rate limited)     |
+| `/cases/{id}/lea-referral` | `cases.py`        | LEA referral tracking (create/read)                     |
 
 ---
 
@@ -854,6 +857,16 @@ gcloud run services update i4g-api --traffic
 - [ ] Replace in-memory `TASK_STATUS` with Redis for multi-instance consistency
 - [ ] CDN for static assets (Cloud CDN)
 - [ ] Multi-region deployment (us-central1 + europe-west1)
+
+### Completed (formerly Phase 2b — TIFAP Sprint 6)
+
+- [x] Threat Intelligence & Fraud Analytics Platform (TIFAP) — aggregation pipeline, graph service, campaign intelligence
+- [x] Partner indicator feed API with dedicated auth, rate limiting, and STIX/CSV export
+- [x] Blockchain analytics enrichment (wallet labels, risk scores, cluster edges)
+- [x] LEA referral tracking on case records
+- [x] Mobile-responsive Impact Dashboard with KPI sparklines
+- [x] Database index optimization for analytics queries (9 indexes added)
+- [x] External enrichment services (passive DNS, ASN lookup, takedown verification)
 
 ### Phase 3 (Scale)
 

@@ -747,3 +747,35 @@ curl -sS -H "X-API-KEY: dev-analyst-token" \
 Logs should show `Dossier queue job complete` along with the processed/completed counts. The API call confirms plan
 statuses flipped to `completed` and surfaces signature-manifest paths for downstream LEA workflows. 4. **Capture evidence.** Store the execution name, queue status, and any warnings (missing assets, signature mismatches)
 in `planning/change_log.md`. Repeat the smoke whenever you change dossier templates, tool outputs, or queue settings.
+
+## Analytics Smoke Tests (Sprint 6)
+
+### Aggregation Job
+
+```bash
+conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g jobs analytics refresh
+```
+
+Verify `entity_stats`, `indicator_stats`, `campaign_stats`, and `platform_kpis` tables are populated.
+
+### Dashboard API
+
+```bash
+curl -sS -H "X-API-KEY: dev-analyst-token" http://localhost:8000/impact/dashboard | jq '.kpis | length'
+curl -sS -H "X-API-KEY: dev-analyst-token" http://localhost:8000/impact/loss | jq 'length'
+```
+
+### Report Generation
+
+```bash
+curl -sS -H "X-API-KEY: dev-analyst-token" http://localhost:8000/reports/dossiers?limit=3 | jq '.count'
+```
+
+### Partner Feed
+
+```bash
+# Should return 401 without key
+curl -sS -o /dev/null -w "%{http_code}" http://localhost:8000/feeds/indicators
+# Should return 200 with valid key
+curl -sS -H "X-Partner-API-Key: <partner-key>" http://localhost:8000/feeds/indicators | jq '.total'
+```

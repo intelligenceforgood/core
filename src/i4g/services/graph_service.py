@@ -563,6 +563,49 @@ class GraphService:
             else:
                 self._graph.add_edge(src, tgt, weight=weight, edge_type=etype)
 
+    def add_wallet_cluster_edges(
+        self,
+        clusters: list[dict[str, Any]],
+    ) -> None:
+        """Add blockchain-derived wallet cluster edges to the graph (F-46 / S6-03).
+
+        Creates ``wallet_cluster`` edges between wallet entity nodes that
+        belong to the same on-chain cluster (as determined by a blockchain
+        analytics vendor).
+
+        Args:
+            clusters: List of cluster dicts, each with ``cluster_id`` and
+                ``addresses`` (list of wallet addresses). Addresses are
+                matched to graph nodes by ``wallet_address:<address>``
+                convention.
+        """
+        if self._graph is None:
+            return
+
+        for cluster in clusters:
+            addresses = cluster.get("addresses", [])
+            cluster_id = cluster.get("cluster_id", "")
+            # Build list of node IDs that exist in the graph
+            node_ids = []
+            for addr in addresses:
+                candidate = f"wallet_address:{addr}"
+                if candidate in self._graph:
+                    node_ids.append(candidate)
+                    self._graph.nodes[candidate]["blockchain_cluster"] = cluster_id
+                elif addr in self._graph:
+                    node_ids.append(addr)
+                    self._graph.nodes[addr]["blockchain_cluster"] = cluster_id
+
+            # Create pairwise edges
+            for i, n1 in enumerate(node_ids):
+                for n2 in node_ids[i + 1 :]:
+                    if self._graph.has_edge(n1, n2):
+                        existing_type = self._graph[n1][n2].get("edge_type", "co-occurrence")
+                        if "wallet_cluster" not in existing_type:
+                            self._graph[n1][n2]["edge_type"] = f"{existing_type},wallet_cluster"
+                    else:
+                        self._graph.add_edge(n1, n2, weight=2, edge_type="wallet_cluster")
+
     def compute_layout(self) -> dict[str, dict[str, float]]:
         """Compute server-side layout positions for large graphs (D13).
 

@@ -713,6 +713,65 @@ class EnrichmentSettings(BaseSettings):
         ),
         description="Maximum URLs to check per takedown run.",
     )
+    blockchain_vendor: str = Field(
+        default="mock",
+        validation_alias=AliasChoices(
+            "ENRICHMENT_BLOCKCHAIN_VENDOR",
+            "ENRICHMENT__BLOCKCHAIN_VENDOR",
+        ),
+        description="Blockchain analytics vendor: 'chainalysis', 'trm', 'elliptic', or 'mock'.",
+    )
+    blockchain_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "ENRICHMENT_BLOCKCHAIN_API_KEY",
+            "ENRICHMENT__BLOCKCHAIN_API_KEY",
+        ),
+        description="API key for the configured blockchain analytics vendor.",
+    )
+
+
+class PartnerFeedSettings(BaseSettings):
+    """Partner indicator feed API configuration.
+
+    Controls the machine-readable, TLP-tagged indicator feed for partner
+    organizations. Partners authenticate via API keys separate from
+    console auth.
+
+    Env vars: ``I4G_PARTNER_FEED__*``.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("PARTNER_FEED_ENABLED", "PARTNER_FEED__ENABLED"),
+        description="Enable the partner indicator feed API.",
+    )
+    rate_limit_per_minute: int = Field(
+        default=60,
+        validation_alias=AliasChoices(
+            "PARTNER_FEED_RATE_LIMIT_PER_MINUTE",
+            "PARTNER_FEED__RATE_LIMIT_PER_MINUTE",
+        ),
+        description="Max requests per minute per API key.",
+    )
+    default_page_size: int = Field(
+        default=100,
+        validation_alias=AliasChoices(
+            "PARTNER_FEED_DEFAULT_PAGE_SIZE",
+            "PARTNER_FEED__DEFAULT_PAGE_SIZE",
+        ),
+        description="Default page size for paginated indicator feed responses.",
+    )
+    max_page_size: int = Field(
+        default=1000,
+        validation_alias=AliasChoices(
+            "PARTNER_FEED_MAX_PAGE_SIZE",
+            "PARTNER_FEED__MAX_PAGE_SIZE",
+        ),
+        description="Maximum allowed page size for indicator feed requests.",
+    )
 
 
 class FeedbackSettings(BaseSettings):

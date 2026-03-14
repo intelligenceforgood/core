@@ -29,6 +29,7 @@ from i4g.settings.sections import (
     IntakeJobSettings,
     LLMSettings,
     ObservabilitySettings,
+    PartnerFeedSettings,
     PIISettings,
     RedisSettings,
     ReportSettings,
@@ -219,6 +220,7 @@ class Settings(BaseSettings):
     analytics: AnalyticsSettings = Field(default_factory=AnalyticsSettings)
     enrichment: EnrichmentSettings = Field(default_factory=EnrichmentSettings)
     email: EmailSettings = Field(default_factory=EmailSettings)
+    partner_feed: PartnerFeedSettings = Field(default_factory=PartnerFeedSettings)
     db_admin: DbAdminSettings = Field(default_factory=DbAdminSettings)
     env_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
     config_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)

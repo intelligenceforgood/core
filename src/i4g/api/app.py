@@ -25,6 +25,7 @@ from i4g.api.impact import router as impact_router
 from i4g.api.intake import router as intake_router
 from i4g.api.intelligence import router as intelligence_router
 from i4g.api.investigations import router as investigations_router
+from i4g.api.partner_feed import router as partner_feed_router
 from i4g.api.reports import router as reports_router
 from i4g.api.response_models import TaskStatusResponse, TaskUpdateResponse
 from i4g.api.review import router as review_router
@@ -243,6 +244,7 @@ def create_app() -> FastAPI:
     app.include_router(reports_router)
     app.include_router(taxonomy_router)
     app.include_router(tokenization_router)
+    app.include_router(partner_feed_router)
     app.include_router(task_router)
 
     # Serve artifacts

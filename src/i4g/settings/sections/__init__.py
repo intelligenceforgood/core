@@ -13,6 +13,7 @@ from i4g.settings.sections.jobs import (
     IngestRetryJobSettings,
     IntakeJobSettings,
     ObservabilitySettings,
+    PartnerFeedSettings,
     RedisSettings,
     ReportSettings,
     SavedSearchSettings,
@@ -52,4 +53,5 @@ __all__ = [
     "SsiSettings",
     "FeedbackSettings",
     "EnrichmentSettings",
+    "PartnerFeedSettings",
 ]

@@ -1,7 +1,7 @@
 # Threat Intelligence & Fraud Analytics — Technical Design Document
 
-> **Status**: Active (v1.2)
-> **Sprint**: S1–S5 — Data Foundation through Automation + Advanced Features
+> **Status**: Active (v1.3)
+> **Sprint**: S1–S6 — Data Foundation through Final Hardening
 > **Last Updated**: March 2026
 
 ---
@@ -668,6 +668,8 @@ retrieves the chart config if the token is valid and not expired.
 | `src/i4g/worker/jobs/scheduled_reports.py`              | Scheduled report generation job          |
 | `src/i4g/services/enrichment/passive_dns.py`            | SecurityTrails passive DNS integration   |
 | `src/i4g/services/enrichment/asn_lookup.py`             | RDAP ASN lookup service                  |
+| `src/i4g/services/enrichment/blockchain.py`             | Blockchain analytics vendor integration  |
+| `src/i4g/api/partner_feed.py`                           | Partner indicator feed API               |
 | `src/i4g/services/anonymizer.py`                        | PII anonymization for researcher exports |
 | `src/i4g/api/intelligence.py` (watchlist/chart section) | Watchlist CRUD, chart share endpoints    |
 | `src/i4g/api/exports.py` (researcher section)           | Anonymized researcher data export        |

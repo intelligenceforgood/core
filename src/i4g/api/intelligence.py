@@ -98,6 +98,27 @@ def _anonymize_indicator(item: dict[str, Any]) -> dict[str, Any]:
     return redacted
 
 
+def _compute_lea_referral_summary(linked_cases: list[dict[str, Any]]) -> dict[str, Any]:
+    """Compute LEA referral summary from linked case rows.
+
+    Args:
+        linked_cases: List of case dicts (from campaign case linkage).
+
+    Returns:
+        Dict with referred_count, total, and agencies list.
+    """
+    total = len(linked_cases)
+    referred = 0
+    agencies: set[str] = set()
+    for case in linked_cases:
+        if case.get("lea_referred_at") or case.get("lea_agency"):
+            referred += 1
+            agency = case.get("lea_agency")
+            if agency:
+                agencies.add(agency)
+    return {"referred_count": referred, "total": total, "agencies": sorted(agencies)}
+
+
 # ---------------------------------------------------------------------------
 # Response models
 # ---------------------------------------------------------------------------
@@ -140,9 +161,13 @@ class EntityStatResponse(CamelModel):
 
 
 class EntityDetailResponse(EntityStatResponse):
-    """Entity stats with campaign linkage."""
+    """Entity stats with campaign linkage and optional blockchain enrichment."""
 
     campaigns: list[dict[str, str]] = Field(default_factory=list)
+    blockchain_enrichment: dict[str, Any] | None = Field(
+        default=None,
+        description="Blockchain analytics data for wallet entities (vendor risk label, cluster, exchange).",
+    )
 
 
 class IndicatorStatResponse(CamelModel):
@@ -344,7 +369,20 @@ def get_entity(
         if campaign:
             campaigns.append({"id": cid, "name": campaign.get("name", "")})
 
-    return EntityDetailResponse.model_validate({**stat, "campaigns": campaigns})
+    # Blockchain enrichment for wallet entities (S6-04)
+    blockchain_data = None
+    if entity_type in ("crypto_wallet", "wallet_address"):
+        from i4g.services.enrichment.blockchain import enrich_wallet
+
+        try:
+            enrichment = enrich_wallet(canonical_value)
+            blockchain_data = enrichment.to_dict()
+        except Exception:
+            logger.warning("Blockchain enrichment failed for %s", canonical_value, exc_info=True)
+
+    return EntityDetailResponse.model_validate(
+        {**stat, "campaigns": campaigns, "blockchain_enrichment": blockchain_data}
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -678,12 +716,16 @@ class ThreatCampaignListResponse(CamelModel):
 
 
 class ThreatCampaignDetailResponse(ThreatCampaignResponse):
-    """Campaign detail with linked entities, timeline, and eCX status."""
+    """Campaign detail with linked entities, timeline, eCX status, and LEA referrals."""
 
     cases: list[dict[str, Any]] = Field(default_factory=list)
     entity_types: dict[str, int] = Field(default_factory=dict)
     ssi_links: list[dict[str, Any]] = Field(default_factory=list)
     ecx_status: str | None = None
+    lea_referral_summary: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Summary of LEA referral status across member cases (referred_count, total, agencies).",
+    )
 
 
 class CampaignTimelinePoint(CamelModel):
@@ -788,6 +830,9 @@ def get_threat_campaign_detail(
     if isinstance(entity_types, str):
         entity_types = json.loads(entity_types)
 
+    # Compute LEA referral summary across member cases (S6-08)
+    lea_summary = _compute_lea_referral_summary(linked_cases)
+
     return ThreatCampaignDetailResponse(
         campaign_id=campaign_id,
         name=campaign.get("name", ""),
@@ -805,6 +850,7 @@ def get_threat_campaign_detail(
         indicator_count=int(stat.get("indicator_count", 0)),
         cases=linked_cases,
         entity_types=entity_types if isinstance(entity_types, dict) else {},
+        lea_referral_summary=lea_summary,
     )
 
 
