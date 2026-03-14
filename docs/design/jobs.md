@@ -7,19 +7,23 @@ This document serves as the authoritative inventory of background jobs and worke
 
 ## Job Inventory
 
-| Job Name                   | Purpose                                                                                                                                                                    | Source Code                                     | Docker Image             | Entrypoint / Command              |
-| :------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------- | :----------------------- | :-------------------------------- |
-| **Ingestion Worker**       | Batch processing of data bundles (JSONL). Handles embedding generation and store population.                                                                               | `src/i4g/worker/jobs/ingest.py`                 | `ingest-job.Dockerfile`  | `i4g jobs ingest`                 |
-| **Intake Worker**          | Processes continuous intake streams and new data arrivals.                                                                                                                 | `src/i4g/worker/jobs/intake.py`                 | `intake-job.Dockerfile`  | `i4g jobs intake`                 |
-| **Report Generator**       | Generates PDF/Markdown reports for accepted cases.                                                                                                                         | `src/i4g/worker/jobs/report.py`                 | `report-job.Dockerfile`  | `i4g jobs report`                 |
-| **Dossier Processor**      | Assembles and enriches evidence dossiers from the queue.                                                                                                                   | `src/i4g/worker/jobs/dossier_queue.py`          | `dossier-job.Dockerfile` | `i4g jobs dossier`                |
-| **Account Manager**        | Syncs account watchlists and manages external provider data.                                                                                                               | `src/i4g/worker/jobs/account_list.py`           | `account-job.Dockerfile` | `/app/scripts/run_account_job.sh` |
-| **Ingest Retry**           | Retries failed ingestion batches. (Runs within Ingest context or standalone).                                                                                              | `src/i4g/worker/jobs/ingest_retry.py`           | _Shared with Ingest_     | `i4g jobs ingest-retry`           |
-| **Classification Sweeper** | Batch fraud classification of pending cases using taxonomy + LLM.                                                                                                          | `src/i4g/worker/jobs/classification_sweeper.py` | _Shared with Ingest_     | `i4g jobs classify`               |
-| **PII Backfill**           | Tokenizes existing PII in the StructuredStore (backfill utility).                                                                                                          | `src/i4g/worker/jobs/pii_backfill.py`           | _Shared with Ingest_     | `i4g jobs pii-backfill`           |
-| **Retention Purge**        | Two-phase data retention: soft-deletes resolved cases past their retention window, then hard-purges after a grace period (including PII vault, evidence, and vector data). | `src/i4g/worker/jobs/retention_purge.py`        | _Shared with Ingest_     | `i4g jobs retention-purge`        |
-| **Analytics Aggregation**  | Pre-computes entity, indicator, campaign stats and platform KPIs. Includes campaign risk scoring, lifecycle transitions, and PII anonymization.                            | `src/i4g/worker/jobs/analytics_aggregation.py`  | _Shared with Ingest_     | `i4g jobs analytics`              |
-| **Linkage Extraction**     | LLM-driven extraction of financial indicators from intake narratives, writing `intake_indicator_links` with confidence scores.                                             | `src/i4g/worker/jobs/linkage_extract.py`        | _Shared with Ingest_     | `i4g jobs linkage-extract`        |
+| Job Name                      | Purpose                                                                                                                                                                    | Source Code                                        | Docker Image             | Entrypoint / Command                 |
+| :---------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------- | :----------------------- | :----------------------------------- |
+| **Ingestion Worker**          | Batch processing of data bundles (JSONL). Handles embedding generation and store population.                                                                               | `src/i4g/worker/jobs/ingest.py`                    | `ingest-job.Dockerfile`  | `i4g jobs ingest`                    |
+| **Intake Worker**             | Processes continuous intake streams and new data arrivals.                                                                                                                 | `src/i4g/worker/jobs/intake.py`                    | `intake-job.Dockerfile`  | `i4g jobs intake`                    |
+| **Report Generator**          | Generates PDF/Markdown reports for accepted cases.                                                                                                                         | `src/i4g/worker/jobs/report.py`                    | `report-job.Dockerfile`  | `i4g jobs report`                    |
+| **Dossier Processor**         | Assembles and enriches evidence dossiers from the queue.                                                                                                                   | `src/i4g/worker/jobs/dossier_queue.py`             | `dossier-job.Dockerfile` | `i4g jobs dossier`                   |
+| **Account Manager**           | Syncs account watchlists and manages external provider data.                                                                                                               | `src/i4g/worker/jobs/account_list.py`              | `account-job.Dockerfile` | `/app/scripts/run_account_job.sh`    |
+| **Ingest Retry**              | Retries failed ingestion batches. (Runs within Ingest context or standalone).                                                                                              | `src/i4g/worker/jobs/ingest_retry.py`              | _Shared with Ingest_     | `i4g jobs ingest-retry`              |
+| **Classification Sweeper**    | Batch fraud classification of pending cases using taxonomy + LLM.                                                                                                          | `src/i4g/worker/jobs/classification_sweeper.py`    | _Shared with Ingest_     | `i4g jobs classify`                  |
+| **PII Backfill**              | Tokenizes existing PII in the StructuredStore (backfill utility).                                                                                                          | `src/i4g/worker/jobs/pii_backfill.py`              | _Shared with Ingest_     | `i4g jobs pii-backfill`              |
+| **Retention Purge**           | Two-phase data retention: soft-deletes resolved cases past their retention window, then hard-purges after a grace period (including PII vault, evidence, and vector data). | `src/i4g/worker/jobs/retention_purge.py`           | _Shared with Ingest_     | `i4g jobs retention-purge`           |
+| **Analytics Aggregation**     | Pre-computes entity, indicator, campaign stats and platform KPIs. Includes campaign risk scoring, lifecycle transitions, and PII anonymization.                            | `src/i4g/worker/jobs/analytics_aggregation.py`     | _Shared with Ingest_     | `i4g jobs analytics`                 |
+| **Linkage Extraction**        | LLM-driven extraction of financial indicators from intake narratives, writing `intake_indicator_links` with confidence scores.                                             | `src/i4g/worker/jobs/linkage_extract.py`           | _Shared with Ingest_     | `i4g jobs linkage-extract`           |
+| **Watchlist Check**           | Checks pinned watchlist entities for new case activity and loss threshold breaches, generating alerts.                                                                     | `src/i4g/worker/jobs/watchlist_check.py`           | _Shared with Ingest_     | `i4g jobs watchlist-check`           |
+| **Infrastructure Clustering** | Discovers shared-hosting relationships by computing entity co-occurrence across cases, writing infrastructure edges.                                                       | `src/i4g/worker/jobs/infrastructure_clustering.py` | _Shared with Ingest_     | `i4g jobs infrastructure-clustering` |
+| **Takedown Check**            | Verifies URL entity reachability to detect site takedowns, setting `taken_down_at` on confirmation.                                                                        | `src/i4g/worker/jobs/takedown_check.py`            | _Shared with Ingest_     | `i4g jobs takedown-check`            |
+| **Scheduled Reports**         | Checks for due report schedules and triggers automated report generation based on configured cadence and templates.                                                        | `src/i4g/worker/jobs/scheduled_reports.py`         | _Shared with Ingest_     | `i4g jobs scheduled-reports`         |
 
 ## Detailed Job Descriptions
 
@@ -113,3 +117,48 @@ All jobs are containerized using Dockerfiles located in `core/docker/`.
 - **Registry:** Artifact Registry (`us-central1-docker.pkg.dev/i4g-dev/applications/...`).
 
 For build instructions, see [core/docker/README.md](../../docker/README.md).
+
+## Sprint 5 Jobs
+
+### 9. Watchlist Check (`watchlist-check`)
+
+- **Responsibility:** Monitor pinned entities for new case activity and loss threshold breaches.
+- **Key Logic:**
+  - Iterates all watchlist items from `WatchlistStore`.
+  - Queries `entity_stats` for current case counts and loss totals.
+  - Compares against a stored baseline count (tracked via `[baseline:N]` tag in notes).
+  - Creates `new_activity` or `loss_threshold` alerts on changes.
+- **Env Vars:** `I4G_ANALYTICS__WATCHLIST_CHECK_INTERVAL_MINUTES` (default 30).
+- **Infrastructure:** Cloud Run Job (Scheduled). Reuses `ingest-job` Docker image.
+
+### 10. Infrastructure Clustering (`infrastructure-clustering`)
+
+- **Responsibility:** Discover shared infrastructure relationships between entities.
+- **Key Logic:**
+  - Queries entities with infrastructure types (ip_address, domain, url, hosting_provider, registrar, nameserver, ssl_certificate).
+  - Builds pairwise co-occurrence counts across cases.
+  - Classifies edge types: shared_ip, shared_registrar, shared_hosting, shared_case.
+  - Upserts edges to `infrastructure_edges` table.
+- **Env Vars:** `I4G_ANALYTICS__INFRASTRUCTURE_CLUSTERING_INTERVAL_HOURS` (default 6).
+- **Infrastructure:** Cloud Run Job (Scheduled). Reuses `ingest-job` Docker image.
+
+### 11. Takedown Check (`takedown-check`)
+
+- **Responsibility:** Verify whether known scam URLs have been taken down.
+- **Key Logic:**
+  - Selects URL entities without `taken_down_at` from `entity_stats`.
+  - Performs HTTP HEAD requests to check reachability.
+  - Codes 404, 410, 451, 502, 503, 521, 523 and connection errors indicate takedown.
+  - Sets `taken_down_at` timestamp on confirmed takedowns.
+- **Env Vars:** `I4G_ENRICHMENT__TAKEDOWN_CHECK_INTERVAL_HOURS` (default 12), `I4G_ENRICHMENT__TAKEDOWN_MAX_URLS_PER_RUN` (default 200).
+- **Infrastructure:** Cloud Run Job (Scheduled). Reuses `ingest-job` Docker image.
+
+### 12. Scheduled Reports (`scheduled-reports`)
+
+- **Responsibility:** Automated recurring report generation.
+- **Key Logic:**
+  - Queries `scheduled_reports` table for active schedules past their `next_run_at`.
+  - Triggers report generation via the existing pipeline.
+  - Computes next run time based on cadence (daily/weekly/monthly).
+- **Env Vars:** `I4G_ANALYTICS__SCHEDULED_REPORT_CHECK_INTERVAL_MINUTES` (default 15).
+- **Infrastructure:** Cloud Run Job (Scheduled). Reuses `ingest-job` Docker image.

@@ -132,6 +132,14 @@ vertex_ai_data_store = "retrieval-poc"
 [analytics]
 # refresh_interval_minutes = 15
 # loss_linkage_confidence_threshold = 0.6
+# watchlist_check_interval_minutes = 30
+# infrastructure_clustering_interval_hours = 6
+# scheduled_report_check_interval_minutes = 15
+
+[enrichment]
+# securitytrails_api_key = ""
+# takedown_check_interval_hours = 12
+# takedown_max_urls_per_run = 200
 
 [search.saved_search]
 # migration_tag = "hybrid-v1"

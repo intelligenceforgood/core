@@ -39,6 +39,7 @@ from i4g.store.ssi_store import SsiStore
 from i4g.store.structured import StructuredStore
 from i4g.store.threat_campaign_store import ThreatCampaignStore
 from i4g.store.vector import VectorStore
+from i4g.store.watchlist_store import WatchlistStore
 
 try:
     from cryptography.fernet import Fernet
@@ -297,6 +298,23 @@ def build_annotation_store(db_path: str | Path | None = None) -> AnnotationStore
     if backend == "cloudsql":
         return AnnotationStore(session_factory=build_sql_session_factory())
     return AnnotationStore(db_path=db_path)
+
+
+def build_watchlist_store(db_path: str | Path | None = None) -> WatchlistStore:
+    """Return a :class:`WatchlistStore` aligned with the structured backend.
+
+    Args:
+        db_path: Optional path override for local SQLite.  Ignored when the
+            configured backend is Cloud SQL.
+
+    Returns:
+        Instantiated :class:`WatchlistStore`.
+    """
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return WatchlistStore(session_factory=build_sql_session_factory())
+    return WatchlistStore(db_path=db_path)
 
 
 def build_tokenization_service() -> TokenizationService:

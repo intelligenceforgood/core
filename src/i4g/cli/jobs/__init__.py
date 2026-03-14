@@ -116,3 +116,31 @@ def jobs_linkage_extract(
     from i4g.worker.jobs import linkage_extract
 
     _exit_from_return(linkage_extract.main(backfill=backfill))
+
+
+@jobs_app.command("watchlist-check", help="Check watchlist entities for new activity and generate alerts.")
+def jobs_watchlist_check() -> None:
+    from i4g.worker.jobs import watchlist_check
+
+    _exit_from_return(watchlist_check.main())
+
+
+@jobs_app.command("infrastructure-clustering", help="Discover shared-infrastructure edges between entities.")
+def jobs_infrastructure_clustering() -> None:
+    from i4g.worker.jobs import infrastructure_clustering
+
+    _exit_from_return(infrastructure_clustering.main())
+
+
+@jobs_app.command("takedown-check", help="Check known scam URLs for takedown status.")
+def jobs_takedown_check() -> None:
+    from i4g.worker.jobs import takedown_check
+
+    _exit_from_return(takedown_check.main())
+
+
+@jobs_app.command("scheduled-reports", help="Generate recurring reports for active schedules.")
+def jobs_scheduled_reports() -> None:
+    from i4g.worker.jobs import scheduled_reports
+
+    _exit_from_return(scheduled_reports.main())

@@ -633,6 +633,7 @@ entity_stats = sa.Table(
     sa.Column("ecx_submitted", sa.Boolean(), nullable=False, server_default=sa.text("false")),
     sa.Column("ecx_hit", sa.Boolean(), nullable=False, server_default=sa.text("false")),
     sa.Column("purge_status", sa.Text(), nullable=True),
+    sa.Column("taken_down_at", TIMESTAMP, nullable=True),
     sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
     sa.PrimaryKeyConstraint("entity_type", "canonical_value", name="pk_entity_stats"),
 )
@@ -713,6 +714,104 @@ annotations = sa.Table(
 )
 sa.Index("idx_annotations_target", annotations.c.target_type, annotations.c.target_id)
 sa.Index("idx_annotations_author", annotations.c.author)
+
+# ---------------------------------------------------------------------------
+# Watchlist (S5-04 / F-43)
+# ---------------------------------------------------------------------------
+
+watchlist_items = sa.Table(
+    "watchlist_items",
+    METADATA,
+    sa.Column("watchlist_id", UUID_TYPE, primary_key=True),
+    sa.Column("entity_type", sa.Text(), nullable=False),
+    sa.Column("canonical_value", sa.Text(), nullable=False),
+    sa.Column("alert_on_new_case", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+    sa.Column("alert_on_loss_increase", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+    sa.Column("loss_threshold", sa.Numeric(precision=18, scale=2), nullable=True),
+    sa.Column("note", sa.Text(), nullable=True),
+    sa.Column("created_by", sa.Text(), nullable=False, server_default="system"),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_watchlist_entity", watchlist_items.c.entity_type, watchlist_items.c.canonical_value, unique=True)
+sa.Index("idx_watchlist_created_by", watchlist_items.c.created_by)
+
+watchlist_alerts = sa.Table(
+    "watchlist_alerts",
+    METADATA,
+    sa.Column("alert_id", UUID_TYPE, primary_key=True),
+    sa.Column("watchlist_id", UUID_TYPE, nullable=False),
+    sa.Column("alert_type", sa.Text(), nullable=False),  # new_case | loss_increase
+    sa.Column("message", sa.Text(), nullable=False),
+    sa.Column("is_read", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+    sa.Column("data", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_watchlist_alerts_watchlist", watchlist_alerts.c.watchlist_id)
+sa.Index("idx_watchlist_alerts_unread", watchlist_alerts.c.is_read)
+
+# ---------------------------------------------------------------------------
+# Infrastructure edges (S5-08 / F-44)
+# ---------------------------------------------------------------------------
+
+infrastructure_edges = sa.Table(
+    "infrastructure_edges",
+    METADATA,
+    sa.Column("edge_id", UUID_TYPE, primary_key=True),
+    sa.Column("source_entity_type", sa.Text(), nullable=False),
+    sa.Column("source_canonical_value", sa.Text(), nullable=False),
+    sa.Column("target_entity_type", sa.Text(), nullable=False),
+    sa.Column("target_canonical_value", sa.Text(), nullable=False),
+    sa.Column("edge_type", sa.Text(), nullable=False),  # shared_ip | shared_registrar | shared_hosting
+    sa.Column("confidence", sa.Numeric(precision=5, scale=4), nullable=False, server_default="1.0"),
+    sa.Column("evidence", JSON_TYPE, nullable=True),
+    sa.Column("discovered_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index(
+    "idx_infra_edges_source", infrastructure_edges.c.source_entity_type, infrastructure_edges.c.source_canonical_value
+)
+sa.Index(
+    "idx_infra_edges_target", infrastructure_edges.c.target_entity_type, infrastructure_edges.c.target_canonical_value
+)
+
+# ---------------------------------------------------------------------------
+# Scheduled reports (S5-14 / F-47)
+# ---------------------------------------------------------------------------
+
+scheduled_reports = sa.Table(
+    "scheduled_reports",
+    METADATA,
+    sa.Column("schedule_id", UUID_TYPE, primary_key=True),
+    sa.Column("template", sa.Text(), nullable=False),
+    sa.Column("cadence", sa.Text(), nullable=False),  # weekly | monthly
+    sa.Column("scope", JSON_TYPE, nullable=True),
+    sa.Column("options", JSON_TYPE, nullable=True),
+    sa.Column("recipients", JSON_TYPE, nullable=True),
+    sa.Column("created_by", sa.Text(), nullable=False),
+    sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
+    sa.Column("last_run_at", TIMESTAMP, nullable=True),
+    sa.Column("next_run_at", TIMESTAMP, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_scheduled_reports_active", scheduled_reports.c.is_active)
+sa.Index("idx_scheduled_reports_next_run", scheduled_reports.c.next_run_at)
+
+# ---------------------------------------------------------------------------
+# Embeddable chart tokens (S5-17 / F-48)
+# ---------------------------------------------------------------------------
+
+chart_share_tokens = sa.Table(
+    "chart_share_tokens",
+    METADATA,
+    sa.Column("token_id", UUID_TYPE, primary_key=True),
+    sa.Column("chart_type", sa.Text(), nullable=False),
+    sa.Column("chart_config", JSON_TYPE, nullable=False),
+    sa.Column("created_by", sa.Text(), nullable=False),
+    sa.Column("expires_at", TIMESTAMP, nullable=False),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_chart_tokens_expires", chart_share_tokens.c.expires_at)
 
 
 def dialect_insert(session: Session, table: sa.Table):

@@ -20,6 +20,7 @@ from i4g.settings.sections import (
     CryptoSettings,
     DbAdminSettings,
     DossierJobSettings,
+    EnrichmentSettings,
     FeedbackSettings,
     IdentitySettings,
     IngestionSettings,
@@ -215,6 +216,7 @@ class Settings(BaseSettings):
     redis: RedisSettings = Field(default_factory=RedisSettings)
     feedback: FeedbackSettings = Field(default_factory=FeedbackSettings)
     analytics: AnalyticsSettings = Field(default_factory=AnalyticsSettings)
+    enrichment: EnrichmentSettings = Field(default_factory=EnrichmentSettings)
     db_admin: DbAdminSettings = Field(default_factory=DbAdminSettings)
     env_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
     config_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)

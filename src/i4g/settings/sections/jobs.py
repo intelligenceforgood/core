@@ -644,6 +644,68 @@ class AnalyticsSettings(BaseSettings):
         description="Weight factors for campaign risk score computation.",
     )
 
+    # Sprint 5 — watchlist, infrastructure clustering, scheduled reports
+    watchlist_check_interval_minutes: int = Field(
+        default=30,
+        validation_alias=AliasChoices(
+            "ANALYTICS_WATCHLIST_CHECK_INTERVAL_MINUTES",
+            "ANALYTICS__WATCHLIST_CHECK_INTERVAL_MINUTES",
+        ),
+        description="Minutes between watchlist notification checks.",
+    )
+    infrastructure_clustering_interval_hours: int = Field(
+        default=6,
+        validation_alias=AliasChoices(
+            "ANALYTICS_INFRASTRUCTURE_CLUSTERING_INTERVAL_HOURS",
+            "ANALYTICS__INFRASTRUCTURE_CLUSTERING_INTERVAL_HOURS",
+        ),
+        description="Hours between infrastructure clustering runs.",
+    )
+    scheduled_report_check_interval_minutes: int = Field(
+        default=15,
+        validation_alias=AliasChoices(
+            "ANALYTICS_SCHEDULED_REPORT_CHECK_INTERVAL_MINUTES",
+            "ANALYTICS__SCHEDULED_REPORT_CHECK_INTERVAL_MINUTES",
+        ),
+        description="Minutes between scheduled report due-date checks.",
+    )
+
+
+class EnrichmentSettings(BaseSettings):
+    """External enrichment service configuration.
+
+    Controls passive DNS, ASN lookup, and takedown verification services.
+
+    Env vars: ``I4G_ENRICHMENT__SECURITYTRAILS_API_KEY``, etc.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    securitytrails_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "ENRICHMENT_SECURITYTRAILS_API_KEY",
+            "ENRICHMENT__SECURITYTRAILS_API_KEY",
+        ),
+        description="SecurityTrails API key for passive DNS lookups.",
+    )
+    takedown_check_interval_hours: int = Field(
+        default=12,
+        validation_alias=AliasChoices(
+            "ENRICHMENT_TAKEDOWN_CHECK_INTERVAL_HOURS",
+            "ENRICHMENT__TAKEDOWN_CHECK_INTERVAL_HOURS",
+        ),
+        description="Hours between takedown verification checks.",
+    )
+    takedown_max_urls_per_run: int = Field(
+        default=200,
+        validation_alias=AliasChoices(
+            "ENRICHMENT_TAKEDOWN_MAX_URLS_PER_RUN",
+            "ENRICHMENT__TAKEDOWN_MAX_URLS_PER_RUN",
+        ),
+        description="Maximum URLs to check per takedown run.",
+    )
+
 
 class FeedbackSettings(BaseSettings):
     """Inline feedback collection via Google Sheets.

@@ -790,3 +790,126 @@ def get_geography_detail(
         total_loss=total_loss,
         records=records,
     )
+
+
+# ---------------------------------------------------------------------------
+# S5-22 / S5-23  Victim analytics
+# ---------------------------------------------------------------------------
+
+
+class VictimDemographicBreakdown(CamelModel):
+    """Single bucket in a demographics breakdown."""
+
+    label: str
+    count: int
+    loss_sum: float = 0.0
+    percentage: float = 0.0
+
+
+class VictimAnalyticsResponse(CamelModel):
+    """Aggregate victim demographics for the Impact Dashboard."""
+
+    total_victims: int
+    by_age_range: list[VictimDemographicBreakdown]
+    by_country: list[VictimDemographicBreakdown]
+    by_contact_channel: list[VictimDemographicBreakdown]
+
+
+@router.get("/victims", response_model=VictimAnalyticsResponse)
+def get_victim_analytics(
+    period: str = Query("90d", description="Time period: 30d, 90d, 1y, all"),
+    db: Session = Depends(get_db_session),
+) -> VictimAnalyticsResponse:
+    """Return aggregate victim demographics (age range, country, contact channel).
+
+    All data is aggregated — no individual-level PII is returned.
+
+    Args:
+        period: Time window for analysis.
+        db: Injected database session.
+
+    Returns:
+        Victim analytics with breakdowns by age, country, and channel.
+    """
+    start, _ = _parse_period(period)
+    start_dt = datetime.combine(start, datetime.min.time(), tzinfo=UTC)
+
+    base_filter = [intake_records.c.created_at >= start_dt]
+
+    # Total count
+    total_stmt = select(func.count()).select_from(intake_records).where(*base_filter)
+    total_victims = db.execute(total_stmt).scalar() or 0
+
+    # By age range
+    age_stmt = (
+        select(
+            intake_records.c.victim_age_range,
+            func.count().label("cnt"),
+            func.coalesce(func.sum(intake_records.c.loss_amount), 0).label("loss"),
+        )
+        .where(*base_filter, intake_records.c.victim_age_range.isnot(None))
+        .group_by(intake_records.c.victim_age_range)
+        .order_by(func.count().desc())
+    )
+    age_rows = db.execute(age_stmt).fetchall()
+    by_age = [
+        VictimDemographicBreakdown(
+            label=row.victim_age_range or "Unknown",
+            count=row.cnt,
+            loss_sum=float(row.loss or 0),
+            percentage=round(row.cnt / total_victims * 100, 1) if total_victims else 0,
+        )
+        for row in age_rows
+    ]
+
+    # By country
+    country_stmt = (
+        select(
+            intake_records.c.victim_country,
+            func.count().label("cnt"),
+            func.coalesce(func.sum(intake_records.c.loss_amount), 0).label("loss"),
+        )
+        .where(*base_filter, intake_records.c.victim_country.isnot(None))
+        .group_by(intake_records.c.victim_country)
+        .order_by(func.count().desc())
+        .limit(50)
+    )
+    country_rows = db.execute(country_stmt).fetchall()
+    by_country = [
+        VictimDemographicBreakdown(
+            label=row.victim_country or "Unknown",
+            count=row.cnt,
+            loss_sum=float(row.loss or 0),
+            percentage=round(row.cnt / total_victims * 100, 1) if total_victims else 0,
+        )
+        for row in country_rows
+    ]
+
+    # By contact channel
+    channel_stmt = (
+        select(
+            intake_records.c.contact_channel,
+            func.count().label("cnt"),
+            func.coalesce(func.sum(intake_records.c.loss_amount), 0).label("loss"),
+        )
+        .where(*base_filter, intake_records.c.contact_channel.isnot(None))
+        .group_by(intake_records.c.contact_channel)
+        .order_by(func.count().desc())
+    )
+    channel_rows = db.execute(channel_stmt).fetchall()
+    by_channel = [
+        VictimDemographicBreakdown(
+            label=row.contact_channel or "Unknown",
+            count=row.cnt,
+            loss_sum=float(row.loss or 0),
+            percentage=round(row.cnt / total_victims * 100, 1) if total_victims else 0,
+        )
+        for row in channel_rows
+    ]
+
+    return VictimAnalyticsResponse(
+        total_victims=total_victims,
+        by_age_range=by_age,
+        by_country=by_country,
+        by_contact_channel=by_channel,
+    )

@@ -1,7 +1,7 @@
 # Threat Intelligence & Fraud Analytics — Technical Design Document
 
-> **Status**: Active (v1.1)
-> **Sprint**: S1–S3 — Data Foundation through Impact Analytics
+> **Status**: Active (v1.2)
+> **Sprint**: S1–S5 — Data Foundation through Automation + Advanced Features
 > **Last Updated**: March 2026
 
 ---
@@ -475,3 +475,200 @@ tag, status_update) on entity lists. Returns per-entity success/failure results.
 | `ui/../impact/taxonomy-explorer/taxonomy-explorer.tsx` | Taxonomy explorer component         |
 | `ui/../impact/geography/geography-view.tsx`            | Geographic analysis component       |
 | `ui/../intelligence/timeline/timeline-view.tsx`        | Timeline visualization component    |
+
+---
+
+## 20. Louvain Community Detection (Sprint 5)
+
+### 20.1 Algorithm
+
+`GraphService.detect_clusters()` uses `networkx.community.louvain_communities`
+with a configurable `resolution` parameter (higher values produce more, smaller
+communities). Falls back to `nx.connected_components` when Louvain is unavailable.
+
+### 20.2 Output Schema
+
+Each cluster dict contains:
+
+| Key              | Type            | Description                              |
+| ---------------- | --------------- | ---------------------------------------- |
+| `id`             | `str`           | Cluster identifier (e.g., `cluster-0`)   |
+| `size`           | `int`           | Number of member nodes                   |
+| `members`        | `list[str]`     | Sorted node IDs                          |
+| `density`        | `float`         | Edge density of the subgraph (0.0–1.0)   |
+| `avg_risk_score` | `float`         | Mean risk score across members           |
+| `entity_types`   | `dict[str,int]` | Count of each entity type in the cluster |
+
+Clusters smaller than `min_size` (default 3) are excluded.
+`enrich_with_clusters()` writes `cluster_id` back to each node for downstream
+serialization.
+
+### 20.3 API
+
+`GET /intelligence/graph/clusters?seed={entity}&hops={n}&min_size={m}&resolution={r}`
+returns the full graph plus a `clusters` array.
+
+---
+
+## 21. Infrastructure Edge Construction (Sprint 5)
+
+### 21.1 Clustering Job
+
+`worker/jobs/infrastructure_clustering.py` runs on a configurable interval
+(default 6 hours via `I4G_ANALYTICS__INFRASTRUCTURE_CLUSTERING_INTERVAL_HOURS`).
+
+The job:
+
+1. Queries all entities with infrastructure types (ip_address, domain, url,
+   hosting_provider, registrar, nameserver, ssl_certificate).
+2. Groups entities by case to build co-occurrence pairs.
+3. Counts pairwise co-occurrence and classifies edge types using
+   `_classify_edge_type()`:
+   - `shared_ip` — both entities are IP addresses
+   - `shared_registrar` — one entity is a registrar
+   - `shared_hosting` — one entity is a hosting provider
+   - `shared_case` — fallback for unclassified co-occurrence
+4. Upserts edges to the `infrastructure_edges` table with confidence scores.
+
+### 21.2 Table Schema
+
+`infrastructure_edges`: UUID PK, source/target entity type + value,
+`edge_type`, `confidence` float, `evidence` JSON, timestamps.
+
+### 21.3 Graph Integration
+
+`GraphService.add_infrastructure_edges()` loads infrastructure edges and adds
+them to the NetworkX graph with `relationship="infrastructure"` metadata.
+
+---
+
+## 22. Watchlist & Alert Architecture (Sprint 5)
+
+### 22.1 WatchlistStore
+
+`store/watchlist_store.py` provides CRUD for watched entities and alerts:
+
+- **Items**: `add_item()`, `remove_item()`, `get_item()`, `list_items()`,
+  `update_item()`, `find_by_entity()`, `count_items()`.
+- **Alerts**: `create_alert()`, `list_alerts()`, `mark_alert_read()`,
+  `mark_all_read()`, `count_unread_alerts()`.
+
+Items have a unique constraint on `(entity_type, canonical_value)`.
+`add_item()` returns `None` on duplicate instead of raising.
+
+### 22.2 Watchlist Check Job
+
+`worker/jobs/watchlist_check.py` runs at a configurable interval (default 30
+minutes via `I4G_ANALYTICS__WATCHLIST_CHECK_INTERVAL_MINUTES`).
+
+The job iterates watchlist items, queries `entity_stats` for current case
+counts, and generates `new_activity` alerts when the count exceeds a stored
+baseline. The baseline is tracked via a `[baseline:N]` tag in the item's
+`note` field. Loss threshold alerts fire when `total_loss_usd` exceeds
+`alert_threshold`.
+
+### 22.3 API Endpoints
+
+Full CRUD on `/intelligence/watchlist/items` and `/intelligence/watchlist/alerts`.
+Requires `analyst` role for mutations, `user` role for reads.
+
+---
+
+## 23. Scheduled Report Pipeline (Sprint 5)
+
+### 23.1 Schedule Model
+
+The `scheduled_reports` table stores recurring report configurations:
+`template`, `cadence` (daily/weekly/monthly), `scope` JSON, `options` JSON,
+`recipients` JSON, `is_active`, `last_run_at`, `next_run_at`.
+
+### 23.2 Job Logic
+
+`worker/jobs/scheduled_reports.py` checks for due schedules on a configurable
+interval (default 15 minutes). For each due schedule it:
+
+1. Calls the existing report generation pipeline with the stored template and scope.
+2. Updates `last_run_at` and computes `next_run_at` via `_compute_next_run()`.
+
+CRUD helpers (`create_schedule()`, `list_schedules()`, `deactivate_schedule()`)
+are co-located in the job module.
+
+---
+
+## 24. External Enrichment Integration (Sprint 5)
+
+### 24.1 Passive DNS (SecurityTrails)
+
+`services/enrichment/passive_dns.py` queries the SecurityTrails API for
+historical DNS records. `lookup_domain()` returns A, AAAA, MX, NS records.
+`lookup_ip()` returns reverse DNS hostnames.
+
+Requires `I4G_ENRICHMENT__SECURITYTRAILS_API_KEY`. Returns a structured
+`PassiveDNSResult` dataclass; returns an error result if the key is missing.
+
+### 24.2 ASN Lookup (RDAP)
+
+`services/enrichment/asn_lookup.py` queries the RDAP bootstrap service
+(`rdap.org`) for IP-to-ASN information. No API key required. Returns
+`ASNInfo` with `network_name`, `cidr`, `asn`, `asn_name`, `country`.
+
+### 24.3 Takedown Verification
+
+`worker/jobs/takedown_check.py` periodically checks URL entities for
+reachability. HTTP status codes 404, 410, 451, 502, 503, 521, 523 and
+connection errors indicate a takedown. Sets `taken_down_at` on
+`entity_stats`. Configured via `I4G_ENRICHMENT__TAKEDOWN_CHECK_INTERVAL_HOURS`
+(default 12) and `I4G_ENRICHMENT__TAKEDOWN_MAX_URLS_PER_RUN` (default 200).
+
+---
+
+## 25. Researcher Anonymization Pipeline (Sprint 5)
+
+### 25.1 Anonymization Layer
+
+`services/anonymizer.py` provides deterministic PII anonymization:
+
+- **PII entity types**: bank_account, phone_number, email, person_name,
+  national_id, passport_number, address, credit_card.
+- **PII fields**: canonical_value, raw_value, email, phone, name, address,
+  account_number, person_name.
+- `anonymize_value(value, entity_type)` produces a SHA-256 prefix (16 chars)
+  for PII types; non-PII values pass through unchanged.
+- `round_loss(amount, precision)` rounds to the nearest $1,000 (default).
+- `anonymize_records(records)` batch-processes dicts for export.
+
+### 25.2 Researcher Export
+
+`GET /exports/researcher/entities` returns anonymized entity data as CSV or
+JSON. Requires `researcher` role. PII fields are hashed, loss values rounded.
+
+### 25.3 Victim Analytics
+
+`GET /impact/victims` returns aggregate victim demographics: age range
+distribution, country breakdown, and contact channel breakdown from
+`intake_records`. Requires `analyst` role.
+
+### 25.4 Embeddable Chart Tokens
+
+`POST /intelligence/charts/share` creates a time-limited, read-only share
+token for a chart configuration. `GET /intelligence/charts/{token_id}/embed`
+retrieves the chart config if the token is valid and not expired.
+
+---
+
+## 26. Key Files (Sprint 5)
+
+| File                                                    | Purpose                                  |
+| ------------------------------------------------------- | ---------------------------------------- |
+| `src/i4g/services/graph_service.py`                     | Louvain clustering, temporal snapshots   |
+| `src/i4g/store/watchlist_store.py`                      | Watchlist + alert CRUD store             |
+| `src/i4g/worker/jobs/watchlist_check.py`                | Watchlist notification job               |
+| `src/i4g/worker/jobs/infrastructure_clustering.py`      | Infrastructure edge discovery job        |
+| `src/i4g/worker/jobs/takedown_check.py`                 | URL takedown verification job            |
+| `src/i4g/worker/jobs/scheduled_reports.py`              | Scheduled report generation job          |
+| `src/i4g/services/enrichment/passive_dns.py`            | SecurityTrails passive DNS integration   |
+| `src/i4g/services/enrichment/asn_lookup.py`             | RDAP ASN lookup service                  |
+| `src/i4g/services/anonymizer.py`                        | PII anonymization for researcher exports |
+| `src/i4g/api/intelligence.py` (watchlist/chart section) | Watchlist CRUD, chart share endpoints    |
+| `src/i4g/api/exports.py` (researcher section)           | Anonymized researcher data export        |
+| `src/i4g/api/impact.py` (victims section)               | Victim analytics endpoint                |

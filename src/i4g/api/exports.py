@@ -337,3 +337,66 @@ def _export_stix(items: list[dict[str, Any]]) -> Response:
         media_type="application/json",
         headers={"Content-Disposition": 'attachment; filename="indicators_stix.json"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# S5-20 / S5-21  Researcher anonymous aggregate export
+# ---------------------------------------------------------------------------
+
+
+@router.get("/researcher/entities")
+def export_researcher_entities(
+    fmt: str = Query("csv", description="Export format: csv or json"),
+    entity_type: str | None = Query(None, description="Filter by entity type"),
+    limit: int = Query(1000, ge=1, le=10000),
+    user: dict = Depends(require_token),
+    store: AnalyticsStore = Depends(_get_analytics_store),
+) -> Response:
+    """Export anonymized entity statistics for Researcher-role access.
+
+    PII entity values are hashed and loss amounts are rounded to the
+    nearest $1,000.  Non-PII entities (domains, IPs) remain unmasked.
+
+    Args:
+        fmt: Export format.
+        entity_type: Optional entity type filter.
+        limit: Maximum rows.
+        user: Authenticated user.
+        store: Injected AnalyticsStore.
+
+    Returns:
+        CSV or JSON response with anonymized data.
+    """
+    from i4g.services.anonymizer import anonymize_records
+
+    rows = store.list_entity_stats(entity_type=entity_type, limit=limit)
+    safe_rows = anonymize_records([dict(r) if not isinstance(r, dict) else r for r in rows])
+
+    store.log_action(
+        action="export_researcher_entities",
+        user=user.get("username", "unknown"),
+        details={"format": fmt, "entity_type": entity_type, "row_count": len(safe_rows)},
+    )
+
+    if fmt == "json":
+        return Response(
+            content=json.dumps(safe_rows, indent=2, default=str),
+            media_type="application/json",
+            headers={"Content-Disposition": 'attachment; filename="researcher_entities.json"'},
+        )
+
+    # CSV
+    if not safe_rows:
+        return Response(content="", media_type="text/csv")
+
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=list(safe_rows[0].keys()))
+    writer.writeheader()
+    for row in safe_rows:
+        writer.writerow({k: str(v) if v is not None else "" for k, v in row.items()})
+
+    return Response(
+        content=output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="researcher_entities.csv"'},
+    )

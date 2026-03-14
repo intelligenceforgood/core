@@ -17,11 +17,17 @@ from pydantic import Field, field_validator
 from i4g.api.auth import require_token
 from i4g.api.camel import CamelModel
 from i4g.api.roles import Role, has_role
-from i4g.services.factories import build_analytics_store, build_annotation_store, build_threat_campaign_store
+from i4g.services.factories import (
+    build_analytics_store,
+    build_annotation_store,
+    build_threat_campaign_store,
+    build_watchlist_store,
+)
 from i4g.services.lea_referral import LeaReferralEngine
 from i4g.store.analytics_store import AnalyticsStore
 from i4g.store.annotation_store import AnnotationStore
 from i4g.store.threat_campaign_store import ThreatCampaignStore
+from i4g.store.watchlist_store import WatchlistStore
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +56,11 @@ def get_campaign_store() -> ThreatCampaignStore:
 def get_annotation_store() -> AnnotationStore:
     """Return an AnnotationStore instance."""
     return build_annotation_store()
+
+
+def get_watchlist_store() -> WatchlistStore:
+    """Return a WatchlistStore instance."""
+    return build_watchlist_store()
 
 
 def _is_researcher(user: dict[str, str]) -> bool:
@@ -1577,3 +1588,502 @@ def bulk_entity_action(
             errors.append(f"Missing status for status_update on {eid}")
 
     return BulkActionResult(processed=processed, failed=failed, errors=errors[:20])
+
+
+# ---------------------------------------------------------------------------
+# S5-01  /api/intelligence/graph/temporal — temporal graph animation snapshots
+# ---------------------------------------------------------------------------
+
+
+class TemporalSnapshotResponse(CamelModel):
+    """Single frame in a temporal graph animation."""
+
+    date: str
+    nodes: list[dict[str, Any]]
+    edges: list[dict[str, Any]]
+    node_count: int = 0
+    edge_count: int = 0
+
+
+@router.get("/graph/temporal", response_model=list[TemporalSnapshotResponse])
+def get_temporal_graph(
+    seed: str = Query(..., description="Seed node ID"),
+    hops: int = Query(1, ge=1, le=3, description="Number of hops"),
+    analytics_store: AnalyticsStore = Depends(get_analytics_store),
+) -> list[TemporalSnapshotResponse]:
+    """Return timestamped graph snapshots for animation (F-41).
+
+    Generates cumulative graph states at monthly intervals so the frontend
+    can animate graph growth over time with a date slider.
+
+    Args:
+        seed: Seed node identifier.
+        hops: Number of BFS hops.
+        analytics_store: Injected AnalyticsStore.
+
+    Returns:
+        Ordered list of temporal snapshots.
+    """
+    from i4g.services.graph_service import GraphService
+
+    all_entities = analytics_store.list_entity_stats(limit=10000)
+
+    adjacency: dict[str, list[str]] = {}
+    entity_meta: dict[str, dict[str, Any]] = {}
+    timestamps: dict[str, str] = {}
+
+    for e in all_entities:
+        eid = f"{e['entity_type']}:{e['canonical_value']}"
+        adjacency[eid] = [f"case-{i}" for i in range(int(e.get("case_count", 0)))]
+        entity_meta[eid] = {
+            "entity_type": e.get("entity_type", "unknown"),
+            "label": str(e.get("canonical_value", eid)),
+            "case_count": int(e.get("case_count", 0)),
+            "risk_score": float(e.get("max_risk_score", 0)),
+        }
+        first_seen = e.get("first_seen_at")
+        if first_seen:
+            ts = str(first_seen)
+            if "T" not in ts:
+                ts += "T00:00:00"
+            timestamps[eid] = ts
+
+    graph_service = GraphService(adjacency, entity_meta)
+    snapshots = graph_service.get_temporal_snapshots(timestamps)
+
+    return [TemporalSnapshotResponse(**s) for s in snapshots]
+
+
+# ---------------------------------------------------------------------------
+# S5-02 / S5-03  /api/intelligence/graph/clusters — community detection
+# ---------------------------------------------------------------------------
+
+
+class ClusterResponse(CamelModel):
+    """Detected community/cluster in the entity graph."""
+
+    id: str
+    size: int
+    members: list[str]
+    density: float = 0.0
+    avg_risk_score: float = 0.0
+    entity_types: dict[str, int] = Field(default_factory=dict)
+
+
+@router.get("/graph/clusters", response_model=list[ClusterResponse])
+def get_graph_clusters(
+    min_size: int = Query(3, ge=2, description="Minimum cluster size"),
+    resolution: float = Query(1.0, ge=0.1, le=5.0, description="Louvain resolution"),
+    analytics_store: AnalyticsStore = Depends(get_analytics_store),
+) -> list[ClusterResponse]:
+    """Detect communities in the entity co-occurrence graph (F-42).
+
+    Uses Louvain community detection to find dense subgraphs. Higher
+    resolution values produce more, smaller clusters.
+
+    Args:
+        min_size: Minimum cluster size to return.
+        resolution: Louvain resolution parameter.
+        analytics_store: Injected AnalyticsStore.
+
+    Returns:
+        List of detected clusters sorted by size descending.
+    """
+    from i4g.services.graph_service import GraphService
+
+    all_entities = analytics_store.list_entity_stats(limit=10000)
+
+    adjacency: dict[str, list[str]] = {}
+    entity_meta: dict[str, dict[str, Any]] = {}
+    for e in all_entities:
+        eid = f"{e['entity_type']}:{e['canonical_value']}"
+        adjacency[eid] = [f"case-{i}" for i in range(int(e.get("case_count", 0)))]
+        entity_meta[eid] = {
+            "entity_type": e.get("entity_type", "unknown"),
+            "label": str(e.get("canonical_value", eid)),
+            "case_count": int(e.get("case_count", 0)),
+            "risk_score": float(e.get("max_risk_score", 0)),
+        }
+
+    graph_service = GraphService(adjacency, entity_meta)
+    clusters = graph_service.detect_clusters(min_size=min_size, resolution=resolution)
+    return [ClusterResponse(**c) for c in clusters]
+
+
+# ---------------------------------------------------------------------------
+# S5-04 / S5-05  Watchlist endpoints (F-43)
+# ---------------------------------------------------------------------------
+
+
+class WatchlistItemRequest(CamelModel):
+    """Request to add or update a watchlist item."""
+
+    entity_type: str
+    canonical_value: str
+    alert_on_new_case: bool = True
+    alert_on_loss_increase: bool = False
+    loss_threshold: float | None = None
+    note: str | None = None
+
+
+class WatchlistItemResponse(CamelModel):
+    """Watchlist item representation."""
+
+    watchlist_id: str
+    entity_type: str
+    canonical_value: str
+    alert_on_new_case: bool = True
+    alert_on_loss_increase: bool = False
+    loss_threshold: float | None = None
+    note: str | None = None
+    created_by: str = "system"
+    created_at: str | None = None
+    updated_at: str | None = None
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def _coerce_dt(cls, v: Any) -> str | None:
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return v
+
+
+class WatchlistListResponse(CamelModel):
+    """Paginated watchlist items."""
+
+    items: list[WatchlistItemResponse]
+    count: int
+    limit: int
+    offset: int
+
+
+class WatchlistUpdateRequest(CamelModel):
+    """Request to update watchlist alert conditions."""
+
+    alert_on_new_case: bool | None = None
+    alert_on_loss_increase: bool | None = None
+    loss_threshold: float | None = None
+    note: str | None = None
+
+
+class WatchlistAlertResponse(CamelModel):
+    """Watchlist alert representation."""
+
+    alert_id: str
+    watchlist_id: str
+    alert_type: str
+    message: str
+    is_read: bool = False
+    data: dict[str, Any] | None = None
+    created_at: str | None = None
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def _coerce_dt(cls, v: Any) -> str | None:
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return v
+
+
+@router.post("/watchlist", response_model=WatchlistItemResponse, status_code=201)
+def add_to_watchlist(
+    payload: WatchlistItemRequest,
+    user: dict[str, str] = Depends(require_token),
+    store: WatchlistStore = Depends(get_watchlist_store),
+) -> WatchlistItemResponse:
+    """Pin an entity to the watchlist.
+
+    Args:
+        payload: Watchlist item details.
+        user: Authenticated user.
+        store: Injected WatchlistStore.
+
+    Returns:
+        Created watchlist item.
+    """
+    existing = store.find_by_entity(payload.entity_type, payload.canonical_value)
+    if existing:
+        raise HTTPException(status_code=409, detail="Entity is already on the watchlist")
+
+    wid = store.add_item(
+        entity_type=payload.entity_type,
+        canonical_value=payload.canonical_value,
+        alert_on_new_case=payload.alert_on_new_case,
+        alert_on_loss_increase=payload.alert_on_loss_increase,
+        loss_threshold=payload.loss_threshold,
+        note=payload.note,
+        created_by=user.get("email", "system"),
+    )
+    item = store.get_item(wid)
+    if not item:
+        raise HTTPException(status_code=500, detail="Failed to create watchlist item")
+    return WatchlistItemResponse.model_validate(item)
+
+
+@router.get("/watchlist", response_model=WatchlistListResponse)
+def list_watchlist(
+    entity_type: str | None = Query(None, description="Filter by entity type"),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    user: dict[str, str] = Depends(require_token),
+    store: WatchlistStore = Depends(get_watchlist_store),
+) -> WatchlistListResponse:
+    """List watchlist items for the current user.
+
+    Args:
+        entity_type: Optional entity type filter.
+        limit: Page size.
+        offset: Pagination offset.
+        user: Authenticated user.
+        store: Injected WatchlistStore.
+
+    Returns:
+        Paginated watchlist items.
+    """
+    items = store.list_items(
+        created_by=user.get("email"),
+        entity_type=entity_type,
+        limit=limit,
+        offset=offset,
+    )
+    total = store.count_items(created_by=user.get("email"))
+    return WatchlistListResponse(
+        items=[WatchlistItemResponse.model_validate(i) for i in items],
+        count=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.put("/watchlist/{watchlist_id}", response_model=WatchlistItemResponse)
+def update_watchlist_item(
+    watchlist_id: str,
+    payload: WatchlistUpdateRequest,
+    user: dict[str, str] = Depends(require_token),
+    store: WatchlistStore = Depends(get_watchlist_store),
+) -> WatchlistItemResponse:
+    """Update alert conditions for a watchlist item.
+
+    Args:
+        watchlist_id: Watchlist item ID.
+        payload: Fields to update.
+        user: Authenticated user.
+        store: Injected WatchlistStore.
+
+    Returns:
+        Updated watchlist item.
+    """
+    existing = store.get_item(watchlist_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Watchlist item not found")
+    if existing.get("created_by") != user.get("email") and user.get("role") != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Not authorized to modify this item")
+
+    store.update_item(
+        watchlist_id,
+        alert_on_new_case=payload.alert_on_new_case,
+        alert_on_loss_increase=payload.alert_on_loss_increase,
+        loss_threshold=payload.loss_threshold,
+        note=payload.note,
+    )
+    item = store.get_item(watchlist_id)
+    return WatchlistItemResponse.model_validate(item)
+
+
+@router.delete("/watchlist/{watchlist_id}")
+def remove_from_watchlist(
+    watchlist_id: str,
+    user: dict[str, str] = Depends(require_token),
+    store: WatchlistStore = Depends(get_watchlist_store),
+) -> dict[str, bool]:
+    """Remove an entity from the watchlist.
+
+    Args:
+        watchlist_id: Watchlist item ID.
+        user: Authenticated user.
+        store: Injected WatchlistStore.
+
+    Returns:
+        Deletion confirmation.
+    """
+    existing = store.get_item(watchlist_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Watchlist item not found")
+    if existing.get("created_by") != user.get("email") and user.get("role") != Role.ADMIN:
+        raise HTTPException(status_code=403, detail="Not authorized to remove this item")
+
+    store.remove_item(watchlist_id)
+    return {"deleted": True}
+
+
+@router.get("/watchlist/alerts", response_model=list[WatchlistAlertResponse])
+def list_watchlist_alerts(
+    unread_only: bool = Query(False, description="Only return unread alerts"),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    user: dict[str, str] = Depends(require_token),
+    store: WatchlistStore = Depends(get_watchlist_store),
+) -> list[WatchlistAlertResponse]:
+    """List watchlist alerts.
+
+    Args:
+        unread_only: Only return unread alerts.
+        limit: Page size.
+        offset: Pagination offset.
+        user: Authenticated user.
+        store: Injected WatchlistStore.
+
+    Returns:
+        List of alerts.
+    """
+    alerts = store.list_alerts(unread_only=unread_only, limit=limit, offset=offset)
+    return [WatchlistAlertResponse.model_validate(a) for a in alerts]
+
+
+@router.post("/watchlist/alerts/{alert_id}/read")
+def mark_alert_as_read(
+    alert_id: str,
+    store: WatchlistStore = Depends(get_watchlist_store),
+) -> dict[str, bool]:
+    """Mark a watchlist alert as read.
+
+    Args:
+        alert_id: Alert ID.
+        store: Injected WatchlistStore.
+
+    Returns:
+        Confirmation.
+    """
+    success = store.mark_alert_read(alert_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return {"marked_read": True}
+
+
+@router.post("/watchlist/alerts/read-all")
+def mark_all_alerts_read(
+    store: WatchlistStore = Depends(get_watchlist_store),
+) -> dict[str, int]:
+    """Mark all watchlist alerts as read.
+
+    Args:
+        store: Injected WatchlistStore.
+
+    Returns:
+        Count of alerts marked.
+    """
+    count = store.mark_all_read()
+    return {"marked_read": count}
+
+
+# ---------------------------------------------------------------------------
+# S5-17 / S5-18  Embeddable chart share tokens
+# ---------------------------------------------------------------------------
+
+
+class ChartShareRequest(CamelModel):
+    """Request to create a shareable chart token."""
+
+    chart_type: str
+    chart_config: dict
+    expires_in_hours: int = 72
+
+
+class ChartShareResponse(CamelModel):
+    """Shareable chart token with embed URL template."""
+
+    token_id: str
+    chart_type: str
+    chart_config: dict
+    expires_at: str
+    embed_url: str
+
+
+@router.post("/charts/share", response_model=ChartShareResponse, status_code=201)
+def create_chart_share_token(
+    body: ChartShareRequest,
+    user: str = Depends(require_token),
+) -> ChartShareResponse:
+    """Create a time-limited shareable token for a chart configuration.
+
+    Args:
+        body: Chart config and expiry.
+        user: Authenticated user.
+
+    Returns:
+        Token details with embed URL.
+    """
+    import uuid
+    from datetime import UTC, datetime, timedelta
+
+    from i4g.store.sql import chart_share_tokens
+    from i4g.store.sql import session_factory as build_sql_session_factory
+
+    sf = build_sql_session_factory()
+    session = sf()
+    try:
+        token_id = str(uuid.uuid4())
+        now = datetime.now(UTC)
+        expires_at = now + timedelta(hours=body.expires_in_hours)
+
+        session.execute(
+            chart_share_tokens.insert().values(
+                token_id=token_id,
+                chart_type=body.chart_type,
+                chart_config=body.chart_config,
+                created_by=user,
+                expires_at=expires_at,
+                created_at=now,
+            )
+        )
+        session.commit()
+
+        return ChartShareResponse(
+            token_id=token_id,
+            chart_type=body.chart_type,
+            chart_config=body.chart_config,
+            expires_at=expires_at.isoformat(),
+            embed_url=f"/api/intelligence/charts/{token_id}/embed",
+        )
+    finally:
+        session.close()
+
+
+@router.get("/charts/{token_id}/embed")
+def get_embedded_chart(token_id: str) -> dict:
+    """Retrieve chart configuration for a shared embed token.
+
+    This endpoint is public (no auth required) — the token itself
+    acts as a capability. Expired tokens return 410 Gone.
+
+    Args:
+        token_id: Chart share token ID.
+
+    Returns:
+        Chart type and configuration for rendering.
+    """
+    from datetime import UTC, datetime
+
+    import sqlalchemy as sa
+
+    from i4g.store.sql import chart_share_tokens
+    from i4g.store.sql import session_factory as build_sql_session_factory
+
+    sf = build_sql_session_factory()
+    session = sf()
+    try:
+        row = session.execute(sa.select(chart_share_tokens).where(chart_share_tokens.c.token_id == token_id)).first()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Token not found")
+
+        if row.expires_at and row.expires_at < datetime.now(UTC):
+            raise HTTPException(status_code=410, detail="Token has expired")
+
+        return {
+            "chartType": row.chart_type,
+            "chartConfig": row.chart_config,
+            "expiresAt": row.expires_at.isoformat() if row.expires_at else None,
+        }
+    finally:
+        session.close()
