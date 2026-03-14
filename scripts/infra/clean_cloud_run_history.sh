@@ -7,12 +7,20 @@ services="core-svc i4g-console ssi-svc"
 
 for job in $jobs; do
     gcloud run jobs executions list \
-    --job=$job \
-    --region=$region \
-    --format="value(metadata.name)" | \
-    xargs -I {} gcloud run jobs executions delete {} \
-    --region=$region \
-    --quiet
+        --job=$job \
+        --region=$region \
+        --format=json 2>/dev/null | \
+    python3 -c "
+import json, sys
+data = json.load(sys.stdin) if sys.stdin.readable() else []
+for ex in data:
+    ct = ex.get('completionTime') or (ex.get('status') or {}).get('completionTime')
+    name = (ex.get('metadata') or {}).get('name') or ex.get('name', '').rsplit('/', 1)[-1]
+    if ct and name:
+        print(name)
+" | xargs -r -I {} gcloud run jobs executions delete {} \
+        --region=$region \
+        --quiet
 done
 
 for service in $services; do

@@ -22,6 +22,7 @@ from i4g.services.vertex_writer import VertexDocumentWriter
 from i4g.settings import Settings, get_settings
 from i4g.storage import EvidenceStorage
 from i4g.store.analytics_store import AnalyticsStore
+from i4g.store.annotation_store import AnnotationStore
 from i4g.store.dossier_queue_store import DossierQueueStore
 from i4g.store.entity_store import EntityStore
 from i4g.store.ingestion_retry_store import IngestionRetryStore
@@ -281,6 +282,23 @@ def build_analytics_store(db_path: str | Path | None = None) -> AnalyticsStore:
     return AnalyticsStore(db_path=db_path)
 
 
+def build_annotation_store(db_path: str | Path | None = None) -> AnnotationStore:
+    """Return an :class:`AnnotationStore` aligned with the structured backend.
+
+    Args:
+        db_path: Optional path override for local SQLite.  Ignored when the
+            configured backend is Cloud SQL.
+
+    Returns:
+        Instantiated :class:`AnnotationStore`.
+    """
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return AnnotationStore(session_factory=build_sql_session_factory())
+    return AnnotationStore(db_path=db_path)
+
+
 def build_tokenization_service() -> TokenizationService:
     """Instantiate the tokenization service with configured secrets."""
 
@@ -431,4 +449,7 @@ __all__ = [
     "build_bundle_candidate_provider",
     "build_dossier_context_loader",
     "build_retention_service",
+    "build_threat_campaign_store",
+    "build_analytics_store",
+    "build_annotation_store",
 ]

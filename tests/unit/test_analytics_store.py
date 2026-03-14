@@ -160,3 +160,37 @@ def test_list_platform_kpis(tmp_path: Path) -> None:
     results = store.list_platform_kpis(period_type="daily")
     assert len(results) == 1
     assert results[0]["total_cases"] == 10
+
+
+# ---------------------------------------------------------------------------
+# Entity status updates (Sprint 4 — S4-14/S4-44)
+# ---------------------------------------------------------------------------
+
+
+def test_update_entity_status(tmp_path: Path) -> None:
+    """Entity status can be updated via update_entity_status."""
+    store, sf = _make_store(tmp_path / "analytics.db")
+    _seed_entity_stats(sf)
+
+    success = store.update_entity_status(
+        entity_type="wallet",
+        canonical_value="0xABC123",
+        status="flagged",
+    )
+    assert success is True
+
+    entity = store.get_entity_stat("wallet", "0xABC123")
+    assert entity["status"] == "flagged"
+
+
+def test_update_entity_status_not_found(tmp_path: Path) -> None:
+    """Updating status of a non-existent entity returns False."""
+    store, sf = _make_store(tmp_path / "analytics.db")
+    _seed_entity_stats(sf)
+
+    success = store.update_entity_status(
+        entity_type="wallet",
+        canonical_value="nonexistent",
+        status="dormant",
+    )
+    assert success is False

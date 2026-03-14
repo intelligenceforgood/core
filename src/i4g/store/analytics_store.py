@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any
 
 import sqlalchemy as sa
@@ -503,3 +503,24 @@ class AnalyticsStore:
                 )
 
             return results
+
+    def update_entity_status(self, entity_type: str, canonical_value: str, status: str) -> bool:
+        """Update the status of an entity in entity_stats.
+
+        Args:
+            entity_type: Entity type.
+            canonical_value: Entity canonical value.
+            status: New status value.
+
+        Returns:
+            True if the entity was found and updated, False otherwise.
+        """
+        es = sql_schema.entity_stats
+        with self._session_scope() as session:
+            result = session.execute(
+                sa.update(es)
+                .where(sa.and_(es.c.entity_type == entity_type, es.c.canonical_value == canonical_value))
+                .values(status=status, updated_at=datetime.now(UTC))
+            )
+            session.commit()
+            return (result.rowcount or 0) > 0

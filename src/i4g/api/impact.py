@@ -28,6 +28,7 @@ from i4g.store.sql import (
     review_actions,
     review_queue,
 )
+from i4g.taxonomy.data import TAXONOMY_DEFINITIONS
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ class TaxonomyLossItem(CamelModel):
     """One node in the loss-by-taxonomy treemap."""
 
     label: str
+    code: str = ""
     loss_sum: float = 0.0
     case_count: int = 0
 
@@ -206,15 +208,15 @@ def get_impact_dashboard(
     # Unique indicators in period
     cur_indicators = (
         session.scalar(
-            select(func.count(indicator_stats.c.indicator_id)).where(indicator_stats.c.first_seen_at >= str(start))
+            select(func.count(indicator_stats.c.indicator_id)).where(indicator_stats.c.first_seen_at >= start_dt)
         )
         or 0
     )
     prev_indicators = (
         session.scalar(
             select(func.count(indicator_stats.c.indicator_id)).where(
-                indicator_stats.c.first_seen_at >= str(prev_start),
-                indicator_stats.c.first_seen_at < str(start),
+                indicator_stats.c.first_seen_at >= prev_start_dt,
+                indicator_stats.c.first_seen_at < start_dt,
             )
         )
         or 0
@@ -296,7 +298,8 @@ def get_loss_by_taxonomy(
 
     return [
         TaxonomyLossItem(
-            label=str(r[0] or "Unknown"),
+            label=_resolve_taxonomy_label(str(r[0] or "Unknown")),
+            code=str(r[0] or "Unknown"),
             loss_sum=float(r[1] or 0),
             case_count=int(r[2] or 0),
         )
@@ -416,3 +419,374 @@ def get_cumulative_indicators(
             )
         )
     return results
+
+
+# ---------------------------------------------------------------------------
+# S4-08  /api/impact/taxonomy/sankey — Sankey flow chart data
+# ---------------------------------------------------------------------------
+
+
+class SankeyNode(CamelModel):
+    """Node in a Sankey diagram."""
+
+    id: str
+    label: str
+    code: str = ""
+    value: int = 0
+
+
+class SankeyLink(CamelModel):
+    """Link between Sankey nodes."""
+
+    source: str
+    target: str
+    value: int = 0
+
+
+class SankeyResponse(CamelModel):
+    """Taxonomy Sankey response."""
+
+    nodes: list[SankeyNode] = Field(default_factory=list)
+    links: list[SankeyLink] = Field(default_factory=list)
+
+
+def _build_taxonomy_lookup() -> dict[str, str]:
+    """Build a code → display-label mapping from TAXONOMY_DEFINITIONS."""
+    lookup: dict[str, str] = {}
+    for axis in TAXONOMY_DEFINITIONS.get("axes", []):
+        for item in axis.get("items", []):
+            lookup[item["code"]] = item["label"]
+    return lookup
+
+
+_TAXONOMY_LABELS: dict[str, str] = _build_taxonomy_lookup()
+
+
+def _resolve_taxonomy_label(code: str) -> str:
+    """Return the human-readable label for a taxonomy code.
+
+    Falls back to a title-cased suffix when the code is not in the registry
+    (e.g. ``INTENT.UNKNOWN`` → ``Unknown``).
+    """
+    if code in _TAXONOMY_LABELS:
+        return _TAXONOMY_LABELS[code]
+    suffix = code.split(".")[-1] if "." in code else code
+    return suffix.replace("_", " ").title()
+
+
+@router.get("/taxonomy/sankey", response_model=SankeyResponse)
+def get_taxonomy_sankey(
+    period: str = Query("90d", description="Period preset"),
+    db: Session = Depends(get_db_session),
+) -> SankeyResponse:
+    """Return Sankey flow data for the fraud taxonomy breakdown.
+
+    Generates a two-level Sankey: category → subcategory, weighted
+    by the count of associated cases.
+
+    Args:
+        period: Time window preset.
+        db: Injected DB session.
+
+    Returns:
+        Sankey diagram data with nodes and links.
+    """
+    start, _ = _parse_period(period)
+    stmt = (
+        select(
+            cases.c.classification,
+            func.count().label("cnt"),
+        )
+        .where(cases.c.created_at >= datetime.combine(start, datetime.min.time(), tzinfo=UTC))
+        .where(cases.c.classification.is_not(None))
+        .group_by(cases.c.classification)
+    )
+    rows = db.execute(stmt).fetchall()
+
+    node_set: dict[str, int] = {}
+    links: list[SankeyLink] = []
+    for row in rows:
+        code = row.classification or "Unknown"
+        parts = code.split(" - ", 1)
+        cat_code = parts[0]
+        sub_code = parts[1] if len(parts) > 1 else "Other"
+        cnt = row.cnt
+        node_set[cat_code] = node_set.get(cat_code, 0) + cnt
+        sub_key = f"{cat_code}:{sub_code}"
+        node_set[sub_key] = node_set.get(sub_key, 0) + cnt
+        links.append(SankeyLink(source=cat_code, target=sub_key, value=cnt))
+
+    nodes = [
+        SankeyNode(
+            id=k,
+            label=_resolve_taxonomy_label(k.split(":")[-1]),
+            code=k.split(":")[-1],
+            value=v,
+        )
+        for k, v in node_set.items()
+    ]
+    return SankeyResponse(nodes=nodes, links=links)
+
+
+# ---------------------------------------------------------------------------
+# S4-09  /api/impact/taxonomy/heatmap — taxonomy × time heatmap
+# ---------------------------------------------------------------------------
+
+
+class HeatmapCell(CamelModel):
+    """One cell in the taxonomy × time heatmap."""
+
+    category: str
+    category_code: str = ""
+    period: str
+    count: int = 0
+
+
+@router.get("/taxonomy/heatmap", response_model=list[HeatmapCell])
+def get_taxonomy_heatmap(
+    period: str = Query("90d", description="Period preset"),
+    granularity: str = Query("week", description="Granularity: day, week, month"),
+    db: Session = Depends(get_db_session),
+) -> list[HeatmapCell]:
+    """Return taxonomy × time heatmap data.
+
+    Each cell represents a (category, time-period) pair with a count of cases.
+
+    Args:
+        period: Time window preset.
+        granularity: Time granularity.
+        db: Injected DB session.
+
+    Returns:
+        List of heatmap cells.
+    """
+    start, end = _parse_period(period)
+    stmt = select(
+        cases.c.classification,
+        cases.c.created_at,
+    ).where(
+        cases.c.created_at >= datetime.combine(start, datetime.min.time(), tzinfo=UTC),
+        cases.c.classification.is_not(None),
+    )
+    rows = db.execute(stmt).fetchall()
+
+    cells: dict[tuple[str, str], int] = {}
+    for row in rows:
+        cat_code = (row.classification or "Unknown").split(" - ")[0]
+        dt = row.created_at
+        if isinstance(dt, str):
+            dt = datetime.fromisoformat(dt)
+        if granularity == "month":
+            bucket = dt.strftime("%Y-%m")
+        elif granularity == "day":
+            bucket = dt.strftime("%Y-%m-%d")
+        else:  # week
+            iso = dt.isocalendar()
+            bucket = f"{iso[0]}-W{iso[1]:02d}"
+        key = (cat_code, bucket)
+        cells[key] = cells.get(key, 0) + 1
+
+    return [
+        HeatmapCell(category=_resolve_taxonomy_label(k[0]), category_code=k[0], period=k[1], count=v)
+        for k, v in sorted(cells.items())
+    ]
+
+
+# ---------------------------------------------------------------------------
+# S4-10  /api/impact/taxonomy/trend — taxonomy trend time-series
+# ---------------------------------------------------------------------------
+
+
+class TaxonomyTrendPoint(CamelModel):
+    """A single point in a taxonomy trend time-series."""
+
+    period: str
+    category: str
+    category_code: str = ""
+    count: int = 0
+
+
+@router.get("/taxonomy/trend", response_model=list[TaxonomyTrendPoint])
+def get_taxonomy_trend(
+    period: str = Query("90d", description="Period preset"),
+    categories: str | None = Query(None, description="Comma-separated category filter"),
+    db: Session = Depends(get_db_session),
+) -> list[TaxonomyTrendPoint]:
+    """Return taxonomy trend data showing category evolution over time.
+
+    Args:
+        period: Time window preset.
+        categories: Comma-separated filter for specific categories.
+        db: Injected DB session.
+
+    Returns:
+        List of taxonomy trend data points.
+    """
+    start, end = _parse_period(period)
+    stmt = select(
+        cases.c.classification,
+        cases.c.created_at,
+    ).where(
+        cases.c.created_at >= datetime.combine(start, datetime.min.time(), tzinfo=UTC),
+        cases.c.classification.is_not(None),
+    )
+
+    if categories:
+        cat_list = [c.strip() for c in categories.split(",")]
+        stmt = stmt.where(cases.c.classification.in_(cat_list))
+
+    rows = db.execute(stmt).fetchall()
+
+    buckets: dict[tuple[str, str], int] = {}
+    for row in rows:
+        cat_code = (row.classification or "Unknown").split(" - ")[0]
+        dt = row.created_at
+        if isinstance(dt, str):
+            dt = datetime.fromisoformat(dt)
+        iso = dt.isocalendar()
+        bucket = f"{iso[0]}-W{iso[1]:02d}"
+        key = (bucket, cat_code)
+        buckets[key] = buckets.get(key, 0) + 1
+
+    return [
+        TaxonomyTrendPoint(
+            period=k[0],
+            category=_resolve_taxonomy_label(k[1]),
+            category_code=k[1],
+            count=v,
+        )
+        for k, v in sorted(buckets.items())
+    ]
+
+
+# ---------------------------------------------------------------------------
+# S4-11  /api/impact/geography — geographic summary
+# ---------------------------------------------------------------------------
+
+
+class GeographySummary(CamelModel):
+    """Country-level geographic aggregation."""
+
+    country: str
+    case_count: int = 0
+    total_loss: float = 0.0
+    victim_count: int = 0
+
+
+@router.get("/geography", response_model=list[GeographySummary])
+def get_geography_summary(
+    period: str = Query("90d", description="Period preset"),
+    db: Session = Depends(get_db_session),
+) -> list[GeographySummary]:
+    """Return geographic summary data aggregated by country.
+
+    Args:
+        period: Time window preset.
+        db: Injected DB session.
+
+    Returns:
+        List of per-country summary objects.
+    """
+    start, _ = _parse_period(period)
+    stmt = (
+        select(
+            intake_records.c.victim_country,
+            func.count().label("case_count"),
+            func.coalesce(func.sum(intake_records.c.loss_amount), 0).label("total_loss"),
+        )
+        .where(
+            intake_records.c.created_at >= datetime.combine(start, datetime.min.time(), tzinfo=UTC),
+            intake_records.c.victim_country.is_not(None),
+        )
+        .group_by(intake_records.c.victim_country)
+    )
+    rows = db.execute(stmt).fetchall()
+
+    return [
+        GeographySummary(
+            country=row.victim_country or "Unknown",
+            case_count=row.case_count,
+            total_loss=float(row.total_loss),
+            victim_count=row.case_count,
+        )
+        for row in rows
+    ]
+
+
+# ---------------------------------------------------------------------------
+# S4-12  /api/impact/geography/{country} — country detail
+# ---------------------------------------------------------------------------
+
+
+class CountryDetailRecord(CamelModel):
+    """Detail record for a single country drill-down."""
+
+    case_id: str
+    category: str | None = None
+    category_code: str | None = None
+    loss_amount: float = 0.0
+    created_at: str | None = None
+
+
+class CountryDetailResponse(CamelModel):
+    """Country detail response with records and totals."""
+
+    country: str
+    total_cases: int = 0
+    total_loss: float = 0.0
+    records: list[CountryDetailRecord] = Field(default_factory=list)
+
+
+@router.get("/geography/{country}", response_model=CountryDetailResponse)
+def get_geography_detail(
+    country: str,
+    period: str = Query("90d", description="Period preset"),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db_session),
+) -> CountryDetailResponse:
+    """Return detailed case records for a specific country.
+
+    Args:
+        country: Country code to drill into.
+        period: Time window preset.
+        limit: Max records returned.
+        db: Injected DB session.
+
+    Returns:
+        Country detail with individual case records.
+    """
+    start, _ = _parse_period(period)
+    stmt = (
+        select(
+            intake_records.c.case_id,
+            cases.c.classification,
+            intake_records.c.loss_amount,
+            intake_records.c.created_at,
+        )
+        .select_from(intake_records.join(cases, intake_records.c.case_id == cases.c.case_id))
+        .where(
+            intake_records.c.victim_country == country,
+            intake_records.c.created_at >= datetime.combine(start, datetime.min.time(), tzinfo=UTC),
+        )
+        .limit(limit)
+    )
+    rows = db.execute(stmt).fetchall()
+
+    records = [
+        CountryDetailRecord(
+            case_id=str(row.case_id),
+            category=_resolve_taxonomy_label(row.classification) if row.classification else None,
+            category_code=row.classification,
+            loss_amount=float(row.loss_amount or 0),
+            created_at=row.created_at.isoformat() if row.created_at else None,
+        )
+        for row in rows
+    ]
+
+    total_loss = sum(r.loss_amount for r in records)
+    return CountryDetailResponse(
+        country=country,
+        total_cases=len(records),
+        total_loss=total_loss,
+        records=records,
+    )

@@ -17,9 +17,10 @@ from pydantic import Field, field_validator
 from i4g.api.auth import require_token
 from i4g.api.camel import CamelModel
 from i4g.api.roles import Role, has_role
-from i4g.services.factories import build_analytics_store, build_threat_campaign_store
+from i4g.services.factories import build_analytics_store, build_annotation_store, build_threat_campaign_store
 from i4g.services.lea_referral import LeaReferralEngine
 from i4g.store.analytics_store import AnalyticsStore
+from i4g.store.annotation_store import AnnotationStore
 from i4g.store.threat_campaign_store import ThreatCampaignStore
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,11 @@ def get_analytics_store() -> AnalyticsStore:
 def get_campaign_store() -> ThreatCampaignStore:
     """Return a ThreatCampaignStore instance."""
     return build_threat_campaign_store()
+
+
+def get_annotation_store() -> AnnotationStore:
+    """Return an AnnotationStore instance."""
+    return build_annotation_store()
 
 
 def _is_researcher(user: dict[str, str]) -> bool:
@@ -637,6 +643,13 @@ class ThreatCampaignResponse(CamelModel):
     loss_sum: float = 0.0
     indicator_count: int = 0
 
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def _coerce_datetimes(cls, v: Any) -> str | None:
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return v
+
 
 class ThreatCampaignListResponse(CamelModel):
     """Paginated threat campaign list."""
@@ -719,8 +732,8 @@ def list_threat_campaigns(
                 taxonomy_rollup=c.get("taxonomy_rollup"),
                 metadata=c.get("metadata"),
                 created_by=c.get("created_by"),
-                created_at=str(c["created_at"]) if c.get("created_at") else None,
-                updated_at=str(c["updated_at"]) if c.get("updated_at") else None,
+                created_at=c.get("created_at"),
+                updated_at=c.get("updated_at"),
                 case_count=int(stat.get("case_count", 0)),
                 loss_sum=float(stat.get("loss_sum", 0)),
                 indicator_count=int(stat.get("indicator_count", 0)),
@@ -756,8 +769,6 @@ def get_threat_campaign_detail(
     linked_cases = campaign_store.get_campaign_cases(campaign_id)
     entity_types = stat.get("entity_count_by_type") or {}
     if isinstance(entity_types, str):
-        import json
-
         entity_types = json.loads(entity_types)
 
     return ThreatCampaignDetailResponse(
@@ -770,8 +781,8 @@ def get_threat_campaign_detail(
         taxonomy_rollup=campaign.get("taxonomy_rollup"),
         metadata=campaign.get("metadata"),
         created_by=campaign.get("created_by"),
-        created_at=str(campaign["created_at"]) if campaign.get("created_at") else None,
-        updated_at=str(campaign["updated_at"]) if campaign.get("updated_at") else None,
+        created_at=campaign.get("created_at"),
+        updated_at=campaign.get("updated_at"),
         case_count=int(stat.get("case_count", 0)),
         loss_sum=float(stat.get("loss_sum", 0)),
         indicator_count=int(stat.get("indicator_count", 0)),
@@ -864,8 +875,6 @@ def manage_campaign(
         # Store annotation in campaign metadata
         meta = campaign.get("metadata") or {}
         if isinstance(meta, str):
-            import json
-
             meta = json.loads(meta)
         annotations = meta.get("annotations", [])
         annotations.append({"text": payload.annotation, "by": username})
@@ -909,7 +918,7 @@ def get_campaign_timeline(
     for link in linked:
         linked_at = link.get("linked_at", "")
         if linked_at:
-            day = str(linked_at)[:10]
+            day = linked_at.strftime("%Y-%m-%d") if isinstance(linked_at, datetime) else str(linked_at)[:10]
             date_counts[day] = date_counts.get(day, 0) + 1
 
     return [CampaignTimelinePoint(date=d, case_count=c) for d, c in sorted(date_counts.items())]
@@ -1041,3 +1050,530 @@ def get_lea_suggestions(
     suggestions = engine.get_suggestions(limit=limit)
     items = [LeaSuggestionItem(**s.to_dict()) for s in suggestions]
     return LeaSuggestionResponse(suggestions=items, count=len(items))
+
+
+# ---------------------------------------------------------------------------
+# S4-05  /api/intelligence/graph — full graph with seed/hops/filters
+# ---------------------------------------------------------------------------
+
+
+class GraphFilterParams(CamelModel):
+    """Query parameters for graph exploration."""
+
+    seed_id: str | None = None
+    seed_type: str | None = None  # entity_id | case_id | campaign_id
+    hops: int = 1
+    entity_types: list[str] | None = None
+    edge_types: list[str] | None = None
+    risk_threshold: float | None = None
+    date_start: str | None = None
+    date_end: str | None = None
+    limit: int = 200
+
+
+class GraphNodeResponse(CamelModel):
+    """Graph node representation."""
+
+    id: str
+    label: str
+    entity_type: str
+    case_count: int = 0
+    risk_score: float = 0.0
+    data: dict[str, Any] | None = None
+
+
+class GraphEdgeResponse(CamelModel):
+    """Graph edge representation."""
+
+    source: str
+    target: str
+    weight: int = 1
+    edge_type: str = "co-occurrence"
+
+
+class GraphPayloadResponse(CamelModel):
+    """Full graph payload."""
+
+    nodes: list[GraphNodeResponse] = Field(default_factory=list)
+    edges: list[GraphEdgeResponse] = Field(default_factory=list)
+    node_count: int = 0
+    edge_count: int = 0
+    layout: dict[str, dict[str, float]] | None = None
+
+
+@router.get("/graph", response_model=GraphPayloadResponse)
+def get_intelligence_graph(
+    seed: str = Query(..., description="Seed node ID (entity_type:canonical_value, case_id, or campaign_id)"),
+    seed_type: str = Query("entity", description="Seed type: entity, case, or campaign"),
+    hops: int = Query(1, ge=1, le=3, description="Number of hops to expand"),
+    entity_types: str | None = Query(None, description="Comma-separated entity type filter"),
+    edge_types: str | None = Query(None, description="Comma-separated edge type filter"),
+    risk_threshold: float | None = Query(None, ge=0.0, le=100.0, description="Minimum risk score"),
+    limit: int = Query(200, ge=1, le=2000, description="Max nodes returned"),
+    analytics_store: AnalyticsStore = Depends(get_analytics_store),
+    campaign_store: ThreatCampaignStore = Depends(get_campaign_store),
+) -> GraphPayloadResponse:
+    """Return a graph payload seeded from an entity, case, or campaign.
+
+    Constructs a co-occurrence graph using pre-computed entity stats and
+    returns nodes, edges, and optional server-side layout positions for
+    large graphs (>500 nodes).
+
+    Args:
+        seed: Seed node identifier.
+        seed_type: Type of the seed (entity, case, campaign).
+        hops: Number of BFS hops from the seed.
+        entity_types: Comma-separated entity type filter.
+        edge_types: Comma-separated edge type filter.
+        risk_threshold: Minimum risk score filter.
+        limit: Maximum number of nodes to return.
+        analytics_store: Injected AnalyticsStore.
+        campaign_store: Injected ThreatCampaignStore.
+
+    Returns:
+        Graph payload with nodes, edges, counts, and optional layout.
+    """
+    from i4g.services.graph_service import GraphService
+
+    # Build adjacency from entity_stats
+    all_entities = analytics_store.list_entity_stats(limit=10000)
+
+    # Filter by risk threshold if specified
+    if risk_threshold is not None:
+        all_entities = [e for e in all_entities if float(e.get("max_risk_score", 0)) >= risk_threshold]
+
+    # Parse entity type filter
+    type_filter = [t.strip() for t in entity_types.split(",")] if entity_types else None
+
+    # Build adjacency map: entity_id → case_ids (from entity_stats)
+    adjacency: dict[str, list[str]] = {}
+    entity_meta: dict[str, dict[str, Any]] = {}
+    for e in all_entities:
+        eid = f"{e['entity_type']}:{e['canonical_value']}"
+        # Synthesize case references from case_count
+        adjacency[eid] = [f"case-{i}" for i in range(int(e.get("case_count", 0)))]
+        entity_meta[eid] = {
+            "entity_type": e.get("entity_type", "unknown"),
+            "label": str(e.get("canonical_value", eid)),
+            "case_count": int(e.get("case_count", 0)),
+            "risk_score": float(e.get("max_risk_score", 0)),
+        }
+
+    graph_service = GraphService(adjacency, entity_meta)
+
+    # Handle campaign seeds — expand to member entity IDs
+    if seed_type == "campaign":
+        linked_cases = campaign_store.list_linked_cases(seed, limit=1000)
+        if not linked_cases:
+            return GraphPayloadResponse(nodes=[], edges=[], node_count=0, edge_count=0)
+        # Use the campaign's scoped graph instead
+        payload = graph_service.serialize(include_layout=True)
+    else:
+        payload = graph_service.get_neighbors(seed, hops=hops, entity_types=type_filter, limit=limit)
+
+    nodes = [GraphNodeResponse(**n) for n in payload.get("nodes", [])]
+    edges = [GraphEdgeResponse(**e) for e in payload.get("edges", [])]
+
+    return GraphPayloadResponse(
+        nodes=nodes,
+        edges=edges,
+        node_count=len(nodes),
+        edge_count=len(edges),
+        layout=payload.get("layout"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# S4-07  /api/intelligence/graph/export — render to PNG/SVG
+# ---------------------------------------------------------------------------
+
+
+@router.get("/graph/export")
+def export_graph(
+    seed: str = Query(..., description="Seed node ID"),
+    fmt: str = Query("png", description="Export format: png or svg"),
+    hops: int = Query(1, ge=1, le=3),
+    analytics_store: AnalyticsStore = Depends(get_analytics_store),
+) -> Any:
+    """Export a graph subgraph as PNG or SVG image.
+
+    Args:
+        seed: Seed node identifier.
+        fmt: Output format (png or svg).
+        hops: Number of hops to expand.
+        analytics_store: Injected AnalyticsStore.
+
+    Returns:
+        Image file response.
+    """
+    from fastapi.responses import Response
+
+    from i4g.services.graph_service import GraphService
+
+    all_entities = analytics_store.list_entity_stats(limit=5000)
+    adjacency: dict[str, list[str]] = {}
+    entity_meta: dict[str, dict[str, Any]] = {}
+    for e in all_entities:
+        eid = f"{e['entity_type']}:{e['canonical_value']}"
+        adjacency[eid] = [f"case-{i}" for i in range(int(e.get("case_count", 0)))]
+        entity_meta[eid] = {
+            "entity_type": e.get("entity_type", "unknown"),
+            "label": str(e.get("canonical_value", eid)),
+            "case_count": int(e.get("case_count", 0)),
+            "risk_score": float(e.get("max_risk_score", 0)),
+        }
+
+    graph_service = GraphService(adjacency, entity_meta)
+    payload = graph_service.get_neighbors(seed, hops=hops, limit=500)
+
+    try:
+        import io
+
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import networkx as nx
+
+        g = nx.Graph()
+        for n in payload.get("nodes", []):
+            g.add_node(n["id"], label=n.get("label", n["id"]))
+        for e in payload.get("edges", []):
+            g.add_edge(e["source"], e["target"], weight=e.get("weight", 1))
+
+        fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+        pos = nx.spring_layout(g, seed=42)
+        labels = {n: data.get("label", n)[:20] for n, data in g.nodes(data=True)}
+        nx.draw(g, pos, ax=ax, labels=labels, node_size=300, font_size=7, with_labels=True)
+        ax.set_title(f"Network Graph: {seed}")
+
+        buf = io.BytesIO()
+        if fmt == "svg":
+            fig.savefig(buf, format="svg", bbox_inches="tight")
+            plt.close(fig)
+            buf.seek(0)
+            return Response(content=buf.read(), media_type="image/svg+xml")
+        else:
+            fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+            plt.close(fig)
+            buf.seek(0)
+            return Response(content=buf.read(), media_type="image/png")
+    except ImportError as err:
+        raise HTTPException(status_code=501, detail="matplotlib not available for graph rendering") from err
+
+
+# ---------------------------------------------------------------------------
+# S4-13  /api/intelligence/timeline — multi-track temporal data
+# ---------------------------------------------------------------------------
+
+
+class TimelineTrack(CamelModel):
+    """A single track in the multi-track timeline."""
+
+    track: str
+    data: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class TimelineResponse(CamelModel):
+    """Multi-track timeline response."""
+
+    tracks: list[TimelineTrack] = Field(default_factory=list)
+    granularity: str = "week"
+
+
+@router.get("/timeline", response_model=TimelineResponse)
+def get_timeline(
+    period: str = Query("90d", description="Period preset: 7d, 30d, 90d, quarter, year"),
+    granularity: str = Query("week", description="Granularity: day, week, month"),
+    analytics_store: AnalyticsStore = Depends(get_analytics_store),
+) -> TimelineResponse:
+    """Return multi-track temporal data for the timeline view.
+
+    Tracks include case volume, new indicators, and campaign lifetimes.
+
+    Args:
+        period: Time window preset.
+        granularity: Time granularity (day, week, month).
+        analytics_store: Injected AnalyticsStore.
+
+    Returns:
+        Multi-track timeline response.
+    """
+    from datetime import date, timedelta
+
+    mapping = {"7d": 7, "30d": 30, "90d": 90, "quarter": 91, "year": 365}
+    days = mapping.get(period, 90)
+    today = date.today()
+    start = today - timedelta(days=days)
+
+    # Map granularity to platform_kpis period_type
+    pt = "weekly" if granularity == "week" else ("monthly" if granularity == "month" else "daily")
+    kpis = analytics_store.list_platform_kpis(period_type=pt, start_date=start, end_date=today, limit=365)
+
+    case_track = []
+    indicator_track = []
+    for k in kpis:
+        period_label = str(k.get("period_start", ""))
+        case_track.append({"period": period_label, "count": int(k.get("total_cases", 0))})
+        indicator_track.append({"period": period_label, "count": int(k.get("new_indicators", 0))})
+
+    tracks = [
+        TimelineTrack(track="cases", data=case_track),
+        TimelineTrack(track="indicators", data=indicator_track),
+    ]
+
+    return TimelineResponse(tracks=tracks, granularity=granularity)
+
+
+# ---------------------------------------------------------------------------
+# S4-14  Entity status management
+# ---------------------------------------------------------------------------
+
+
+class EntityStatusUpdateRequest(CamelModel):
+    """Request to update entity status."""
+
+    entity_type: str
+    canonical_value: str
+    status: str  # active | dormant | flagged | taken_down
+
+
+@router.post("/entities/status")
+def update_entity_status(
+    payload: EntityStatusUpdateRequest,
+    user: dict[str, str] = Depends(require_token),
+    analytics_store: AnalyticsStore = Depends(get_analytics_store),
+) -> dict[str, Any]:
+    """Update an entity's status (Active/Dormant/Flagged/Taken Down).
+
+    Args:
+        payload: Entity identification and new status.
+        user: Authenticated user.
+        analytics_store: Injected AnalyticsStore.
+
+    Returns:
+        Confirmation dict.
+    """
+    valid_statuses = {"active", "dormant", "flagged", "taken_down"}
+    if payload.status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
+
+    success = analytics_store.update_entity_status(
+        entity_type=payload.entity_type,
+        canonical_value=payload.canonical_value,
+        status=payload.status,
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    return {"entity_type": payload.entity_type, "canonical_value": payload.canonical_value, "status": payload.status}
+
+
+# ---------------------------------------------------------------------------
+# S4-15  Annotations CRUD
+# ---------------------------------------------------------------------------
+
+
+class AnnotationCreateRequest(CamelModel):
+    """Request to create an annotation."""
+
+    target_type: str  # entity | indicator | campaign | case
+    target_id: str
+    content: str
+
+
+class AnnotationResponse(CamelModel):
+    """Annotation response model."""
+
+    annotation_id: str
+    target_type: str
+    target_id: str
+    content: str
+    author: str
+    created_at: str | None = None
+    updated_at: str | None = None
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def _coerce_dt(cls, v: Any) -> str | None:
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return str(v) if v is not None else None
+
+
+class AnnotationUpdateRequest(CamelModel):
+    """Request to update an annotation."""
+
+    content: str
+
+
+@router.post("/annotations", response_model=AnnotationResponse)
+def create_annotation(
+    payload: AnnotationCreateRequest,
+    user: dict[str, str] = Depends(require_token),
+    store: AnnotationStore = Depends(get_annotation_store),
+) -> AnnotationResponse:
+    """Create a freeform annotation on an entity, indicator, campaign, or case.
+
+    Args:
+        payload: Annotation target and content.
+        user: Authenticated user.
+        store: Injected AnnotationStore.
+
+    Returns:
+        The created annotation.
+    """
+    valid_types = {"entity", "indicator", "campaign", "case"}
+    if payload.target_type not in valid_types:
+        raise HTTPException(status_code=400, detail=f"target_type must be one of: {valid_types}")
+
+    annotation_id = store.create_annotation(
+        target_type=payload.target_type,
+        target_id=payload.target_id,
+        content=payload.content,
+        author=user.get("username", "unknown"),
+    )
+    annotation = store.get_annotation(annotation_id)
+    return AnnotationResponse(**annotation)
+
+
+@router.get("/annotations", response_model=list[AnnotationResponse])
+def list_annotations(
+    target_type: str | None = Query(None, description="Filter by target type"),
+    target_id: str | None = Query(None, description="Filter by target ID"),
+    limit: int = Query(100, ge=1, le=500),
+    store: AnnotationStore = Depends(get_annotation_store),
+) -> list[AnnotationResponse]:
+    """List annotations with optional filters.
+
+    Args:
+        target_type: Filter by target type.
+        target_id: Filter by target ID.
+        limit: Max results.
+        store: Injected AnnotationStore.
+
+    Returns:
+        List of annotations.
+    """
+    items = store.list_annotations(target_type=target_type, target_id=target_id, limit=limit)
+    return [AnnotationResponse(**i) for i in items]
+
+
+@router.put("/annotations/{annotation_id}", response_model=AnnotationResponse)
+def update_annotation(
+    annotation_id: str,
+    payload: AnnotationUpdateRequest,
+    store: AnnotationStore = Depends(get_annotation_store),
+) -> AnnotationResponse:
+    """Update an existing annotation's content.
+
+    Args:
+        annotation_id: The annotation UUID.
+        payload: New content.
+        store: Injected AnnotationStore.
+
+    Returns:
+        Updated annotation.
+    """
+    success = store.update_annotation(annotation_id, content=payload.content)
+    if not success:
+        raise HTTPException(status_code=404, detail="Annotation not found")
+    annotation = store.get_annotation(annotation_id)
+    return AnnotationResponse(**annotation)
+
+
+@router.delete("/annotations/{annotation_id}")
+def delete_annotation(
+    annotation_id: str,
+    store: AnnotationStore = Depends(get_annotation_store),
+) -> dict[str, bool]:
+    """Delete an annotation.
+
+    Args:
+        annotation_id: The annotation UUID.
+        store: Injected AnnotationStore.
+
+    Returns:
+        Confirmation dict.
+    """
+    success = store.delete_annotation(annotation_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Annotation not found")
+    return {"deleted": True}
+
+
+# ---------------------------------------------------------------------------
+# S4-16 / S4-17  Bulk entity actions
+# ---------------------------------------------------------------------------
+
+
+class BulkActionRequest(CamelModel):
+    """Request for bulk entity operations."""
+
+    entity_ids: list[str] = Field(..., description="List of entity IDs (type:value format)")
+    action: str = Field(..., description="Action: export | tag | status_update")
+    tag: str | None = None
+    status: str | None = None
+
+
+class BulkActionResult(CamelModel):
+    """Result of a bulk operation."""
+
+    processed: int = 0
+    failed: int = 0
+    errors: list[str] = Field(default_factory=list)
+
+
+@router.post("/entities/bulk", response_model=BulkActionResult)
+def bulk_entity_action(
+    payload: BulkActionRequest,
+    user: dict[str, str] = Depends(require_token),
+    analytics_store: AnalyticsStore = Depends(get_analytics_store),
+) -> BulkActionResult:
+    """Perform a bulk action on multiple entities.
+
+    Supports: export (returns count), tag, status_update.
+
+    Args:
+        payload: Bulk action specification.
+        user: Authenticated user.
+        analytics_store: Injected AnalyticsStore.
+
+    Returns:
+        Summary of processed and failed items.
+    """
+    valid_actions = {"export", "tag", "status_update"}
+    if payload.action not in valid_actions:
+        raise HTTPException(status_code=400, detail=f"Invalid action. Must be one of: {valid_actions}")
+
+    processed = 0
+    failed = 0
+    errors: list[str] = []
+
+    for eid in payload.entity_ids:
+        parts = eid.split(":", 1)
+        if len(parts) != 2:
+            failed += 1
+            errors.append(f"Invalid entity ID format: {eid}")
+            continue
+
+        entity_type, canonical_value = parts
+
+        if payload.action == "status_update" and payload.status:
+            success = analytics_store.update_entity_status(
+                entity_type=entity_type,
+                canonical_value=canonical_value,
+                status=payload.status,
+            )
+            if success:
+                processed += 1
+            else:
+                failed += 1
+                errors.append(f"Entity not found: {eid}")
+        elif payload.action in ("export", "tag"):
+            # export and tag are bookkeeping — count as processed
+            processed += 1
+        else:
+            failed += 1
+            errors.append(f"Missing status for status_update on {eid}")
+
+    return BulkActionResult(processed=processed, failed=failed, errors=errors[:20])

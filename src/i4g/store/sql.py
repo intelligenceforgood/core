@@ -143,6 +143,9 @@ cases = sa.Table(
     sa.Column("deleted_at", TIMESTAMP, nullable=True),
     sa.Column("resolved_at", TIMESTAMP, nullable=True),
     sa.Column("purged_at", TIMESTAMP, nullable=True),
+    sa.Column("lea_referred_at", TIMESTAMP, nullable=True),
+    sa.Column("lea_agency", sa.Text(), nullable=True),
+    sa.Column("lea_case_number", sa.Text(), nullable=True),
     sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
     sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
     sa.UniqueConstraint("dataset", "raw_text_sha256", name="uq_cases_dataset_rawsha"),
@@ -347,6 +350,8 @@ intake_records = sa.Table(
     sa.Column("contact_email", sa.Text(), nullable=True),
     sa.Column("contact_phone", sa.Text(), nullable=True),
     sa.Column("contact_handle", sa.Text(), nullable=True),
+    sa.Column("contact_channel", sa.Text(), nullable=True),
+    sa.Column("contact_identifier", sa.Text(), nullable=True),
     sa.Column("preferred_contact", sa.Text(), nullable=True),
     sa.Column("incident_date", sa.Text(), nullable=True),
     sa.Column("loss_amount", sa.Float(), nullable=True),
@@ -362,6 +367,7 @@ intake_records = sa.Table(
     sa.Column("job_message", sa.Text(), nullable=True),
     sa.Column("loss_currency", sa.Text(), nullable=True, server_default="USD"),
     sa.Column("victim_country", sa.Text(), nullable=True),
+    sa.Column("victim_age_range", sa.Text(), nullable=True),
     sa.Column("metadata", JSON_TYPE, nullable=True),
     sa.Column("created_at", TIMESTAMP, nullable=True),
     sa.Column("updated_at", TIMESTAMP, nullable=True),
@@ -422,6 +428,7 @@ site_scans = sa.Table(
     sa.Column("metadata", JSON_TYPE, nullable=True),
     sa.Column("started_at", TIMESTAMP, nullable=True),
     sa.Column("completed_at", TIMESTAMP, nullable=True),
+    sa.Column("taken_down_at", TIMESTAMP, nullable=True),
     sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
     sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
 )
@@ -692,6 +699,20 @@ platform_kpis = sa.Table(
     sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
     sa.PrimaryKeyConstraint("period_type", "period_start", name="pk_platform_kpis"),
 )
+
+annotations = sa.Table(
+    "annotations",
+    METADATA,
+    sa.Column("annotation_id", UUID_TYPE, primary_key=True),
+    sa.Column("target_type", sa.Text(), nullable=False),  # entity | indicator | campaign | case
+    sa.Column("target_id", sa.Text(), nullable=False),
+    sa.Column("content", sa.Text(), nullable=False),
+    sa.Column("author", sa.Text(), nullable=False, server_default="system"),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_annotations_target", annotations.c.target_type, annotations.c.target_id)
+sa.Index("idx_annotations_author", annotations.c.author)
 
 
 def dialect_insert(session: Session, table: sa.Table):

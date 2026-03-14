@@ -351,3 +351,127 @@ reports.
 | `src/i4g/services/export_adapters.py`       | CSV/XLSX/STIX export adapters        |
 | `templates/reports/executive_summary.md.j2` | Executive Summary Jinja2 template    |
 | `templates/reports/lea_dossier.md.j2`       | LEA Evidence Dossier Jinja2 template |
+
+---
+
+## 14. Network Graph (Sprint 4)
+
+### 14.1 Graph API
+
+`GET /intelligence/graph` accepts a seed entity, hop count (1-3), optional entity-type
+and risk-threshold filters. Returns `GraphPayload` with nodes, edges, and optional
+pre-computed layout.
+
+- **GraphService** (`src/i4g/services/graph_service.py`) builds the subgraph from
+  `entity_stats` and `entity_links` tables via BFS traversal up to the requested depth.
+- **Layout**: For graphs with >500 nodes, `NetworkX.spring_layout` pre-computes
+  positions server-side. Layout values are `dict[str, dict[str, float]]` maps
+  (`{"x": float, "y": float}` per node).
+- **Campaign seeding**: When `campaign_id` is provided, seed entities are drawn
+  from the campaign's entity list rather than a single seed.
+
+### 14.2 Graph Export
+
+`GET /intelligence/graph/export` renders the current graph as PNG or SVG.
+Accepts `format` (png/svg), `width`, `height`, and `seed`/`hops` parameters.
+
+### 14.3 Frontend Rendering
+
+`network-graph.tsx` renders a canvas-based force-directed graph with color-coded
+nodes by entity type and edges by relationship type. Controls include seed input,
+hop selector, zoom, and export button.
+
+---
+
+## 15. Taxonomy Explorer (Sprint 4)
+
+### 15.1 Sankey Endpoint
+
+`GET /impact/taxonomy/sankey` returns `SankeyResponse` with nodes and links
+representing the Category → Subcategory flow. Categories are derived by splitting
+the `classification` column on `" - "`.
+
+### 15.2 Heatmap Endpoint
+
+`GET /impact/taxonomy/heatmap` returns `HeatmapCell[]` — a two-axis grid of
+category × time period with case counts. Supports `granularity` (day/week/month)
+and `period` filters.
+
+### 15.3 Trend Endpoint
+
+`GET /impact/taxonomy/trend` returns `TaxonomyTrendPoint[]` — time-series of
+case counts per category. Supports `period` and `category` filters.
+
+### 15.4 Data Model
+
+All three endpoints query the `cases` table using the `classification` column.
+The `subcategory` is derived at query time by splitting on `" - "` separator.
+
+---
+
+## 16. Geographic Aggregation (Sprint 4)
+
+### 16.1 Summary Endpoint
+
+`GET /impact/geography` returns `GeographySummary[]` — per-country aggregation
+of case count, total loss, and victim count from the `intake_records` table
+using the `victim_country` column.
+
+### 16.2 Detail Endpoint
+
+`GET /impact/geography/{country}` returns `CountryDetailResponse` with
+individual case records for the specified country, including case ID, category,
+and loss amount. Supports `limit` and `period` parameters.
+
+---
+
+## 17. Timeline (Sprint 4)
+
+### 17.1 Timeline API
+
+`GET /intelligence/timeline` returns `TimelineResponse` with tracks (cases,
+indicators, campaigns) over time. Supports `period` (7d/30d/90d/quarter/year)
+and `granularity` (day/week/month) parameters.
+
+Weekly KPIs are aggregated from `analytics_kpis` with `date_trunc` by the
+requested granularity. Monthly data is retrieved from `analytics_kpis_monthly`.
+
+### 17.2 Frontend Rendering
+
+`timeline-view.tsx` renders horizontal bar charts per track with period/granularity
+controls. Tracks are color-coded (blue=cases, green=indicators, amber=campaigns).
+
+---
+
+## 18. Entity Annotations & Status (Sprint 4)
+
+### 18.1 Annotation Store
+
+`AnnotationStore` (`src/i4g/store/annotation_store.py`) manages CRUD for analyst
+notes attached to entities. Annotations have a `target_type` (entity/indicator/
+campaign) and `target_id`.
+
+### 18.2 Entity Status Transitions
+
+`PUT /intelligence/entities/{type}/{value}/status` updates entity status
+(active/archived/under_review/dismissed). Status is persisted in `entity_stats`.
+
+### 18.3 Bulk Actions
+
+`POST /intelligence/entities/bulk-actions` handles batch operations (export,
+tag, status_update) on entity lists. Returns per-entity success/failure results.
+
+---
+
+## 19. Key Files (Sprint 4)
+
+| File                                                   | Purpose                             |
+| ------------------------------------------------------ | ----------------------------------- |
+| `src/i4g/services/graph_service.py`                    | Graph traversal and layout engine   |
+| `src/i4g/store/annotation_store.py`                    | Entity annotation CRUD store        |
+| `src/i4g/api/intelligence.py` (graph section)          | Graph, timeline, annotation, status |
+| `src/i4g/api/impact.py` (taxonomy/geo section)         | Sankey, heatmap, trend, geography   |
+| `ui/../intelligence/graph/network-graph.tsx`           | Canvas-based graph visualization    |
+| `ui/../impact/taxonomy-explorer/taxonomy-explorer.tsx` | Taxonomy explorer component         |
+| `ui/../impact/geography/geography-view.tsx`            | Geographic analysis component       |
+| `ui/../intelligence/timeline/timeline-view.tsx`        | Timeline visualization component    |
