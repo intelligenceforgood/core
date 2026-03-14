@@ -729,3 +729,46 @@ class FeedbackSettings(BaseSettings):
         validation_alias=AliasChoices("FEEDBACK_SHEET_ID", "FEEDBACK__SHEET_ID"),
         description="Google Sheet spreadsheet ID for feedback storage.",
     )
+
+
+class EmailSettings(BaseSettings):
+    """Email delivery configuration for scheduled reports.
+
+    Set ``provider`` to ``smtp`` and supply SMTP credentials to enable
+    real delivery.  The default ``log`` provider writes the email payload
+    to the application log only.
+
+    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    provider: str = Field(
+        default="log",
+        validation_alias=AliasChoices("EMAIL_PROVIDER", "EMAIL__PROVIDER"),
+        description="Email provider: 'log' (default) or 'smtp'.",
+    )
+    smtp_host: str = Field(
+        default="localhost",
+        validation_alias=AliasChoices("EMAIL_SMTP_HOST", "EMAIL__SMTP_HOST"),
+    )
+    smtp_port: int = Field(
+        default=587,
+        validation_alias=AliasChoices("EMAIL_SMTP_PORT", "EMAIL__SMTP_PORT"),
+    )
+    smtp_user: str = Field(
+        default="",
+        validation_alias=AliasChoices("EMAIL_SMTP_USER", "EMAIL__SMTP_USER"),
+    )
+    smtp_password: str = Field(
+        default="",
+        validation_alias=AliasChoices("EMAIL_SMTP_PASSWORD", "EMAIL__SMTP_PASSWORD"),
+    )
+    from_address: str = Field(
+        default="noreply@i4g.local",
+        validation_alias=AliasChoices("EMAIL_FROM_ADDRESS", "EMAIL__FROM_ADDRESS"),
+    )
+    use_tls: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("EMAIL_USE_TLS", "EMAIL__USE_TLS"),
+    )

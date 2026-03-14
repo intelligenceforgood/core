@@ -17,6 +17,8 @@ import logging
 import sys
 import uuid
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -93,12 +95,15 @@ def _process_due_schedules(session: Session) -> int:
             )
             triggered += 1
 
-            # Advance next_run_at based on cadence
-            next_run = _compute_next_run(now, cadence)
+            updates: dict[str, Any] = {"last_run_at": now, "updated_at": now}
+            if cadence == "once":
+                updates["is_active"] = False
+                updates["next_run_at"] = None
+            else:
+                updates["next_run_at"] = _compute_next_run(now, cadence)
+
             session.execute(
-                scheduled_reports.update()
-                .where(scheduled_reports.c.schedule_id == schedule_id)
-                .values(last_run_at=now, next_run_at=next_run, updated_at=now)
+                scheduled_reports.update().where(scheduled_reports.c.schedule_id == schedule_id).values(**updates)
             )
 
         except Exception:
@@ -124,19 +129,48 @@ def _trigger_report(
         options: Report generation options.
         recipients: Email addresses for delivery.
     """
+    from i4g.reports.generator import ReportGenerator
     from i4g.worker.tasks import generate_report_for_case
 
-    # Translate scope to the format expected by the report generator
-    case_id = scope.get("case_id")
-    if case_id:
-        generate_report_for_case(case_id=case_id, template_name=template)
-        logger.info("Queued report for case %s (template: %s)", case_id, template)
+    report_path: Path | None = None
+    review_id = scope.get("review_id")
+    if review_id:
+        task_result = generate_report_for_case(review_id=str(review_id))
+        if not task_result.startswith("error:"):
+            candidate = Path(task_result)
+            if candidate.exists():
+                report_path = candidate
     else:
-        logger.info(
-            "Scheduled report template=%s scope=%s — "
-            "auto-generation for non-case scopes will be added in a future sprint",
+        # Backward compatibility: ``range`` was used by UI before ``date_range``.
+        text_query = scope.get("text_query") or scope.get("date_range") or scope.get("range")
+        case_id = scope.get("case_id")
+        report_result = ReportGenerator().generate_report(
+            case_id=str(case_id) if case_id else None,
+            text_query=str(text_query) if text_query else None,
+        )
+        raw_path = report_result.get("report_path")
+        if raw_path:
+            candidate = Path(raw_path)
+            if candidate.exists():
+                report_path = candidate
+
+    if report_path is None:
+        logger.warning(
+            "Skipping email delivery; no generated report artifact found for template=%s scope=%s",
             template,
             scope,
+        )
+        return
+
+    # Deliver only after generation confirms a local artifact.
+    if recipients:
+        from i4g.services.email_service import send_report_email
+
+        send_report_email(
+            recipients=recipients,
+            subject=f"Scheduled Report: {template}",
+            body=(f"Your scheduled {template} report has been generated.\n\n" f"Scope: {scope}\nOptions: {options}"),
+            attachment_path=report_path,
         )
 
 
@@ -157,6 +191,8 @@ def _compute_next_run(current: datetime, cadence: str) -> datetime:
         return current + timedelta(days=30)
     if cadence == "daily":
         return current + timedelta(days=1)
+    if cadence == "once":
+        return current
     # Default: weekly
     logger.warning("Unknown cadence '%s' — defaulting to weekly", cadence)
     return current + timedelta(weeks=1)

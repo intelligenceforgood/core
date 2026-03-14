@@ -6,6 +6,7 @@ Use these step-by-step guides to create artifacts, run smokes, or set up infrast
 
 - Local smoke / health checks: [smoke_test.md](smoke_test.md)
 - Bootstrap or refresh sandbox/dev data: [bootstrap_environments.md](bootstrap_environments.md)
+- Configure Google Workspace SMTP for notifications: [google_workspace_smtp_setup.md](google_workspace_smtp_setup.md)
 - Prepare bootstrap data bundles (GCS upload): [prepare_bootstrap_bundles.md](prepare_bootstrap_bundles.md)
 - Azure legacy data migration workflow: [azure_legacy_data.md](azure_legacy_data.md)
 - Cloud SQL inspection, querying, and permissions: [cloud_sql_primer.md](cloud_sql_primer.md)

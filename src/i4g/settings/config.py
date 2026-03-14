@@ -20,6 +20,7 @@ from i4g.settings.sections import (
     CryptoSettings,
     DbAdminSettings,
     DossierJobSettings,
+    EmailSettings,
     EnrichmentSettings,
     FeedbackSettings,
     IdentitySettings,
@@ -217,6 +218,7 @@ class Settings(BaseSettings):
     feedback: FeedbackSettings = Field(default_factory=FeedbackSettings)
     analytics: AnalyticsSettings = Field(default_factory=AnalyticsSettings)
     enrichment: EnrichmentSettings = Field(default_factory=EnrichmentSettings)
+    email: EmailSettings = Field(default_factory=EmailSettings)
     db_admin: DbAdminSettings = Field(default_factory=DbAdminSettings)
     env_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
     config_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)

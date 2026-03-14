@@ -125,6 +125,15 @@ vertex_ai_data_store = "retrieval-poc"
 # classification_presets = ["romance", "pig_butcher", "tech_support"]
 # time_presets = ["7d", "30d", "90d"]
 
+[email]
+# provider = "log"
+# smtp_host = "localhost"
+# smtp_port = 587
+# smtp_user = ""
+# smtp_password = ""
+# from_address = "noreply@i4g.local"
+# use_tls = true
+
 [feedback]
 # enabled = true
 # sheet_id = ""

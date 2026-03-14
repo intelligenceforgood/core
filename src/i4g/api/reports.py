@@ -455,10 +455,10 @@ def generate_report(
     return {"report_id": report_id, "status": "queued", "tlp": tlp}
 
 
-@router.get("/library", response_model=list[ReportLibraryItem])
+@router.get("/library")
 def list_reports(
     limit: int = Query(50, ge=1, le=200, description="Max reports to return"),
-) -> list[ReportLibraryItem]:
+) -> dict[str, Any]:
     """List generated reports with metadata.
 
     Scans the report artifacts directory for generated report metadata files.
@@ -467,11 +467,11 @@ def list_reports(
         limit: Maximum number of reports to return.
 
     Returns:
-        List of report library items.
+        Wrapped response with ``items`` and ``count``.
     """
     report_dir = ARTIFACTS_DIR / "generated"
     if not report_dir.exists():
-        return []
+        return {"items": [], "count": 0}
 
     items: list[ReportLibraryItem] = []
     for meta_file in sorted(report_dir.glob("*.json"), reverse=True)[:limit]:
@@ -501,7 +501,7 @@ def list_reports(
         except (json.JSONDecodeError, OSError):
             continue
 
-    return items
+    return {"items": items, "count": len(items)}
 
 
 @router.get("/{report_id}/download")
@@ -533,6 +533,277 @@ def download_report(report_id: str) -> FileResponse:
         raise HTTPException(status_code=403, detail="Path outside permitted directory")  # noqa: B904
 
     return FileResponse(resolved, media_type="application/pdf", filename=f"report-{report_id}.pdf")
+
+
+# ---------------------------------------------------------------------------
+# S5-15  Report Schedule endpoints
+# ---------------------------------------------------------------------------
+
+
+_VALID_CADENCE = {"once", "daily", "weekly", "monthly"}
+
+
+class ReportScheduleRequest(CamelModel):
+    """Request to create or update a report schedule."""
+
+    template: str
+    cadence: str
+    scope: dict[str, Any] | None = None
+    options: dict[str, Any] | None = None
+    recipients: list[str] | None = None
+
+
+class ReportScheduleResponse(CamelModel):
+    """Report schedule representation."""
+
+    schedule_id: str
+    template: str
+    cadence: str
+    scope: dict[str, Any] | None = None
+    options: dict[str, Any] | None = None
+    recipients: list[str] | None = None
+    is_active: bool = True
+    created_by: str = "system"
+    last_run_at: str | None = None
+    next_run_at: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+class ReportScheduleUpdateRequest(CamelModel):
+    """Request to update an existing report schedule."""
+
+    template: str | None = None
+    cadence: str | None = None
+    scope: dict[str, Any] | None = None
+    options: dict[str, Any] | None = None
+    recipients: list[str] | None = None
+    is_active: bool | None = None
+
+
+def _normalize_schedule_scope(scope: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Normalize schedule scope keys for backward compatibility.
+
+    Supports the previous UI payload shape using ``range`` and normalizes it
+    to ``date_range`` used by worker jobs.
+    """
+    if scope is None:
+        return None
+    normalized = dict(scope)
+    legacy_range = normalized.pop("range", None)
+    if legacy_range is not None and "date_range" not in normalized:
+        normalized["date_range"] = legacy_range
+    return normalized
+
+
+def _compute_next_run(cadence: str) -> datetime:
+    """Compute the first ``next_run_at`` for a given cadence."""
+    from datetime import timedelta
+
+    now = datetime.now(UTC)
+    if cadence == "daily":
+        return now + timedelta(days=1)
+    if cadence == "weekly":
+        return now + timedelta(weeks=1)
+    if cadence == "monthly":
+        return now + timedelta(days=30)
+    return now
+
+
+@router.post("/schedules", response_model=ReportScheduleResponse, status_code=201)
+def create_report_schedule(
+    payload: ReportScheduleRequest,
+    user: dict[str, str] = Depends(require_token),
+) -> ReportScheduleResponse:
+    """Create a recurring report schedule.
+
+    Args:
+        payload: Schedule details.
+        user: Authenticated user.
+
+    Returns:
+        Created schedule.
+    """
+    if payload.cadence not in _VALID_CADENCE:
+        raise HTTPException(status_code=400, detail=f"Invalid cadence: {payload.cadence}")
+
+    from i4g.store.sql import build_engine, scheduled_reports
+
+    schedule_id = str(uuid.uuid4())
+    now_str = datetime.now(UTC).isoformat()
+    next_run = _compute_next_run(payload.cadence)
+    normalized_scope = _normalize_schedule_scope(payload.scope)
+
+    engine = build_engine()
+    with engine.begin() as conn:
+        conn.execute(
+            scheduled_reports.insert().values(
+                schedule_id=schedule_id,
+                template=payload.template,
+                cadence=payload.cadence,
+                scope=normalized_scope,
+                options=payload.options,
+                recipients=payload.recipients,
+                created_by=user.get("email", "system"),
+                is_active=True,
+                next_run_at=next_run,
+                created_at=now_str,
+                updated_at=now_str,
+            )
+        )
+
+    return ReportScheduleResponse(
+        schedule_id=schedule_id,
+        template=payload.template,
+        cadence=payload.cadence,
+        scope=normalized_scope,
+        options=payload.options,
+        recipients=payload.recipients,
+        is_active=True,
+        created_by=user.get("email", "system"),
+        next_run_at=next_run.isoformat(),
+        created_at=now_str,
+        updated_at=now_str,
+    )
+
+
+@router.get("/schedules", response_model=list[ReportScheduleResponse])
+def list_report_schedules(
+    user: dict[str, str] = Depends(require_token),
+) -> list[ReportScheduleResponse]:
+    """List all report schedules.
+
+    Args:
+        user: Authenticated user.
+
+    Returns:
+        List of schedules.
+    """
+    import sqlalchemy as sa
+
+    from i4g.store.sql import build_engine, scheduled_reports
+
+    engine = build_engine()
+    with engine.connect() as conn:
+        rows = conn.execute(sa.select(scheduled_reports).order_by(scheduled_reports.c.created_at.desc())).fetchall()
+
+    items: list[ReportScheduleResponse] = []
+    for row in rows:
+        items.append(
+            ReportScheduleResponse(
+                schedule_id=str(row.schedule_id),
+                template=row.template,
+                cadence=row.cadence,
+                scope=row.scope,
+                options=row.options,
+                recipients=row.recipients,
+                is_active=row.is_active,
+                created_by=row.created_by,
+                last_run_at=row.last_run_at.isoformat() if row.last_run_at else None,
+                next_run_at=row.next_run_at.isoformat() if row.next_run_at else None,
+                created_at=row.created_at.isoformat() if row.created_at else None,
+                updated_at=row.updated_at.isoformat() if row.updated_at else None,
+            )
+        )
+    return items
+
+
+@router.put("/schedules/{schedule_id}", response_model=ReportScheduleResponse)
+def update_report_schedule(
+    schedule_id: str,
+    payload: ReportScheduleUpdateRequest,
+    user: dict[str, str] = Depends(require_token),
+) -> ReportScheduleResponse:
+    """Update a report schedule.
+
+    Args:
+        schedule_id: Schedule UUID.
+        payload: Fields to update.
+        user: Authenticated user.
+
+    Returns:
+        Updated schedule.
+    """
+    schedule_id = _validate_plan_id(schedule_id)
+
+    if payload.cadence is not None and payload.cadence not in _VALID_CADENCE:
+        raise HTTPException(status_code=400, detail=f"Invalid cadence: {payload.cadence}")
+
+    import sqlalchemy as sa
+
+    from i4g.store.sql import build_engine, scheduled_reports
+
+    engine = build_engine()
+    normalized_scope = _normalize_schedule_scope(payload.scope) if payload.scope is not None else None
+
+    with engine.begin() as conn:
+        existing = conn.execute(
+            sa.select(scheduled_reports).where(scheduled_reports.c.schedule_id == schedule_id)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+
+        updates: dict[str, Any] = {"updated_at": datetime.now(UTC).isoformat()}
+        if payload.template is not None:
+            updates["template"] = payload.template
+        if payload.cadence is not None:
+            updates["cadence"] = payload.cadence
+            updates["next_run_at"] = _compute_next_run(payload.cadence)
+        if normalized_scope is not None:
+            updates["scope"] = normalized_scope
+        if payload.options is not None:
+            updates["options"] = payload.options
+        if payload.recipients is not None:
+            updates["recipients"] = payload.recipients
+        if payload.is_active is not None:
+            updates["is_active"] = payload.is_active
+
+        conn.execute(scheduled_reports.update().where(scheduled_reports.c.schedule_id == schedule_id).values(**updates))
+
+        row = conn.execute(
+            sa.select(scheduled_reports).where(scheduled_reports.c.schedule_id == schedule_id)
+        ).fetchone()
+
+    return ReportScheduleResponse(
+        schedule_id=str(row.schedule_id),
+        template=row.template,
+        cadence=row.cadence,
+        scope=row.scope,
+        options=row.options,
+        recipients=row.recipients,
+        is_active=row.is_active,
+        created_by=row.created_by,
+        last_run_at=row.last_run_at.isoformat() if row.last_run_at else None,
+        next_run_at=row.next_run_at.isoformat() if row.next_run_at else None,
+        created_at=row.created_at.isoformat() if row.created_at else None,
+        updated_at=row.updated_at.isoformat() if row.updated_at else None,
+    )
+
+
+@router.delete("/schedules/{schedule_id}")
+def delete_report_schedule(
+    schedule_id: str,
+    user: dict[str, str] = Depends(require_token),
+) -> dict[str, bool]:
+    """Delete a report schedule.
+
+    Args:
+        schedule_id: Schedule UUID.
+        user: Authenticated user.
+
+    Returns:
+        Deletion confirmation.
+    """
+    schedule_id = _validate_plan_id(schedule_id)
+
+    from i4g.store.sql import build_engine, scheduled_reports
+
+    engine = build_engine()
+    with engine.begin() as conn:
+        result = conn.execute(scheduled_reports.delete().where(scheduled_reports.c.schedule_id == schedule_id))
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Schedule not found")
+    return {"deleted": True}
 
 
 __all__ = ["router"]
