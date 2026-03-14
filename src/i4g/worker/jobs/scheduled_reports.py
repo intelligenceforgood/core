@@ -95,7 +95,12 @@ def _process_due_schedules(session: Session) -> int:
             )
             triggered += 1
 
-            updates: dict[str, Any] = {"last_run_at": now, "updated_at": now}
+            updates: dict[str, Any] = {
+                "last_run_at": now,
+                "updated_at": now,
+                "consecutive_failures": 0,
+                "last_error": None,
+            }
             if cadence == "once":
                 updates["is_active"] = False
                 updates["next_run_at"] = None
@@ -106,8 +111,40 @@ def _process_due_schedules(session: Session) -> int:
                 scheduled_reports.update().where(scheduled_reports.c.schedule_id == schedule_id).values(**updates)
             )
 
-        except Exception:
+        except Exception as exc:
             logger.exception("Failed to generate scheduled report %s", schedule_id)
+
+            prev_failures = int(row.consecutive_failures or 0)
+            new_failures = prev_failures + 1
+
+            from i4g.settings import get_settings
+
+            max_failures = get_settings().analytics.scheduled_report_max_consecutive_failures
+
+            fail_updates: dict[str, Any] = {
+                "last_run_at": now,
+                "updated_at": now,
+                "consecutive_failures": new_failures,
+                "last_error": str(exc)[:500],
+            }
+            # Advance next_run_at so the schedule is not retried every pass
+            if cadence != "once":
+                fail_updates["next_run_at"] = _compute_next_run(now, cadence)
+            else:
+                fail_updates["is_active"] = False
+                fail_updates["next_run_at"] = None
+
+            if new_failures >= max_failures:
+                logger.warning(
+                    "Deactivating schedule %s after %d consecutive failures",
+                    schedule_id,
+                    new_failures,
+                )
+                fail_updates["is_active"] = False
+
+            session.execute(
+                scheduled_reports.update().where(scheduled_reports.c.schedule_id == schedule_id).values(**fail_updates)
+            )
 
     session.commit()
     logger.info("Scheduled reports: %d triggered", triggered)
@@ -242,6 +279,8 @@ def create_schedule(
             created_by=created_by,
             is_active=True,
             next_run_at=next_run,
+            consecutive_failures=0,
+            last_error=None,
             created_at=now,
             updated_at=now,
         )

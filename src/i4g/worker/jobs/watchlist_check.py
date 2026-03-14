@@ -43,65 +43,96 @@ def run_watchlist_check() -> int:
     alerts_created = 0
 
     for item in items:
-        entity_type = item["entity_type"]
-        canonical_value = item["canonical_value"]
-        watchlist_id = item["watchlist_id"]
+        try:
+            alerts_created += _process_watchlist_item(item, analytics, watchlist)
+        except Exception:
+            entity_type = item.get("entity_type", "?")
+            canonical_value = item.get("canonical_value", "?")
+            logger.exception(
+                "Failed to process watchlist item %s:%s (watchlist_id=%s) — skipping",
+                entity_type,
+                canonical_value,
+                item.get("watchlist_id"),
+            )
 
-        # Fetch current stats for this entity
-        stats_list = analytics.list_entity_stats(
-            entity_type=entity_type,
-            limit=1,
-        )
-        matching = [s for s in stats_list if s.get("canonical_value") == canonical_value]
-        if not matching:
-            continue
+    logger.info("Watchlist check complete: %d alert(s) created", alerts_created)
+    return alerts_created
 
-        stats = matching[0]
-        current_case_count = int(stats.get("case_count", 0))
-        current_loss = float(stats.get("loss_sum", 0.0))
 
-        # Check for new case activity
-        if item.get("alert_on_new_case"):
-            # Compare with stored case count in note metadata (simple approach)
-            # The first time we just record baseline — no alert
-            stored_count = _parse_stored_count(item.get("note"))
-            if stored_count is not None and current_case_count > stored_count:
-                new_cases = current_case_count - stored_count
-                msg = f"{entity_type}:{canonical_value} has {new_cases} " f"new case(s) (total: {current_case_count})"
+def _process_watchlist_item(
+    item: dict,
+    analytics: object,
+    watchlist: object,
+) -> int:
+    """Process a single watchlist item and return the number of alerts created.
+
+    Args:
+        item: Watchlist item dict.
+        analytics: AnalyticsStore instance.
+        watchlist: WatchlistStore instance.
+
+    Returns:
+        Number of alerts created for this item.
+    """
+    entity_type = item["entity_type"]
+    canonical_value = item["canonical_value"]
+    watchlist_id = item["watchlist_id"]
+
+    # Fetch current stats for this entity
+    stats_list = analytics.list_entity_stats(
+        entity_type=entity_type,
+        limit=1,
+    )
+    matching = [s for s in stats_list if s.get("canonical_value") == canonical_value]
+    if not matching:
+        return 0
+
+    alerts_created = 0
+    stats = matching[0]
+    current_case_count = int(stats.get("case_count", 0))
+    current_loss = float(stats.get("loss_sum", 0.0))
+
+    # Check for new case activity
+    if item.get("alert_on_new_case"):
+        # Compare with stored case count in note metadata (simple approach)
+        # The first time we just record baseline — no alert
+        stored_count = _parse_stored_count(item.get("note"))
+        if stored_count is not None and current_case_count > stored_count:
+            new_cases = current_case_count - stored_count
+            msg = f"{entity_type}:{canonical_value} has {new_cases} " f"new case(s) (total: {current_case_count})"
+            watchlist.create_alert(
+                watchlist_id=watchlist_id,
+                alert_type="new_case",
+                message=msg,
+                data={"previous_count": stored_count, "current_count": current_case_count},
+            )
+            alerts_created += 1
+
+        # Update stored baseline
+        _update_stored_count(watchlist, watchlist_id, current_case_count, item.get("note"))
+
+    # Check for loss threshold breach
+    if item.get("alert_on_loss_increase"):
+        threshold = float(item.get("loss_threshold") or 0)
+        if threshold > 0 and current_loss >= threshold:
+            # Only alert once per threshold crossing — check existing alerts
+            existing_alerts = watchlist.list_alerts(watchlist_id=watchlist_id, limit=100)
+            already_alerted = any(
+                a.get("alert_type") == "loss_increase" and a.get("data", {}).get("threshold") == threshold
+                for a in existing_alerts
+            )
+            if not already_alerted:
                 watchlist.create_alert(
                     watchlist_id=watchlist_id,
-                    alert_type="new_case",
-                    message=msg,
-                    data={"previous_count": stored_count, "current_count": current_case_count},
+                    alert_type="loss_increase",
+                    message=(
+                        f"{entity_type}:{canonical_value} cumulative loss "
+                        f"${current_loss:,.2f} exceeds threshold ${threshold:,.2f}"
+                    ),
+                    data={"current_loss": current_loss, "threshold": threshold},
                 )
                 alerts_created += 1
 
-            # Update stored baseline
-            _update_stored_count(watchlist, watchlist_id, current_case_count, item.get("note"))
-
-        # Check for loss threshold breach
-        if item.get("alert_on_loss_increase"):
-            threshold = float(item.get("loss_threshold") or 0)
-            if threshold > 0 and current_loss >= threshold:
-                # Only alert once per threshold crossing — check existing alerts
-                existing_alerts = watchlist.list_alerts(watchlist_id=watchlist_id, limit=100)
-                already_alerted = any(
-                    a.get("alert_type") == "loss_increase" and a.get("data", {}).get("threshold") == threshold
-                    for a in existing_alerts
-                )
-                if not already_alerted:
-                    watchlist.create_alert(
-                        watchlist_id=watchlist_id,
-                        alert_type="loss_increase",
-                        message=(
-                            f"{entity_type}:{canonical_value} cumulative loss "
-                            f"${current_loss:,.2f} exceeds threshold ${threshold:,.2f}"
-                        ),
-                        data={"current_loss": current_loss, "threshold": threshold},
-                    )
-                    alerts_created += 1
-
-    logger.info("Watchlist check complete: %d alert(s) created", alerts_created)
     return alerts_created
 
 

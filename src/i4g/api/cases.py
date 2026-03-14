@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 from i4g.api.auth import require_role, require_token
 from i4g.api.camel import CamelModel
 from i4g.api.response_models import CasesListResponse
+from i4g.api.roles import is_researcher
 from i4g.services.factories import build_retention_service, build_review_store
 from i4g.store import sql as sql_schema
 from i4g.store.sql import dialect_insert
@@ -218,8 +219,10 @@ def list_cases(
 
 
 @router.get("/{case_id}", response_model=CaseDetail, response_model_exclude_unset=True, summary="Get case details")
-def get_case(case_id: str) -> CaseDetail:
+def get_case(case_id: str, user: dict[str, str] = Depends(require_token)) -> CaseDetail:
     """Get full details for a specific case (Live DB)."""
+    if is_researcher(user):
+        raise HTTPException(status_code=403, detail="Researcher role cannot access individual case details")
     store = build_review_store()
     data = store.get_extended_case(case_id)
 

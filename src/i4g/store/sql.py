@@ -791,6 +791,8 @@ scheduled_reports = sa.Table(
     sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
     sa.Column("last_run_at", TIMESTAMP, nullable=True),
     sa.Column("next_run_at", TIMESTAMP, nullable=True),
+    sa.Column("consecutive_failures", sa.Integer(), nullable=False, server_default=sa.text("0")),
+    sa.Column("last_error", sa.Text(), nullable=True),
     sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
     sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
 )

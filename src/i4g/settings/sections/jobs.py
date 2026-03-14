@@ -669,6 +669,14 @@ class AnalyticsSettings(BaseSettings):
         ),
         description="Minutes between scheduled report due-date checks.",
     )
+    scheduled_report_max_consecutive_failures: int = Field(
+        default=3,
+        validation_alias=AliasChoices(
+            "ANALYTICS_SCHEDULED_REPORT_MAX_CONSECUTIVE_FAILURES",
+            "ANALYTICS__SCHEDULED_REPORT_MAX_CONSECUTIVE_FAILURES",
+        ),
+        description="Deactivate a schedule after this many consecutive failures.",
+    )
 
 
 class EnrichmentSettings(BaseSettings):

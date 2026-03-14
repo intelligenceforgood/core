@@ -147,7 +147,7 @@ class StixAdapter:
         for row in rows:
             indicator_value = row.get("indicator_value") or row.get("value", "")
             category = row.get("category", "unknown")
-            pattern = f"[artifact:payload_bin = '{indicator_value}']"
+            pattern = _stix_pattern(indicator_value, category)
             obj: dict[str, Any] = {
                 "type": "indicator",
                 "spec_version": "2.1",
@@ -168,6 +168,42 @@ class StixAdapter:
             "objects": objects,
         }
         return json.dumps(bundle, indent=2).encode("utf-8")
+
+
+def _escape_stix_value(value: str) -> str:
+    """Escape a value for safe inclusion in a STIX 2.1 pattern string.
+
+    Escapes backslashes and single quotes per the STIX patterning spec.
+
+    Args:
+        value: Raw indicator value.
+
+    Returns:
+        Escaped string safe for STIX pattern interpolation.
+    """
+    return value.replace("\\", "\\\\").replace("'", "\\'")
+
+
+def _stix_pattern(indicator_value: str, category: str) -> str:
+    """Build a category-specific STIX 2.1 pattern with proper escaping.
+
+    Args:
+        indicator_value: Raw indicator value.
+        category: Indicator category (e.g. ``bank_account``, ``crypto_wallet``).
+
+    Returns:
+        STIX 2.1 pattern string.
+    """
+    escaped = _escape_stix_value(indicator_value)
+    if category in ("bank", "bank_account", "ach", "wire"):
+        return f"[financial-account:account-number = '{escaped}']"
+    if category in ("crypto", "crypto_wallet"):
+        return f"[cryptocurrency-wallet:address = '{escaped}']"
+    if category in ("ip", "ip_address"):
+        return f"[ipv4-addr:value = '{escaped}']"
+    if category in ("domain",):
+        return f"[domain-name:value = '{escaped}']"
+    return f"[x-i4g-indicator:value = '{escaped}']"
 
 
 def get_adapter(fmt: str) -> ExportAdapter:

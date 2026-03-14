@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from i4g.api.auth import require_token
 from i4g.api.response_models import ActionHistoryResponse, CaseReviewsResponse, ReviewItemResponse
 from i4g.api.review_deps import get_store
+from i4g.api.roles import is_researcher
 from i4g.store.review_store import ReviewStore
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,8 @@ def reviews_by_case(
     user=Depends(require_token),
 ):
     """Return review queue entries associated with a specific case."""
+    if is_researcher(user):
+        raise HTTPException(status_code=403, detail="Researcher role cannot access case reviews")
     reviews = store.get_reviews_by_case(case_id=case_id, limit=limit)
     return {"case_id": case_id, "reviews": reviews, "count": len(reviews)}
 
@@ -37,6 +40,8 @@ def reviews_by_case(
 @router.get("/{review_id}", summary="Get a review item", response_model=ReviewItemResponse)
 def get_review(review_id: str, store: ReviewStore = Depends(get_store), user=Depends(require_token)):
     """Get full review item by ID."""
+    if is_researcher(user):
+        raise HTTPException(status_code=403, detail="Researcher role cannot access individual review details")
     item = store.get_review(review_id)
     if not item:
         raise HTTPException(status_code=404, detail="Review not found")
@@ -46,5 +51,7 @@ def get_review(review_id: str, store: ReviewStore = Depends(get_store), user=Dep
 @router.get("/{review_id}/actions", summary="Get review action history", response_model=ActionHistoryResponse)
 def actions(review_id: str, store: ReviewStore = Depends(get_store), user=Depends(require_token)):
     """Return audit trail for a review."""
+    if is_researcher(user):
+        raise HTTPException(status_code=403, detail="Researcher role cannot access review action history")
     action_list = store.get_actions(review_id)
     return {"review_id": review_id, "actions": action_list}

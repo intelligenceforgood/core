@@ -390,11 +390,11 @@ class ReportLibraryItem(CamelModel):
 
     report_id: str
     template: str
+    scope: str = ""
     tlp: str = "TLP:AMBER"
     status: str = "completed"
-    generated_at: str | None = None
-    scope_summary: str = ""
-    download_url: str | None = None
+    created_at: str | None = None
+    created_by: str = "system"
 
 
 @router.post("/generate")
@@ -491,11 +491,11 @@ def list_reports(
                 ReportLibraryItem(
                     report_id=report_id,
                     template=meta.get("template", "unknown"),
+                    scope="; ".join(scope_parts) if scope_parts else "Platform-wide",
                     tlp=meta.get("tlp", "TLP:AMBER"),
                     status=meta.get("status", "unknown"),
-                    generated_at=meta.get("generated_at"),
-                    scope_summary="; ".join(scope_parts) if scope_parts else "Platform-wide",
-                    download_url=f"/reports/{report_id}/download" if meta.get("status") == "completed" else None,
+                    created_at=meta.get("generated_at"),
+                    created_by=meta.get("generated_by", "system"),
                 )
             )
         except (json.JSONDecodeError, OSError):

@@ -16,7 +16,7 @@ from pydantic import Field, field_validator
 
 from i4g.api.auth import require_token
 from i4g.api.camel import CamelModel
-from i4g.api.roles import Role, has_role
+from i4g.api.roles import Role, is_researcher
 from i4g.services.factories import (
     build_analytics_store,
     build_annotation_store,
@@ -65,7 +65,7 @@ def get_watchlist_store() -> WatchlistStore:
 
 def _is_researcher(user: dict[str, str]) -> bool:
     """Return True if the user has only researcher-level access."""
-    return user.get("role") == Role.RESEARCHER and not has_role(user.get("role", ""), Role.USER)
+    return is_researcher(user)
 
 
 def _map_indicator_fields(item: dict[str, Any]) -> dict[str, Any]:
@@ -357,6 +357,7 @@ def get_entity_activity(
     entity_type: str,
     canonical_value: str,
     store: AnalyticsStore = Depends(get_analytics_store),
+    user: dict[str, str] = Depends(require_token),
 ) -> list[ActivityPoint]:
     """Return weekly case counts over the entity's lifetime for sparkline rendering.
 
@@ -371,6 +372,8 @@ def get_entity_activity(
     Raises:
         HTTPException: If the entity is not found.
     """
+    if _is_researcher(user):
+        raise HTTPException(status_code=403, detail="Researcher role cannot access entity activity data")
     stat = store.get_entity_stat(entity_type, canonical_value)
     if not stat:
         raise HTTPException(status_code=404, detail="Entity not found")
@@ -392,6 +395,7 @@ def get_entity_neighbors(
     entity_type: str,
     canonical_value: str,
     store: AnalyticsStore = Depends(get_analytics_store),
+    user: dict[str, str] = Depends(require_token),
 ) -> NeighborGraphResponse:
     """Return the 1-hop co-occurrence graph for an entity.
 
@@ -409,6 +413,8 @@ def get_entity_neighbors(
     Raises:
         HTTPException: If the entity is not found.
     """
+    if _is_researcher(user):
+        raise HTTPException(status_code=403, detail="Researcher role cannot access entity neighbor data")
     stat = store.get_entity_stat(entity_type, canonical_value)
     if not stat:
         raise HTTPException(status_code=404, detail="Entity not found")
