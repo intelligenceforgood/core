@@ -10,7 +10,6 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from i4g.api.account_list import router as account_list_router
 from i4g.api.accounts import router as accounts_router
 from i4g.api.analytics import router as analytics_router
 from i4g.api.auth import require_token
@@ -215,7 +214,6 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(review_router, prefix="/reviews", tags=["reviews"])
-    app.include_router(account_list_router)
     app.include_router(accounts_router)
     app.include_router(analytics_router)
     app.include_router(cases_router)

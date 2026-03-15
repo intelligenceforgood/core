@@ -2,7 +2,7 @@
 
 # Define your objects
 region="us-central1"
-jobs="account-list analytics-refresh classification-sweeper dossier-queue generate-reports ingest-bootstrap ingest-network-smoke process-intakes retention-purge ssi-ecx-poller"
+jobs="analytics-refresh classification-sweeper dossier-queue generate-reports ingest-bootstrap ingest-network-smoke process-intakes retention-purge ssi-ecx-poller"
 services="core-svc i4g-console ssi-svc"
 
 for job in $jobs; do

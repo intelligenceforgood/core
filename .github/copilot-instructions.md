@@ -23,7 +23,7 @@
 
 8. **Docker Build Reference** – Use `scripts/build_image.sh` (requires `gcloud` auth).
    - UI: `cd ui/ && scripts/build_image.sh i4g-console dev`
-   - Core: `scripts/build_image.sh [core-svc|dossier-job|ingest-job|intake-job|report-job|account-job] dev`
+   - Core: `scripts/build_image.sh [core-svc|dossier-job|ingest-job|intake-job|report-job] dev`
 
 9. **External Integrations** – The Next.js analyst console calls `/reviews/search`, `/reviews/search/history`, saved-search CRUD endpoints, `/reviews/{id}`, and `/tasks/{task_id}`; keep payloads + audit logging in sync. Report generation uses `i4g/reports` templates plus worker tasks; ensure TASK_STATUS emits progress until Redis replaces the in-memory map. Ingestion enhancements must route through `i4g.ingestion` + `worker/jobs` so CLI and API paths stay aligned.
 
@@ -41,7 +41,7 @@
 
 13. **Merge Readiness & Pre-Merge Review** – When the user requests a **pre-merge review**, execute the full checklist in `core/.github/pre-merge-review.instructions.md`. This includes: (a) coding standards audit against `core/.github/general-coding.instructions.md` — type hints on every function, Google-style docstrings on all public/private methods, no unused imports or dead code; (b) code quality — safe variable scoping, specific exception handling, no hard-coded secrets; (c) architecture alignment — correct use of stores/factories/settings; (d) test suite passes with zero failures; (e) docs/config updated if behavior changed; **(f) run `pre-commit run --all-files` and confirm every hook passes with no files modified on a second consecutive run — the review is not complete until this clean double-pass is achieved**. A static code audit alone is insufficient: the hooks are what enforce quality at commit time, and the review must replicate exactly what the committer will encounter. Produce a summary of issues found, fixes applied, test results, hook run output, and remaining items.
 
-14. **Env + Smoke Discipline** – Treat environment variables as a contract. When adding or changing settings/job envs: (a) add or update coverage under `tests/unit/settings/` so overrides and defaults are validated locally, (b) refresh the env-var reference in `docs/config/` (table plus YAML manifest) so docs stay in sync, and (c) execute the local sandbox smoke (`conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g jobs account ...`) before any Cloud Run job. No cloud smoke runs should happen until the local run succeeds with the same env overrides.
+14. **Env + Smoke Discipline** – Treat environment variables as a contract. When adding or changing settings/job envs: (a) add or update coverage under `tests/unit/settings/` so overrides and defaults are validated locally, (b) refresh the env-var reference in `docs/config/` (table plus YAML manifest) so docs stay in sync, and (c) execute the local sandbox smoke (`conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g jobs ingest ...`) before any Cloud Run job. No cloud smoke runs should happen until the local run succeeds with the same env overrides.
 
 15. **UI Build Procedure** – To build the UI image, always change directory to the UI root first (`cd ui/`) and run the build script from there: `scripts/build_image.sh i4g-console dev`. Do not attempt to build from the workspace root.
 

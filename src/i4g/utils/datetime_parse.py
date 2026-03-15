@@ -1,9 +1,8 @@
 """Datetime parsing helpers.
 
 Consolidates the ``_parse_datetime`` helper that was duplicated across
-``reports/dossier_pilot.py``, ``reports/bundle_candidates.py``,
-``api/review_search.py``, ``api/account_list.py``, and
-``worker/jobs/account_list.py``.
+``reports/dossier_pilot.py``, ``reports/bundle_candidates.py``, and
+``api/review_search.py``.
 """
 
 from __future__ import annotations

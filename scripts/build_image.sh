@@ -6,7 +6,7 @@ usage() {
 Usage: scripts/build_image.sh <name> <tag> [options]
 
 Positional arguments:
-  name                  Image/Dockerfile base name (e.g. account-job)
+  name                  Image/Dockerfile base name (e.g. ingest-job)
   tag                   Image tag suffix (e.g. dev)
 
 Options:
@@ -18,7 +18,7 @@ Options:
   -h, --help               Show this message
 
 Examples:
-  scripts/build_image.sh account-job dev --smoker true
+  scripts/build_image.sh ingest-job dev --smoker true
 USAGE
 }
 

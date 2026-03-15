@@ -111,17 +111,12 @@ vertex_ai_data_store = "retrieval-poc"
 # reset_vector = false
 # dry_run = false
 
-[account_list]
-# drive_folder_id = "<drive-folder-id>"
-# default_formats = ["pdf", "xlsx"]
-# require_api_key = true
-
 [search]
 # semantic_weight = 0.65
 # structured_weight = 0.35
 # default_limit = 25
 # indicator_types = ["bank_account", "crypto_wallet", "email", "phone", "ip_address"]
-# dataset_presets = ["retrieval_poc_dev", "account_list"]
+# dataset_presets = ["retrieval_poc_dev"]
 # classification_presets = ["romance", "pig_butcher", "tech_support"]
 # time_presets = ["7d", "30d", "90d"]
 

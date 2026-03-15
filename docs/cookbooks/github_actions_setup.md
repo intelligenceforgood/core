@@ -285,12 +285,12 @@ gh pr create --title "Bump version" --body "Testing Docker build matrix"
 gh pr merge --squash --admin
 ```
 
-Watch Actions. The matrix build should fire, building all 6 images in parallel. Total time: ~10–15 minutes.
+Watch Actions. The matrix build should fire, building all 5 images in parallel. Total time: ~10–15 minutes.
 
 Verify all images:
 
 ```bash
-for img in core-svc account-job dossier-job ingest-job intake-job report-job; do
+for img in core-svc dossier-job ingest-job intake-job report-job; do
   echo "=== $img ==="
   gcloud artifacts docker images list us-central1-docker.pkg.dev/i4g-dev/applications/$img --limit 1
 done

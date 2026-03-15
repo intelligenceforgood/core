@@ -2,8 +2,6 @@
 
 from i4g.settings.sections.basic import APISettings, DbAdminSettings, IdentitySettings, RuntimeSettings, StorageSettings
 from i4g.settings.sections.jobs import (
-    AccountJobSettings,
-    AccountListSettings,
     AnalyticsSettings,
     DossierJobSettings,
     EmailSettings,
@@ -43,11 +41,9 @@ __all__ = [
     "DossierJobSettings",
     "SmokeSettings",
     "ObservabilitySettings",
-    "AccountListSettings",
     "SavedSearchSettings",
     "SearchSettings",
     "ReportSettings",
-    "AccountJobSettings",
     "IntakeJobSettings",
     "RedisSettings",
     "SsiSettings",

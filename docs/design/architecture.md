@@ -318,7 +318,6 @@ flowchart LR
 | `/cases`                   | `cases.py`        | Case detail view (GET /cases/{id})                      |
 | `/intakes`                 | `intake.py`       | Victim submission pipeline                              |
 | `/reports`                 | `reports.py`      | Dossier listing, artifacts, signature verification      |
-| `/accounts`                | `account_list.py` | Account list extraction runs and artifacts              |
 | `/analytics`               | `analytics.py`    | Overview metrics, trends, intake stats                  |
 | `/dashboard`               | `dashboard.py`    | Overview stats (active investigations, recent actions)  |
 | `/campaigns`               | `campaigns.py`    | Fraud campaign CRUD                                     |
@@ -357,29 +356,6 @@ flowchart LR
 - Cloud Run friendly build (PNPM workspaces, multi-stage Dockerfile)
 - API route proxy that injects server-only secrets for FastAPI calls
 - Configurable mock mode for demos without backend dependencies
-
-### 3a. **Account List Extraction Service**
-
-**Responsibilities**:
-
-- Expose `POST /accounts/extract` for on-demand analyst runs with API-key enforcement (`X-ACCOUNTLIST-KEY`).
-- Coordinate retrieval (`FinancialEntityRetriever`), LLM extraction (`AccountEntityExtractor`), and artifact generation (`AccountListExporter`).
-- Publish CSV/JSON/XLSX/PDF outputs to the local reports directory, Cloud Storage, or Google Drive (when configured) and return signed links to the caller.
-- Power the Cloud Run job `account-list` (scheduled via Cloud Scheduler) so recurring exports share the exact same code path as the interactive API.
-
-**Technology Stack**:
-
-- Python 3.11 shared package (`src/i4g/services/account_list/*`).
-- LangChain + Ollama locally (Vertex AI/Gemini ready once service accounts are wired).
-- ReportLab + OpenPyXL for artifact rendering.
-- Cloud Run job container (`i4g jobs account` entrypoint) plus optional Google Drive uploads via ADC scopes.
-
-**Key Features**:
-
-- Category catalog (bank, crypto, payments today; IP/ASN/browser planned) driven by configuration so new indicators only need prompt/query definitions.
-- Deduplication + metadata summary stored alongside artifacts, surfaced in the analyst console via a summary/status table.
-- Manual smoke harness (`tests/adhoc/account_list_export_smoke.py`) to verify exporter plumbing without hitting the LLM stack.
-- FastAPI also exposes `/accounts/runs`, enabling the analyst console’s new `/accounts` page to trigger manual runs, refresh audit history via server-side API routes, and expose artifact links / warnings inline without leaking service credentials to the browser.
 
 ---
 
@@ -849,7 +825,7 @@ gcloud run services update i4g-api --traffic
 ### Completed (formerly Phase 2)
 
 - [x] Background task execution via `TASK_STATUS` dict + `asyncio` threads (interim until Redis)
-- [x] Cloud Run Jobs for async work (ingestion, report generation, account list extraction)
+- [x] Cloud Run Jobs for async work (ingestion, report generation, dossier assembly)
 - [x] Multi-provider LLM support (Vertex AI, Ollama, Mock)
 
 ### Phase 2 (In Progress)

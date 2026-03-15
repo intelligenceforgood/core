@@ -13,8 +13,6 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, Settings
 
 from i4g.settings.runtime_overrides import apply_environment_overrides, apply_local_defaults, resolve_paths
 from i4g.settings.sections import (
-    AccountJobSettings,
-    AccountListSettings,
     AnalyticsSettings,
     APISettings,
     CryptoSettings,
@@ -205,8 +203,6 @@ class Settings(BaseSettings):
     secrets: SecretsSettings = Field(default_factory=SecretsSettings)
     ingestion: IngestionSettings = Field(default_factory=IngestionSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
-    account_list: AccountListSettings = Field(default_factory=AccountListSettings)
-    account_job: AccountJobSettings = Field(default_factory=AccountJobSettings)
     intake: IntakeJobSettings = Field(default_factory=IntakeJobSettings)
     search: SearchSettings = Field(default_factory=SearchSettings)
     report: ReportSettings = Field(default_factory=ReportSettings)

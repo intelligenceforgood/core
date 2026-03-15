@@ -1,8 +1,7 @@
 """Boolean coercion and environment-variable helpers.
 
 Consolidates ``_coerce_bool`` and ``_env_bool`` helpers that were previously
-duplicated across ``intake_job_runner.py``, ``worker/jobs/account_list.py``,
-and ``worker/jobs/dossier_queue.py``.
+duplicated across ``intake_job_runner.py`` and ``worker/jobs/dossier_queue.py``.
 """
 
 from __future__ import annotations

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -266,45 +265,5 @@ def apply_environment_overrides(
     if provider_override:
         llm_updates = {"provider": provider_override.strip().lower()}
         object.__setattr__(settings, "llm", settings.llm.model_copy(update=llm_updates))
-
-    account_list_updates: dict[str, object] = {}
-    header_override = read_env_value(
-        "I4G_ACCOUNT_LIST__HEADER_NAME",
-        "I4G_ACCOUNT_LIST_HEADER_NAME",
-        "ACCOUNT_LIST__HEADER_NAME",
-        "ACCOUNT_LIST_HEADER_NAME",
-    )
-    if header_override:
-        account_list_updates["header_name"] = header_override.strip()
-
-    require_override = read_env_value(
-        "I4G_ACCOUNT_LIST__REQUIRE_API_KEY",
-        "I4G_ACCOUNT_LIST_REQUIRE_API_KEY",
-        "ACCOUNT_LIST__REQUIRE_API_KEY",
-        "ACCOUNT_LIST_REQUIRE_API_KEY",
-    )
-    if require_override is not None:
-        account_list_updates["require_api_key"] = require_override.strip().lower() not in {"false", "0", "off", "no"}
-
-    formats_override = read_env_value(
-        "I4G_ACCOUNT_LIST__DEFAULT_FORMATS",
-        "I4G_ACCOUNT_LIST_DEFAULT_FORMATS",
-        "ACCOUNT_LIST__DEFAULT_FORMATS",
-        "ACCOUNT_LIST_DEFAULT_FORMATS",
-    )
-    if formats_override:
-        parsed_formats: list[str] = []
-        try:
-            candidate = json.loads(formats_override)
-            if isinstance(candidate, list):
-                parsed_formats = [str(item).strip() for item in candidate if str(item).strip()]
-        except json.JSONDecodeError:
-            pass
-        if not parsed_formats:
-            parsed_formats = [chunk.strip() for chunk in formats_override.split(",") if chunk.strip()]
-        account_list_updates["default_formats"] = parsed_formats
-
-    if account_list_updates:
-        object.__setattr__(settings, "account_list", settings.account_list.model_copy(update=account_list_updates))
 
     return settings

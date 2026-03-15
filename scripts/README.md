@@ -6,4 +6,3 @@
 - `debug_settings.py`: Validates Pydantic settings resolution and environment variable overrides. Useful for debugging configuration issues.
 - `git-hooks/`: Local hook installer assets.
 - `infra/`, `migration/`: Niche infrastructure or one-time migration helpers.
-- `run_account_job.sh`: Entrypoint wrapper for the account list job container.

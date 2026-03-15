@@ -44,10 +44,3 @@ These images are designed to run as Cloud Run Jobs (batch or triggered tasks).
 **Job:** Dossier Queue Processor
 **Entrypoint:** `i4g jobs dossier` (or `python -m i4g.worker.jobs.dossier_queue`)
 **Description:** Processes the background queue for dossier assembly and enrichment. It handles heavy lifting tasks required to build comprehensive dossiers from raw inputs.
-
-### `account-job.Dockerfile`
-
-**Job:** Account List Manager
-**Entrypoint:** `/app/scripts/run_account_job.sh`
-**Description:** Manages account watchlists and synchronization tasks. It may include logic for syncing data between different storage backends or external providers.
-**Note:** Supports a `SMOKER=true` build arg to preload sample data for smoke testing.

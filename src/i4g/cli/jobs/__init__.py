@@ -2,7 +2,7 @@ import os
 
 import typer
 
-jobs_app = typer.Typer(help="Invoke background jobs (ingest, report, intake, dossier, account, analytics).")
+jobs_app = typer.Typer(help="Invoke background jobs (ingest, report, intake, dossier, analytics).")
 
 
 def _exit_from_return(code: int | None) -> None:
@@ -46,13 +46,6 @@ def jobs_intake() -> None:
     from i4g.worker.jobs import intake
 
     _exit_from_return(intake.main())
-
-
-@jobs_app.command("account", help="Run account list job.")
-def jobs_account() -> None:
-    from i4g.worker.jobs import account_list
-
-    _exit_from_return(account_list.main())
 
 
 @jobs_app.command("ingest-retry", help="Run ingestion retry job.")

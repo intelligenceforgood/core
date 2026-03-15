@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import textwrap
 from pathlib import Path
 
@@ -122,40 +121,6 @@ def test_llm_provider_env_override(monkeypatch: object) -> None:
     _set_env(monkeypatch, "I4G_LLM__PROVIDER", "mock")
     overridden_settings = reload_settings(env="dev")
     assert overridden_settings.llm.provider == "mock"
-
-
-def test_account_list_env_overrides(monkeypatch: object) -> None:
-    """Verify account list settings respect header/require_api_key/default format env vars."""
-
-    _clear_env(
-        monkeypatch,
-        "I4G_ACCOUNT_LIST__HEADER_NAME",
-        "I4G_ACCOUNT_LIST_HEADER_NAME",
-        "ACCOUNT_LIST__HEADER_NAME",
-        "ACCOUNT_LIST_HEADER_NAME",
-        "I4G_ACCOUNT_LIST__REQUIRE_API_KEY",
-        "I4G_ACCOUNT_LIST_REQUIRE_API_KEY",
-        "ACCOUNT_LIST__REQUIRE_API_KEY",
-        "ACCOUNT_LIST_REQUIRE_API_KEY",
-        "I4G_ACCOUNT_LIST__DEFAULT_FORMATS",
-        "I4G_ACCOUNT_LIST_DEFAULT_FORMATS",
-        "ACCOUNT_LIST__DEFAULT_FORMATS",
-        "ACCOUNT_LIST_DEFAULT_FORMATS",
-    )
-
-    default_settings = reload_settings(env="dev")
-    assert default_settings.account_list.header_name == "X-ACCOUNTLIST-KEY"
-    assert default_settings.account_list.require_api_key is True
-    assert default_settings.account_list.default_formats == []
-
-    _set_env(monkeypatch, "I4G_ACCOUNT_LIST__HEADER_NAME", "X-ACCOUNT-LIST-OVERRIDE")
-    _set_env(monkeypatch, "I4G_ACCOUNT_LIST__REQUIRE_API_KEY", "false")
-    _set_env(monkeypatch, "I4G_ACCOUNT_LIST__DEFAULT_FORMATS", json.dumps(["pdf", "xlsx"]))
-
-    overridden_settings = reload_settings(env="dev")
-    assert overridden_settings.account_list.header_name == "X-ACCOUNT-LIST-OVERRIDE"
-    assert overridden_settings.account_list.require_api_key is False
-    assert overridden_settings.account_list.default_formats == ["pdf", "xlsx"]
 
 
 def test_ingestion_sql_toggle_env_overrides(monkeypatch: object) -> None:
@@ -421,51 +386,6 @@ def test_observability_statsd_env_overrides(monkeypatch: object) -> None:
     assert overridden.observability.statsd_port == 18125
     assert overridden.observability.statsd_prefix == "core"
     assert overridden.observability.service_name == "hybrid-search"
-
-
-# ── D66: AccountJobSettings ────────────────────────────────────────────
-
-
-def test_account_job_defaults(monkeypatch: object) -> None:
-    """Verify AccountJobSettings defaults when no env vars are set."""
-
-    for name in (
-        "I4G_ACCOUNT_JOB__WINDOW_DAYS",
-        "I4G_ACCOUNT_JOB__TOP_K",
-        "I4G_ACCOUNT_JOB__DRY_RUN",
-        "I4G_ACCOUNT_JOB__OUTPUT_FORMATS",
-        "I4G_ACCOUNT_JOB__CATEGORIES",
-        "I4G_ACCOUNT_JOB__INCLUDE_SOURCES",
-        "I4G_ACCOUNT_JOB__START_TIME",
-        "I4G_ACCOUNT_JOB__END_TIME",
-    ):
-        _clear_env(monkeypatch, name)
-
-    settings = reload_settings(env="dev")
-    assert settings.account_job.window_days == 15
-    assert settings.account_job.top_k == 200
-    assert settings.account_job.dry_run is False
-    assert settings.account_job.include_sources is True
-    assert settings.account_job.output_formats == []
-    assert settings.account_job.categories == []
-    assert settings.account_job.start_time is None
-    assert settings.account_job.end_time is None
-
-
-def test_account_job_env_overrides(monkeypatch: object) -> None:
-    """Verify AccountJobSettings respects env var overrides."""
-
-    _set_env(monkeypatch, "I4G_ACCOUNT_JOB__WINDOW_DAYS", "30")
-    _set_env(monkeypatch, "I4G_ACCOUNT_JOB__TOP_K", "50")
-    _set_env(monkeypatch, "I4G_ACCOUNT_JOB__DRY_RUN", "true")
-    _set_env(monkeypatch, "I4G_ACCOUNT_JOB__INCLUDE_SOURCES", "false")
-    _set_env(monkeypatch, "I4G_ACCOUNT_JOB__CATEGORIES", '["bank","crypto"]')
-
-    settings = reload_settings(env="dev")
-    assert settings.account_job.window_days == 30
-    assert settings.account_job.top_k == 50
-    assert settings.account_job.dry_run is True
-    assert settings.account_job.include_sources is False
 
 
 # ── D67: IntakeJobSettings ─────────────────────────────────────────────

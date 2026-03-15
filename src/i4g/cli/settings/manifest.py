@@ -299,7 +299,7 @@ def _format_code_cell(value: str) -> str:
 def write_markdown(records: list[SettingRecord], output_dir: Path) -> Path:
     """Write the default Markdown table to the proto docs directory."""
 
-    postscript = "## Local Account-List Smoke\n\n" + SMOKE_COMMAND
+    postscript = ""
     content = render_markdown(
         records,
         title="Settings & Environment Variables",

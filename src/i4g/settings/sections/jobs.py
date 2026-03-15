@@ -281,49 +281,6 @@ class ObservabilitySettings(BaseSettings):
     )
 
 
-class AccountListSettings(BaseSettings):
-    """Account list extraction configuration."""
-
-    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
-
-    enabled: bool = Field(
-        default=True,
-        validation_alias=AliasChoices("ACCOUNT_LIST_ENABLED", "ACCOUNT_LIST__ENABLED"),
-    )
-    require_api_key: bool = Field(
-        default=True,
-        validation_alias=AliasChoices("ACCOUNT_LIST_REQUIRE_API_KEY", "ACCOUNT_LIST__REQUIRE_API_KEY"),
-    )
-    api_key: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("ACCOUNT_LIST_API_KEY", "ACCOUNT_LIST__API_KEY"),
-    )
-    header_name: str = Field(
-        default="X-ACCOUNTLIST-KEY",
-        validation_alias=AliasChoices("ACCOUNT_LIST_HEADER_NAME", "ACCOUNT_LIST__HEADER_NAME"),
-    )
-    max_top_k: int = Field(
-        default=250,
-        validation_alias=AliasChoices("ACCOUNT_LIST_MAX_TOP_K", "ACCOUNT_LIST__MAX_TOP_K"),
-    )
-    default_formats: list[str] = Field(
-        default_factory=list,
-        validation_alias=AliasChoices("ACCOUNT_LIST_DEFAULT_FORMATS", "ACCOUNT_LIST__DEFAULT_FORMATS"),
-    )
-    artifact_prefix: str = Field(
-        default="account_list",
-        validation_alias=AliasChoices("ACCOUNT_LIST_ARTIFACT_PREFIX", "ACCOUNT_LIST__ARTIFACT_PREFIX"),
-    )
-    drive_folder_id: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("ACCOUNT_LIST_DRIVE_FOLDER_ID", "ACCOUNT_LIST__DRIVE_FOLDER_ID"),
-    )
-    enable_vector: bool = Field(
-        default=True,
-        validation_alias=AliasChoices("ACCOUNT_LIST_ENABLE_VECTOR", "ACCOUNT_LIST__ENABLE_VECTOR"),
-    )
-
-
 class SavedSearchSettings(BaseSettings):
     """Saved-search migration defaults shared across CLI scripts."""
 
@@ -470,53 +427,6 @@ class ReportSettings(BaseSettings):
         default=False,
         validation_alias=AliasChoices("REPORT_DRY_RUN", "REPORT__DRY_RUN"),
         description="When True, log actions without generating reports.",
-    )
-
-
-class AccountJobSettings(BaseSettings):
-    """Cloud Run job overrides for account list extraction."""
-
-    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
-
-    output_formats: list[str] = Field(
-        default_factory=list,
-        validation_alias=AliasChoices("ACCOUNT_JOB_OUTPUT_FORMATS", "ACCOUNT_JOB__OUTPUT_FORMATS"),
-        description="Comma-separated output formats (e.g. pdf,xlsx). Overrides account_list.default_formats.",
-    )
-    start_time: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("ACCOUNT_JOB_START_TIME", "ACCOUNT_JOB__START_TIME"),
-        description="ISO-8601 start of the extraction window. Defaults to end_time minus window_days.",
-    )
-    end_time: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("ACCOUNT_JOB_END_TIME", "ACCOUNT_JOB__END_TIME"),
-        description="ISO-8601 end of the extraction window. Defaults to now (UTC).",
-    )
-    window_days: int = Field(
-        default=15,
-        validation_alias=AliasChoices("ACCOUNT_JOB_WINDOW_DAYS", "ACCOUNT_JOB__WINDOW_DAYS"),
-        description="Number of days in the extraction window when start_time is not set.",
-    )
-    categories: list[str] = Field(
-        default_factory=list,
-        validation_alias=AliasChoices("ACCOUNT_JOB_CATEGORIES", "ACCOUNT_JOB__CATEGORIES"),
-        description="Comma-separated fraud categories to include (e.g. bank,crypto,payments).",
-    )
-    top_k: int = Field(
-        default=200,
-        validation_alias=AliasChoices("ACCOUNT_JOB_TOP_K", "ACCOUNT_JOB__TOP_K"),
-        description="Maximum number of accounts to extract per run.",
-    )
-    include_sources: bool = Field(
-        default=True,
-        validation_alias=AliasChoices("ACCOUNT_JOB_INCLUDE_SOURCES", "ACCOUNT_JOB__INCLUDE_SOURCES"),
-        description="Whether to include source evidence references in output.",
-    )
-    dry_run: bool = Field(
-        default=False,
-        validation_alias=AliasChoices("ACCOUNT_JOB_DRY_RUN", "ACCOUNT_JOB__DRY_RUN"),
-        description="Run extraction without persisting results.",
     )
 
 
