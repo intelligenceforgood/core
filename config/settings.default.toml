@@ -148,3 +148,9 @@ vertex_ai_data_store = "retrieval-poc"
 [search.saved_search]
 # migration_tag = "hybrid-v1"
 # schema_version = ""
+
+[auto_investigate]
+domain_blocklist = []
+enabled = false
+max_concurrent = 3
+staleness_days = 30

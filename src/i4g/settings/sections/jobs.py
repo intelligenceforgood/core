@@ -457,6 +457,37 @@ class IntakeJobSettings(BaseSettings):
     )
 
 
+class AutoInvestigateSettings(BaseSettings):
+    """Settings for automatic case-triggered SSI investigation."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("AUTO_INVESTIGATE_ENABLED", "AUTO_INVESTIGATE__ENABLED"),
+        description="Enable automatic investigation of case URLs.",
+    )
+    staleness_days: int = Field(
+        default=30,
+        ge=1,
+        le=365,
+        validation_alias=AliasChoices("AUTO_INVESTIGATE_STALENESS_DAYS", "AUTO_INVESTIGATE__STALENESS_DAYS"),
+        description="Scans older than this many days are considered stale and eligible for re-scan.",
+    )
+    max_concurrent: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+        validation_alias=AliasChoices("AUTO_INVESTIGATE_MAX_CONCURRENT", "AUTO_INVESTIGATE__MAX_CONCURRENT"),
+        description="Maximum concurrent auto-investigations.",
+    )
+    domain_blocklist: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("AUTO_INVESTIGATE_DOMAIN_BLOCKLIST", "AUTO_INVESTIGATE__DOMAIN_BLOCKLIST"),
+        description="Domains to exclude from automatic investigation.",
+    )
+
+
 class SsiSettings(BaseSettings):
     """Configuration for triggering SSI investigations from the core API.
 

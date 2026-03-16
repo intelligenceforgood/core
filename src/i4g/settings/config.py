@@ -15,6 +15,7 @@ from i4g.settings.runtime_overrides import apply_environment_overrides, apply_lo
 from i4g.settings.sections import (
     AnalyticsSettings,
     APISettings,
+    AutoInvestigateSettings,
     CryptoSettings,
     DbAdminSettings,
     DossierJobSettings,
@@ -218,6 +219,7 @@ class Settings(BaseSettings):
     email: EmailSettings = Field(default_factory=EmailSettings)
     partner_feed: PartnerFeedSettings = Field(default_factory=PartnerFeedSettings)
     db_admin: DbAdminSettings = Field(default_factory=DbAdminSettings)
+    auto_investigate: AutoInvestigateSettings = Field(default_factory=AutoInvestigateSettings)
     env_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
     config_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
 
