@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from i4g.api.app import app
 from i4g.api.investigations import _trigger_cloud_run_service
+from i4g.services.investigation_dedup import DedupResult
 from i4g.task_status_store import TASK_STATUS
 
 client = TestClient(app)
@@ -28,6 +29,15 @@ def _clear_task_status():
     TASK_STATUS.clear()
     yield
     TASK_STATUS.clear()
+
+
+@pytest.fixture(autouse=True)
+def _bypass_dedup(monkeypatch):
+    """Bypass the URL dedup check so trigger tests hit the service path."""
+    monkeypatch.setattr(
+        "i4g.api.investigations.check_url_duplicate",
+        lambda *args, **kwargs: DedupResult(is_duplicate=False, reason="no_prior_scan"),
+    )
 
 
 class TestTriggerSsiInvestigation:

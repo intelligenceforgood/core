@@ -105,10 +105,11 @@ def jobs_analytics() -> None:
 @jobs_app.command("linkage-extract", help="Extract indicator links from intake narratives via LLM.")
 def jobs_linkage_extract(
     backfill: bool = typer.Option(False, "--backfill", help="Process all intakes, not just unlinked ones."),
+    mode: str = typer.Option("intake", "--mode", help="Processing mode: intake, cases, or all."),
 ) -> None:
     from i4g.worker.jobs import linkage_extract
 
-    _exit_from_return(linkage_extract.main(backfill=backfill))
+    _exit_from_return(linkage_extract.main(backfill=backfill, mode=mode))
 
 
 @jobs_app.command("watchlist-check", help="Check watchlist entities for new activity and generate alerts.")
@@ -137,3 +138,13 @@ def jobs_scheduled_reports() -> None:
     from i4g.worker.jobs import scheduled_reports
 
     _exit_from_return(scheduled_reports.main())
+
+
+@jobs_app.command("auto-investigate", help="Trigger SSI investigations for uninvestigated URLs in cases.")
+def jobs_auto_investigate(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Report what would be triggered without acting."),
+    limit: int = typer.Option(100, "--limit", help="Max URLs to process per run."),
+) -> None:
+    from i4g.worker.jobs import auto_investigate
+
+    _exit_from_return(auto_investigate.main(dry_run=dry_run, limit=limit))

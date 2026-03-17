@@ -21,7 +21,9 @@ from pydantic import Field
 from i4g.api.auth import require_role, require_token
 from i4g.api.camel import CamelModel
 from i4g.services.factories import build_ssi_store
+from i4g.services.investigation_dedup import check_url_duplicate
 from i4g.settings import get_settings
+from i4g.store.sql import session_factory as build_sql_session_factory
 from i4g.task_status_store import TASK_STATUS
 
 logger = logging.getLogger(__name__)
@@ -58,6 +60,10 @@ class SsiInvestigationRequest(CamelModel):
         default="ssi",
         description="Dataset label for the case created in core.",
     )
+    force: bool = Field(
+        default=False,
+        description="Bypass dedup check and force a new investigation.",
+    )
 
 
 class SsiInvestigationResponse(CamelModel):
@@ -66,6 +72,21 @@ class SsiInvestigationResponse(CamelModel):
     task_id: str
     status: str
     message: str
+
+
+class InvestigationTriggerResponse(CamelModel):
+    """Response from triggering an SSI investigation (with dedup info)."""
+
+    triggered: bool
+    scan_id: str | None = None
+    task_id: str | None = None
+    status: str = ""
+    message: str = ""
+    already_investigated: bool = False
+    existing_scan_id: str | None = None
+    existing_risk_score: float | None = None
+    days_since_scan: int | None = None
+    reason: str = ""
 
 
 class SsiInvestigationStatusResponse(CamelModel):
@@ -157,7 +178,7 @@ def _trigger_cloud_run_service(
     "/ssi",
     summary="Trigger an SSI investigation",
     status_code=202,
-    response_model=SsiInvestigationResponse,
+    response_model=InvestigationTriggerResponse,
 )
 def trigger_ssi_investigation(
     payload: SsiInvestigationRequest,
@@ -190,6 +211,35 @@ def trigger_ssi_investigation(
             domain = domain[4:]
     except Exception:
         domain = None
+
+    # URL dedup check — skip if caller explicitly forces re-investigation.
+    if not payload.force:
+        try:
+            sf = build_sql_session_factory()
+            dedup = check_url_duplicate(
+                payload.url,
+                session_factory=sf,
+                staleness_days=settings.auto_investigate.staleness_days,
+            )
+            if dedup.is_duplicate:
+                logger.info(
+                    "Dedup: skipping investigation for %s (%s, existing=%s)",
+                    payload.url,
+                    dedup.reason,
+                    dedup.existing_scan_id,
+                )
+                return InvestigationTriggerResponse(
+                    triggered=False,
+                    already_investigated=True,
+                    existing_scan_id=dedup.existing_scan_id,
+                    existing_risk_score=dedup.existing_risk_score,
+                    days_since_scan=dedup.days_since_scan,
+                    reason=dedup.reason,
+                    status="skipped",
+                    message=f"URL already investigated ({dedup.reason})",
+                ).model_dump(by_alias=True)
+        except Exception as exc:
+            logger.warning("Dedup check failed (will proceed with investigation): %s", exc)
 
     # scan_id is also used as the task_id so that any Cloud Run instance
     # can perform a DB fallback lookup in get_task_status() without needing
@@ -247,11 +297,13 @@ def trigger_ssi_investigation(
             "message": f"SSI service triggered for {payload.url}",
             "scan_id": scan_id,
         }
-        return {
-            "task_id": task_id,
-            "status": "running",
-            "message": "SSI investigation triggered via Cloud Run Service",
-        }
+        return InvestigationTriggerResponse(
+            triggered=True,
+            scan_id=scan_id,
+            task_id=task_id,
+            status="running",
+            message="SSI investigation triggered via Cloud Run Service",
+        ).model_dump(by_alias=True)
     except Exception as exc:
         logger.error("Failed to trigger SSI Cloud Run Service: %s", exc, exc_info=True)
         TASK_STATUS[task_id] = {

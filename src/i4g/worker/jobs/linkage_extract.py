@@ -4,9 +4,16 @@ Parses intake narrative text (``details`` + ``summary``) to identify mentioned
 financial indicators (wallet addresses, bank accounts, phone numbers, URLs, etc.)
 and writes ``intake_indicator_links`` rows with confidence scores.
 
+Supports two processing modes:
+
+* ``intake`` (default) — processes intake records only.
+* ``cases`` — extracts URL indicators from batch-ingested case narratives.
+* ``all`` — processes both intake records and cases.
+
 Run manually::
 
     i4g jobs linkage-extract
+    i4g jobs linkage-extract --mode cases
 
 Or as a backfill::
 
@@ -18,6 +25,7 @@ from __future__ import annotations
 import json
 import logging
 import sys
+from uuid import uuid4
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
@@ -25,13 +33,18 @@ from sqlalchemy.orm import Session
 from i4g.llm.client import build_llm_client
 from i4g.settings import get_settings
 from i4g.store.sql import (
+    cases,
     dialect_insert,
     indicators,
     intake_indicator_links,
     intake_records,
 )
 from i4g.store.sql import session_factory as build_sql_session_factory
+from i4g.store.sql import (
+    source_documents,
+)
 from i4g.task_status import TaskStatusReporter
+from i4g.utils.url_normalization import normalize_url
 from i4g.worker.logging import configure_job_logging
 
 logger = logging.getLogger(__name__)
@@ -160,19 +173,20 @@ def _process_intake(session: Session, llm_client: object, intake_id: str, narrat
     return links_created
 
 
-def main(*, backfill: bool = False) -> int:
+def main(*, backfill: bool = False, mode: str = "intake") -> int:
     """Entry point executed by the Cloud Run job container or CLI.
 
     Args:
         backfill: When ``True``, process all intake records.
             When ``False``, only process records not yet linked.
+        mode: Processing mode — ``intake`` (default), ``cases``, or ``all``.
     """
     settings = get_settings()
     configure_job_logging(settings)
     reporter = TaskStatusReporter()
     threshold = settings.analytics.loss_linkage_confidence_threshold
 
-    logger.info("linkage-extract: starting (backfill=%s, threshold=%.2f)", backfill, threshold)
+    logger.info("linkage-extract: starting (backfill=%s, threshold=%.2f, mode=%s)", backfill, threshold, mode)
     if reporter.is_enabled():
         reporter.update(status="processing", message="Starting indicator linkage extraction")
 
@@ -181,71 +195,30 @@ def main(*, backfill: bool = False) -> int:
     llm_client = build_llm_client()
 
     try:
-        # Select intakes to process
-        base_query = sa.select(
-            intake_records.c.intake_id,
-            intake_records.c.summary,
-            intake_records.c.details,
-        ).where(
-            sa.or_(
-                intake_records.c.summary.isnot(None),
-                intake_records.c.details.isnot(None),
-            )
-        )
-
-        if not backfill:
-            # Only process intakes that have no existing links
-            already_linked = sa.select(sa.distinct(intake_indicator_links.c.intake_id))
-            base_query = base_query.where(intake_records.c.intake_id.notin_(already_linked))
-
-        rows = session.execute(base_query).fetchall()
-        total = len(rows)
-        logger.info("linkage-extract: %d intake records to process", total)
-
-        if total == 0:
-            if reporter.is_enabled():
-                reporter.update(status="finished", message="No intakes to process", processed=0)
-            return 0
-
         successes = 0
         failures = 0
 
-        for idx, row in enumerate(rows, 1):
-            narrative_parts = []
-            if row.summary:
-                narrative_parts.append(str(row.summary))
-            if row.details:
-                narrative_parts.append(str(row.details))
-            narrative = "\n\n".join(narrative_parts)
+        # --- Intake processing (mode=intake or mode=all) ---
+        if mode in ("intake", "all"):
+            intake_successes, intake_failures = _run_intake_extraction(
+                session, llm_client, backfill=backfill, reporter=reporter
+            )
+            successes += intake_successes
+            failures += intake_failures
 
-            try:
-                links = _process_intake(session, llm_client, row.intake_id, narrative)
-                session.commit()
-                if links > 0:
-                    successes += 1
-                    logger.debug("linkage-extract: %d links for intake %s", links, row.intake_id)
-            except Exception:
-                logger.exception("linkage-extract: error processing intake %s", row.intake_id)
-                session.rollback()
-                failures += 1
-
-            if reporter.is_enabled() and (idx % 10 == 0 or idx == total):
-                reporter.update(
-                    status="processing",
-                    message=f"Processed {idx}/{total} intakes",
-                    progress=idx,
-                    total=total,
-                    successes=successes,
-                    failures=failures,
-                )
+        # --- Case URL processing (mode=cases or mode=all) ---
+        if mode in ("cases", "all"):
+            case_successes, case_failures = _run_case_url_extraction(session, llm_client, reporter=reporter)
+            successes += case_successes
+            failures += case_failures
 
         status = "finished" if failures == 0 else "failed"
         logger.info(
-            "linkage-extract: %s — %d successes, %d failures out of %d",
+            "linkage-extract: %s — %d successes, %d failures (mode=%s)",
             status,
             successes,
             failures,
-            total,
+            mode,
         )
         if reporter.is_enabled():
             reporter.update(
@@ -260,6 +233,225 @@ def main(*, backfill: bool = False) -> int:
 
     finally:
         session.close()
+
+
+def _run_intake_extraction(
+    session: Session,
+    llm_client: object,
+    *,
+    backfill: bool,
+    reporter: TaskStatusReporter,
+) -> tuple[int, int]:
+    """Process intake records — original linkage extraction logic.
+
+    Args:
+        session: Active DB session.
+        llm_client: LLM client with ``generate()`` method.
+        backfill: When True, process all intake records.
+        reporter: Task status reporter.
+
+    Returns:
+        Tuple of (successes, failures).
+    """
+    # Select intakes to process
+    base_query = sa.select(
+        intake_records.c.intake_id,
+        intake_records.c.summary,
+        intake_records.c.details,
+    ).where(
+        sa.or_(
+            intake_records.c.summary.isnot(None),
+            intake_records.c.details.isnot(None),
+        )
+    )
+
+    if not backfill:
+        already_linked = sa.select(sa.distinct(intake_indicator_links.c.intake_id))
+        base_query = base_query.where(intake_records.c.intake_id.notin_(already_linked))
+
+    rows = session.execute(base_query).fetchall()
+    total = len(rows)
+    logger.info("linkage-extract: %d intake records to process", total)
+
+    if total == 0:
+        if reporter.is_enabled():
+            reporter.update(status="processing", message="No intakes to process", processed=0)
+        return 0, 0
+
+    successes = 0
+    failures = 0
+
+    for idx, row in enumerate(rows, 1):
+        narrative_parts = []
+        if row.summary:
+            narrative_parts.append(str(row.summary))
+        if row.details:
+            narrative_parts.append(str(row.details))
+        narrative = "\n\n".join(narrative_parts)
+
+        try:
+            links = _process_intake(session, llm_client, row.intake_id, narrative)
+            session.commit()
+            if links > 0:
+                successes += 1
+                logger.debug("linkage-extract: %d links for intake %s", links, row.intake_id)
+        except Exception:
+            logger.exception("linkage-extract: error processing intake %s", row.intake_id)
+            session.rollback()
+            failures += 1
+
+        if reporter.is_enabled() and (idx % 10 == 0 or idx == total):
+            reporter.update(
+                status="processing",
+                message=f"Processed {idx}/{total} intakes",
+                progress=idx,
+                total=total,
+                successes=successes,
+                failures=failures,
+            )
+
+    return successes, failures
+
+
+def _process_case_urls(session: Session, llm_client: object, case_id: str, narrative: str) -> int:
+    """Extract URL indicators from a case narrative and upsert into ``indicators``.
+
+    Args:
+        session: Active DB session.
+        llm_client: LLM client with ``generate()`` method.
+        case_id: Case ID to link indicators to.
+        narrative: Combined document text for the case.
+
+    Returns:
+        Number of URL indicators created or updated.
+    """
+    prompt = _EXTRACTION_PROMPT.format(narrative=narrative)
+    try:
+        response = llm_client.generate(prompt)  # type: ignore[attr-defined]
+        extracted = _parse_extraction_response(response)
+    except (json.JSONDecodeError, ValueError):
+        logger.warning("linkage-extract: failed to parse LLM response for case %s", case_id)
+        return 0
+
+    urls_created = 0
+    for item in extracted:
+        if item["type"] != "url":
+            continue
+
+        url_value = item["value"]
+        normalized = normalize_url(url_value)
+
+        # Upsert into indicators with category=url, type=url
+        ins = dialect_insert(session, indicators)
+        ins_stmt = ins.on_conflict_do_nothing(
+            index_elements=["dataset", "category", "number"],
+        )
+        session.execute(
+            ins_stmt.values(
+                indicator_id=str(uuid4()),
+                case_id=case_id,
+                category="url",
+                item=normalized,
+                type="url",
+                number=url_value,
+                status="active",
+                confidence=item["confidence"],
+                dataset="batch",
+            )
+        )
+        urls_created += 1
+
+    return urls_created
+
+
+def _run_case_url_extraction(
+    session: Session,
+    llm_client: object,
+    *,
+    reporter: TaskStatusReporter,
+) -> tuple[int, int]:
+    """Extract URL indicators from batch-ingested case narratives.
+
+    Processes cases that:
+    - Have ``dataset != 'ssi'`` (SSI cases already have URLs in
+      ``site_scans``)
+    - Do not yet have any URL-type indicator linked
+
+    Args:
+        session: Active DB session.
+        llm_client: LLM client with ``generate()`` method.
+        reporter: Task status reporter.
+
+    Returns:
+        Tuple of (successes, failures).
+    """
+    # Find cases that don't have URL indicators yet, excluding SSI dataset
+    already_has_url = sa.select(sa.distinct(indicators.c.case_id)).where(
+        indicators.c.category == "url", indicators.c.type == "url"
+    )
+
+    case_query = sa.select(cases.c.case_id).where(
+        cases.c.dataset != "ssi",
+        cases.c.case_id.notin_(already_has_url),
+    )
+
+    case_rows = session.execute(case_query).fetchall()
+    total = len(case_rows)
+    logger.info("linkage-extract: %d cases to process for URL extraction", total)
+
+    if total == 0:
+        if reporter.is_enabled():
+            reporter.update(status="processing", message="No cases to process for URL extraction", processed=0)
+        return 0, 0
+
+    successes = 0
+    failures = 0
+
+    for idx, case_row in enumerate(case_rows, 1):
+        cid = case_row.case_id
+
+        # Gather narrative from source_documents for this case
+        doc_query = (
+            sa.select(source_documents.c.text, source_documents.c.excerpt)
+            .where(source_documents.c.case_id == cid)
+            .order_by(source_documents.c.chunk_index)
+        )
+        docs = session.execute(doc_query).fetchall()
+
+        narrative_parts = []
+        for doc in docs:
+            if doc.text:
+                narrative_parts.append(str(doc.text))
+            elif doc.excerpt:
+                narrative_parts.append(str(doc.excerpt))
+
+        if not narrative_parts:
+            continue
+
+        narrative = "\n\n".join(narrative_parts)
+
+        try:
+            urls = _process_case_urls(session, llm_client, cid, narrative)
+            session.commit()
+            if urls > 0:
+                successes += 1
+                logger.debug("linkage-extract: %d URL indicators for case %s", urls, cid)
+        except Exception:
+            logger.exception("linkage-extract: error processing case %s for URLs", cid)
+            session.rollback()
+            failures += 1
+
+        if reporter.is_enabled() and (idx % 10 == 0 or idx == total):
+            reporter.update(
+                status="processing",
+                message=f"Processed {idx}/{total} cases for URL extraction",
+                progress=idx,
+                total=total,
+                successes=successes,
+                failures=failures,
+            )
+
+    return successes, failures
 
 
 if __name__ == "__main__":  # pragma: no cover
