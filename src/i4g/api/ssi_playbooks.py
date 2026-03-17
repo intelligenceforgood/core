@@ -12,7 +12,7 @@ patterns.
 * ``POST   /playbooks/ssi/test-match``   — test a URL against patterns
 
 Playbooks are stored as JSON files on disk, following the same file-based
-approach used by the standalone SSI service.  The directory is configured
+approach used by the SSI FastAPI app.  The directory is configured
 via ``settings.ssi.playbook_dir`` (env: ``SSI_PLAYBOOK_DIR``).
 """
 
