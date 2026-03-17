@@ -1,8 +1,98 @@
 {
-  "generated_at": "2026-03-03T22:43:35.980201+00:00",
+  "generated_at": "2026-03-17T20:35:39.373594+00:00",
   "source": "src/i4g/settings/config.py",
   "env_prefix": "I4G_",
   "fields": [
+    {
+      "path": "analytics.campaign_risk_weights",
+      "section": "analytics",
+      "type": "dict[str, float]",
+      "default": {
+        "case_count": 0.15,
+        "loss_sum": 0.3,
+        "avg_risk": 0.25,
+        "recency": 0.15,
+        "indicator_diversity": 0.15
+      },
+      "env_vars": [
+        "I4G_ANALYTICS__CAMPAIGN_RISK_WEIGHTS",
+        "ANALYTICS_CAMPAIGN_RISK_WEIGHTS",
+        "ANALYTICS__CAMPAIGN_RISK_WEIGHTS"
+      ],
+      "description": "Weight factors for campaign risk score computation."
+    },
+    {
+      "path": "analytics.infrastructure_clustering_interval_hours",
+      "section": "analytics",
+      "type": "int",
+      "default": 6,
+      "env_vars": [
+        "I4G_ANALYTICS__INFRASTRUCTURE_CLUSTERING_INTERVAL_HOURS",
+        "ANALYTICS_INFRASTRUCTURE_CLUSTERING_INTERVAL_HOURS",
+        "ANALYTICS__INFRASTRUCTURE_CLUSTERING_INTERVAL_HOURS"
+      ],
+      "description": "Hours between infrastructure clustering runs."
+    },
+    {
+      "path": "analytics.loss_linkage_confidence_threshold",
+      "section": "analytics",
+      "type": "float",
+      "default": 0.6,
+      "env_vars": [
+        "I4G_ANALYTICS__LOSS_LINKAGE_CONFIDENCE_THRESHOLD",
+        "ANALYTICS_LOSS_LINKAGE_CONFIDENCE_THRESHOLD",
+        "ANALYTICS__LOSS_LINKAGE_CONFIDENCE_THRESHOLD"
+      ],
+      "description": "Minimum LLM confidence for intake-indicator link acceptance (0.0\u20131.0)."
+    },
+    {
+      "path": "analytics.refresh_interval_minutes",
+      "section": "analytics",
+      "type": "int",
+      "default": 15,
+      "env_vars": [
+        "I4G_ANALYTICS__REFRESH_INTERVAL_MINUTES",
+        "ANALYTICS_REFRESH_INTERVAL_MINUTES",
+        "ANALYTICS__REFRESH_INTERVAL_MINUTES"
+      ],
+      "description": "Minutes between automatic aggregation refreshes."
+    },
+    {
+      "path": "analytics.scheduled_report_check_interval_minutes",
+      "section": "analytics",
+      "type": "int",
+      "default": 15,
+      "env_vars": [
+        "I4G_ANALYTICS__SCHEDULED_REPORT_CHECK_INTERVAL_MINUTES",
+        "ANALYTICS_SCHEDULED_REPORT_CHECK_INTERVAL_MINUTES",
+        "ANALYTICS__SCHEDULED_REPORT_CHECK_INTERVAL_MINUTES"
+      ],
+      "description": "Minutes between scheduled report due-date checks."
+    },
+    {
+      "path": "analytics.scheduled_report_max_consecutive_failures",
+      "section": "analytics",
+      "type": "int",
+      "default": 3,
+      "env_vars": [
+        "I4G_ANALYTICS__SCHEDULED_REPORT_MAX_CONSECUTIVE_FAILURES",
+        "ANALYTICS_SCHEDULED_REPORT_MAX_CONSECUTIVE_FAILURES",
+        "ANALYTICS__SCHEDULED_REPORT_MAX_CONSECUTIVE_FAILURES"
+      ],
+      "description": "Deactivate a schedule after this many consecutive failures."
+    },
+    {
+      "path": "analytics.watchlist_check_interval_minutes",
+      "section": "analytics",
+      "type": "int",
+      "default": 30,
+      "env_vars": [
+        "I4G_ANALYTICS__WATCHLIST_CHECK_INTERVAL_MINUTES",
+        "ANALYTICS_WATCHLIST_CHECK_INTERVAL_MINUTES",
+        "ANALYTICS__WATCHLIST_CHECK_INTERVAL_MINUTES"
+      ],
+      "description": "Minutes between watchlist notification checks."
+    },
     {
       "path": "api.base_url",
       "section": "api",
@@ -54,6 +144,54 @@
       "description": "API endpoint configuration shared by CLI + dashboards."
     },
     {
+      "path": "auto_investigate.domain_blocklist",
+      "section": "auto_investigate",
+      "type": "list[str]",
+      "default": [],
+      "env_vars": [
+        "I4G_AUTO_INVESTIGATE__DOMAIN_BLOCKLIST",
+        "AUTO_INVESTIGATE_DOMAIN_BLOCKLIST",
+        "AUTO_INVESTIGATE__DOMAIN_BLOCKLIST"
+      ],
+      "description": "Domains to exclude from automatic investigation."
+    },
+    {
+      "path": "auto_investigate.enabled",
+      "section": "auto_investigate",
+      "type": "bool",
+      "default": false,
+      "env_vars": [
+        "I4G_AUTO_INVESTIGATE__ENABLED",
+        "AUTO_INVESTIGATE_ENABLED",
+        "AUTO_INVESTIGATE__ENABLED"
+      ],
+      "description": "Enable automatic investigation of case URLs."
+    },
+    {
+      "path": "auto_investigate.max_concurrent",
+      "section": "auto_investigate",
+      "type": "int",
+      "default": 3,
+      "env_vars": [
+        "I4G_AUTO_INVESTIGATE__MAX_CONCURRENT",
+        "AUTO_INVESTIGATE_MAX_CONCURRENT",
+        "AUTO_INVESTIGATE__MAX_CONCURRENT"
+      ],
+      "description": "Maximum concurrent auto-investigations."
+    },
+    {
+      "path": "auto_investigate.staleness_days",
+      "section": "auto_investigate",
+      "type": "int",
+      "default": 30,
+      "env_vars": [
+        "I4G_AUTO_INVESTIGATE__STALENESS_DAYS",
+        "AUTO_INVESTIGATE_STALENESS_DAYS",
+        "AUTO_INVESTIGATE__STALENESS_DAYS"
+      ],
+      "description": "Scans older than this many days are considered stale and eligible for re-scan."
+    },
+    {
       "path": "crypto.pii_key",
       "section": "crypto",
       "type": "str | NoneType",
@@ -74,6 +212,50 @@
         "I4G_DATA_DIR"
       ],
       "description": "Top-level configuration model with nested sections for each subsystem."
+    },
+    {
+      "path": "db_admin.dev_password",
+      "section": "db_admin",
+      "type": "str | NoneType",
+      "default": null,
+      "env_vars": [
+        "I4G_DB_ADMIN__DEV_PASSWORD",
+        "DB_ADMIN__DEV_PASSWORD"
+      ],
+      "description": "Postgres password for i4g-dev-db."
+    },
+    {
+      "path": "db_admin.dev_vault_password",
+      "section": "db_admin",
+      "type": "str | NoneType",
+      "default": null,
+      "env_vars": [
+        "I4G_DB_ADMIN__DEV_VAULT_PASSWORD",
+        "DB_ADMIN__DEV_VAULT_PASSWORD"
+      ],
+      "description": "Postgres password for i4g-vault-dev-db."
+    },
+    {
+      "path": "db_admin.prod_password",
+      "section": "db_admin",
+      "type": "str | NoneType",
+      "default": null,
+      "env_vars": [
+        "I4G_DB_ADMIN__PROD_PASSWORD",
+        "DB_ADMIN__PROD_PASSWORD"
+      ],
+      "description": "Postgres password for i4g-prod-db."
+    },
+    {
+      "path": "db_admin.prod_vault_password",
+      "section": "db_admin",
+      "type": "str | NoneType",
+      "default": null,
+      "env_vars": [
+        "I4G_DB_ADMIN__PROD_VAULT_PASSWORD",
+        "DB_ADMIN__PROD_VAULT_PASSWORD"
+      ],
+      "description": "Postgres password for i4g-vault-prod-db."
     },
     {
       "path": "dossier_job.batch_size",
@@ -100,6 +282,150 @@
       "description": "Cloud Run job overrides for dossier queue processing."
     },
     {
+      "path": "email.from_address",
+      "section": "email",
+      "type": "str",
+      "default": "noreply@i4g.local",
+      "env_vars": [
+        "I4G_EMAIL__FROM_ADDRESS",
+        "EMAIL_FROM_ADDRESS",
+        "EMAIL__FROM_ADDRESS"
+      ],
+      "description": "Email delivery configuration for scheduled reports.\n\n    Set ``provider`` to ``smtp`` and supply SMTP credentials to enable\n    real delivery.  The default ``log`` provider writes the email payload\n    to the application log only.\n\n    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc."
+    },
+    {
+      "path": "email.provider",
+      "section": "email",
+      "type": "str",
+      "default": "log",
+      "env_vars": [
+        "I4G_EMAIL__PROVIDER",
+        "EMAIL_PROVIDER",
+        "EMAIL__PROVIDER"
+      ],
+      "description": "Email provider: 'log' (default) or 'smtp'."
+    },
+    {
+      "path": "email.smtp_host",
+      "section": "email",
+      "type": "str",
+      "default": "localhost",
+      "env_vars": [
+        "I4G_EMAIL__SMTP_HOST",
+        "EMAIL_SMTP_HOST",
+        "EMAIL__SMTP_HOST"
+      ],
+      "description": "Email delivery configuration for scheduled reports.\n\n    Set ``provider`` to ``smtp`` and supply SMTP credentials to enable\n    real delivery.  The default ``log`` provider writes the email payload\n    to the application log only.\n\n    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc."
+    },
+    {
+      "path": "email.smtp_password",
+      "section": "email",
+      "type": "str",
+      "default": "",
+      "env_vars": [
+        "I4G_EMAIL__SMTP_PASSWORD",
+        "EMAIL_SMTP_PASSWORD",
+        "EMAIL__SMTP_PASSWORD"
+      ],
+      "description": "Email delivery configuration for scheduled reports.\n\n    Set ``provider`` to ``smtp`` and supply SMTP credentials to enable\n    real delivery.  The default ``log`` provider writes the email payload\n    to the application log only.\n\n    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc."
+    },
+    {
+      "path": "email.smtp_port",
+      "section": "email",
+      "type": "int",
+      "default": 587,
+      "env_vars": [
+        "I4G_EMAIL__SMTP_PORT",
+        "EMAIL_SMTP_PORT",
+        "EMAIL__SMTP_PORT"
+      ],
+      "description": "Email delivery configuration for scheduled reports.\n\n    Set ``provider`` to ``smtp`` and supply SMTP credentials to enable\n    real delivery.  The default ``log`` provider writes the email payload\n    to the application log only.\n\n    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc."
+    },
+    {
+      "path": "email.smtp_user",
+      "section": "email",
+      "type": "str",
+      "default": "",
+      "env_vars": [
+        "I4G_EMAIL__SMTP_USER",
+        "EMAIL_SMTP_USER",
+        "EMAIL__SMTP_USER"
+      ],
+      "description": "Email delivery configuration for scheduled reports.\n\n    Set ``provider`` to ``smtp`` and supply SMTP credentials to enable\n    real delivery.  The default ``log`` provider writes the email payload\n    to the application log only.\n\n    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc."
+    },
+    {
+      "path": "email.use_tls",
+      "section": "email",
+      "type": "bool",
+      "default": true,
+      "env_vars": [
+        "I4G_EMAIL__USE_TLS",
+        "EMAIL_USE_TLS",
+        "EMAIL__USE_TLS"
+      ],
+      "description": "Email delivery configuration for scheduled reports.\n\n    Set ``provider`` to ``smtp`` and supply SMTP credentials to enable\n    real delivery.  The default ``log`` provider writes the email payload\n    to the application log only.\n\n    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc."
+    },
+    {
+      "path": "enrichment.blockchain_api_key",
+      "section": "enrichment",
+      "type": "str",
+      "default": "",
+      "env_vars": [
+        "I4G_ENRICHMENT__BLOCKCHAIN_API_KEY",
+        "ENRICHMENT_BLOCKCHAIN_API_KEY",
+        "ENRICHMENT__BLOCKCHAIN_API_KEY"
+      ],
+      "description": "API key for the configured blockchain analytics vendor."
+    },
+    {
+      "path": "enrichment.blockchain_vendor",
+      "section": "enrichment",
+      "type": "str",
+      "default": "mock",
+      "env_vars": [
+        "I4G_ENRICHMENT__BLOCKCHAIN_VENDOR",
+        "ENRICHMENT_BLOCKCHAIN_VENDOR",
+        "ENRICHMENT__BLOCKCHAIN_VENDOR"
+      ],
+      "description": "Blockchain analytics vendor: 'chainalysis', 'trm', 'elliptic', or 'mock'."
+    },
+    {
+      "path": "enrichment.securitytrails_api_key",
+      "section": "enrichment",
+      "type": "str",
+      "default": "",
+      "env_vars": [
+        "I4G_ENRICHMENT__SECURITYTRAILS_API_KEY",
+        "ENRICHMENT_SECURITYTRAILS_API_KEY",
+        "ENRICHMENT__SECURITYTRAILS_API_KEY"
+      ],
+      "description": "SecurityTrails API key for passive DNS lookups."
+    },
+    {
+      "path": "enrichment.takedown_check_interval_hours",
+      "section": "enrichment",
+      "type": "int",
+      "default": 12,
+      "env_vars": [
+        "I4G_ENRICHMENT__TAKEDOWN_CHECK_INTERVAL_HOURS",
+        "ENRICHMENT_TAKEDOWN_CHECK_INTERVAL_HOURS",
+        "ENRICHMENT__TAKEDOWN_CHECK_INTERVAL_HOURS"
+      ],
+      "description": "Hours between takedown verification checks."
+    },
+    {
+      "path": "enrichment.takedown_max_urls_per_run",
+      "section": "enrichment",
+      "type": "int",
+      "default": 200,
+      "env_vars": [
+        "I4G_ENRICHMENT__TAKEDOWN_MAX_URLS_PER_RUN",
+        "ENRICHMENT_TAKEDOWN_MAX_URLS_PER_RUN",
+        "ENRICHMENT__TAKEDOWN_MAX_URLS_PER_RUN"
+      ],
+      "description": "Maximum URLs to check per takedown run."
+    },
+    {
       "path": "env",
       "section": "env",
       "type": "str",
@@ -111,6 +437,30 @@
         "RUNTIME__ENV"
       ],
       "description": "Top-level configuration model with nested sections for each subsystem."
+    },
+    {
+      "path": "feedback.enabled",
+      "section": "feedback",
+      "type": "bool",
+      "default": true,
+      "env_vars": [
+        "I4G_FEEDBACK__ENABLED",
+        "FEEDBACK_ENABLED",
+        "FEEDBACK__ENABLED"
+      ],
+      "description": "Master switch for the feedback feature."
+    },
+    {
+      "path": "feedback.sheet_id",
+      "section": "feedback",
+      "type": "str",
+      "default": "",
+      "env_vars": [
+        "I4G_FEEDBACK__SHEET_ID",
+        "FEEDBACK_SHEET_ID",
+        "FEEDBACK__SHEET_ID"
+      ],
+      "description": "Google Sheet spreadsheet ID for feedback storage."
     },
     {
       "path": "identity.audience",
@@ -514,14 +864,14 @@
     {
       "path": "llm.provider",
       "section": "llm",
-      "type": "Literal['ollama', 'vertex_ai', 'mock']",
+      "type": "Literal['ollama', 'vertex_ai', 'gemini', 'mock']",
       "default": "ollama",
       "env_vars": [
         "I4G_LLM__PROVIDER",
         "LLM_PROVIDER",
         "LLM__PROVIDER"
       ],
-      "description": "Large language model provider settings."
+      "description": "LLM backend: 'vertex_ai'/'gemini' (synonyms) use Vertex AI via google-genai, 'ollama' uses local Ollama, 'mock' for tests."
     },
     {
       "path": "llm.temperature",
@@ -546,18 +896,6 @@
         "LLM__VERTEX_AI__LOCATION"
       ],
       "description": "Large language model provider settings."
-    },
-    {
-      "path": "llm.vertex_ai_model",
-      "section": "llm",
-      "type": "str | NoneType",
-      "default": null,
-      "env_vars": [
-        "I4G_LLM__VERTEX_AI_MODEL",
-        "LLM_VERTEX_AI_MODEL",
-        "LLM__VERTEX_AI__MODEL"
-      ],
-      "description": "Legacy override for Vertex AI model. Prefer 'chat_model'."
     },
     {
       "path": "llm.vertex_ai_project",
@@ -690,6 +1028,54 @@
         "OBSERVABILITY__TRACE_SAMPLE_RATE"
       ],
       "description": "Logging, tracing, and metrics configuration."
+    },
+    {
+      "path": "partner_feed.default_page_size",
+      "section": "partner_feed",
+      "type": "int",
+      "default": 100,
+      "env_vars": [
+        "I4G_PARTNER_FEED__DEFAULT_PAGE_SIZE",
+        "PARTNER_FEED_DEFAULT_PAGE_SIZE",
+        "PARTNER_FEED__DEFAULT_PAGE_SIZE"
+      ],
+      "description": "Default page size for paginated indicator feed responses."
+    },
+    {
+      "path": "partner_feed.enabled",
+      "section": "partner_feed",
+      "type": "bool",
+      "default": false,
+      "env_vars": [
+        "I4G_PARTNER_FEED__ENABLED",
+        "PARTNER_FEED_ENABLED",
+        "PARTNER_FEED__ENABLED"
+      ],
+      "description": "Enable the partner indicator feed API."
+    },
+    {
+      "path": "partner_feed.max_page_size",
+      "section": "partner_feed",
+      "type": "int",
+      "default": 1000,
+      "env_vars": [
+        "I4G_PARTNER_FEED__MAX_PAGE_SIZE",
+        "PARTNER_FEED_MAX_PAGE_SIZE",
+        "PARTNER_FEED__MAX_PAGE_SIZE"
+      ],
+      "description": "Maximum allowed page size for indicator feed requests."
+    },
+    {
+      "path": "partner_feed.rate_limit_per_minute",
+      "section": "partner_feed",
+      "type": "int",
+      "default": 60,
+      "env_vars": [
+        "I4G_PARTNER_FEED__RATE_LIMIT_PER_MINUTE",
+        "PARTNER_FEED_RATE_LIMIT_PER_MINUTE",
+        "PARTNER_FEED__RATE_LIMIT_PER_MINUTE"
+      ],
+      "description": "Max requests per minute per API key."
     },
     {
       "path": "pii.backend",
