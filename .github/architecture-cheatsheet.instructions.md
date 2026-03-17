@@ -15,7 +15,7 @@ Next.js (App Router, port 3000)
   ↓  server-side fetch to I4G_API_URL (default http://127.0.0.1:8000)
 Core FastAPI (port 8000)
   ↓  (for SSI) HTTP POST to SSI Cloud Run Service
-SSI FastAPI (port 8100, local dev only — NOT deployed standalone in cloud)
+SSI FastAPI (port 8100 locally; deployed as Cloud Run Service `ssi-svc` in cloud)
 ```
 
 ### Next.js API routes — two patterns
@@ -106,7 +106,7 @@ Source: `ui/apps/web/src/lib/i4g-client.ts` → `resolveClient()`.
 | Relational    | SQLite (`data/i4g_store.db`) | Cloud SQL PostgreSQL |
 | Vector        | Chroma (`data/chroma_store`) | Vertex AI Search     |
 | Blob/evidence | Local FS (`data/evidence/`)  | GCS buckets          |
-| SSI scans     | SQLite (`data/ssi_store.db`) | Cloud SQL PostgreSQL |
+| SSI scans     | Same shared DB (`i4g_store.db`) | Same Cloud SQL instance |
 
 ### Evidence file flow
 
@@ -190,7 +190,7 @@ This ID links the case back to SSI's `site_scans` table and is used to construct
 - `dossier_queue` — Report generation tasks.
 - `intake_records/attachments/jobs` — Victim submission pipeline.
 
-### SSI tables (`core/src/i4g/store/sql.py` or via `build_ssi_store()`)
+### SSI tables (shared DB — defined in both `core/src/i4g/store/sql.py` and `ssi/src/ssi/store/sql.py`)
 
 - `site_scans` — Investigation metadata. PK: `scan_id`. Has `case_id` FK, `evidence_path`, `scan_status`, `risk_score`, `classification` JSON.
 - `harvested_wallets` — Wallet addresses. FKs: `case_id`, `scan_id`.

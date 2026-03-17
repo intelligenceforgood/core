@@ -1,8 +1,8 @@
 """SSI wallet search and export endpoints.
 
 Provides wallet search across all SSI investigations and per-scan
-export in CSV and XLSX formats.  These replace the equivalent endpoints
-from the standalone ``ssi-api`` service.
+export in CSV and XLSX formats.  Originally migrated from the SSI
+repo's wallet endpoints.
 
 * ``GET /investigations/ssi/wallets`` — cross-scan wallet search
 * ``GET /investigations/ssi/{scan_id}/wallets.csv`` — CSV export

@@ -2,8 +2,8 @@
 
 Provides download access to investigation evidence artifacts stored
 either on the local filesystem (development) or in Google Cloud Storage
-(production).  These replace the equivalent endpoints from the
-standalone ``ssi-api`` service.
+(production).  Originally migrated from the SSI repo's evidence
+endpoints.
 
 * ``GET /investigations/ssi/{scan_id}/evidence-bundle`` — evidence ZIP
 * ``GET /investigations/ssi/{scan_id}/lea-package`` — LEA evidence package

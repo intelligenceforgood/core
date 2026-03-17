@@ -1,8 +1,8 @@
 """SSI investigation history and detail endpoints.
 
 Provides read endpoints for past SSI investigations stored in the core
-database.  These replace the equivalent endpoints from the standalone
-``ssi-api`` service (``ssi.api.investigation_routes``).
+database.  Originally migrated from ``ssi.api.investigation_routes``
+in the SSI repo.
 
 * ``GET /investigations/ssi/history`` — paginated list of investigations
 * ``GET /investigations/ssi/active`` — currently active investigations (stub)
