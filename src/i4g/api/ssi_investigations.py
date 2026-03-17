@@ -21,6 +21,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import Field
 
 from i4g.api.auth import require_role, require_token
 from i4g.api.camel import CamelModel
@@ -49,6 +50,17 @@ class InvestigationListResponse(CamelModel):
     offset: int
 
 
+class LinkedCaseSummary(CamelModel):
+    """Summary of a case linked to an SSI investigation."""
+
+    case_id: str
+    dataset: str
+    classification: str | None = None
+    status: str
+    trigger_type: str
+    linked_at: str
+
+
 class InvestigationDetailResponse(CamelModel):
     """Full investigation detail with related records."""
 
@@ -56,6 +68,7 @@ class InvestigationDetailResponse(CamelModel):
     wallets: list[dict[str, Any]]
     pii_exposures: list[dict[str, Any]]
     agent_actions: list[dict[str, Any]]
+    linked_cases: list[LinkedCaseSummary] = Field(default_factory=list)
 
 
 class ActiveInvestigationsResponse(CamelModel):
@@ -160,17 +173,31 @@ def get_investigation(
     wallets = store.get_wallets(scan_id)
     pii_exposures = store.get_pii_exposures(scan_id)
     agent_actions = store.get_agent_actions(scan_id)
+    linked_case_rows = store.get_scan_linked_cases(scan_id)
 
     _serialize_datetimes(scan)
     for collection in [wallets, pii_exposures, agent_actions]:
         for row in collection:
             _serialize_datetimes(row)
 
+    linked_cases = [
+        LinkedCaseSummary(
+            case_id=r["case_id"],
+            dataset=r["dataset"],
+            classification=r.get("classification"),
+            status=r["status"],
+            trigger_type=r["trigger_type"],
+            linked_at=r["linked_at"].isoformat() if hasattr(r["linked_at"], "isoformat") else str(r["linked_at"]),
+        )
+        for r in linked_case_rows
+    ]
+
     return {
         "scan": scan,
         "wallets": wallets,
         "pii_exposures": pii_exposures,
         "agent_actions": agent_actions,
+        "linked_cases": linked_cases,
     }
 
 

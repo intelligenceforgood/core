@@ -56,6 +56,68 @@ class SsiStore:
             self._session_factory = default_session_factory()
 
     # ------------------------------------------------------------------
+    # case_investigations queries
+    # ------------------------------------------------------------------
+
+    def get_case_investigations(self, case_id: str) -> list[dict[str, Any]]:
+        """Return investigations linked to a case via ``case_investigations``.
+
+        Args:
+            case_id: The case to look up.
+
+        Returns:
+            List of dicts with scan + link metadata, ordered by link date desc.
+        """
+        ci = sql_schema.case_investigations
+        ss = sql_schema.site_scans
+        stmt = (
+            sa.select(
+                ci.c.scan_id,
+                ci.c.trigger_type,
+                ci.c.created_at.label("linked_at"),
+                ss.c.url,
+                ss.c.normalized_url,
+                ss.c.status,
+                ss.c.risk_score,
+                ss.c.completed_at,
+            )
+            .select_from(ci.join(ss, ci.c.scan_id == ss.c.scan_id))
+            .where(ci.c.case_id == case_id)
+            .order_by(ci.c.created_at.desc())
+        )
+        with self._session_factory() as session:
+            rows = session.execute(stmt).all()
+        return [dict(r._mapping) for r in rows]
+
+    def get_scan_linked_cases(self, scan_id: str) -> list[dict[str, Any]]:
+        """Return cases linked to a scan via ``case_investigations``.
+
+        Args:
+            scan_id: The scan to look up.
+
+        Returns:
+            List of dicts with case summary + link metadata, ordered by link date desc.
+        """
+        ci = sql_schema.case_investigations
+        c = sql_schema.cases
+        stmt = (
+            sa.select(
+                ci.c.case_id,
+                ci.c.trigger_type,
+                ci.c.created_at.label("linked_at"),
+                c.c.dataset,
+                c.c.classification,
+                c.c.status,
+            )
+            .select_from(ci.join(c, ci.c.case_id == c.c.case_id))
+            .where(ci.c.scan_id == scan_id)
+            .order_by(ci.c.created_at.desc())
+        )
+        with self._session_factory() as session:
+            rows = session.execute(stmt).all()
+        return [dict(r._mapping) for r in rows]
+
+    # ------------------------------------------------------------------
     # site_scans CRUD
     # ------------------------------------------------------------------
 

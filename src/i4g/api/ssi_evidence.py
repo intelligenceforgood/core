@@ -175,6 +175,7 @@ def _gcs_file_url(scan: dict[str, Any], filename: str) -> str | None:
 
     # Strategy 2: construct from settings (legacy local-path evidence_path)
     from i4g.settings import get_settings
+    from i4g.utils.evidence_path import evidence_path as sharded_evidence_path
 
     settings = get_settings()
     bucket = settings.storage.ssi_evidence_bucket
@@ -185,6 +186,14 @@ def _gcs_file_url(scan: dict[str, Any], filename: str) -> str | None:
     scan_id = scan.get("scan_id", "")
     if not scan_id:
         return None
+
+    # Try sharded path first, then flat path for backward compat
+    sharded_prefix = sharded_evidence_path(str(scan_id))
+    blob_name = f"{prefix.rstrip('/')}/{sharded_prefix}/{filename}"
+    try:
+        return _generate_signed_url(bucket, blob_name)
+    except Exception:
+        logger.debug("Sharded path not found, falling back to flat: %s", blob_name)
 
     blob_name = f"{prefix.rstrip('/')}/{scan_id}/{filename}"
     try:

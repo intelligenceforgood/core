@@ -22,7 +22,9 @@ from i4g.api.auth import require_role, require_token
 from i4g.api.camel import CamelModel
 from i4g.api.response_models import CasesListResponse
 from i4g.api.roles import is_researcher
-from i4g.services.factories import build_retention_service, build_review_store
+from i4g.services.factories import build_retention_service, build_review_store, build_ssi_store
+from i4g.services.investigation_dedup import check_url_duplicate
+from i4g.settings import get_settings
 from i4g.store import sql as sql_schema
 from i4g.store.sql import dialect_insert
 from i4g.store.sql import session_factory as build_sql_session_factory
@@ -72,6 +74,19 @@ CaseStatus = Literal["new", "queued", "in_review", "awaiting_input", "closed", "
 CasePriority = Literal["critical", "high", "medium", "low"]
 
 
+class CaseInvestigationSummary(CamelModel):
+    """Summary of an SSI investigation linked to a case."""
+
+    scan_id: str
+    url: str
+    normalized_url: str | None = None
+    status: str
+    risk_score: float | None = None
+    completed_at: datetime | None = None
+    trigger_type: str
+    linked_at: datetime
+
+
 class CaseDetail(CamelModel):
     """Detailed view of a case for the investigation workspace."""
 
@@ -94,6 +109,7 @@ class CaseDetail(CamelModel):
     timeline: list[CaseTimelineEvent] = Field(default_factory=list)
     graph_nodes: list[CaseGraphNode] = Field(default_factory=list)
     graph_links: list[CaseGraphLink] = Field(default_factory=list)
+    investigations: list[CaseInvestigationSummary] = Field(default_factory=list)
 
 
 # --- Request models (write endpoints) ---
@@ -216,6 +232,253 @@ def list_cases(
     """Return summaries for the Cases console view (from Live DB)."""
     store = build_review_store()
     return store.get_dashboard_summary(limit=limit, status=status, priority=priority, queue=queue, due_date=due_date)
+
+
+# --- Activity & Investigation models ---
+
+
+class CaseActivity(CamelModel):
+    """A background activity related to a case."""
+
+    type: str
+    status: str
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    progress: int | None = None
+    total: int | None = None
+    scan_id: str | None = None
+    url: str | None = None
+    risk_score: float | None = None
+
+
+class CaseActivityResponse(CamelModel):
+    """Response for case activity endpoint."""
+
+    case_id: str
+    activities: list[CaseActivity]
+    has_running: bool
+
+
+class CaseInvestigateRequest(BaseModel):
+    """Request to trigger investigation for a URL on a case."""
+
+    url: str
+    force: bool = False
+
+
+@router.get("/{case_id}/activity", response_model=CaseActivityResponse, summary="Get case activity")
+def case_activity(
+    case_id: str,
+    user: dict[str, str] = Depends(require_token),
+) -> CaseActivityResponse:
+    """Return active and recent background tasks for a case.
+
+    Aggregates classification status, and SSI investigation activities
+    linked to the case.
+
+    Args:
+        case_id: The case identifier.
+        user: Authenticated user.
+
+    Returns:
+        Case activity summary with running indicator.
+
+    Raises:
+        HTTPException: 404 if the case does not exist.
+    """
+    if is_researcher(user):
+        raise HTTPException(status_code=403, detail="Researcher role cannot access case activities")
+
+    sf = build_sql_session_factory()
+    with sf() as session:
+        case_row = session.execute(
+            sa.select(
+                sql_schema.cases.c.case_id,
+                sql_schema.cases.c.classification_status,
+            ).where(sql_schema.cases.c.case_id == case_id)
+        ).first()
+        if not case_row:
+            raise HTTPException(status_code=404, detail="Case not found")
+
+    activities: list[CaseActivity] = []
+
+    # Classification activity
+    cls_status = case_row._mapping["classification_status"]
+    cls_activity_status = "completed" if cls_status == "completed" else "pending"
+    activities.append(CaseActivity(type="classification", status=cls_activity_status))
+
+    # SSI investigation activities
+    ssi_store = build_ssi_store()
+    inv_rows = ssi_store.get_case_investigations(case_id)
+    for inv in inv_rows:
+        activities.append(
+            CaseActivity(
+                type="ssi_investigation",
+                status=inv["status"],
+                completed_at=inv.get("completed_at"),
+                scan_id=str(inv["scan_id"]),
+                url=inv["url"],
+                risk_score=float(inv["risk_score"]) if inv.get("risk_score") is not None else None,
+            )
+        )
+
+    has_running = any(a.status in ("pending", "running") for a in activities)
+
+    return CaseActivityResponse(case_id=case_id, activities=activities, has_running=has_running)
+
+
+@router.post(
+    "/{case_id}/investigate",
+    summary="Trigger SSI investigation for a case URL",
+    status_code=202,
+)
+def investigate_case_url(
+    case_id: str,
+    body: CaseInvestigateRequest,
+    user: dict[str, str] = Depends(require_role("analyst")),
+) -> dict[str, Any]:
+    """Trigger an SSI investigation for a URL found in a case.
+
+    Performs dedup check unless ``force=True``.  Links the resulting scan
+    to the case via ``case_investigations`` with ``trigger_type='manual'``.
+
+    Args:
+        case_id: The case to link the investigation to.
+        body: Investigation trigger payload (url, force).
+        user: Authenticated user (must have ``analyst`` role).
+
+    Returns:
+        Investigation trigger response with scan_id and dedup info.
+
+    Raises:
+        HTTPException: 404 if the case does not exist.
+    """
+    from urllib.parse import urlparse
+
+    from i4g.api.investigations import InvestigationTriggerResponse, _trigger_cloud_run_service
+    from i4g.task_status_store import TASK_STATUS
+
+    # Verify case exists
+    sf = build_sql_session_factory()
+    with sf() as session:
+        case_row = session.execute(
+            sa.select(sql_schema.cases.c.case_id).where(sql_schema.cases.c.case_id == case_id)
+        ).first()
+    if not case_row:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    settings = get_settings()
+
+    # Dedup check
+    if not body.force:
+        try:
+            dedup = check_url_duplicate(
+                body.url,
+                session_factory=sf,
+                staleness_days=settings.auto_investigate.staleness_days,
+            )
+            if dedup.is_duplicate:
+                # Link existing scan to this case if not already linked
+                if dedup.existing_scan_id:
+                    with sf() as session:
+                        session.execute(
+                            dialect_insert(session, sql_schema.case_investigations)
+                            .values(
+                                case_id=case_id,
+                                scan_id=dedup.existing_scan_id,
+                                trigger_type="manual",
+                            )
+                            .on_conflict_do_nothing()
+                        )
+                        session.commit()
+
+                return InvestigationTriggerResponse(
+                    triggered=False,
+                    already_investigated=True,
+                    existing_scan_id=dedup.existing_scan_id,
+                    existing_risk_score=dedup.existing_risk_score,
+                    days_since_scan=dedup.days_since_scan,
+                    reason=dedup.reason,
+                    status="skipped",
+                    message=f"URL already investigated ({dedup.reason})",
+                ).model_dump(by_alias=True)
+        except Exception as exc:
+            logger.warning("Dedup check failed (will proceed): %s", exc)
+
+    # Extract domain
+    try:
+        domain = urlparse(body.url if "://" in body.url else f"https://{body.url}").netloc
+        if domain.startswith("www."):
+            domain = domain[4:]
+    except Exception:
+        domain = None
+
+    scan_id = str(uuid.uuid4())
+    task_id = scan_id
+
+    # Pre-create scan row
+    ssi_store = build_ssi_store()
+    try:
+        ssi_store.create_scan(scan_id=scan_id, url=body.url, scan_type="full", domain=domain, case_id=case_id)
+    except Exception as exc:
+        logger.warning("Failed to pre-create scan row: %s", exc)
+
+    # Link to case
+    with sf() as session:
+        session.execute(
+            dialect_insert(session, sql_schema.case_investigations)
+            .values(case_id=case_id, scan_id=scan_id, trigger_type="manual")
+            .on_conflict_do_nothing()
+        )
+        session.commit()
+
+    # Register task status
+    TASK_STATUS[task_id] = {
+        "status": "queued",
+        "message": f"SSI investigation queued for {body.url}",
+        "url": body.url,
+        "scan_id": scan_id,
+        "triggered_by": user.get("username", "unknown"),
+    }
+
+    # Log audit action
+    store = build_review_store()
+    review_id = _get_review_id_for_case(sf, case_id)
+    if review_id:
+        store.log_action(
+            review_id=review_id,
+            action="investigation_triggered",
+            actor=user.get("username", "system"),
+            payload={"url": body.url, "scan_id": scan_id, "description": f"Investigation triggered for {body.url}"},
+        )
+
+    # Trigger SSI Cloud Run Service
+    ssi_cfg = settings.ssi
+    try:
+        _trigger_cloud_run_service(
+            service_url=ssi_cfg.service_url,
+            url=body.url,
+            scan_type="full",
+            scan_id=scan_id,
+            push_to_core=True,
+            dataset="ssi",
+        )
+        TASK_STATUS[task_id] = {
+            "status": "running",
+            "message": f"SSI service triggered for {body.url}",
+            "scan_id": scan_id,
+        }
+        return InvestigationTriggerResponse(
+            triggered=True,
+            scan_id=scan_id,
+            task_id=task_id,
+            status="running",
+            message="SSI investigation triggered",
+        ).model_dump(by_alias=True)
+    except Exception as exc:
+        logger.error("Failed to trigger SSI service: %s", exc, exc_info=True)
+        TASK_STATUS[task_id] = {"status": "failed", "message": f"Failed to trigger SSI service: {exc}"}
+        raise HTTPException(status_code=502, detail=f"Failed to trigger SSI investigation: {exc}") from exc
 
 
 @router.get("/{case_id}", response_model=CaseDetail, response_model_exclude_unset=True, summary="Get case details")
@@ -369,6 +632,23 @@ def get_case(case_id: str, user: dict[str, str] = Depends(require_token)) -> Cas
         if not required_keys.issubset(classification_result.keys()):
             classification_result = None
 
+    # Investigations linked via case_investigations
+    ssi_store = build_ssi_store()
+    inv_rows = ssi_store.get_case_investigations(case_id)
+    investigations = [
+        CaseInvestigationSummary(
+            scan_id=str(r["scan_id"]),
+            url=r["url"],
+            normalized_url=r.get("normalized_url"),
+            status=r["status"],
+            risk_score=float(r["risk_score"]) if r.get("risk_score") is not None else None,
+            completed_at=r.get("completed_at"),
+            trigger_type=r["trigger_type"],
+            linked_at=r["linked_at"],
+        )
+        for r in inv_rows
+    ]
+
     case_kwargs: dict[str, Any] = dict(
         id=data["case_id"],
         title=props.get("title", f"Case {data['case_id'][:8]}"),
@@ -385,6 +665,7 @@ def get_case(case_id: str, user: dict[str, str] = Depends(require_token)) -> Cas
         timeline=timeline_events,
         graph_nodes=nodes,
         graph_links=links,
+        investigations=investigations,
     )
     if classification_result is not None:
         case_kwargs["classification"] = classification_result
@@ -481,6 +762,15 @@ def _get_or_404(session: Any, case_id: str) -> None:
     row = session.execute(sa.select(sql_schema.cases.c.case_id).where(sql_schema.cases.c.case_id == case_id)).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Case not found")
+
+
+def _get_review_id_for_case(sf: Any, case_id: str) -> str | None:
+    """Look up the review_id for a case from the review_queue table."""
+    with sf() as session:
+        row = session.execute(
+            sa.select(sql_schema.review_queue.c.review_id).where(sql_schema.review_queue.c.case_id == case_id)
+        ).first()
+    return row._mapping["review_id"] if row else None
 
 
 @router.post("", summary="Create a new case", response_model=CreateCaseResponse, status_code=201)
