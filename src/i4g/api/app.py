@@ -38,6 +38,8 @@ from i4g.api.tokenization import router as tokenization_router
 from i4g.settings import get_settings
 from i4g.task_status_store import TASK_STATUS
 
+logger = logging.getLogger(__name__)
+
 # ----------------------------------------
 # Task Status API (Step 2 of M6.3)
 # ----------------------------------------
@@ -255,6 +257,15 @@ def create_app() -> FastAPI:
     artifacts_dir = Path(settings.data_dir) / "artifacts"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/artifacts", StaticFiles(directory=str(artifacts_dir)), name="artifacts")
+
+    # Warn at startup if SSI service URL is missing in non-local environments.
+    # Investigations will fail at request time without this, so surface it early.
+    if settings.env.lower() != "local" and not settings.ssi.service_url:
+        logger.warning(
+            "I4G_SSI__SERVICE_URL is not set (env=%s). "
+            "POST /investigations/ssi will fail until the SSI Cloud Run Service URL is configured.",
+            settings.env,
+        )
 
     return app
 
