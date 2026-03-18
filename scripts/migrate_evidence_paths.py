@@ -13,6 +13,10 @@ sharded pattern are skipped.
 Usage::
 
     conda run -n i4g python scripts/migrate_evidence_paths.py [--dry-run] [--backend local|gcs]
+
+When ``--backend`` is omitted the script auto-detects the backend from
+the active ``I4G_ENV`` settings (``storage.ssi_evidence_backend`` or
+``evidence.storage_backend``).  Pass it explicitly to override.
 """
 
 from __future__ import annotations
@@ -171,6 +175,29 @@ def _migrate_gcs(
         try:
             # List blobs at old prefix
             old_blobs = list(bucket.list_blobs(prefix=old_blob_prefix + "/"))
+
+            # Check whether blobs already exist at the new sharded prefix.
+            # This handles the case where upload_directory always wrote to
+            # sharded paths but the DB recorded the flat path.
+            new_blobs = list(bucket.list_blobs(prefix=new_blob_prefix + "/"))
+            if new_blobs and not old_blobs:
+                logger.info(
+                    "Blobs already at sharded path (%d files) — updating DB only: %s",
+                    len(new_blobs),
+                    new_blob_prefix,
+                )
+                if not dry_run:
+                    new_gcs_uri = f"gs://{bucket_name}/{new_blob_prefix}"
+                    with factory() as session:
+                        session.execute(
+                            sa.update(site_scans)
+                            .where(site_scans.c.scan_id == scan_id)
+                            .values(evidence_path=new_gcs_uri)
+                        )
+                        session.commit()
+                migrated += 1
+                continue
+
             if not old_blobs:
                 logger.debug("No blobs found at old prefix: %s", old_blob_prefix)
                 skipped += 1
@@ -259,6 +286,29 @@ def migrate(*, dry_run: bool = False, backend: str = "local") -> tuple[int, int,
     return migrated, skipped, errored
 
 
+def _resolve_backend(explicit: str | None) -> str:
+    """Resolve the storage backend from CLI arg or settings.
+
+    When no explicit backend is given, reads the active environment's
+    evidence storage config.  Accepts ``local`` or ``gcs``.
+
+    Args:
+        explicit: Value passed via ``--backend``, or *None* for auto-detect.
+
+    Returns:
+        ``"local"`` or ``"gcs"``.
+    """
+    if explicit:
+        return explicit
+    settings = get_settings()
+    backend = getattr(getattr(settings, "storage", None), "ssi_evidence_backend", None)
+    if not backend:
+        backend = getattr(getattr(settings, "evidence", None), "storage_backend", None)
+    if backend and backend.lower() == "gcs":
+        return "gcs"
+    return "local"
+
+
 def main() -> None:
     """CLI entry point."""
     parser = argparse.ArgumentParser(description="Migrate evidence artifacts to sharded layout")
@@ -266,12 +316,14 @@ def main() -> None:
     parser.add_argument(
         "--backend",
         choices=["local", "gcs"],
-        default="local",
-        help="Storage backend (default: local)",
+        default=None,
+        help="Storage backend (default: auto-detect from I4G_ENV settings)",
     )
     args = parser.parse_args()
 
-    _migrated, _skipped, errored = migrate(dry_run=args.dry_run, backend=args.backend)
+    backend = _resolve_backend(args.backend)
+    logger.info("Using storage backend: %s", backend)
+    _migrated, _skipped, errored = migrate(dry_run=args.dry_run, backend=backend)
     sys.exit(1 if errored > 0 else 0)
 
 

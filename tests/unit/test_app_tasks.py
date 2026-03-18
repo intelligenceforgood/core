@@ -155,3 +155,26 @@ def test_get_task_status_auto_fails_stale_running_scan() -> None:
         status="failed",
         error_message="Investigation was interrupted (service restarted while it was running).",
     )
+
+
+def test_get_task_status_scan_id_fallback_when_db_fails() -> None:
+    """When TASK_STATUS has scan_id but DB lookup fails, investigationId must still be populated."""
+    task_id = "task-with-scan"
+    scan_id = "scan-uuid-fallback"
+    TASK_STATUS[task_id] = {
+        "status": "running",
+        "message": "Investigation running",
+        "scan_id": scan_id,
+        "url": "https://example.com",
+    }
+
+    mock_store = MagicMock()
+    mock_store.get_scan.side_effect = Exception("DB unavailable")
+
+    with patch("i4g.services.factories.build_ssi_store", return_value=mock_store):
+        response = client.get(f"/tasks/{task_id}")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["investigationId"] == scan_id
+    assert data["status"] == "running"

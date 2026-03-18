@@ -110,7 +110,7 @@ def _trigger_cloud_run_service(
     scan_id: str,
     push_to_core: bool,
     dataset: str,
-) -> None:
+) -> dict[str, Any]:
     """Trigger an SSI investigation via the Cloud Run Service endpoint.
 
     Sends an HTTP POST to ``{service_url}/trigger/investigate`` with a
@@ -124,6 +124,9 @@ def _trigger_cloud_run_service(
         scan_id: Pre-assigned scan ID.
         push_to_core: Whether to create a case record in core.
         dataset: Dataset label for the core case.
+
+    Returns:
+        The parsed JSON response from the SSI service.
 
     Raises:
         RuntimeError: When the HTTP call fails or the service returns
@@ -162,7 +165,9 @@ def _trigger_cloud_run_service(
         with httpx.Client(timeout=30.0) as client:
             response = client.post(endpoint, json=payload, headers=headers)
             response.raise_for_status()
-            logger.info("SSI service accepted investigation: %s", response.json())
+            body = response.json()
+            logger.info("SSI service accepted investigation: %s", body)
+            return body
     except httpx.HTTPStatusError as exc:
         raise RuntimeError(f"SSI service returned {exc.response.status_code}: {exc.response.text}") from exc
     except httpx.RequestError as exc:
@@ -284,7 +289,7 @@ def trigger_ssi_investigation(
     service_url = ssi_cfg.service_url
 
     try:
-        _trigger_cloud_run_service(
+        ssi_response = _trigger_cloud_run_service(
             service_url=service_url,
             url=payload.url,
             scan_type=payload.scan_type,
@@ -292,6 +297,35 @@ def trigger_ssi_investigation(
             push_to_core=payload.push_to_core,
             dataset=payload.dataset,
         )
+
+        # Handle SSI dedup "skipped" response — update the pre-created
+        # scan row so it doesn't stay at "running" forever.
+        if ssi_response.get("status") == "skipped":
+            logger.info("SSI skipped investigation (dedup): %s", ssi_response)
+            try:
+                ssi_store = build_ssi_store()
+                ssi_store.update_scan(scan_id, status="skipped", error_message=ssi_response.get("reason", "dedup"))
+            except Exception as exc:
+                logger.warning("Failed to update scan %s after SSI skip: %s", scan_id, exc)
+            TASK_STATUS[task_id] = {
+                "status": "completed",
+                "message": f"Already investigated: {ssi_response.get('reason', 'dedup')}",
+                "scan_id": scan_id,
+                "investigation_id": ssi_response.get("existingScanId") or ssi_response.get("existing_scan_id"),
+            }
+            return InvestigationTriggerResponse(
+                triggered=False,
+                scan_id=scan_id,
+                task_id=task_id,
+                status="skipped",
+                message=f"URL already investigated ({ssi_response.get('reason', 'dedup')})",
+                already_investigated=True,
+                existing_scan_id=ssi_response.get("existingScanId") or ssi_response.get("existing_scan_id"),
+                existing_risk_score=ssi_response.get("existingRiskScore") or ssi_response.get("existing_risk_score"),
+                days_since_scan=ssi_response.get("daysSinceScan") or ssi_response.get("days_since_scan"),
+                reason=ssi_response.get("reason", ""),
+            ).model_dump(by_alias=True)
+
         TASK_STATUS[task_id] = {
             "status": "running",
             "message": f"SSI service triggered for {payload.url}",

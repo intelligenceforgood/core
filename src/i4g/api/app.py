@@ -166,6 +166,12 @@ def get_task_status(task_id: str) -> dict[str, Any]:
         except Exception as e:
             logging.getLogger(__name__).warning("Failed to look up SSI scan status for %s: %s", scan_id, e)
 
+    # Ensure investigation_id is always populated when scan_id is present,
+    # even if the DB lookup above failed.  Without this, TaskStatusResponse
+    # drops the raw scan_id key and serializes investigationId as null.
+    if scan_id and "investigation_id" not in task:
+        task = {**task, "investigation_id": scan_id}
+
     return {"task_id": task_id, **task}
 
 

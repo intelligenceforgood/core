@@ -455,7 +455,7 @@ def investigate_case_url(
     # Trigger SSI Cloud Run Service
     ssi_cfg = settings.ssi
     try:
-        _trigger_cloud_run_service(
+        ssi_response = _trigger_cloud_run_service(
             service_url=ssi_cfg.service_url,
             url=body.url,
             scan_type="full",
@@ -463,6 +463,32 @@ def investigate_case_url(
             push_to_core=True,
             dataset="ssi",
         )
+
+        # Handle SSI dedup "skipped" response
+        if ssi_response.get("status") == "skipped":
+            logger.info("SSI skipped investigation (dedup) for case %s: %s", case_id, ssi_response)
+            try:
+                ssi_store.update_scan(scan_id, status="skipped", error_message=ssi_response.get("reason", "dedup"))
+            except Exception as exc:
+                logger.warning("Failed to update scan %s after SSI skip: %s", scan_id, exc)
+            TASK_STATUS[task_id] = {
+                "status": "completed",
+                "message": f"Already investigated: {ssi_response.get('reason', 'dedup')}",
+                "scan_id": scan_id,
+            }
+            return InvestigationTriggerResponse(
+                triggered=False,
+                scan_id=scan_id,
+                task_id=task_id,
+                status="skipped",
+                message=f"URL already investigated ({ssi_response.get('reason', 'dedup')})",
+                already_investigated=True,
+                existing_scan_id=ssi_response.get("existingScanId") or ssi_response.get("existing_scan_id"),
+                existing_risk_score=ssi_response.get("existingRiskScore") or ssi_response.get("existing_risk_score"),
+                days_since_scan=ssi_response.get("daysSinceScan") or ssi_response.get("days_since_scan"),
+                reason=ssi_response.get("reason", ""),
+            ).model_dump(by_alias=True)
+
         TASK_STATUS[task_id] = {
             "status": "running",
             "message": f"SSI service triggered for {body.url}",
