@@ -34,7 +34,6 @@ from i4g.api.ssi_investigations import router as ssi_investigations_router
 from i4g.api.ssi_playbooks import router as ssi_playbooks_router
 from i4g.api.ssi_wallets import router as ssi_wallets_router
 from i4g.api.taxonomy import router as taxonomy_router
-from i4g.api.tokenization import router as tokenization_router
 from i4g.settings import get_settings
 from i4g.task_status_store import TASK_STATUS
 
@@ -249,7 +248,6 @@ def create_app() -> FastAPI:
     app.include_router(investigations_router)
     app.include_router(reports_router)
     app.include_router(taxonomy_router)
-    app.include_router(tokenization_router)
     app.include_router(partner_feed_router)
     app.include_router(task_router)
 

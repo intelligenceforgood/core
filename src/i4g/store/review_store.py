@@ -298,6 +298,7 @@ class ReviewStore:
             )
             .select_from(rq.join(sr, rq.c.case_id == sr.c.case_id, isouter=True))
             .where(sa.not_(rq.c.status.in_(["closed", "accepted", "rejected"])))
+            .where(sa.not_(rq.c.case_id.like("system:%")))
             .order_by(rq.c.last_updated.desc())
         )
 

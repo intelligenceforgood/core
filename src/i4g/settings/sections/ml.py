@@ -128,46 +128,6 @@ class CryptoSettings(BaseSettings):
     )
 
 
-class PIISettings(BaseSettings):
-    """Deterministic tokenization controls for PII vault integration."""
-
-    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
-
-    pepper: str | None = Field(default=None, validation_alias=AliasChoices("PII_PEPPER", "PII__PEPPER"))
-    pepper_version: str = Field(
-        default="v1",
-        validation_alias=AliasChoices("PII_PEPPER_VERSION", "PII__PEPPER_VERSION"),
-    )
-    require_pepper: bool = Field(
-        default=True,
-        validation_alias=AliasChoices("PII_REQUIRE_PEPPER", "PII__REQUIRE_PEPPER"),
-    )
-    backend: Literal["sqlite", "cloudsql"] = Field(
-        default="sqlite",
-        validation_alias=AliasChoices("PII_BACKEND", "PII__BACKEND"),
-    )
-    cloudsql_instance: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("PII__CLOUDSQL__INSTANCE", "I4G_PII__CLOUDSQL__INSTANCE"),
-    )
-    cloudsql_database: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("PII__CLOUDSQL__DATABASE", "I4G_PII__CLOUDSQL__DATABASE"),
-    )
-    cloudsql_user: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("PII__CLOUDSQL__USER", "I4G_PII__CLOUDSQL__USER"),
-    )
-    cloudsql_password: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("PII__CLOUDSQL__PASSWORD", "I4G_PII__CLOUDSQL__PASSWORD"),
-    )
-    cloudsql_enable_iam_auth: bool = Field(
-        default=False,
-        validation_alias=AliasChoices("PII__CLOUDSQL__ENABLE_IAM_AUTH", "I4G_PII__CLOUDSQL__ENABLE_IAM_AUTH"),
-    )
-
-
 class SecretsSettings(BaseSettings):
     """Secret resolution strategy (local vs Secret Manager)."""
 

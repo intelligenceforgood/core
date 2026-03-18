@@ -29,7 +29,6 @@ from i4g.settings.sections import (
     LLMSettings,
     ObservabilitySettings,
     PartnerFeedSettings,
-    PIISettings,
     RedisSettings,
     ReportSettings,
     RuntimeSettings,
@@ -200,7 +199,6 @@ class Settings(BaseSettings):
     vector: VectorSettings = Field(default_factory=VectorSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     crypto: CryptoSettings = Field(default_factory=CryptoSettings)
-    pii: PIISettings = Field(default_factory=PIISettings)
     secrets: SecretsSettings = Field(default_factory=SecretsSettings)
     ingestion: IngestionSettings = Field(default_factory=IngestionSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)

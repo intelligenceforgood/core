@@ -4,8 +4,8 @@ Implements the two-phase purge strategy:
 1. **Soft-delete:** Mark resolved cases older than ``retention_days`` with
    ``is_deleted=True`` and ``deleted_at=now()``.
 2. **Hard purge:** Permanently remove soft-deleted cases older than
-   ``retention_grace_days``, cascading to PII vault, evidence storage,
-   vector store, and related tables without FK cascades.
+   ``retention_grace_days``, cascading to evidence storage, vector store,
+   and related tables without FK cascades.
 
 Also provides GDPR export and GDPR delete operations.
 """
@@ -41,8 +41,6 @@ class RetentionService:
 
     Args:
         session_factory: SQLAlchemy session factory for the main database.
-        vault_token_store: ``SqlAlchemyPiiTokenStore`` for PII vault operations
-            (optional — skipped when ``None``).
         evidence_storage: ``EvidenceStorage`` for evidence file cleanup
             (optional — skipped when ``None``).
         vector_store: ``VectorStore`` for embedding cleanup
@@ -53,12 +51,10 @@ class RetentionService:
         self,
         session_factory,
         *,
-        vault_token_store=None,
         evidence_storage=None,
         vector_store=None,
     ) -> None:
         self._session_factory = session_factory
-        self._vault_token_store = vault_token_store
         self._evidence_storage = evidence_storage
         self._vector_store = vector_store
 
@@ -117,7 +113,6 @@ class RetentionService:
         - ``source_documents``, ``entities``, ``indicators`` (FK CASCADE)
         - ``scam_records``, ``review_queue``/``review_actions`` (manual)
         - ``intake_records``/``intake_attachments``/``intake_jobs`` (manual)
-        - PII vault tokens (via ``vault_token_store``)
         - Evidence files (via ``evidence_storage``)
         - Vector embeddings (via ``vector_store``)
 
@@ -161,15 +156,7 @@ class RetentionService:
             session.execute(sa.delete(cases).where(cases.c.case_id == case_id))
             session.commit()
 
-        # 4. Clean PII vault
-        if self._vault_token_store is not None:
-            try:
-                count = self._vault_token_store.delete_tokens_for_case(case_id)
-                LOGGER.debug("Purged %d PII tokens for case %s", count, case_id)
-            except Exception:
-                LOGGER.exception("Failed to purge PII tokens for case %s", case_id)
-
-        # 5. Clean evidence files
+        # 4. Clean evidence files
         if self._evidence_storage is not None:
             for uri in evidence_uris:
                 try:
@@ -177,7 +164,7 @@ class RetentionService:
                 except Exception:
                     LOGGER.warning("Failed to delete evidence %s for case %s", uri, case_id)
 
-        # 6. Clean vector embeddings
+        # 5. Clean vector embeddings
         if self._vector_store is not None:
             try:
                 self._vector_store.delete_record(case_id)
@@ -268,19 +255,6 @@ class RetentionService:
             ir_rows = session.execute(sa.select(intake_records).where(intake_records.c.case_id == case_id)).fetchall()
             export["intake_records"] = [self._row_to_dict(r) for r in ir_rows]
 
-        # PII token metadata (no decrypted values)
-        if self._vault_token_store is not None:
-            try:
-                tokens = self._vault_token_store.list_tokens()
-                export["pii_tokens"] = [
-                    {"token": t.token, "prefix": t.prefix, "detector": t.detector, "created_at": t.created_at}
-                    for t in tokens
-                    if t.case_id == case_id
-                ]
-            except Exception:
-                LOGGER.warning("Could not export PII tokens for case %s", case_id)
-                export["pii_tokens"] = []
-
         export["exported_at"] = datetime.now(UTC).isoformat()
         return export
 
@@ -310,13 +284,6 @@ class RetentionService:
             session.execute(sa.delete(cases).where(cases.c.case_id == case_id))
             session.commit()
 
-        pii_count = 0
-        if self._vault_token_store is not None:
-            try:
-                pii_count = self._vault_token_store.delete_tokens_for_case(case_id)
-            except Exception:
-                LOGGER.exception("Failed to purge PII tokens during GDPR delete for case %s", case_id)
-
         evidence_deleted = 0
         if self._evidence_storage is not None:
             for uri in evidence_uris:
@@ -336,7 +303,6 @@ class RetentionService:
         return {
             "case_id": case_id,
             "deleted": True,
-            "pii_tokens_removed": pii_count,
             "evidence_files_removed": evidence_deleted,
             "vector_embedding_removed": vector_deleted,
             "deleted_at": datetime.now(UTC).isoformat(),

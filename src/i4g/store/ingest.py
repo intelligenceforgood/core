@@ -11,7 +11,6 @@ from typing import TYPE_CHECKING, Any
 from i4g.services.factories import (
     build_sql_writer,
     build_structured_store,
-    build_tokenization_service,
     build_vector_store,
     build_vertex_writer,
 )
@@ -27,7 +26,6 @@ from i4g.store.sql_writer import (
 )
 
 if TYPE_CHECKING:
-    from i4g.pii.tokenization import TokenizationService
     from i4g.services.vertex_writer import VertexDocumentWriter
     from i4g.store.structured import StructuredStore
     from i4g.store.vector import VectorStore
@@ -149,7 +147,6 @@ class IngestPipeline:
         enable_vertex: bool | None = None,
         default_dataset: str | None = None,
         vertex_writer: VertexDocumentWriter | None = None,
-        tokenization_service: TokenizationService | None = None,
     ) -> None:
         """Initialize pipeline with store instances.
 
@@ -180,10 +177,8 @@ class IngestPipeline:
             )
             self._vertex_enabled = False
 
-        self._tokenization_enabled = True
         self.sql_writer: SqlWriter | None
         self.vertex_writer: VertexDocumentWriter | None = None
-        self.tokenization_service = tokenization_service or build_tokenization_service()
 
         if vector_store is not None:
             self.vector_store = vector_store
@@ -247,42 +242,6 @@ class IngestPipeline:
         case_id = classification_result.get("case_id") or str(uuid.uuid4())
         payload = dict(classification_result)
 
-        if self._tokenization_enabled and self.tokenization_service is not None:
-            try:
-                tokenized_entities = self.tokenization_service.tokenize_entities(
-                    payload.get("entities"),
-                    detector="ingest",
-                    case_id=case_id,
-                )
-                if tokenized_entities:
-                    payload["entities"] = tokenized_entities
-
-                # Tokenize metadata (recursively)
-                if "metadata" in payload:
-                    payload["metadata"] = self.tokenization_service.tokenize_tree(
-                        payload["metadata"],
-                        detector="ingest_metadata",
-                        case_id=case_id,
-                    )
-
-                # Tokenize structured_fields (recursively)
-                if "structured_fields" in payload:
-                    payload["structured_fields"] = self.tokenization_service.tokenize_tree(
-                        payload["structured_fields"],
-                        detector="ingest_structured",
-                        case_id=case_id,
-                    )
-
-                # Tokenize text content
-                if "text" in payload and isinstance(payload["text"], str):
-                    payload["text"] = self.tokenization_service.tokenize_text_content(
-                        payload["text"],
-                        detector="ingest_text",
-                        case_id=case_id,
-                    )
-
-            except Exception:
-                LOGGER.exception("Tokenization failed for case_id=%s", case_id)
         classification_result = payload
 
         # Merge existing metadata with derived fields to preserve artifact URLs and other upstream data

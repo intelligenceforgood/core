@@ -42,23 +42,6 @@ _ENV_CONFIG = {
             ],
             "alembic_config": "alembic.ini",
         },
-        "vault": {
-            "project": "i4g-pii-vault-dev",
-            "instance_connection": "i4g-pii-vault-dev:us-central1:i4g-vault-dev-db",
-            "database": "vault_db",
-            "port": 5433,
-            "password_field": "dev_vault_password",
-            "service_accounts": [
-                "sa-vault@i4g-pii-vault-dev.iam",
-                "sa-ingest@i4g-dev.iam",
-                "sa-app@i4g-dev.iam",
-            ],
-            "admin_users": [
-                "gcp-i4g-admin@intelligenceforgood.org",
-                "jerry@intelligenceforgood.org",
-            ],
-            "alembic_config": "alembic_vault.ini",
-        },
     },
     "prod": {
         "app": {
@@ -79,23 +62,6 @@ _ENV_CONFIG = {
             ],
             "alembic_config": "alembic.ini",
         },
-        "vault": {
-            "project": "i4g-pii-vault-prod",
-            "instance_connection": "i4g-pii-vault-prod:us-central1:i4g-vault-prod-db",
-            "database": "vault_db",
-            "port": 5435,
-            "password_field": "prod_vault_password",
-            "service_accounts": [
-                "sa-app@i4g-prod.iam",
-                "sa-ingest@i4g-prod.iam",
-                "sa-report@i4g-prod.iam",
-            ],
-            "admin_users": [
-                "gcp-i4g-admin@intelligenceforgood.org",
-                "jerry@intelligenceforgood.org",
-            ],
-            "alembic_config": "alembic_vault.ini",
-        },
     },
 }
 
@@ -105,10 +71,9 @@ class Env(StrEnum):
     prod = "prod"
 
 
-def _get_db_config(env: Env, vault: bool) -> dict:
-    """Return the database configuration dict for the given env and target."""
-    target = "vault" if vault else "app"
-    return _ENV_CONFIG[env.value][target]
+def _get_db_config(env: Env) -> dict:
+    """Return the database configuration dict for the given env."""
+    return _ENV_CONFIG[env.value]["app"]
 
 
 def _get_password(cfg: dict) -> str:
@@ -190,19 +155,16 @@ def _stop_proxy(proc: subprocess.Popen) -> None:
 @db_app.command()
 def migrate(
     env: Annotated[Env, typer.Argument(help="Target environment: dev or prod.")],
-    vault: bool = typer.Option(
-        False, "--vault", help="Target the PII vault database instead of the main app database."
-    ),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Print the command that would be executed without running it."
     ),
 ) -> None:
     """Run Alembic migrations against a Cloud SQL database via cloud-sql-proxy."""
 
-    cfg = _get_db_config(env, vault)
+    cfg = _get_db_config(env)
     password = _get_password(cfg)
     db_url = _build_database_url(cfg, password)
-    target_label = f"{'vault' if vault else 'app'} ({cfg['database']}@{cfg['project']})"
+    target_label = f"app ({cfg['database']}@{cfg['project']})"
 
     alembic_cmd = [
         sys.executable,
@@ -239,16 +201,13 @@ def migrate(
 @db_app.command("grant-permissions")
 def grant_permissions(
     env: Annotated[Env, typer.Argument(help="Target environment: dev or prod.")],
-    vault: bool = typer.Option(
-        False, "--vault", help="Target the PII vault database instead of the main app database."
-    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print the SQL that would be executed without running it."),
 ) -> None:
     """Grant table/sequence/default permissions to service accounts and admin users."""
 
-    cfg = _get_db_config(env, vault)
+    cfg = _get_db_config(env)
     password = _get_password(cfg)
-    target_label = f"{'vault' if vault else 'app'} ({cfg['database']}@{cfg['project']})"
+    target_label = f"app ({cfg['database']}@{cfg['project']})"
 
     all_principals = cfg["service_accounts"] + cfg["admin_users"]
 
@@ -325,16 +284,13 @@ def grant_permissions(
 @db_app.command()
 def status(
     env: Annotated[Env, typer.Argument(help="Target environment: dev or prod.")],
-    vault: bool = typer.Option(
-        False, "--vault", help="Target the PII vault database instead of the main app database."
-    ),
 ) -> None:
     """Show the current Alembic revision for a Cloud SQL database."""
 
-    cfg = _get_db_config(env, vault)
+    cfg = _get_db_config(env)
     password = _get_password(cfg)
     db_url = _build_database_url(cfg, password)
-    target_label = f"{'vault' if vault else 'app'} ({cfg['database']}@{cfg['project']})"
+    target_label = f"app ({cfg['database']}@{cfg['project']})"
 
     console.print(f"\n[bold]Checking migration status for {target_label}[/bold]")
 

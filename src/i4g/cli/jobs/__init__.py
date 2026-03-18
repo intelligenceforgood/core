@@ -69,13 +69,6 @@ def jobs_sweeper() -> None:
     classification_sweeper.run()
 
 
-@jobs_app.command("pii-backfill", help="Run PII tokenization backfill job.")
-def jobs_pii_backfill() -> None:
-    from i4g.worker.jobs import pii_backfill
-
-    _exit_from_return(pii_backfill.main())
-
-
 @jobs_app.command("retention-purge", help="Run data retention purge job.")
 def jobs_retention_purge(
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview purge candidates without modifying data."),

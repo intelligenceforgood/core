@@ -1,4 +1,4 @@
-"""Unit tests for the AlertingService (F48, F49, F50)."""
+"""Unit tests for the AlertingService (F49, F50)."""
 
 from __future__ import annotations
 
@@ -35,7 +35,6 @@ class FakeSettings:
     """Minimal stand-in for Settings with observability section."""
 
     class ObservabilitySection:
-        detokenization_alert_threshold: int = 3  # low threshold for testing
         ingestion_error_rate_threshold: float = 0.10
         dossier_stuck_timeout_minutes: int = 1  # 1 min for fast tests
 
@@ -50,66 +49,9 @@ def stub_obs() -> StubObservability:
 @pytest.fixture()
 def alerting(stub_obs: StubObservability) -> AlertingService:
     svc = AlertingService.__new__(AlertingService)
-    import threading
-    from collections import defaultdict
-
     svc._settings = FakeSettings()
     svc._obs = stub_obs
-    svc._lock = threading.Lock()
-    svc._detokenization_windows = defaultdict(
-        lambda: __import__("i4g.services.alerting", fromlist=["_AccessWindow"])._AccessWindow()
-    )
     return svc
-
-
-# ===================================================================
-# F48 — Detokenization rate alerting
-# ===================================================================
-
-
-class TestDetokenizationRateAlerts:
-    def test_no_alert_below_threshold(self, alerting: AlertingService, stub_obs: StubObservability):
-        """Calls below threshold should not fire an alert."""
-        for _ in range(3):
-            result = alerting.check_detokenization_rate(actor="alice")
-        assert result is False
-        alert_events = [e for e in stub_obs.events if "threshold_exceeded" in e[0]]
-        assert len(alert_events) == 0
-
-    def test_alert_fires_above_threshold(self, alerting: AlertingService, stub_obs: StubObservability):
-        """Fourth call exceeds threshold of 3, should fire alert."""
-        for _ in range(3):
-            alerting.check_detokenization_rate(actor="bob")
-        result = alerting.check_detokenization_rate(actor="bob")
-        assert result is True
-        alert_events = [e for e in stub_obs.events if "threshold_exceeded" in e[0]]
-        assert len(alert_events) == 1
-        payload = alert_events[0][1]
-        assert payload["alert"] is True
-        assert payload["alert_type"] == "pii_access"
-        assert payload["actor"] == "bob"
-        assert payload["count"] == 4
-
-    def test_different_actors_tracked_separately(self, alerting: AlertingService, stub_obs: StubObservability):
-        """Each actor has an independent sliding window."""
-        for _ in range(4):
-            alerting.check_detokenization_rate(actor="carol")
-        result_dave = alerting.check_detokenization_rate(actor="dave")
-        assert result_dave is False
-
-    def test_case_id_forwarded(self, alerting: AlertingService, stub_obs: StubObservability):
-        """case_id is included in alert metadata when provided."""
-        for _ in range(4):
-            alerting.check_detokenization_rate(actor="eve", case_id="CASE-001")
-        alert_events = [e for e in stub_obs.events if "threshold_exceeded" in e[0]]
-        assert alert_events[0][1]["case_id"] == "CASE-001"
-
-    def test_check_metric_always_emitted(self, alerting: AlertingService, stub_obs: StubObservability):
-        """Every call emits a check counter."""
-        alerting.check_detokenization_rate(actor="frank")
-        check_metrics = [m for m in stub_obs.increments if m[0] == "alerting.detokenization.check"]
-        assert len(check_metrics) == 1
-        assert check_metrics[0][2]["actor"] == "frank"
 
 
 # ===================================================================
@@ -209,9 +151,5 @@ class TestSingleton:
         reset_alerting_service()
 
     def test_reset_clears_internal_state(self, alerting: AlertingService, stub_obs: StubObservability):
-        """reset() clears sliding windows."""
-        for _ in range(4):
-            alerting.check_detokenization_rate(actor="grace")
+        """reset() clears internal state."""
         alerting.reset()
-        result = alerting.check_detokenization_rate(actor="grace")
-        assert result is False

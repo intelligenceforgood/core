@@ -13,9 +13,6 @@ if TYPE_CHECKING:
 
 def apply_local_defaults(settings: Settings) -> Settings:
     """Apply convenience defaults for local development."""
-    if settings.env == "local" and not settings.pii.pepper:
-        update = {"pepper": "local-secret-pepper"}
-        object.__setattr__(settings, "pii", settings.pii.model_copy(update=update))
     return settings
 
 
@@ -120,12 +117,6 @@ def apply_environment_overrides(
         if not settings.secrets.local_env_file:
             secrets_update["local_env_file"] = settings.project_root / ".env.local"
         object.__setattr__(settings, "secrets", settings.secrets.model_copy(update=secrets_update))
-
-        pii_update = {
-            "require_pepper": False,
-            "pepper": settings.pii.pepper or "local-dev-pepper",
-        }
-        object.__setattr__(settings, "pii", settings.pii.model_copy(update=pii_update))
 
         ingestion_update = {
             "enable_scheduled_jobs": False,

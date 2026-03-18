@@ -191,40 +191,6 @@ def test_settings_file_override(tmp_path, monkeypatch: object) -> None:
     assert env_override.ingestion.default_dataset == "env_dataset"
 
 
-def test_tokenization_env_overrides(monkeypatch: object) -> None:
-    """Tokenization settings should honor pepper and requirement flags."""
-
-    _clear_env(
-        monkeypatch,
-        "I4G_PII__PEPPER",
-        "PII_PEPPER",
-        "I4G_TOKENIZATION__PEPPER",
-        "TOKENIZATION_PEPPER",
-        "I4G_PII__REQUIRE_PEPPER",
-        "PII_REQUIRE_PEPPER",
-        "I4G_TOKENIZATION__REQUIRE_PEPPER",
-        "TOKENIZATION_REQUIRE_PEPPER",
-        "I4G_PII__PEPPER_VERSION",
-        "PII_PEPPER_VERSION",
-        "I4G_TOKENIZATION__PEPPER_VERSION",
-        "TOKENIZATION_PEPPER_VERSION",
-    )
-
-    defaults = reload_settings(env="dev")
-    assert defaults.pii.pepper_version == "v1"
-    assert defaults.pii.require_pepper is True
-
-    # Test with new PII prefix
-    _set_env(monkeypatch, "I4G_PII__PEPPER", "test-pepper")
-    _set_env(monkeypatch, "I4G_PII__PEPPER_VERSION", "v2")
-    _set_env(monkeypatch, "I4G_PII__REQUIRE_PEPPER", "false")
-
-    overridden = reload_settings(env="dev")
-    assert overridden.pii.pepper == "test-pepper"
-    assert overridden.pii.pepper_version == "v2"
-    assert overridden.pii.require_pepper is False
-
-
 def test_ingestion_local_config_dataset_override(tmp_path, monkeypatch: object) -> None:
     """Local config files should override the ingestion default dataset."""
 

@@ -21,7 +21,7 @@ RUN apt-get update \
     libtesseract-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml README.md VERSION.txt LICENSE alembic.ini alembic_vault.ini ./
+COPY pyproject.toml README.md VERSION.txt LICENSE alembic.ini ./
 COPY src ./src
 COPY docker/fixtures/mock ./docker/fixtures/mock
 

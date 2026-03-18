@@ -254,15 +254,7 @@ class ObservabilitySettings(BaseSettings):
         validation_alias=AliasChoices("OBS_SERVICE_NAME", "OBSERVABILITY__SERVICE_NAME"),
     )
 
-    # Alerting thresholds (F48–F50)
-    detokenization_alert_threshold: int = Field(
-        default=10,
-        description="Max detokenization calls per user per hour before alerting.",
-        validation_alias=AliasChoices(
-            "OBS_DETOKENIZATION_ALERT_THRESHOLD",
-            "OBSERVABILITY__DETOKENIZATION_ALERT_THRESHOLD",
-        ),
-    )
+    # Alerting thresholds (F49–F50)
     ingestion_error_rate_threshold: float = Field(
         default=0.10,
         description="Ingestion failure rate (0.0–1.0) that triggers an alert.",

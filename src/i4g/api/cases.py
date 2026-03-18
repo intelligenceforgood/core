@@ -289,6 +289,10 @@ def case_activity(
     if is_researcher(user):
         raise HTTPException(status_code=403, detail="Researcher role cannot access case activities")
 
+    # System-prefixed case IDs are internal placeholders (e.g. search audit)
+    if case_id.startswith("system:"):
+        return CaseActivityResponse(case_id=case_id, activities=[], has_running=False)
+
     sf = build_sql_session_factory()
     with sf() as session:
         case_row = session.execute(

@@ -69,17 +69,6 @@
 # retention_days = 90
 # retention_grace_days = 30
 
-[pii]
-# pepper = ""
-# pepper_version = "v1"
-# require_pepper = true
-# backend = "sqlite"
-# cloudsql_instance = ""
-# cloudsql_database = ""
-# cloudsql_user = ""
-# cloudsql_password = ""
-# cloudsql_enable_iam_auth = false
-
 [vector]
 # vertex_ai_project = "i4g-dev"
 vertex_ai_data_store = "retrieval-poc"

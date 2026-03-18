@@ -1,1 +1,1 @@
-"""PII Vault core library."""
+"""PII encryption helpers for victim intake field protection."""

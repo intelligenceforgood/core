@@ -174,13 +174,3 @@ class DbAdminSettings(BaseSettings):
         description="Postgres password for i4g-prod-db.",
         validation_alias=AliasChoices("DB_ADMIN__PROD_PASSWORD", "I4G_DB_ADMIN__PROD_PASSWORD"),
     )
-    dev_vault_password: str | None = Field(
-        default=None,
-        description="Postgres password for i4g-vault-dev-db.",
-        validation_alias=AliasChoices("DB_ADMIN__DEV_VAULT_PASSWORD", "I4G_DB_ADMIN__DEV_VAULT_PASSWORD"),
-    )
-    prod_vault_password: str | None = Field(
-        default=None,
-        description="Postgres password for i4g-vault-prod-db.",
-        validation_alias=AliasChoices("DB_ADMIN__PROD_VAULT_PASSWORD", "I4G_DB_ADMIN__PROD_VAULT_PASSWORD"),
-    )

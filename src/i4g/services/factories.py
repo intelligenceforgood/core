@@ -12,7 +12,6 @@ from __future__ import annotations
 import contextlib
 from pathlib import Path
 
-from i4g.pii.tokenization import TokenizationService
 from i4g.reports.bundle_builder import BundleBuilder
 from i4g.reports.bundle_candidates import BundleCandidateProvider
 from i4g.reports.dossier_context import DossierContextLoader
@@ -28,10 +27,8 @@ from i4g.store.entity_store import EntityStore
 from i4g.store.ingestion_retry_store import IngestionRetryStore
 from i4g.store.ingestion_run_tracker import IngestionRunTracker
 from i4g.store.intake_store import IntakeStore
-from i4g.store.pii_token_store import PiiTokenStore  # noqa: F401 — kept for backward compat
-from i4g.store.pii_token_store_sql import SqlAlchemyPiiTokenStore
 from i4g.store.review_store import ReviewStore
-from i4g.store.sql import METADATA, build_vault_session_factory
+from i4g.store.sql import METADATA
 from i4g.store.sql import session_factory as build_sql_session_factory
 from i4g.store.sql_writer import SqlWriter
 from i4g.store.ssi_events_store import SsiEventsStore
@@ -40,11 +37,6 @@ from i4g.store.structured import StructuredStore
 from i4g.store.threat_campaign_store import ThreatCampaignStore
 from i4g.store.vector import VectorStore
 from i4g.store.watchlist_store import WatchlistStore
-
-try:
-    from cryptography.fernet import Fernet
-except ImportError:
-    Fernet = None
 
 
 def build_structured_store(db_path: str | Path | None = None) -> StructuredStore:
@@ -148,10 +140,11 @@ def build_vector_store(
 def build_intake_store(db_path: str | Path | None = None) -> IntakeStore:
     """Return an :class:`IntakeStore` aligned with the structured backend."""
     settings = get_settings()
+    pii_key = settings.crypto.pii_key
     backend = settings.storage.structured_backend
     if backend == "cloudsql":
-        return IntakeStore(session_factory=build_sql_session_factory())
-    return IntakeStore(db_path=db_path)
+        return IntakeStore(session_factory=build_sql_session_factory(), pii_key=pii_key)
+    return IntakeStore(db_path=db_path, pii_key=pii_key)
 
 
 def build_evidence_storage(*, local_dir: str | Path | None = None) -> EvidenceStorage:
@@ -317,39 +310,6 @@ def build_watchlist_store(db_path: str | Path | None = None) -> WatchlistStore:
     return WatchlistStore(db_path=db_path)
 
 
-def build_tokenization_service() -> TokenizationService:
-    """Instantiate the tokenization service with configured secrets."""
-
-    settings = get_settings()
-    backend = settings.pii.backend
-
-    fernet = None
-    if settings.crypto.pii_key and Fernet:
-        with contextlib.suppress(Exception):
-            fernet = Fernet(settings.crypto.pii_key.encode("utf-8"))
-
-    connection_details: dict[str, str | bool] = {}
-    if backend == "cloudsql":
-        if settings.pii.cloudsql_instance:
-            connection_details["instance"] = settings.pii.cloudsql_instance
-        if settings.pii.cloudsql_database:
-            connection_details["database"] = settings.pii.cloudsql_database
-        if settings.pii.cloudsql_user:
-            connection_details["user"] = settings.pii.cloudsql_user
-        if settings.pii.cloudsql_password:
-            connection_details["password"] = settings.pii.cloudsql_password
-        if settings.pii.cloudsql_enable_iam_auth:
-            connection_details["enable_iam_auth"] = settings.pii.cloudsql_enable_iam_auth
-
-    vault_session_factory = build_vault_session_factory(
-        backend_override=backend,
-        connection_details=connection_details or None,
-    )
-    store = SqlAlchemyPiiTokenStore(session_factory=vault_session_factory, fernet=fernet)
-
-    return TokenizationService(store=store)
-
-
 def build_bundle_builder(
     *,
     queue_store: DossierQueueStore | None = None,
@@ -418,17 +378,10 @@ def build_retention_service() -> RetentionService:
     """Instantiate a :class:`RetentionService` with all configured stores.
 
     The service handles automated retention purge and GDPR operations.
-    Optional stores (PII vault, evidence, vector) are attached when
+    Optional stores (evidence, vector) are attached when
     available — failures are silently skipped.
     """
     sf = build_sql_session_factory()
-
-    vault_token_store = None
-    try:
-        svc = build_tokenization_service()
-        vault_token_store = svc.store
-    except Exception:
-        pass
 
     evidence_storage = None
     with contextlib.suppress(Exception):
@@ -440,7 +393,6 @@ def build_retention_service() -> RetentionService:
 
     return RetentionService(
         sf,
-        vault_token_store=vault_token_store,
         evidence_storage=evidence_storage,
         vector_store=vector_store,
     )

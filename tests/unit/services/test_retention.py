@@ -6,7 +6,7 @@ Covers:
 - GDPR data export (F39)
 - GDPR deletion (F40)
 - Retention window configurability (F38)
-- PII vault + evidence cleanup (F41)
+- Evidence cleanup (F41)
 """
 
 from __future__ import annotations
@@ -35,15 +35,6 @@ def db_session_factory(tmp_path: Path):
 
 
 @pytest.fixture()
-def mock_vault():
-    """Mock vault token store with delete_tokens_for_case."""
-    store = MagicMock()
-    store.delete_tokens_for_case.return_value = 3
-    store.list_tokens.return_value = []
-    return store
-
-
-@pytest.fixture()
 def mock_evidence():
     """Mock evidence storage with delete method."""
     storage = MagicMock()
@@ -60,11 +51,10 @@ def mock_vector():
 
 
 @pytest.fixture()
-def service(db_session_factory, mock_vault, mock_evidence, mock_vector):
+def service(db_session_factory, mock_evidence, mock_vector):
     """RetentionService with all optional stores."""
     return RetentionService(
         db_session_factory,
-        vault_token_store=mock_vault,
         evidence_storage=mock_evidence,
         vector_store=mock_vector,
     )
@@ -274,8 +264,8 @@ class TestSoftDelete:
 class TestHardPurge:
     """Phase 2: Hard-purge soft-deleted cases after grace period."""
 
-    def test_hard_purge_cascades(self, service, db_session_factory, mock_vault, mock_evidence, mock_vector):
-        """Hard purge removes case + related data + PII + evidence + vectors."""
+    def test_hard_purge_cascades(self, service, db_session_factory, mock_evidence, mock_vector):
+        """Hard purge removes case + related data + evidence + vectors."""
         old_deleted = datetime.now(UTC) - timedelta(days=40)
         case_id = _insert_case(
             db_session_factory, "case-purge", status="closed", is_deleted=True, deleted_at=old_deleted
@@ -289,7 +279,6 @@ class TestHardPurge:
 
         assert result == ["case-purge"]
         assert _count_cases(db_session_factory) == 0
-        mock_vault.delete_tokens_for_case.assert_called_once_with("case-purge")
         mock_evidence.delete.assert_called_once_with("gs://bucket/evidence/file.pdf")
         mock_vector.delete_record.assert_called_once_with("case-purge")
 
@@ -359,7 +348,7 @@ class TestGDPRExport:
 class TestGDPRDelete:
     """GDPR delete immediately hard-removes a case regardless of status."""
 
-    def test_gdpr_delete_removes_case(self, service, db_session_factory, mock_vault, mock_evidence, mock_vector):
+    def test_gdpr_delete_removes_case(self, service, db_session_factory, mock_evidence, mock_vector):
         """Full cascade deletion via GDPR delete."""
         case_id = _insert_case(db_session_factory, "case-gdpr-del", status="open")
         _insert_source_document(db_session_factory, case_id, source_url="gs://b/evidence.pdf")
@@ -369,7 +358,6 @@ class TestGDPRDelete:
 
         assert result["deleted"] is True
         assert result["case_id"] == "case-gdpr-del"
-        assert result["pii_tokens_removed"] == 3
         assert result["evidence_files_removed"] == 1
         assert _count_cases(db_session_factory) == 0
 
@@ -392,7 +380,7 @@ class TestGDPRDelete:
 
 
 class TestMinimalService:
-    """RetentionService works without vault/evidence/vector stores."""
+    """RetentionService works without evidence/vector stores."""
 
     def test_purge_without_optional_stores(self, db_session_factory):
         """Hard purge succeeds when optional stores are None."""

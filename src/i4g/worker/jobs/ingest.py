@@ -298,12 +298,10 @@ def main() -> int:
         else (dataset_path.stem if isinstance(dataset_path, Path) else "gcs_dataset")
     )
 
-    tokenization_backend = settings.pii.backend
-
     LOGGER.info(
         (
             "Starting ingestion job: dataset=%s batch_limit=%s rate_limit_delay=%.2f dry_run=%s "
-            "enable_vector=%s enable_vertex=%s reset_vector=%s tokenization_backend=%s"
+            "enable_vector=%s enable_vertex=%s reset_vector=%s"
         ),
         dataset_name,
         batch_limit or "unbounded",
@@ -312,7 +310,6 @@ def main() -> int:
         enable_vector,
         enable_vertex,
         reset_vector,
-        tokenization_backend,
     )
     LOGGER.info("Resolved dataset path: %s", dataset_path)
 

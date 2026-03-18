@@ -12,7 +12,6 @@ from google.cloud import discoveryengine_v1beta as discoveryengine
 
 from i4g.cli.ingest.logic import ingest_vertex_search
 from i4g.cli.utils import console
-from i4g.settings import get_settings
 
 
 def vertex_search_smoke(
@@ -196,11 +195,6 @@ def _execute_job(
         env_vars.append({"name": "I4G_API__URL", "value": api_url})
     if api_key:
         env_vars.append({"name": "I4G_API__KEY", "value": api_key})
-
-    # Inject PII pepper if available locally, to ensure the job can tokenize
-    settings = get_settings()
-    if settings.pii.pepper:
-        env_vars.append({"name": "I4G_PII__PEPPER", "value": settings.pii.pepper})
 
     payload = {
         "overrides": {

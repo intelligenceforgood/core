@@ -1,7 +1,6 @@
 """Alerting service for security-sensitive and operational events.
 
 Implements threshold-based alerting for:
-- **F48:** PII detokenization access anomalies (per-user rate limiting)
 - **F49:** Ingestion failure rate spikes
 - **F50:** Stuck / failed dossier generation jobs
 
@@ -16,27 +15,11 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from collections import defaultdict
-from dataclasses import dataclass, field
 
 from i4g.observability import Observability, get_observability
 from i4g.settings import Settings, get_settings
 
 _LOGGER = logging.getLogger("i4g.alerting")
-
-
-@dataclass
-class _AccessWindow:
-    """Sliding-window tracker for per-actor detokenization calls."""
-
-    timestamps: list[float] = field(default_factory=list)
-
-    def record(self, now: float) -> int:
-        """Record a call at *now* and return the count within the last hour."""
-        cutoff = now - 3600.0
-        self.timestamps = [t for t in self.timestamps if t > cutoff]
-        self.timestamps.append(now)
-        return len(self.timestamps)
 
 
 class AlertingService:
@@ -46,9 +29,6 @@ class AlertingService:
     manage notification channels (email/Slack/PagerDuty) directly — those are
     wired via Cloud Monitoring alert policies that watch the log-based metrics
     emitted here (see ``infra/modules/monitoring``).
-
-    Thread-safe: the internal sliding windows for detokenization tracking use
-    a lock to prevent race conditions under concurrent API requests.
     """
 
     def __init__(
@@ -59,65 +39,6 @@ class AlertingService:
     ) -> None:
         self._settings = settings or get_settings()
         self._obs = observability or get_observability(component="alerting", settings=self._settings)
-        self._lock = threading.Lock()
-        self._detokenization_windows: dict[str, _AccessWindow] = defaultdict(_AccessWindow)
-
-    # ------------------------------------------------------------------
-    # F48 — PII detokenization access alerting
-    # ------------------------------------------------------------------
-
-    def check_detokenization_rate(
-        self,
-        *,
-        actor: str,
-        case_id: str | None = None,
-    ) -> bool:
-        """Record a detokenization call and alert if the per-user hourly threshold is exceeded.
-
-        Args:
-            actor: Username / identity performing the detokenization.
-            case_id: Optional case reference for audit correlation.
-
-        Returns:
-            ``True`` if an alert was fired (threshold exceeded), ``False`` otherwise.
-        """
-        threshold = self._settings.observability.detokenization_alert_threshold
-        now = time.time()
-
-        with self._lock:
-            window = self._detokenization_windows[actor]
-            count = window.record(now)
-
-        self._obs.increment(
-            "alerting.detokenization.check",
-            tags={"actor": actor},
-        )
-
-        if count > threshold:
-            self._obs.emit_event(
-                "alerting.detokenization.threshold_exceeded",
-                alert=True,
-                alert_type="pii_access",
-                severity="warning",
-                actor=actor,
-                count=count,
-                threshold=threshold,
-                case_id=case_id,
-            )
-            self._obs.increment(
-                "alerting.detokenization.alert_fired",
-                tags={"actor": actor},
-            )
-            _LOGGER.warning(
-                "Detokenization alert: actor=%s exceeded threshold (%d/%d calls/hour) case_id=%s",
-                actor,
-                count,
-                threshold,
-                case_id,
-            )
-            return True
-
-        return False
 
     # ------------------------------------------------------------------
     # F49 — Ingestion failure alerting
@@ -272,8 +193,6 @@ class AlertingService:
 
     def reset(self) -> None:
         """Clear all internal state (for testing)."""
-        with self._lock:
-            self._detokenization_windows.clear()
 
 
 # ---------------------------------------------------------------------------

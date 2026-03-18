@@ -15,10 +15,9 @@ import google.auth.transport.requests
 from googleapiclient.discovery import build
 
 from i4g.cli.bootstrap.common import get_bundles
-from i4g.settings import get_settings
 
 from .constants import JobResult, JobSpec
-from .utils import fetch_pepper, format_command
+from .utils import format_command
 
 
 def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
@@ -42,20 +41,10 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
             bundles_to_process.append(uri)
 
     specs: list[JobSpec] = []
-    settings = get_settings()
 
     common_env: dict[str, str] = {}
-    if settings.pii.pepper:
-        common_env["I4G_PII__PEPPER"] = settings.pii.pepper
-    else:
-        fetched_pepper = fetch_pepper(args.project)
-        if fetched_pepper:
-            common_env["I4G_PII__PEPPER"] = fetched_pepper
-        else:
-            logging.warning("PII pepper not found locally or in Secret Manager. Jobs may fail.")
 
     if "dev" in args.project or "prod" in args.project:
-        common_env["I4G_PII__BACKEND"] = "cloudsql"
         common_env["I4G_STORAGE__STRUCTURED_BACKEND"] = "cloudsql"
 
         if "dev" in args.project:
@@ -63,12 +52,6 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
             common_env["I4G_APP__CLOUDSQL__DATABASE"] = "i4g_db"
             common_env["I4G_APP__CLOUDSQL__USER"] = f"sa-ingest@{args.project}.iam"
             common_env["I4G_APP__CLOUDSQL__ENABLE_IAM_AUTH"] = "true"
-
-            vault_project = args.project.replace("-dev", "-pii-vault-dev")
-            common_env["I4G_PII__CLOUDSQL__INSTANCE"] = f"{vault_project}:us-central1:i4g-vault-dev-db"
-            common_env["I4G_PII__CLOUDSQL__DATABASE"] = "vault_db"
-            common_env["I4G_PII__CLOUDSQL__USER"] = f"sa-ingest@{args.project}.iam"
-            common_env["I4G_PII__CLOUDSQL__ENABLE_IAM_AUTH"] = "true"
 
             common_env["I4G_INGEST__ENABLE_VERTEX"] = "false"
             common_env["I4G_INGEST__ENABLE_VECTOR"] = "true"
@@ -132,7 +115,6 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
         report_env = common_env.copy()
         if "dev" in args.project:
             report_env["I4G_APP__CLOUDSQL__USER"] = f"sa-report@{args.project}.iam"
-            report_env["I4G_PII__CLOUDSQL__USER"] = f"sa-report@{args.project}.iam"
         specs.append(JobSpec(label="reports", job_name=args.reports_job, args=common_args, env=report_env))
 
     if args.seed_reviews_job and not args.skip_seed_reviews:

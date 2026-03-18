@@ -58,11 +58,10 @@ def test_export_adapters_no_pii_in_partner_feed() -> None:
     assert fields.isdisjoint(pii_fields), f"PII field(s) found in FeedIndicator: {fields & pii_fields}"
 
 
-def test_audit_log_table_exists() -> None:
-    """audit_log and partner_feed_audit tables are defined."""
+def test_security_tables_exist() -> None:
+    """partner_feed_audit and partner_api_keys tables are defined."""
     from i4g.store import sql
 
-    assert hasattr(sql, "audit_log")
     assert hasattr(sql, "partner_feed_audit")
     assert hasattr(sql, "partner_api_keys")
 

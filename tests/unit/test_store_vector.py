@@ -127,11 +127,7 @@ def test_ingest_pipeline_writes_to_both_stores(tmp_path, mock_embeddings, mock_c
     structured = StructuredStore(str(tmp_path / "test.db"))
     vector = VectorStore(persist_dir=str(tmp_path / "vec"), embedding_model="fake")
 
-    mock_tok = MagicMock()
-    mock_tok.tokenize_entities.return_value = None
-    mock_tok.tokenize_tree.return_value = {}
-    mock_tok.tokenize_text_content.return_value = "tokenized text"
-    pipeline = IngestPipeline(structured_store=structured, vector_store=vector, tokenization_service=mock_tok)
+    pipeline = IngestPipeline(structured_store=structured, vector_store=vector)
 
     case = {
         "text": "Hi I'm Anna from TrustWallet. Send 50 USDT to verify.",
@@ -155,8 +151,7 @@ def test_ingest_pipeline_writes_to_both_stores(tmp_path, mock_embeddings, mock_c
 
 def test_query_similar_cases_returns_formatted(mock_embeddings, mock_chroma, tmp_path):
     """query_similar_cases() should return consistent structure."""
-    mock_tok = MagicMock()
-    pipeline = IngestPipeline(tokenization_service=mock_tok)
+    pipeline = IngestPipeline()
     results = pipeline.query_similar_cases("TrustWallet", top_k=3)
     assert isinstance(results, list)
     assert "case_id" in results[0]
