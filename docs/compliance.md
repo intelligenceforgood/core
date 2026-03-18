@@ -4,11 +4,12 @@
 
 ## Executive Summary
 
-This document outlines **i4g's** commitment to protecting personally identifiable information (PII) and complying with applicable data protection regulations. As a volunteer-operated non-profit assisting scam users, we handle sensitive data including financial records, personal communications, and identity documents. See [pii_vault.md](pii_vault.md) for the technical tokenization and secret-handling design, and [development/tdd.md](development/tdd.md) for API/storage contracts.
+This document outlines **i4g's** commitment to protecting personally identifiable information (PII) and complying with applicable data protection regulations. As a volunteer-operated non-profit assisting scam users, we handle sensitive data including financial records, personal communications, and identity documents. See [pii_vault.md](pii_vault.md) for the technical encryption design, and [development/tdd.md](development/tdd.md) for API/storage contracts.
 
 **Key Principles**:
-1. **Privacy by Design**: PII tokenization from the moment of upload
-2. **Zero Trust**: No analyst ever sees raw PII
+
+1. **Privacy by Design**: Victim contact data encrypted at intake
+2. **Least Privilege**: Analysts see only case investigation data; victim contact requires authorized decryption
 3. **Minimal Retention**: Data deleted within 90 days unless legally required
 4. **Transparency**: Users control their data (export, delete)
 
@@ -17,14 +18,17 @@ This document outlines **i4g's** commitment to protecting personally identifiabl
 ## Applicable Regulations
 
 ### 1. **FERPA** (Family Educational Rights and Privacy Act)
+
 **Applies when**: Partnering with universities (e.g., University of Alabama graduate students as analysts)
 
 **Requirements**:
+
 - Annual FERPA training for all analysts accessing user data through university accounts
 - Parental consent for users under 18
 - No disclosure of educational records without consent
 
 **Implementation**:
+
 - All university-affiliated analysts sign Data Use Agreements (DUA)
 - Training materials: https://studentprivacy.ed.gov/training
 - Records retention: Follow university policies (typically 5 years)
@@ -32,9 +36,11 @@ This document outlines **i4g's** commitment to protecting personally identifiabl
 ---
 
 ### 2. **GDPR/CCPA** (EU General Data Protection Regulation / California Consumer Privacy Act)
+
 **Applies when**: Users from EU or California
 
 **Key Rights**:
+
 - **Right to Access**: Export all data in JSON format (\`/api/cases/{case_id}/export\`)
 - **Right to Deletion**: Immediate hard delete (\`/api/cases/{case_id}\` DELETE)
 - **Right to Rectification**: Analysts can update PII via token references
@@ -43,14 +49,17 @@ This document outlines **i4g's** commitment to protecting personally identifiabl
 ---
 
 ### 3. **State Data Breach Laws**
+
 **Applies**: All 50 US states require breach notification
 
 **Timeline**:
+
 - **Discovery to Assessment**: 24 hours
 - **Notification to Users**: 72 hours (most states)
 - **Notification to Regulators**: Varies (CA: immediate if >500 residents)
 
 **Thresholds**:
+
 - Any breach of unencrypted PII = mandatory notification
 - Encrypted data breach = case-by-case assessment
 
@@ -60,26 +69,27 @@ This document outlines **i4g's** commitment to protecting personally identifiabl
 
 ### Data Classification
 
-| Level | Examples | Encryption | Access |
-|-------|----------|------------|--------|
-| **Critical** | SSN, bank accounts, passwords | AES-256-GCM | PII vault only |
-| **High** | Full name, address, phone | AES-256-GCM | Tokenized in API |
-| **Medium** | Scammer info, dates, amounts | TLS in transit | All analysts |
-| **Low** | Case status, timestamps | TLS in transit | Public (anonymized) |
+| Level        | Examples                      | Encryption      | Access                      |
+| ------------ | ----------------------------- | --------------- | --------------------------- |
+| **Critical** | SSN, bank accounts, passwords | AES-256-GCM     | Encrypted at rest           |
+| **High**     | Full name, address, phone     | Fernet (intake) | Encrypted in intake_records |
+| **Medium**   | Scammer info, dates, amounts  | TLS in transit  | All analysts                |
+| **Low**      | Case status, timestamps       | TLS in transit  | Public (anonymized)         |
 
 ---
 
-### Tokenization Workflow
+### Intake Encryption Workflow
 
-- Normalize and validate detected PII, then tokenize before writing to SQL/vector/Vertex; canonical values remain only in the vault.
-- Deterministic tokens use the prefix catalog and HMAC pepper rotation described in [pii_vault.md](pii_vault.md#hmac-scheme--rotation).
-- Analyst-facing views display masked values; lawful release flows use detokenization controls in [pii_vault.md](pii_vault.md#detokenization-service).
+- Victim contact fields (reporter name, email, phone, handle) are Fernet-encrypted on intake write; investigation entities remain in cleartext.
+- Victim contact info is redacted from case narrative text during ingestion (replaced with `[VICTIM_EMAIL]`, `[VICTIM_PHONE]` markers).
+- Analyst-facing views display redacted text; authorized decryption is available via `GET /intakes/{id}/contact` with audit logging.
 - System contracts and request/response shapes are in [development/tdd.md](development/tdd.md#data-stores-and-contracts) and [design/architecture.md](design/architecture.md).
 
-#### Lawful detokenization
-- Required inputs: actor identity, reason (subpoena/consent/IR), case scope, and approval log.
-- Controls: dual approval or subpoena flag, rate limits, and audit trail; see [pii_vault.md](pii_vault.md#detokenization-service).
-- Output: canonical value and artifact refs only after approvals succeed; mask everywhere else. Align with the incident response plan below when triggered by a security event.
+#### Lawful contact disclosure
+
+- Required inputs: actor identity, reason (subpoena/consent/IR), and case scope.
+- Controls: role-based access (analyst or higher), rate limits, and full audit trail; see [pii_vault.md](pii_vault.md).
+- Output: decrypted contact values only after authorization succeeds; redacted everywhere else. Align with the incident response plan below when triggered by a security event.
 
 ---
 
@@ -87,15 +97,15 @@ This document outlines **i4g's** commitment to protecting personally identifiabl
 
 ### Timelines
 
-| Data Type | Retention Period | Rationale | Deletion Method |
-|-----------|------------------|-----------|-----------------|
-| **Active Cases** | Until resolution + 30 days | Ongoing investigation | Soft delete (archive flag) |
-| **Resolved Cases** | 90 days post-resolution | Follow-up questions | Hard delete from Cloud SQL |
-| **PII Vault** | Matches case retention (active +30d; resolved +90d) unless legal hold requires longer | Compliance | `delete()` + crypto shred key (see [pii_vault.md](pii_vault.md#retention-purge-and-re-key)) |
-| **Audit Logs** | 1 year | Security investigations | Cloud Logging TTL |
-| **Analytics (anonymized)** | Indefinite | Research | No PII present |
+| Data Type                    | Retention Period           | Rationale               | Deletion Method                                                    |
+| ---------------------------- | -------------------------- | ----------------------- | ------------------------------------------------------------------ |
+| **Active Cases**             | Until resolution + 30 days | Ongoing investigation   | Soft delete (archive flag)                                         |
+| **Resolved Cases**           | 90 days post-resolution    | Follow-up questions     | Hard delete from Cloud SQL                                         |
+| **Encrypted Contact Fields** | Matches case retention     | Compliance              | Deleted with parent intake record; key rotation via Secret Manager |
+| **Audit Logs**               | 1 year                     | Security investigations | Cloud Logging TTL                                                  |
+| **Analytics (anonymized)**   | Indefinite                 | Research                | No PII present                                                     |
 
-Legal holds and jurisdictional overrides: apply longer retention when a subpoena, investigation, or local statute requires it, and mirror the hold in vault lifecycle rules and object holds per [pii_vault.md](pii_vault.md#retention-purge-and-re-key).
+Legal holds and jurisdictional overrides: apply longer retention when a subpoena, investigation, or local statute requires it.
 
 ---
 
@@ -103,16 +113,17 @@ Legal holds and jurisdictional overrides: apply longer retention when a subpoena
 
 ### Encryption
 
-| Component | Method | Key Management |
-|-----------|--------|----------------|
-| **Data at Rest** | AES-256-GCM | Google Secret Manager |
-| **Data in Transit** | TLS 1.3 | Cloud Run auto-managed |
-| **PII Vault** | KMS-wrapped symmetric key (Secret Manager) | Rotate per [pii_vault.md](pii_vault.md#hmac-scheme--rotation) |
-| **Backups** | CMEK (Customer-Managed) | Separate GCP project |
+| Component                 | Method                             | Key Management                          |
+| ------------------------- | ---------------------------------- | --------------------------------------- |
+| **Data at Rest**          | AES-256-GCM                        | Google Secret Manager                   |
+| **Data in Transit**       | TLS 1.3                            | Cloud Run auto-managed                  |
+| **Intake Contact Fields** | Fernet (AES-128-CBC + HMAC-SHA256) | `I4G_CRYPTO__PII_KEY` in Secret Manager |
+| **Backups**               | CMEK (Customer-Managed)            | Separate GCP project                    |
 
 ### Access Controls
 
 **Role-Based Permissions**:
+
 ```yaml
 roles:
   user:
@@ -141,12 +152,14 @@ roles:
 ### Phase 1: Detection (< 1 hour)
 
 **Triggers**:
-- Anomaly detection alert (e.g., 100+ PII vault queries in 1 minute)
+
+- Anomaly detection alert (e.g., 100+ contact decryption requests in 1 minute)
 - Failed login attempts (>10 per hour)
 - Unauthorized access logs
 - User report of suspicious activity
 
 **Actions**:
+
 1. Page on-call admin (Jerry)
 2. Review Cloud Logging for correlation IDs
 3. Check \`/api/health\` endpoint status
@@ -157,14 +170,17 @@ roles:
 ### Phase 2: Containment (< 4 hours)
 
 **Steps**:
+
 1. **Isolate affected systems**:
+
    ```bash
    gcloud run services update i4g-api --no-traffic
    ```
 
 2. **Revoke compromised credentials**:
+
    ```bash
-   gcloud secrets versions disable TOKEN_ENCRYPTION_KEY --secret=pii-vault-key
+   gcloud secrets versions disable LATEST --secret=I4G_CRYPTO__PII_KEY
    ```
 
 3. **Preserve evidence**:
@@ -182,11 +198,13 @@ roles:
 ### Phase 3: Investigation (< 24 hours)
 
 **Questions**:
-- Was PII accessed? (Check \`/pii_vault\` read logs)
+
+- Was victim contact data accessed? (Check intake contact decryption audit logs)
 - Who was affected? (Cross-reference \`case_id\` with user emails)
 - How was the breach achieved? (Review authentication logs)
 
 **Tools**:
+
 - **Cloud Logging**: Search by \`severity>=ERROR\`
 - **Cloud SQL Audits**: Check `pgaudit` logs in Cloud Logging
 - **Network Logs**: VPC flow logs (if applicable)
@@ -196,11 +214,13 @@ roles:
 ### Phase 4: Notification (< 72 hours)
 
 **Legal Requirements**:
+
 - **GDPR**: 72 hours to notify supervisory authority
 - **CCPA**: "Without unreasonable delay"
 - **State laws**: Varies (most 30-90 days)
 
 **User Notification Template**:
+
 ```
 Subject: Important Security Notice About Your i4g Case
 
@@ -219,7 +239,7 @@ INFORMATION POTENTIALLY ACCESSED:
 - [Other fields specific to case]
 
 NOTE: Financial account details (e.g., bank account numbers) were NOT exposed
-due to our PII tokenization system.
+due to our intake encryption system.
 
 WHAT WE'RE DOING:
 1. We immediately isolated affected systems
@@ -247,6 +267,7 @@ i4g Project Lead
 ### Phase 5: Recovery (< 1 week)
 
 **Actions**:
+
 1. Patch vulnerabilities identified in investigation
 2. Rotate all secrets (API keys, encryption keys, service account keys)
 3. Deploy patched version to production
@@ -260,9 +281,10 @@ i4g Project Lead
 ### Quarterly Audits
 
 **Checklist**:
+
 - [ ] Review all analyst access logs (spot check 10% of sessions)
 - [ ] Test data export functionality (GDPR compliance)
-- [ ] Validate PII tokenization accuracy (sample 20 random cases)
+- [ ] Validate intake encryption accuracy (sample 20 random cases)
 - [ ] Penetration testing (OWASP Top 10)
 - [ ] Update this compliance document with any regulatory changes
 
@@ -290,17 +312,20 @@ i4g Project Lead
 ### For All Analysts
 
 **Onboarding (3 hours)**:
+
 1. Data handling policies (this document)
 2. Recognizing PII (quiz: 80% passing score)
 3. Secure communication practices (encrypted email, 2FA)
 4. Incident reporting procedures
 
 **Annual Refresher (1 hour)**:
+
 - Policy updates
 - Case studies from security incidents (anonymized)
 - Q&A session
 
 **Certification**:
+
 - Sign acknowledgment form: "I have read and understand the i4g Data Compliance Guide"
 - Certificate stored in Cloud SQL: `analysts.certifications` table
 
@@ -333,6 +358,7 @@ PII_PATTERNS = {
 ---
 
 **Document Version History**:
+
 - **v1.0** (2025-10-30): Initial draft by Jerry Soung
 - **Next Review**: 2026-01-30 (quarterly)
 

@@ -8,13 +8,13 @@
 
 ## Executive Summary
 
-**i4g** is a cloud-native, AI-powered platform that helps scam users document fraud and generate law enforcement reports. The system uses a **privacy-by-design** architecture where personally identifiable information (PII) is tokenized immediately upon upload and stored separately from case data.
+**i4g** is a cloud-native, AI-powered platform that helps scam users document fraud and generate law enforcement reports. The system uses a **privacy-by-design** architecture where victim contact information is encrypted at the intake layer and investigation entities are stored in cleartext for analysis.
 
 The **Next.js analyst console** on Cloud Run serves victims, volunteer analysts, and law enforcement officers through server-side proxy routes that preserve the privacy guarantees described below.
 
 **Key Design Principles**:
 
-1. **Zero Trust**: No analyst ever sees raw PII
+1. **Privacy by Design**: Victim contact fields are encrypted; investigation entities remain in cleartext
 2. **Serverless**: Zero budget constraint drives Cloud Run deployment
 3. **Scalability**: Handles 20 concurrent users on GCP free tier
 4. **Security**: AES-256-GCM encryption, OAuth 2.0, database RBAC
@@ -24,7 +24,7 @@ The **Next.js analyst console** on Cloud Run serves victims, volunteer analysts,
 - **Parity then extension**: Maintain feature parity with the retired Azure stack before adding net-new workflows.
 - **Open-first**: Prefer open protocols/OSS-aligned services and keep clean swap points (Vertex ↔ pgvector, Gemini ↔ Ollama).
 - **Operate light**: Favor repeatable runbooks and Workload Identity over long-lived keys so small teams can maintain it.
-- **Privacy by design**: Deterministic tokenization, sharded artifact storage, and auditable access across services.
+- **Privacy by design**: Victim intake encryption, victim-contact redaction in case text, and audit-logged decryption.
 - **Cost-aware**: Stay within free-tier/nonprofit credits; degrade gracefully to local mocks when managed services are off.
 
 ## Deployment Profiles (Managed vs Local)
@@ -79,10 +79,9 @@ flowchart TB
   end
 
   subgraph DataLayer["Data & Intelligence Layer"]
-    CloudSQL["Cloud SQL<br>(Cases, Config, PII Tokens)"]
+    CloudSQL["Cloud SQL<br>(Cases, Config, Intakes)"]
     Storage["Cloud Storage<br>(Evidence, Reports)"]
     Vector[Vertex AI Search<br>/ AlloyDB + pgvector]
-    TokenVault[PII Vault / Tokenization]
     IngestionPipelines[Ingestion Pipelines]
     RAG[LangChain RAG Orchestration]
   end
@@ -100,7 +99,6 @@ flowchart TB
   CoreSvc -- REST/gRPC --> CloudSQL
   CoreSvc -- REST/gRPC --> Vector
   CoreSvc -- Signed URLs --> Storage
-  CoreSvc -- Tokenization Calls --> TokenVault
   CoreSvc -- Invoke Chains --> RAG
 
   NextJS -- API Calls --> CoreSvc
@@ -141,7 +139,6 @@ flowchart LR
     NextJS[Next.js Console]
     JobIngest[Cloud Run Jobs - Ingestion]
     JobReport[Cloud Run Jobs - Report Generator]
-    VaultService[Tokenization Microservice]
   end
 
   subgraph VPC["Serverless VPC Access"]
@@ -171,7 +168,6 @@ flowchart LR
   CoreSvc -->|REST| CloudSQL
   CoreSvc -->|Signed URLs| Storage
   CoreSvc -->|Vector Queries| Vector
-  CoreSvc --> VaultService
 
   JobIngest -->|Writes| CloudSQL
   JobIngest -->|Artifacts| Storage
@@ -180,19 +176,15 @@ flowchart LR
   JobReport -->|Reads| CloudSQL
   JobReport -->|Publishes| Storage
 
-  VaultService -->|Detokenized Reads| CloudSQL
 
   Secrets -.-> CoreSvc
   Secrets -.-> NextJS
   Secrets -.-> JobIngest
   Secrets -.-> JobReport
-  Secrets -.-> VaultService
 
   CoreSvc -.->|Workload Identity| VPCConn
   JobIngest -.->|Private Resources| VPCConn
   JobReport -.->|Private Resources| VPCConn
-  VaultService -.->|Private Resources| VPCConn
-  VaultService -->|Encrypt/Decrypt| KMS
 
   VPCConn -->|Private Access| Vector
   VPCConn -->|Private Access| KMS
@@ -201,7 +193,6 @@ flowchart LR
   Logging -.-> NextJS
   Logging -.-> JobIngest
   Logging -.-> JobReport
-  Logging -.-> VaultService
 ```
 
 The swimlanes emphasize the Cloud Run deployment boundary: Identity-Aware Proxy fronts the stateless Core API and
@@ -297,7 +288,7 @@ flowchart LR
 **Responsibilities**:
 
 - REST API endpoints for case management
-- PII tokenization and encryption
+- Victim intake encryption
 - LLM-powered scam classification
 - Authentication (OAuth 2.0 JWT validation)
 - Cloud SQL CRUD operations
@@ -316,14 +307,13 @@ flowchart LR
 | -------------------------- | ----------------- | ------------------------------------------------------- |
 | `/reviews`                 | `review.py`       | Search, queue ops, saved-search CRUD, review actions    |
 | `/cases`                   | `cases.py`        | Case detail view (GET /cases/{id})                      |
-| `/intakes`                 | `intake.py`       | Victim submission pipeline                              |
+| `/intakes`                 | `intake.py`       | Victim submission pipeline (contact fields encrypted)   |
 | `/reports`                 | `reports.py`      | Dossier listing, artifacts, signature verification      |
 | `/analytics`               | `analytics.py`    | Overview metrics, trends, intake stats                  |
 | `/dashboard`               | `dashboard.py`    | Overview stats (active investigations, recent actions)  |
 | `/campaigns`               | `campaigns.py`    | Fraud campaign CRUD                                     |
 | `/discovery`               | `discovery.py`    | Vertex AI Discovery search                              |
 | `/taxonomy`                | `taxonomy.py`     | Fraud taxonomy hierarchy tree                           |
-| `/tokenization`            | `tokenization.py` | PII tokenize/detokenize endpoints                       |
 | `/tasks/{task_id}`         | `app.py`          | Background task status polling                          |
 | `POST /reports/generate`   | `app.py`          | Guarded report generation trigger                       |
 | `/intelligence`            | `intelligence.py` | Graph, watchlist, chart sharing, entity/indicator views |
@@ -391,21 +381,20 @@ flowchart LR
 
 The relational schema is defined in SQLAlchemy models at `src/i4g/store/sql.py` and managed via Alembic migrations (`alembic/` directory). Key tables:
 
-| Table Group     | Tables                                                     | Notes                                                                       |
-| --------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Core case data  | `cases`, `scam_records`, `entities`                        | Normalized case + extracted entity storage                                  |
-| Review workflow | `review_queue`, `review_actions`                           | Analyst queue assignments and audit trail                                   |
-| Intake pipeline | `intake_records`, `ingestion_runs`, `ingestion_retry`      | Victim submissions and batch ingestion tracking                             |
-| Classification  | `classifications`, `campaigns`, `campaign_classifications` | Fraud taxonomy and campaign linkage                                         |
-| PII isolation   | `pii_token_store`                                          | **Isolated PII Vault database** — separate Cloud SQL instance in production |
-| Evidence        | `source_documents`, `evidence_files`                       | Document metadata and artifact references                                   |
+| Table Group     | Tables                                                     | Notes                                                                      |
+| --------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Core case data  | `cases`, `scam_records`, `entities`                        | Normalized case + extracted entity storage                                 |
+| Review workflow | `review_queue`, `review_actions`                           | Analyst queue assignments and audit trail                                  |
+| Intake pipeline | `intake_records`, `ingestion_runs`, `ingestion_retry`      | Victim submissions (contact fields encrypted) and batch ingestion tracking |
+| Classification  | `classifications`, `campaigns`, `campaign_classifications` | Fraud taxonomy and campaign linkage                                        |
+| Audit           | `audit_log`                                                | Victim-contact decryption access log                                       |
+| Evidence        | `source_documents`, `evidence_files`                       | Document metadata and artifact references                                  |
 
 **Access Control**:
 
 Row-level security and role-based access are enforced at the application layer via Cloud SQL IAM database authentication and PostgreSQL roles:
 
 - Analysts can only read cases assigned to them (filtered by `assigned_to` column matching authenticated user).
-- PII vault table is restricted to the backend service account (`i4g-backend@i4g-prod.iam.gserviceaccount.com`).
 
 ````
 
@@ -423,7 +412,6 @@ The platform supports three LLM providers, selectable via `settings.llm.provider
 
 **Responsibilities**:
 - Scam classification (romance, crypto, phishing, other)
-- PII extraction from unstructured text
 - Summarization and report narrative generation
 
 Provider selection and model construction are handled by `build_fraud_classifier()` in `src/i4g/services/factories.py`.
@@ -434,9 +422,8 @@ Provider selection and model construction are handled by `build_fraud_classifier
 
 ### Victim Intake → Structured Storage
 1. Victim submits a report via FastAPI intake (optionally authenticated through Google Identity or other OIDC provider).
-2. FastAPI orchestrates PII tokenization: identifiable fields go to the vault service, are swapped for tokens, and the
-  mapping persists in Cloud SQL's secure tables.
-3. LLM classification annotates the case with scam type/confidence while redacting PII placeholders in returned payloads.
+2. FastAPI encrypts victim contact fields (reporter name, email, phone, handle) using Fernet before the database write.
+3. LLM classification annotates the case with scam type/confidence.
 4. Normalized case metadata writes to Cloud SQL tables (`cases`, `case_events`, `attachments`).
 5. Evidence artifacts upload to Cloud Storage using pre-signed URLs; completion webhooks update Cloud SQL metadata with
   checksum, MIME type, and retention tags.
@@ -457,23 +444,18 @@ Provider selection and model construction are handled by `build_fraud_classifier
 1. Review status transition to `accepted` emits an event (database trigger or manual CLI) that queues a report task.
 2. Worker resolves the review via `ReviewStore`, gathering entities, transcripts, evidence references, and analyst notes
   using the settings-backed store factories.
-3. `ReportGenerator` fetches related cases via the vector store, detokenizes PII through the vault micro-service when
-  necessary, and runs LangChain summarization through the configured LLM provider.
+3. `ReportGenerator` fetches related cases via the vector store and runs LangChain summarization through the configured LLM provider.
 4. `TemplateEngine` renders Markdown → DOCX/PDF; exporter writes artifacts to Cloud Storage (`i4g-reports-*`) with
   signature manifest updates.
 5. Notifications (email/SMS) can be dispatched by a Cloud Run job using Secret Manager credentials; signed URLs are
   returned to the console and logged for audit.
-6. Audit trail in Cloud SQL captures status, actor, detokenization justification, and checksums for compliance review.
+6. Audit trail in Cloud SQL captures status, actor, and checksums for compliance review.
 
-### PII Vault Architecture (developer reference)
+### Victim Contact Encryption (developer reference)
 
-See `docs/pii_vault.md` for the full design. Highlights:
-
-- Token format: `AAA-XXXXXXXX` (HMAC-SHA256 digest, 3-char prefix + 8 hex), deterministic across environments via shared, versioned KMS-wrapped pepper; collisions append a short disambiguator.
-- Prefix registry: identity/contact, gov IDs, financial, crypto, network/device, health/biometric, vehicle/legal, location, fallback. Registry lives in DB so new prefixes land without migrations.
-- Pipeline: detect PII in structured + OCR, normalize/validate per prefix, generate tokens, drop raw PII from downstream payloads. Tokens go to SQL/Vertex; canonical PII + metadata go to the vault.
-- Storage: tokens in DB (token, full digest, prefix FK, encrypted canonical value, normalized hash, case/artifact refs, detector metadata, timestamps, retention). Artifacts only in GCS under `<type>/aa/bb/<sha256>.ext`; tokens never in GCS.
-- Controls/observability: dual-approval detokenization, KMS-gated decrypt, rate limits, audited attempts, alerts on anomalies; metrics for coverage/confidence/collisions/latency; smokes perform tokenization+detokenization round trips.
+See `docs/design/pii_vault.md` for the full design. Victim contact fields (reporter name, email, phone, handle) are
+Fernet-encrypted on intake write and decrypted on authorized read. Investigation entities (wallets, emails from case
+narratives) remain in cleartext. Victim contact info is redacted from case text during ingestion.
 
 ---
 
@@ -562,20 +544,17 @@ truth.
 | Next.js analyst console                    | `sa-app@{project}`    | `roles/run.invoker`, `roles/datastore.viewer`, `roles/storage.objectViewer`, `roles/logging.logWriter`, custom Discovery search role, Secret Manager accessor          |
 | Ingestion jobs / schedulers                | `sa-ingest@{project}` | `roles/run.invoker`, `roles/storage.objectAdmin`, `roles/datastore.user`, Pub/Sub publisher when workflows emit events, Secret Manager accessor for source credentials |
 | Report worker (Cloud Run job or scheduler) | `sa-report@{project}` | `roles/storage.objectAdmin`, `roles/datastore.user`, Secret Manager accessor                                                                                           |
-| PII vault micro-service                    | `sa-vault@{project}`  | `roles/datastore.user`, Cloud KMS encrypter/decrypter when KMS is enabled, no Cloud Storage access                                                                     |
 | Terraform / automation pipeline            | `sa-infra@{project}`  | `roles/resourcemanager.projectIamAdmin`, `roles/run.admin`, `roles/storage.admin`, `roles/iam.securityReviewer` scoped to the infra project                            |
 
 > Discovery access is granted via a custom IAM role that wraps `discoveryengine.servingConfigs.search`; Terraform
 > provisions it per project to avoid unsupported project-level grants.
 
-### Secrets & Tokenization
+### Secrets & Encryption
 
-- Secret Manager holds database passwords, third-party API keys, and encryption salts; access is scoped to the runtime
-  service accounts above.
-- Vaulted PII records store AES-256-GCM encrypted values; keys live in Cloud KMS when credits allow or in Secret Manager
-  with scheduled rotation when running lean.
-- Tokenization micro-service exposes REST/gRPC behind Cloud Run; only FastAPI (and ingestion jobs when needed) can call
-  it via IAM allow policies.
+- Secret Manager holds database passwords, third-party API keys, and the Fernet PII key (`I4G_CRYPTO__PII_KEY`); access
+  is scoped to the runtime service accounts above.
+- Victim contact fields are Fernet-encrypted at the application layer before database write; the key lives in Secret
+  Manager with scheduled rotation.
 
 ### Network & Data Safeguards
 
@@ -590,18 +569,18 @@ truth.
 - Cloud Audit Logs retained for ≥400 days; exports land in BigQuery or Cloud Storage coldline when costs allow.
 - Security Command Center (Standard) feeds vulnerability findings on Cloud Run images and IAM misconfigurations.
 - Daily job reconciles IAM policy drift against Terraform state and alerts via Cloud Monitoring.
-- Incident response playbook covers token revocation, Secret Manager rotation, and PII vault database audits; access
-  transparency reports are stored alongside audit exports.
+- Incident response playbook covers Secret Manager rotation and encrypted-field key rotation; access transparency
+  reports are stored alongside audit exports.
 
 ### Role-to-Capability Matrix
 
-| Role                            | Entry Path                                   | Primary Data Access                                                                                                      | Actions Allowed                                                                         | Notes                                                                      |
-| ------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Victim                          | FastAPI intake endpoints via Google Identity | Own submissions (Cloud SQL rows scoped to UID), upload bucket objects via signed URL                                     | Create/update intake records, upload evidence, read status of submitted cases           | Read-only access enforced through database RBAC; no direct Storage listing |
-| Analyst                         | Next.js analyst console (Cloud Run)          | Case queues, evidence metadata, vector query results, read-only Cloud SQL PII tokens (detokenized via FastAPI on demand) | Claim/release cases, run chat/RAG searches, trigger report generation, annotate cases   | Detokenization requires explicit action and logs actor/justification       |
-| Admin                           | Next.js admin views + FastAPI admin APIs     | All case data, configuration collections, audit logs                                                                     | Manage users/roles, adjust configuration, approve report publishing, initiate rotations | Access gated by admin-only OAuth claim and Cloud Run IAM                   |
-| Law Enforcement (LEO)           | Next.js read-only report portal              | Published reports, supporting evidence with signed URLs                                                                  | View/download reports, acknowledge receipt                                              | Accounts provisioned manually; multi-factor auth enforced                  |
-| Automation (ingest/report jobs) | Cloud Run jobs / Scheduler                   | Cloud SQL ingestion tables, Storage evidence buckets, vector store                                                       | Normalize raw feeds, enqueue cases, seed vector index, emit alerts                      | Operate under dedicated service accounts with least privilege              |
+| Role                            | Entry Path                                   | Primary Data Access                                                                                                 | Actions Allowed                                                                         | Notes                                                                      |
+| ------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Victim                          | FastAPI intake endpoints via Google Identity | Own submissions (Cloud SQL rows scoped to UID), upload bucket objects via signed URL                                | Create/update intake records, upload evidence, read status of submitted cases           | Read-only access enforced through database RBAC; no direct Storage listing |
+| Analyst                         | Next.js analyst console (Cloud Run)          | Case queues, evidence metadata, vector query results; victim contact info available via authorized decrypt endpoint | Claim/release cases, run chat/RAG searches, trigger report generation, annotate cases   | Contact decryption requires explicit action and logs actor/justification   |
+| Admin                           | Next.js admin views + FastAPI admin APIs     | All case data, configuration collections, audit logs                                                                | Manage users/roles, adjust configuration, approve report publishing, initiate rotations | Access gated by admin-only OAuth claim and Cloud Run IAM                   |
+| Law Enforcement (LEO)           | Next.js read-only report portal              | Published reports, supporting evidence with signed URLs                                                             | View/download reports, acknowledge receipt                                              | Accounts provisioned manually; multi-factor auth enforced                  |
+| Automation (ingest/report jobs) | Cloud Run jobs / Scheduler                   | Cloud SQL ingestion tables, Storage evidence buckets, vector store                                                  | Normalize raw feeds, enqueue cases, seed vector index, emit alerts                      | Operate under dedicated service accounts with least privilege              |
 
 ### PII Isolation
 
@@ -614,24 +593,24 @@ truth.
 └────────────────────────────────┼────────────────────┘
                                  │
                        ┌─────────▼─────────┐
-                       │   PII Extraction  │
-                       │  (Regex + LLM)    │
+                       │  Intake Service   │
+                       │  Fernet-encrypts  │
+                       │  contact fields   │
                        └─────────┬─────────┘
                                  │
               ┌──────────────────┼──────────────────┐
               │                                     │
     ┌─────────▼────────┐               ┌────────────▼────────┐
-    │   PII Vault      │               │   Cases DB          │
-    │  (Encrypted)     │               │  (Tokenized)        │
+    │  intake_records  │               │   Cases DB          │
+    │  (contact fields │               │  (cleartext         │
+    │   encrypted)     │               │   entities)         │
     │  Cloud SQL       │               │  Cloud SQL          │
-    │  pii_vault       │               │  cases              │
     └──────────────────┘               └──────────┬──────────┘
-         ⚠️ RESTRICTED                            │
-    (Backend SA only)                             │
+                                                   │
                                          ┌────────▼──────────┐
                                          │ Next.js Analyst   │
-                                         │ Console (PII      │
-                                         │ masked ███████)   │
+                                         │ Console (victim   │
+                                         │ contact redacted) │
                                          └───────────────────┘
 ```
 
@@ -643,7 +622,7 @@ truth.
 
 - **Cloud SQL**: Encryption at rest (Google-managed keys)
 - **Cloud Storage**: Customer-Managed Encryption Keys (CMEK)
-- **PII Vault**: Additional AES-256-GCM layer (app-level encryption)
+- **Intake Records**: Fernet encryption for victim contact fields (app-level)
 
 **In Transit**:
 
@@ -688,7 +667,7 @@ gcloud secrets versions add TOKEN_ENCRYPTION_KEY --data-file=new_key.txt
 ### Custom Metrics
 
 - **Request Rate**: `custom.googleapis.com/i4g/api_requests_per_second`
-- **PII Vault Access**: `custom.googleapis.com/i4g/pii_vault_access_count`
+- **Contact Decryption**: `custom.googleapis.com/i4g/contact_decrypt_count`
 - **Classification Accuracy**: `custom.googleapis.com/i4g/classification_accuracy`
 - **LEO Reports Generated**: `custom.googleapis.com/i4g/reports_generated_count`
 
@@ -698,7 +677,7 @@ gcloud secrets versions add TOKEN_ENCRYPTION_KEY --data-file=new_key.txt
 
 1. **High Error Rate**: 5xx errors >5% for 5 minutes
 2. **High Latency**: p95 latency >2 seconds for 5 minutes
-3. **PII Vault Anomaly**: >100 accesses per minute
+3. **Contact Decryption Anomaly**: >100 decryptions per minute
 4. **Free Tier Quota**: >80% of monthly quota used
 
 ---
@@ -712,7 +691,7 @@ gcloud secrets versions add TOKEN_ENCRYPTION_KEY --data-file=new_key.txt
 > - `POST /reviews/search` (hybrid retrieval)
 > - `GET /cases/{id}` (case detail with entity resolution)
 > - `POST /reports/generate` (guarded report generation)
-> - `POST /intakes` (victim submission with PII tokenization)
+> - `POST /intakes` (victim submission with contact encryption)
 
 ### Throughput
 
@@ -764,17 +743,17 @@ gsutil ls gs://i4g-backups/
 gcloud sql backups restore BACKUP_ID --restore-instance=i4g-prod-db
 ```
 
-**Scenario 2: PII vault corruption**
+**Scenario 2: Encrypted field key compromise**
 
 ```bash
-# 1. Stop API (prevent further writes)
-gcloud run services update i4g-api --no-traffic
+# 1. Rotate the Fernet key in Secret Manager
+gcloud secrets versions add I4G_CRYPTO__PII_KEY --data-file=new_key.txt
 
-# 2. Restore from backup
-gcloud sql backups restore BACKUP_ID --restore-instance=i4g-prod-db
+# 2. Re-encrypt intake records with the new key
+i4g jobs re-encrypt-contacts
 
-# 3. Validate restoration
-python scripts/validate_pii_vault.py
+# 3. Disable the old key version
+gcloud secrets versions disable OLD_VERSION --secret=I4G_CRYPTO__PII_KEY
 
 # 4. Resume traffic
 gcloud run services update i4g-api --traffic

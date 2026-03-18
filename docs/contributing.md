@@ -139,22 +139,21 @@ We follow **PEP 8** with some modifications:
 
 ```python
 # Good
-def tokenize_pii(text: str) -> dict[str, str]:
-    """Extract and tokenize PII from raw text.
+def encrypt_contact_fields(intake: dict, key: bytes) -> dict:
+    """Encrypt victim contact fields in an intake record.
 
     Args:
-        text: Input string potentially containing PII
+        intake: Raw intake record with contact fields
+        key: Fernet encryption key
 
     Returns:
-        Mapping of PII type to token ID
+        Intake record with encrypted contact fields
     """
-    tokens = {}
-    for pattern_name, regex in PII_PATTERNS.items():
-        matches = regex.findall(text)
-        for match in matches:
-            token_id = generate_token()
-            tokens[pattern_name] = token_id
-    return tokens
+    fernet = Fernet(key)
+    for field in CONTACT_FIELDS:
+        if value := intake.get(field):
+            intake[field] = fernet.encrypt(value.encode()).decode()
+    return intake
 ```
 
 **Formatting Tools**:
@@ -189,7 +188,7 @@ mypy src/
 pytest tests/ -v
 
 # Run specific test file
-pytest tests/unit/test_pii_tokenizer.py
+pytest tests/unit/test_intake_encryption.py
 
 # Check coverage
 pytest --cov=src/i4g --cov-report=html
@@ -213,10 +212,10 @@ Use **Conventional Commits** format:
 **Examples**:
 
 ```
-feat(pii): add phone number tokenization
+feat(pii): add intake contact field encryption
 
-Added regex pattern to detect US/international phone numbers.
-Includes tests for various formats.
+Added Fernet encryption for victim contact fields on intake.
+Includes tests for encrypt/decrypt round-trip.
 
 Closes #42
 

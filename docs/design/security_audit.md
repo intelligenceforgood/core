@@ -21,7 +21,7 @@
 - Entity stats aggregation anonymizes PII via SHA-256 hashing when records are purged (S1-28)
 - Researcher role receives 403 for detail endpoints per S6-H5 decision
 - Export files include only analyst-visible fields; PII columns excluded from partner feeds
-- Tokenization service (`/tokenization/*`) provides reversible PII masking for authorized users
+- Intake encryption service encrypts victim contact fields at rest via Fernet
 
 ## TLP Enforcement
 

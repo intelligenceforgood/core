@@ -157,9 +157,7 @@ fields:
       - I4G_CRYPTO__PII_KEY
       - CRYPTO_PII_KEY
       - CRYPTO__PII_KEY
-    description:
-      Application-level cryptographic material used by vault/tokenization
-      flows.
+    description: Fernet key for encrypting victim contact fields in intake records.
   - path: data_dir
     section: data_dir
     type: Path
@@ -175,14 +173,6 @@ fields:
       - I4G_DB_ADMIN__DEV_PASSWORD
       - DB_ADMIN__DEV_PASSWORD
     description: Postgres password for i4g-dev-db.
-  - path: db_admin.dev_vault_password
-    section: db_admin
-    type: str | NoneType
-    default: null
-    env_vars:
-      - I4G_DB_ADMIN__DEV_VAULT_PASSWORD
-      - DB_ADMIN__DEV_VAULT_PASSWORD
-    description: Postgres password for i4g-vault-dev-db.
   - path: db_admin.prod_password
     section: db_admin
     type: str | NoneType
@@ -191,14 +181,6 @@ fields:
       - I4G_DB_ADMIN__PROD_PASSWORD
       - DB_ADMIN__PROD_PASSWORD
     description: Postgres password for i4g-prod-db.
-  - path: db_admin.prod_vault_password
-    section: db_admin
-    type: str | NoneType
-    default: null
-    env_vars:
-      - I4G_DB_ADMIN__PROD_VAULT_PASSWORD
-      - DB_ADMIN__PROD_VAULT_PASSWORD
-    description: Postgres password for i4g-vault-prod-db.
   - path: dossier_job.batch_size
     section: dossier_job
     type: int
@@ -728,15 +710,15 @@ fields:
       - LLM_VERTEX_AI_PROJECT
       - LLM__VERTEX_AI__PROJECT
     description: Large language model provider settings.
-  - path: observability.detokenization_alert_threshold
+  - path: observability.contact_decrypt_alert_threshold
     section: observability
     type: int
     default: 10
     env_vars:
-      - I4G_OBSERVABILITY__DETOKENIZATION_ALERT_THRESHOLD
-      - OBS_DETOKENIZATION_ALERT_THRESHOLD
-      - OBSERVABILITY__DETOKENIZATION_ALERT_THRESHOLD
-    description: Max detokenization calls per user per hour before alerting.
+      - I4G_OBSERVABILITY__CONTACT_DECRYPT_ALERT_THRESHOLD
+      - OBS_CONTACT_DECRYPT_ALERT_THRESHOLD
+      - OBSERVABILITY__CONTACT_DECRYPT_ALERT_THRESHOLD
+    description: Max contact decryption calls per user per hour before alerting.
   - path: observability.dossier_stuck_timeout_minutes
     section: observability
     type: int
@@ -854,87 +836,6 @@ fields:
       - PARTNER_FEED_RATE_LIMIT_PER_MINUTE
       - PARTNER_FEED__RATE_LIMIT_PER_MINUTE
     description: Max requests per minute per API key.
-  - path: pii.backend
-    section: pii
-    type: Literal['sqlite', 'cloudsql']
-    default: sqlite
-    env_vars:
-      - I4G_PII__BACKEND
-      - PII_BACKEND
-      - PII__BACKEND
-    description: Deterministic tokenization controls for PII vault integration.
-  - path: pii.cloudsql_database
-    section: pii
-    type: str | NoneType
-    default: null
-    env_vars:
-      - I4G_PII__CLOUDSQL_DATABASE
-      - PII__CLOUDSQL__DATABASE
-      - I4G_PII__CLOUDSQL__DATABASE
-    description: Deterministic tokenization controls for PII vault integration.
-  - path: pii.cloudsql_enable_iam_auth
-    section: pii
-    type: bool
-    default: false
-    env_vars:
-      - I4G_PII__CLOUDSQL_ENABLE_IAM_AUTH
-      - PII__CLOUDSQL__ENABLE_IAM_AUTH
-      - I4G_PII__CLOUDSQL__ENABLE_IAM_AUTH
-    description: Deterministic tokenization controls for PII vault integration.
-  - path: pii.cloudsql_instance
-    section: pii
-    type: str | NoneType
-    default: null
-    env_vars:
-      - I4G_PII__CLOUDSQL_INSTANCE
-      - PII__CLOUDSQL__INSTANCE
-      - I4G_PII__CLOUDSQL__INSTANCE
-    description: Deterministic tokenization controls for PII vault integration.
-  - path: pii.cloudsql_password
-    section: pii
-    type: str | NoneType
-    default: null
-    env_vars:
-      - I4G_PII__CLOUDSQL_PASSWORD
-      - PII__CLOUDSQL__PASSWORD
-      - I4G_PII__CLOUDSQL__PASSWORD
-    description: Deterministic tokenization controls for PII vault integration.
-  - path: pii.cloudsql_user
-    section: pii
-    type: str | NoneType
-    default: null
-    env_vars:
-      - I4G_PII__CLOUDSQL_USER
-      - PII__CLOUDSQL__USER
-      - I4G_PII__CLOUDSQL__USER
-    description: Deterministic tokenization controls for PII vault integration.
-  - path: pii.pepper
-    section: pii
-    type: str | NoneType
-    default: null
-    env_vars:
-      - I4G_PII__PEPPER
-      - PII_PEPPER
-      - PII__PEPPER
-    description: Deterministic tokenization controls for PII vault integration.
-  - path: pii.pepper_version
-    section: pii
-    type: str
-    default: v1
-    env_vars:
-      - I4G_PII__PEPPER_VERSION
-      - PII_PEPPER_VERSION
-      - PII__PEPPER_VERSION
-    description: Deterministic tokenization controls for PII vault integration.
-  - path: pii.require_pepper
-    section: pii
-    type: bool
-    default: true
-    env_vars:
-      - I4G_PII__REQUIRE_PEPPER
-      - PII_REQUIRE_PEPPER
-      - PII__REQUIRE_PEPPER
-    description: Deterministic tokenization controls for PII vault integration.
   - path: project_root
     section: project_root
     type: Path

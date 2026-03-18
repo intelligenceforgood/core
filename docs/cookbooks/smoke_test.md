@@ -10,52 +10,34 @@ The scenarios are split into two groups:
 
 For detailed environment bootstrapping and verification instructions, see [Bootstrap Environments](bootstrap_environments.md).
 
-## Vault Secrets Smoke (GCP)
+## Encryption Secrets Smoke (GCP)
 
-Use this to prove the vault secrets are present, readable via Workload Identity, and wired into Cloud Run before
-promotion. Run from the `core/` repo root with an authenticated gcloud session that can impersonate the vault SAs.
+Use this to prove the Fernet PII key is present, readable via Workload Identity, and wired into Cloud Run before
+promotion. Run from the `core/` repo root with an authenticated gcloud session.
 
-1. Verify or seed secret versions (dev example; reuse the same pepper in prod if deterministic cross-env tokens are
-   required):
+1. Verify or seed the Fernet key (dev example):
 
 ```bash
-gcloud secrets describe tokenization-pepper --project i4g-pii-vault-dev
-gcloud secrets describe pii-tokenization-key --project i4g-pii-vault-dev
+gcloud secrets describe I4G_CRYPTO__PII_KEY --project i4g-dev
 
-# If no versions exist, seed them (pepper example)
-PEPPER=$(openssl rand -base64 32)
-printf '%s' "$PEPPER" | gcloud secrets versions add tokenization-pepper \
-  --project i4g-pii-vault-dev \
-  --data-file=-
-
-# Optional app-level symmetric key
-KEY=$(openssl rand -base64 32)
-printf '%s' "$KEY" | gcloud secrets versions add pii-tokenization-key \
-  --project i4g-pii-vault-dev \
+# If no versions exist, generate and seed the key
+KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')
+printf '%s' "$KEY" | gcloud secrets versions add I4G_CRYPTO__PII_KEY \
+  --project i4g-dev \
   --data-file=-
 ```
 
-2. Validate access via Workload Identity impersonation (replace the service account if needed):
-
-```bash
-python scripts/infra/verify_vault_secret_access.py \
-  --project i4g-pii-vault-dev \
-  --service-account sa-infra@i4g-pii-vault-dev.iam.gserviceaccount.com \
-  --secret-id tokenization-pepper \
-  --version latest
-```
-
-3. Wire secrets into Cloud Run dev (`core-svc`), pointing at the vault project (swap `i4g-dev` → `i4g-prod` and vault project for prod):
+2. Wire the secret into Cloud Run dev (`core-svc`):
 
 ```bash
 gcloud run services update core-svc \
   --project i4g-dev \
   --region us-central1 \
   --service-account sa-app@i4g-dev.iam.gserviceaccount.com \
-  --set-secrets="I4G_TOKENIZATION__PEPPER=projects/i4g-pii-vault-dev/secrets/tokenization-pepper:latest,I4G_CRYPTO__PII_KEY=projects/i4g-pii-vault-dev/secrets/pii-tokenization-key:latest"
+  --set-secrets="I4G_CRYPTO__PII_KEY=I4G_CRYPTO__PII_KEY:latest"
 ```
 
-4. Export runtime env for the smoke (dev values shown; swap host/client ID for other envs):
+3. Export runtime env for the smoke (dev values shown; swap host/client ID for other envs):
 
 ```bash
 export CORE_API_BASE=https://api.dev.intelligenceforgood.org
@@ -63,7 +45,7 @@ export IAP_CLIENT_ID=544936845045-a87u04lgc7go7asc4nhed36ka50iqh0h.apps.googleus
 export I4G_API_KEY=dev-analyst-token
 ```
 
-5. Mint an IAP identity token (include email, or IAP will return 401). Use a principal with IAP access, e.g. `sa-report`:
+4. Mint an IAP identity token (include email, or IAP will return 401). Use a principal with IAP access, e.g. `sa-report`:
 
 ```bash
 export ID_TOKEN=$(gcloud auth print-identity-token \
@@ -73,26 +55,27 @@ export ID_TOKEN=$(gcloud auth print-identity-token \
 export AUTH_HEADER="Authorization: Bearer $ID_TOKEN"
 ```
 
-6. Tokenization/detokenization + health:
+5. Intake submission + contact encryption check:
 
 ```bash
-PAYLOAD='{ "value": "user@example.com", "prefix": "EID" }'
 curl -s -H "Content-Type: application/json" -H "$AUTH_HEADER" -H "X-API-KEY: $I4G_API_KEY" \
-  -d "$PAYLOAD" "$CORE_API_BASE/tokenization/tokenize" | tee /tmp/tokenize.json
-TOKEN=$(jq -r '.token' /tmp/tokenize.json)
-curl -s -H "Content-Type: application/json" -H "$AUTH_HEADER" -H "X-API-KEY: $I4G_API_KEY" \
-  -d "{\"token\":\"$TOKEN\"}" "$CORE_API_BASE/tokenization/detokenize" | jq
-curl -s -H "$AUTH_HEADER" -H "X-API-KEY: $I4G_API_KEY" "$CORE_API_BASE/tokenization/health" | jq
+  -d '{"reporter_name":"Smoke Test","contact_email":"smoke@example.com","summary":"Encryption smoke test"}' \
+  "$CORE_API_BASE/intakes/" | tee /tmp/intake_response.json
+INTAKE_ID=$(jq -r '.intake_id' /tmp/intake_response.json)
+
+# Verify contact fields return encrypted (analyst auth required)
+curl -s -H "$AUTH_HEADER" -H "X-API-KEY: $I4G_API_KEY" \
+  "$CORE_API_BASE/intakes/$INTAKE_ID/contact" | jq
 ```
 
-7. Search redaction check (ensure responses contain no `text` or raw PII; entities should be token strings):
+6. Search redaction check (ensure victim contact info is redacted from case text):
 
 ```bash
 curl -s -H "$AUTH_HEADER" -H "X-API-KEY: $I4G_API_KEY" \
-  "$CORE_API_BASE/reviews/search?text=token&limit=5" | jq
+  "$CORE_API_BASE/reviews/search?text=smoke&limit=5" | jq
 ```
 
-Expected: tokenizer returns an `AAA-XXXXXXXX` token; detokenize returns the normalized value; health reports `pepper_configured: true`; search results omit `text` and only include tokenized entities. Fail the smoke if secret access is denied, token is empty, detokenize mismatches, or search returns raw PII.
+Expected: intake creates successfully; contact endpoint returns decrypted values with audit trail; search results contain redacted victim markers (`[VICTIM_EMAIL]`) rather than raw contact data. Fail the smoke if secret access is denied or contact decryption fails.
 
 ### Analyst console (Next.js) smoke
 
@@ -194,7 +177,7 @@ conda run -n i4g I4G_ENV=local i4g bootstrap local reset --report-dir data/repor
 
 Validate that the ingestion worker can read the sample dataset and produce diagnostics without writing to the vector store.
 
-The local environment will automatically use a default pepper if one is not provided.
+The local environment will automatically generate a default Fernet key if one is not provided.
 
 ```bash
 env \
@@ -295,6 +278,7 @@ Use the ingestion run verification script to confirm retry semantics are working
 
    Adjust the thresholds to match your dataset (for example `--expect-case-count 3`). Re-run the retry worker
    command at the end to confirm it reports `No ingestion retry entries ready`.
+
 ### 4. Optional Local Checks
 
 - **Vertex Retrieval Smoke:** If you have GCP credentials for Discovery, run `conda run -n i4g python scripts/smoke_vertex_retrieval.py --project <project> --data-store-id <data_store>` to validate the managed search stack. This requires access to the Artifact Registry dataset and may be skipped locally.
@@ -363,7 +347,6 @@ These steps ensure the deployed services, Cloud Run jobs, and shared storage pat
 >   --project i4g-dev --region us-central1 \
 >   --clear-command --clear-args
 > ```
->
 
 ### Prerequisites
 
@@ -453,6 +436,7 @@ You should see `Execution [...] has successfully completed.` in the CLI output.
    Expected result mirrors the local check (`processed` / `completed`).
 
 Keep a short note in `planning/change_log.md` each time you run the cloud smoke to track regressions or environment drift.
+
 ### 6. Ingestion Backfill + Retry (Dev)
 
 Use this procedure whenever you need to rehydrate the dual-extraction corpus in `i4g-dev` or

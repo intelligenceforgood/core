@@ -4,14 +4,12 @@ This guide explains how to inspect, query, and manage permissions for the Cloud 
 
 ## Overview
 
-The platform uses two distinct Cloud SQL instances per environment:
+The platform uses a single Cloud SQL instance per environment:
 
-| Project       | Environment | Instance Name       | Database Name | Description                                      |
-| :------------ | :---------- | :------------------ | :------------ | :----------------------------------------------- |
-| **App**       | `dev`       | `i4g-dev-db`        | `i4g_db`      | Main application database (cases, reviews, etc.) |
-| **App**       | `prod`      | `i4g-prod-db`       | `i4g_db`      | Production application database                  |
-| **PII Vault** | `dev`       | `i4g-vault-dev-db`  | `vault_db`    | Isolated PII storage (tokens, secrets)           |
-| **PII Vault** | `prod`      | `i4g-vault-prod-db` | `vault_db`    | Production PII storage                           |
+| Project | Environment | Instance Name | Database Name | Description                                      |
+| :------ | :---------- | :------------ | :------------ | :----------------------------------------------- |
+| **App** | `dev`       | `i4g-dev-db`  | `i4g_db`      | Main application database (cases, reviews, etc.) |
+| **App** | `prod`      | `i4g-prod-db` | `i4g_db`      | Production application database                  |
 
 ---
 
@@ -29,10 +27,9 @@ This allows you to use standard tools (`psql`, DBeaver, Python scripts, Alembic)
     Open a dedicated terminal and run:
 
     ```bash
-    # Listen on port 5432 for Main DB and 5433 for Vault DB
+    # Listen on port 5432 for Main DB
     cloud-sql-proxy \
-      i4g-dev:us-central1:i4g-dev-db?port=5432 \
-      i4g-pii-vault-dev:us-central1:i4g-vault-dev-db?port=5433
+      i4g-dev:us-central1:i4g-dev-db?port=5432
     ```
 
 2.  **Connect via psql**:
@@ -41,9 +38,6 @@ This allows you to use standard tools (`psql`, DBeaver, Python scripts, Alembic)
     ```bash
     # Connect to Main DB
     psql "host=127.0.0.1 port=5432 sslmode=disable user=postgres dbname=i4g_db"
-
-    # Connect to Vault DB
-    psql "host=127.0.0.1 port=5433 sslmode=disable user=postgres dbname=vault_db"
     ```
 
 ### Method B: gcloud beta sql connect (Quick Ad-hoc)
@@ -53,9 +47,6 @@ This command automatically starts a temporary proxy and connects via `psql`.
 ```bash
 # Connect to Main DB
 gcloud beta sql connect i4g-dev-db --user=postgres --quiet --project=i4g-dev
-
-# Connect to Vault DB
-gcloud beta sql connect i4g-vault-dev-db --user=postgres --quiet --project=i4g-pii-vault-dev
 ```
 
 ---
@@ -75,8 +66,6 @@ so you only configure credentials once.
    [db_admin]
    dev_password = "..."
    prod_password = "..."
-   dev_vault_password = "..."
-   prod_vault_password = "..."
    ```
 
    Alternatively, set env vars: `I4G_DB_ADMIN__DEV_PASSWORD`, etc.
@@ -87,14 +76,8 @@ so you only configure credentials once.
 # Dev main DB
 i4g db migrate dev
 
-# Dev vault DB
-i4g db migrate dev --vault
-
 # Prod main DB
 i4g db migrate prod
-
-# Prod vault DB
-i4g db migrate prod --vault
 
 # Preview without executing
 i4g db migrate dev --dry-run
@@ -171,18 +154,6 @@ GRANT ALL ON SCHEMA public TO postgres;
 GRANT ALL ON SCHEMA public TO public;
 ```
 
-**Vault DB (`i4g-vault-dev-db`):**
-
-```sql
--- Connect to vault_db first
-\c vault_db
-
--- Drop tables individually (Vault doesn't use schemas as heavily)
-DROP TABLE IF EXISTS pii_tokens CASCADE;
-DROP TABLE IF EXISTS audit_log CASCADE;
-DROP TABLE IF EXISTS alembic_version;
-```
-
 ### Step 2: Apply Initial Schema (Alembic)
 
 Use `alembic` locally to create the tables in the remote Cloud SQL instances. **You must have the Cloud SQL Proxy running (Method A).**
@@ -190,13 +161,9 @@ Use `alembic` locally to create the tables in the remote Cloud SQL instances. **
 Run these commands from the `core/` directory:
 
 ```bash
-# 1. Migrate Main DB (Port 5432)
+# Migrate Main DB (Port 5432)
 ALEMBIC_DATABASE_URL="postgresql+psycopg2://postgres:YOUR_PASSWORD@127.0.0.1:5432/i4g_db" \
   conda run -n i4g alembic -c alembic.ini upgrade head
-
-# 2. Migrate Vault DB (Port 5433)
-ALEMBIC_DATABASE_URL="postgresql+psycopg2://postgres:YOUR_PASSWORD@127.0.0.1:5433/vault_db" \
-  conda run -n i4g alembic -c alembic_vault.ini upgrade head
 ```
 
 > **Important:**
@@ -209,53 +176,6 @@ ALEMBIC_DATABASE_URL="postgresql+psycopg2://postgres:YOUR_PASSWORD@127.0.0.1:543
 
 ### First-time vault migration: setting the postgres password
 
-When the vault instance is first provisioned via Terraform, only an IAM-based
-admin user exists — the built-in `postgres` user has no password set, which
-blocks Alembic. Follow these steps before running the migration for the first
-time.
-
-1. **Set a temporary password** for the `postgres` user:
-
-   ```bash
-   gcloud sql users set-password postgres \
-       --instance=i4g-vault-dev-db \
-       --project=i4g-pii-vault-dev \
-       --password=<YOUR_TEMP_PASSWORD>
-   ```
-
-2. **Switch gcloud context** to the vault project (the proxy picks it up
-   automatically, but explicit is safer):
-
-   ```bash
-   gcloud config set project i4g-pii-vault-dev
-   ```
-
-3. **Start the proxy** for the vault instance on port 5433 (or any free port):
-
-   ```bash
-   cloud-sql-proxy i4g-pii-vault-dev:us-central1:i4g-vault-dev-db?port=5433
-   ```
-
-4. **Run the Alembic migration** in a separate terminal:
-
-   ```bash
-   ALEMBIC_DATABASE_URL="postgresql+psycopg2://postgres:<YOUR_TEMP_PASSWORD>@127.0.0.1:5433/vault_db" \
-     conda run -n i4g alembic -c alembic_vault.ini upgrade head
-   ```
-
-5. **Verify** via psql:
-
-   ```bash
-   psql "host=127.0.0.1 port=5433 sslmode=disable user=postgres dbname=vault_db"
-   # \dt  — should list pii_tokens and alembic_version
-   ```
-
-6. **Restore gcloud context** after you are done:
-
-   ```bash
-   gcloud config set project i4g-dev
-   ```
-
 ---
 
 ## 4. Permission Management (Manual)
@@ -266,10 +186,10 @@ accounts have the correct permissions. **Prefer `i4g db grant-permissions`
 
 ### Key Accounts
 
-| Role                 | Account Email                                                                                                  | Permissions Needed                               |
-| :------------------- | :------------------------------------------------------------------------------------------------------------- | :----------------------------------------------- |
-| **Admins**           | `jerry@intelligenceforgood.org`<br>`gcp-i4g-admin@intelligenceforgood.org`                                     | `ALL PRIVILEGES` on tables<br>`CREATE` on schema |
-| **Service Accounts** | `sa-ingest@i4g-dev.iam`<br>`sa-app@i4g-dev.iam`<br>`sa-vault@i4g-pii-vault-dev.iam`<br>`sa-report@i4g-dev.iam` | `SELECT, INSERT, UPDATE, DELETE`                 |
+| Role                 | Account Email                                                              | Permissions Needed                               |
+| :------------------- | :------------------------------------------------------------------------- | :----------------------------------------------- |
+| **Admins**           | `jerry@intelligenceforgood.org`<br>`gcp-i4g-admin@intelligenceforgood.org` | `ALL PRIVILEGES` on tables<br>`CREATE` on schema |
+| **Service Accounts** | `sa-ingest@i4g-dev.iam`<br>`sa-app@i4g-dev.iam`<br>`sa-report@i4g-dev.iam` | `SELECT, INSERT, UPDATE, DELETE`                 |
 
 ### Granting Permissions
 
@@ -321,24 +241,6 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO "jerry@intel
 
 > **Common mistake:** granting only sequence privileges won't let you query
 > tables. You need `GRANT ... ON ALL TABLES` for SELECT/INSERT/UPDATE/DELETE.
-
-**Vault DB (`vault_db`):**
-
-```sql
-\c vault_db
-
--- Grant Table Access to Vault SA (Native Project)
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "sa-vault@i4g-pii-vault-dev.iam";
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "sa-vault@i4g-pii-vault-dev.iam";
-
--- Grant Table Access to App/Ingest SAs (Cross-Project Access from i4g-dev)
--- These accounts need to tokenize/detokenize PII
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "sa-ingest@i4g-dev.iam";
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "sa-ingest@i4g-dev.iam";
-
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO "sa-app@i4g-dev.iam";
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO "sa-app@i4g-dev.iam";
-```
 
 ---
 
@@ -483,7 +385,7 @@ VALUES ('jerry@intelligenceforgood.org', 'admin', 'Jerry', true);
 
 ### "FATAL: database '...' does not exist"
 
-Check the **Overview** table above. You might be connecting to `postgres` instead of `i4g_db` or `vault_db`.
+Check the **Overview** table above. You might be connecting to `postgres` instead of `i4g_db`.
 
 ### "FATAL: password authentication failed"
 

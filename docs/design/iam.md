@@ -9,7 +9,7 @@ This document is the single source of truth for how we authenticate users, autho
 
 ## 1. Objectives and Scope
 
-1. **Protect victims and analysts** — tokenize PII, gate privileged tooling, and log every access.
+1. **Protect victims and analysts** — encrypt victim contact data, gate privileged tooling, and log every access.
 2. **Support multiple personas** — victims/end users, volunteer analysts, law enforcement (LEO), and automated jobs.
 3. **Enable fast iteration** — today’s prototype runs entirely on Cloud Run with Google Identity; we need a pragmatic stopgap while designing the long-term zero-trust model.
 4. **Document the path forward** — outline future-state controls (VPN, per-role endpoints, self-serve IAM) even if unimplemented.
@@ -136,7 +136,6 @@ researcher  <  user  <  analyst  <  leo  ≤  admin
 | `/accounts/*`                  | `require_token` (me), `require_role("admin")` (CRUD) |
 | `/campaigns/*` (create/update) | `require_role("admin")`                              |
 | `/tasks/*` (update)            | `require_role("admin")`                              |
-| `/tokenization/detokenize`     | `require_role("analyst")`                            |
 | `/reviews/*`, `/intakes/*`     | `require_token`                                      |
 | Other read endpoints           | `require_token`                                      |
 
@@ -144,7 +143,7 @@ researcher  <  user  <  analyst  <  leo  ≤  admin
 
 1. **Runtime Service Accounts**
    - `sa-app`: shared by the Core API and the Next.js console. Roles: `roles/storage.objectViewer`, `roles/secretmanager.secretAccessor`, `roles/run.invoker` (self), `roles/logging.logWriter`, `roles/cloudsql.client`, plus Discovery search role.
-   - `sa-ingest`, `sa-report`, `sa-vault`, `sa-infra`: per-job least-privilege grants (see Terraform modules).
+   - `sa-ingest`, `sa-report`, `sa-infra`: per-job least-privilege grants (see Terraform modules).
 
 2. **Workspace Groups & Human Roles**
    - `gcp-i4g-admin@intelligenceforgood.org` — break-glass administrator group. Terraform grants `roles/owner` on each project.
@@ -155,7 +154,7 @@ researcher  <  user  <  analyst  <  leo  ≤  admin
    - Terraform manages both the Cloud Run `roles/run.invoker` binding and the IAP `roles/iap.httpsResourceAccessor` policy, both derived from `i4g_analyst_members`. Avoid manual IAM edits so Terraform remains authoritative.
 
 4. **Data Plane Permissions**
-   - Cloud SQL: analysts read only assigned cases; PII vault locked to backend service account.
+   - Cloud SQL: analysts read only assigned cases; victim contact fields encrypted at app layer.
    - Cloud Storage: uniform bucket-level access; signed URLs for user downloads/uploads.
    - Vertex AI Search: custom roles bound to runtime SAs.
    - Secret Manager: versioned secrets per service account; rotate quarterly.

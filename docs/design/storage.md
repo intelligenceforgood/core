@@ -43,7 +43,7 @@ This document details the storage backends used by the i4g platform across diffe
   - `intake_jobs`: Async processing jobs for intake records.
   - `scam_records`: Legacy flat view used by RAG pipeline.
   - `ingestion_retry_queue`: Failed writes queued for retry.
-  - `pii_tokens` (vault): HMAC-based PII tokens (isolated database).
+  - `pii_tokens` — **deprecated** (no longer used; see intake encryption in `pii_vault.md`).
 - **Access**: Accessed via `EntityStore`, `ReviewStore`, `IntakeStore`, and SQLAlchemy sessions.
 - **Full schema reference**: See [data_model.md](data_model.md) for the complete table inventory.
 - **Infrastructure**:
@@ -100,7 +100,7 @@ This document details the storage backends used by the i4g platform across diffe
 ### Ingestion Pipeline
 
 1.  **Extract**: Bundles (JSONL) are read from source.
-2.  **Transform**: Text is chunked, PII is tokenized (if enabled), and embeddings are generated.
+2.  **Transform**: Text is chunked, embeddings are generated, and victim contact fields are encrypted.
 3.  **Load**:
     - **SQL**: Metadata, entities, and text chunks are written to Cloud SQL/SQLite.
     - **Vector**: Embeddings are upserted to Vertex AI/Chroma.

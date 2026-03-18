@@ -66,10 +66,10 @@ i4g bootstrap local verify --smoke-search --smoke-dossiers
     ```bash
     gcloud config set auth/impersonate_service_account sa-infra@i4g-dev.iam.gserviceaccount.com
     ```
-3.  **PII Pepper**: For verification commands to work locally (which verify remote jobs), you must export the tokenization pepper.
+3.  **Crypto Key** (optional): If you need to verify intake encryption locally, export the Fernet key.
     ```bash
     # Fetch from Secret Manager if you have access, or ask an admin
-    export I4G_PII__PEPPER=$(gcloud secrets versions access latest --secret="tokenization-pepper" --project="i4g-dev")
+    export I4G_CRYPTO__PII_KEY=$(gcloud secrets versions access latest --secret="I4G_CRYPTO__PII_KEY" --project="i4g-dev")
     ```
 
 ### Bootstrap Command
@@ -100,11 +100,9 @@ To reset the dev environment by triggering Cloud Run jobs (standard procedure). 
 
 ### Verification Only
 
-If you only want to run the smoke tests without rebuilding data. **Note:** This requires `I4G_PII__PEPPER` to be set in your local environment so the local runner can inject it into the verification logic.
+If you only want to run the smoke tests without rebuilding data.
 
 ```bash
-export I4G_PII__PEPPER=$(gcloud secrets versions access latest --secret="tokenization-pepper" --project="i4g-dev")
-
 I4G_ENV=dev i4g bootstrap dev verify \
   --run-smoke \
   --run-dossier-smoke \

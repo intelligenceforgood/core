@@ -133,8 +133,6 @@ Dev variables should already exist. Add prod:
 ```bash
 gh variable set TF_GCP_PROD_PROJECT_ID --body "i4g-prod" --repo intelligenceforgood/infra
 
-gh variable set TF_GCP_PROD_PII_VAULT_PROJECT_ID --body "<your-prod-pii-vault-project>" --repo intelligenceforgood/infra
-
 gh variable set TF_GCP_PROD_WORKLOAD_IDENTITY_PROVIDER \
   --body "projects/$(gcloud projects describe i4g-prod --format='value(projectNumber)')/locations/global/workloadIdentityPools/github-actions/providers/core" \
   --repo intelligenceforgood/infra

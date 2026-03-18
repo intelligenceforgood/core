@@ -7,6 +7,7 @@
 **Audience:** Software engineers, DevOps/SRE, security reviewers.
 
 ### Quick navigation
+
 - [Scope and goals](#1-scope-and-goals)
 - [System overview](#2-system-overview-how-this-complements-architecturemd)
 - [Core components](#3-core-components)
@@ -23,25 +24,29 @@
 ---
 
 ## 1) Scope and Goals
-- Document the active design: hybrid search, dual-write ingestion, tokenization/PII vault, Next.js portal, and FastAPI backend.
+
+- Document the active design: hybrid search, dual-write ingestion, intake encryption, Next.js portal, and FastAPI backend.
 - Capture contracts: settings/env, data stores, APIs, and background jobs.
 - Provide implementation notes that are stable enough for code, tests, and runbooks.
 
 Out of scope: legacy Azure flow and deprecated endpoints; refer to planning archive if needed.
 
 ## 2) System Overview (how this complements architecture.md)
+
 - [Architecture.md](../design/architecture.md) supplies diagrams, deployment profiles, and guiding principles.
 - **This TDD** adds concrete implementation details and contracts: APIs, data model schemas, request/response shapes, toggles, and operational defaults.
 
 ## 3) Core Components
+
 - **FastAPI backend** (`src/i4g/api/*`): REST endpoints for ingestion, search, reviews, tasks, and reports.
 - **Next.js portal** (ui/apps/web): primary analyst/victim/LEO UI; consumes the same API contracts documented here.
 - **Background jobs** (`src/i4g/worker/jobs/*`, `src/i4g/worker/tasks.py`): ingestion, report generation, dossier queue.
-- **Ingestion pipeline** (`src/i4g/store/ingest.py`): structured store write + SQL dual-write + optional vector/Vertex fan-out; tokenization on/off via settings.
+- **Ingestion pipeline** (`src/i4g/store/ingest.py`): structured store write + SQL dual-write + optional vector/Vertex fan-out.
 - **Retrieval** (Hybrid): merges vector results and SQL entity filters; uses structured entities + embeddings.
 - **Reports/Dossiers** (`src/i4g/reports/*`): manifest generation, signatures, and packaging for LEA handoff.
 
 ## 4) Data Stores and Contracts
+
 > **Note**: For a detailed comparison of storage backends across environments, see [Storage Architecture](../design/storage_architecture.md).
 
 - **Structured store** (`src/i4g/store/structured.py`): SQLite (default) records for console reads; mirrors ingestion payloads.
@@ -52,10 +57,11 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
   - `indicators` for structured filters; `ingestion_runs` for metrics; `ingestion_retry_queue` for fan-out retries.
 - **Vector store**: default Chroma (`vector.backend=chroma`, `vector.chroma_dir=data/chroma_store`); Vertex AI or pgvector planned via factories. Stores chunked text embeddings keyed by `case_id`/document.
 - **Structured Store**: Cloud SQL (Cloud) or SQLite (Local) for case metadata and flexible schema documents.
-- **Tokenization/PII vault** (`src/i4g/pii/tokenization.py`, `src/i4g/store/pii_token_store.py`): deterministic tokens with pepper + optional encryption key; stored in SQLite; prefixes per entity type (IPA, ASN, BFP, etc.).
+- **Intake encryption** (`src/i4g/store/intake_store.py`): Fernet encryption of victim contact fields (reporter name, email, phone, handle) on write; decryption on authorized read via `GET /intakes/{id}/contact`.
 - **Artifacts**: reports and evidence in `data/` locally; Cloud Storage buckets in managed profiles.
 
 ## 5) Configuration and Environment
+
 - Load settings via `i4g.settings.get_settings()`; overrides: `config/settings.*.toml` → `.env.local` → `I4G_*` env vars (double underscores for nesting).
 - Key toggles (ingestion):
   - `ingestion.enable_sql` (dual-write tables)
@@ -63,11 +69,12 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
   - `ingestion.enable_vertex`
   - `ingestion.default_dataset`
 - Paths: `storage.sqlite_path`, `vector.chroma_dir`, `ingestion.dataset_path`, `data/` assets seeded via `i4g bootstrap local reset --report-dir data/reports/local_bootstrap`.
-- Secrets: prefer Secret Manager in managed envs; local `.env.local` for pepper/key (`I4G_TOKENIZATION__PEPPER`, `I4G_CRYPTO__PII_KEY`).
+- Secrets: prefer Secret Manager in managed envs; local `.env.local` for the Fernet key (`I4G_CRYPTO__PII_KEY`).
 
 ## 6) Ingestion Flow (canonical)
+
 1. **Input normalization**: `prepare_ingest_payload()` merges text, entities, structured fields, network entities, metadata, dataset.
-2. **Tokenization**: `TokenizationService.tokenize_entities()` replaces entity values with deterministic tokens and stores canonical values in the PII vault.
+2. **Intake encryption**: `IntakeStore.create()` encrypts victim contact fields (reporter_name, contact_email, contact_phone, contact_handle) with Fernet before the database write.
 3. **Structured write**: `StructuredStore.upsert_record()` persists the `ScamRecord` for console reads.
 4. **Case bundle build**: `build_case_bundle()` assembles `CasePayload`, `SourceDocumentPayload`, `EntityPayload` from classification result and metadata.
 5. **SQL dual-write**: `SqlWriter.persist_case_bundle()` writes cases/entities/documents; controlled by `enable_sql`.
@@ -76,20 +83,23 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 8. **Retry**: ingestion retry queue (SQL table) for downstream fan-out errors.
 
 ## 7) APIs and Contracts (current surface)
+
 - **Search/Reviews**
   - `POST /reviews/search` and `GET /reviews/search/schema`; payload matches `HybridSearchRequest` (text + vector/structured filters).
   - `GET /reviews/{id}` returns case/review details with entity annotations; aligns with SQL + structured store schema.
   - Saved searches: stored per owner/shared; schema driven by `search.saved_search` settings; admin CLI `i4g-admin export/import`.
 - **Tasks/Status**
   - `GET /tasks/{task_id}` for job state (ingestion/report jobs); used by UI for progress.
-- **Tokenization (internal/admin)**
-  - `POST /tokenize` (if exposed) for deterministic tokens using configured pepper/key. Preferred usage is via ingestion.
+- **Intake API**
+  - `POST /intakes/` creates a new intake record (contact fields encrypted at rest).
+  - `GET /intakes/{id}/contact` returns decrypted contact fields with audit logging.
 - **Reports/Dossiers**
   - Report generation entrypoints map to worker tasks; dossiers produced by queue jobs and surfaced in console.
 - **Ingestion jobs**
   - CLI/Cloud Run jobs (`i4g jobs ingest`, `i4g jobs intake`) consume normalized ingestion payloads (`prepare_ingest_payload` contract).
 
 ## 8) Data Model and Schemas
+
 - **Structured store record** (`ScamRecord`): `case_id`, `text`, `entities{type:[value]}`, `classification`, `confidence`, `metadata`.
 - **SQL dual-write tables** (see `src/i4g/store/sql.py`):
   - `cases`: dataset, classification, confidence, raw_text_sha256, status, metadata.
@@ -98,39 +108,45 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
   - `indicators`: structured signals (email/phone/ip/crypto/wallet/etc.).
   - `ingestion_runs`: run metadata and counts; `ingestion_retry_queue`: fan-out retries.
 - **Vector store payload**: chunked text with case_id/document_id; embeddings stored in Chroma by default.
-- **Tokenization store**: `pii_tokens` table via `PiiTokenStore` with token, prefix, digest, normalized_value, canonical_value, detector, case_id, created_at.
+- **Intake encryption**: `intake_records` table stores Fernet-encrypted contact fields; decrypted on authorized read.
 - **Saved search schema**: JSON schema at `/reviews/search/schema`; snapshot at `docs/examples/reviews_search_schema.json`.
 
 ## 9) Reports and Dossiers
+
 - **Generation**: `generate_report_for_case` and dossier queue workers produce manifests and signed bundles.
 - **Signatures**: manifests hashed and signed; verification helper in `src/i4g/reports/dossier_signatures.py`.
 - **Handoff**: runbooks in `docs/runbooks/console/reports.md` and `docs/runbooks/dossiers_subpoena_handoff.md`.
 
 ## 10) Deployment Profiles
+
 - **Managed (Cloud Run/GCP)**: Cloud SQL/Cloud Storage, Secret Manager, Vertex optional; Workload Identity; IAP for portals.
 - **Local**: SQLite + Chroma, mock identity, `.env.local` secrets, scheduled jobs off; run via `uvicorn i4g.api.app:app --reload` and cookbooks in `docs/cookbooks/`.
 - Settings remain identical across profiles; swapping is env + config only.
 
 ## 11) Security & Privacy
-- PII tokenization with pepper and optional encryption; tokens logged, not raw PII.
+
+- Victim contact fields encrypted at intake via Fernet; investigation entities stored in cleartext.
 - Access control: Identity Platform/IAP (managed), mock tokens (local). Audit logging via store log actions.
 - Secrets management: Secret Manager in managed envs; avoid embedding secrets in code/docs.
-- Data residency: artifacts under `data/` locally; buckets per env; avoid cross-env leakage when reusing peppers.
+- Data residency: artifacts under `data/` locally; buckets per env.
 
 ## 12) Testing & Quality
+
 - Unit/contract tests in `tests/unit/`; settings/env overrides covered in `tests/unit/settings/`.
 - Smokes and recipes: `docs/cookbooks/smoke_test.md`, `docs/cookbooks/bootstrap_environments.md`.
 - Runbooks: `docs/runbooks/` for operational checks; Playwright smokes in `ui/` for console.
 - Before releases: follow `docs/release/README.md` checklist; regenerate settings manifests when toggles change (`scripts/export_settings_manifest.py`).
 
 ## 13) Open Follow-Ups
+
 - Add pgvector/Vertex AI vector backends to parity with Chroma in factories.
 - Refresh saved-search schema snapshot and ensure UI fixtures stay aligned.
 - Expand TDD API section with up-to-date request/response samples for search/tasks/intake once stabilized.
   "assigned_to": "analyst_uid_456",
   "updated_at": "2025-10-30T15:00:00Z"
-}
-```
+  }
+
+````
 
 ---
 
@@ -145,9 +161,10 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 {
   "text": "Verified wire transfer receipt. Recommend contacting bank."
 }
-```
+````
 
 **Response** (201 Created):
+
 ```json
 {
   "note_id": "uuid-v4",
@@ -167,6 +184,7 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 **Authentication**: Required (analyst or admin)
 
 **Request Body**:
+
 ```json
 {
   "user_consent": true
@@ -174,6 +192,7 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 ```
 
 **Response** (200 OK):
+
 ```json
 {
   "case_id": "uuid-v4",
@@ -184,8 +203,9 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 ```
 
 **Implementation Steps**:
+
 1. Verify analyst has access to case
-2. Fetch encrypted PII from `/pii_vault`
+2. Fetch decrypted contact data from `/intakes/{id}/contact`
 3. Decrypt PII
 4. Generate PDF report with real PII
 5. Upload PDF to Cloud Storage
@@ -201,6 +221,7 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 **Authentication**: Optional (user can use email-based token)
 
 **Response** (200 OK):
+
 ```json
 {
   "case_id": "uuid-v4",
@@ -226,8 +247,9 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
 **Response** (204 No Content)
 
 **Implementation Steps**:
+
 1. Delete from `cases` table
-2. Delete all PII from `pii_vault` where `case_id` matches
+2. Delete intake records (encrypted contact data removed with the row)
 3. Delete evidence files from Cloud Storage
 4. Delete vector embeddings from ChromaDB
 5. Log deletion in audit trail
@@ -254,6 +276,7 @@ PII_PATTERNS = {
 For contextual PII (e.g., "my social is 123-45-6789"), use LLM:
 
 **Prompt**:
+
 ```python
 prompt = f"""
 Extract all personally identifiable information (PII) from the following text.
@@ -270,6 +293,7 @@ pii = json.loads(response['message']['content'])
 ```
 
 **Example**:
+
 ```json
 {
   "ssn": "123-45-6789",
@@ -307,6 +331,7 @@ Examples:
 ```
 
 **Hash Generation**:
+
 ```python
 import hashlib
 
@@ -398,30 +423,36 @@ interface Case {
   // User info
   user_email: string;
   title: string;
-  description: string;  // Contains PII tokens: <PII:SSN:7a8f2e>
+  description: string; // Contains PII tokens: <PII:SSN:7a8f2e>
 
   // Classification
   classification: {
     type: "Romance Scam" | "Crypto Scam" | "Phishing" | "Other";
-    confidence: number;  // 0.0 - 1.0
-    llm_model: string;   // "llama3.1"
+    confidence: number; // 0.0 - 1.0
+    llm_model: string; // "llama3.1"
   };
 
   // Status
-  status: "new" | "in_review" | "awaiting_input" | "accepted" | "rejected" | "closed";
-  assigned_to: string | null;  // analyst UID
+  status:
+    | "new"
+    | "in_review"
+    | "awaiting_input"
+    | "accepted"
+    | "rejected"
+    | "closed";
+  assigned_to: string | null; // analyst UID
 
   // Evidence
   evidence_files: Array<{
     filename: string;
-    url: string;  // gs:// URL
+    url: string; // gs:// URL
     mime_type: string;
     size_bytes: number;
   }>;
 
   // Analyst notes
   notes: Array<{
-    author: string;  // analyst UID
+    author: string; // analyst UID
     author_name: string;
     text: string;
     timestamp: Timestamp;
@@ -435,15 +466,17 @@ interface Case {
 
 ---
 
-### Table: `pii_vault`
+### Table: `intake_records` (encrypted fields)
 
 ```typescript
-interface PIIVaultEntry {
-  token: string;  // e.g., "7a8f2e"
-  case_id: string;
-  pii_type: "ssn" | "email" | "phone" | "credit_card" | "address" | "dob";
-  encrypted_value: Uint8Array;  // AES-256-GCM ciphertext
-  encryption_key_version: string;  // "20251030" (for key rotation)
+interface IntakeRecord {
+  intake_id: string;
+  reporter_name: Uint8Array; // Fernet-encrypted
+  contact_email: Uint8Array; // Fernet-encrypted
+  contact_phone: Uint8Array; // Fernet-encrypted
+  contact_handle: Uint8Array; // Fernet-encrypted
+  summary: string;
+  details: string;
   created_at: Timestamp;
 }
 ```
@@ -454,11 +487,11 @@ interface PIIVaultEntry {
 
 ```typescript
 interface Analyst {
-  uid: string;  // Google OAuth UID
+  uid: string; // Google OAuth UID
   email: string;
   full_name: string;
   role: "analyst" | "admin";
-  approved: boolean;  // Must be true to access cases
+  approved: boolean; // Must be true to access cases
   ferpa_certified: boolean;
   last_login: Timestamp;
   created_at: Timestamp;
@@ -471,25 +504,27 @@ interface Analyst {
 
 ### STRIDE Threat Model
 
-| Threat | Mitigation |
-|--------|------------|
-| **Spoofing** | OAuth 2.0 (Google trusted provider), JWT signatures |
-| **Tampering** | Database access controls, TLS 1.3, read-only API for users |
-| **Repudiation** | Audit logs (all `/pii_vault` access logged) |
-| **Information Disclosure** | PII tokenization, encryption at rest, HTTPS |
-| **Denial of Service** | Cloud Armor (DDoS protection), rate limiting |
-| **Elevation of Privilege** | Database access controls, role-based access control |
+| Threat                     | Mitigation                                                 |
+| -------------------------- | ---------------------------------------------------------- |
+| **Spoofing**               | OAuth 2.0 (Google trusted provider), JWT signatures        |
+| **Tampering**              | Database access controls, TLS 1.3, read-only API for users |
+| **Repudiation**            | Audit logs (all contact decryption access logged)          |
+| **Information Disclosure** | Intake encryption, encryption at rest, HTTPS               |
+| **Denial of Service**      | Cloud Armor (DDoS protection), rate limiting               |
+| **Elevation of Privilege** | Database access controls, role-based access control        |
 
 ---
 
 ### Encryption
 
 **At Rest**:
+
 - Cloud SQL: Encryption at rest (AES-256)
 - Cloud Storage: Customer-managed encryption keys (CMEK)
-- PII Vault: Additional AES-256-GCM layer
+- PII Vault: Fernet encryption for victim contact fields
 
 **In Transit**:
+
 - All API calls: TLS 1.3
 - Cloud Run: HTTPS only (HTTP redirects to HTTPS)
 
@@ -522,6 +557,7 @@ log_event("case_approved", user['uid'], {"case_id": case_id, "classification": "
 ```
 
 **Log Output**:
+
 ```json
 {
   "timestamp": "2025-10-30T12:00:00Z",
@@ -546,9 +582,9 @@ from google.cloud import monitoring_v3
 client = monitoring_v3.MetricServiceClient()
 project_name = f"projects/{os.getenv('GCP_PROJECT_ID')}"
 
-def record_pii_vault_access(case_id: str):
+def record_contact_decrypt_access(case_id: str):
     series = monitoring_v3.TimeSeries()
-    series.metric.type = "custom.googleapis.com/i4g/pii_vault_access"
+    series.metric.type = "custom.googleapis.com/i4g/contact_decrypt_access"
     series.resource.type = "global"
 
     point = monitoring_v3.Point()
@@ -564,6 +600,7 @@ def record_pii_vault_access(case_id: str):
 ### Alerting Policies
 
 **Error Rate Alert**:
+
 ```yaml
 displayName: "High Error Rate"
 conditions:
@@ -599,7 +636,7 @@ jobs:
 
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
@@ -727,33 +764,24 @@ gcloud run services describe i4g-api --region us-central1 --format 'value(status
 ### Unit Tests (80% coverage target)
 
 ```python
-# tests/unit/test_pii_tokenizer.py
+# tests/unit/test_intake_encryption.py
 import pytest
-from i4g.security.pii import tokenize_pii, decrypt_token
+from i4g.store.intake_store import IntakeStore
 
-def test_ssn_tokenization():
-    text = "My SSN is 123-45-6789"
-    result = tokenize_pii(text)
+def test_contact_fields_encrypted_on_write():
+    store = IntakeStore(engine=test_engine, fernet_key=test_key)
+    record = store.create(reporter_name="Jane Doe", contact_email="jane@example.com")
+    # Raw DB row should contain encrypted bytes, not cleartext
+    raw = fetch_raw_row(record.intake_id)
+    assert raw["reporter_name"] != "Jane Doe"
+    assert raw["contact_email"] != "jane@example.com"
 
-    assert "ssn" in result["tokens"]
-    assert "123-45-6789" not in result["tokenized_text"]
-    assert "<PII:SSN:" in result["tokenized_text"]
-
-def test_email_tokenization():
-    text = "Contact me at user@example.com"
-    result = tokenize_pii(text)
-
-    assert "email" in result["tokens"]
-    assert "user@example.com" not in result["tokenized_text"]
-
-def test_multiple_pii_types():
-    text = "SSN: 123-45-6789, Email: user@example.com, Phone: (555) 123-4567"
-    result = tokenize_pii(text)
-
-    assert len(result["tokens"]) == 3
-    assert "ssn" in result["tokens"]
-    assert "email" in result["tokens"]
-    assert "phone" in result["tokens"]
+def test_contact_fields_decrypted_on_read():
+    store = IntakeStore(engine=test_engine, fernet_key=test_key)
+    record = store.create(reporter_name="Jane Doe", contact_email="jane@example.com")
+    contact = store.get_contact(record.intake_id)
+    assert contact["reporter_name"] == "Jane Doe"
+    assert contact["contact_email"] == "jane@example.com"
 ```
 
 ---
@@ -827,6 +855,7 @@ class I4GUser(HttpUser):
 ```
 
 **Target Performance**:
+
 - 20 concurrent users
 - p95 latency < 2 seconds
 - Error rate < 1%
@@ -847,13 +876,14 @@ gsutil lifecycle set lifecycle.json gs://i4g-backups
 ```
 
 **lifecycle.json**:
+
 ```json
 {
   "lifecycle": {
     "rule": [
       {
-        "action": {"type": "Delete"},
-        "condition": {"age": 7}
+        "action": { "type": "Delete" },
+        "condition": { "age": 7 }
       }
     ]
   }
@@ -874,17 +904,17 @@ gsutil ls gs://i4g-backups/
 gcloud sql backups restore BACKUP_ID --restore-instance=i4g-prod
 ```
 
-**Scenario 2: PII vault corruption**
+**Scenario 2: Encryption key compromise**
 
 ```python
-# 1. Stop API (prevent further writes)
-gcloud run services update i4g-api --no-traffic
+# 1. Rotate the Fernet key in Secret Manager
+gcloud secrets versions add I4G_CRYPTO__PII_KEY --data-file=new_key.txt
 
-# 2. Restore from backup
-gcloud sql backups restore BACKUP_ID --restore-instance=i4g-prod
+# 2. Re-encrypt intake records with the new key
+i4g jobs re-encrypt-contacts
 
-# 3. Validate restoration
-python scripts/validate_pii_vault.py
+# 3. Disable the old key version
+gcloud secrets versions disable OLD_VERSION --secret=I4G_CRYPTO__PII_KEY
 
 # 4. Resume traffic
 gcloud run services update i4g-api --traffic

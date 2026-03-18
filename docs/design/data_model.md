@@ -5,16 +5,15 @@
 
 This document describes the relational schema for the i4g platform. All tables are defined
 as SQLAlchemy Core `Table` objects in `src/i4g/store/sql.py` and managed via Alembic
-migrations. The platform uses two separate `MetaData` instances to enforce PII isolation.
+migrations.
 
 ---
 
 ## 1. Database Topology
 
-| Database  | MetaData         | Backend (local)        | Backend (cloud)              | Purpose                                   |
-| --------- | ---------------- | ---------------------- | ---------------------------- | ----------------------------------------- |
-| Main      | `METADATA`       | SQLite                 | Cloud SQL (PostgreSQL)       | Cases, ingestion, reviews, search, intake |
-| PII Vault | `VAULT_METADATA` | SQLite (separate file) | Cloud SQL (isolated project) | Tokenized PII only                        |
+| Database | MetaData   | Backend (local) | Backend (cloud)        | Purpose                                   |
+| -------- | ---------- | --------------- | ---------------------- | ----------------------------------------- |
+| Main     | `METADATA` | SQLite          | Cloud SQL (PostgreSQL) | Cases, ingestion, reviews, search, intake |
 
 Engine construction is handled by `build_engine()` in `sql.py`, with caching for the
 default-settings path. Cloud SQL connections use `google-cloud-sql-connector` with
@@ -71,13 +70,7 @@ default-settings path. Cloud SQL connections use `google-cloud-sql-connector` wi
 | -------------- | ---------------- | ------------------------------------------------------------------------------------------- |
 | `scam_records` | `case_id` (text) | Flat denormalized view used by the RAG pipeline (text, entities, classification, embedding) |
 
-### 2.7 PII Vault (Isolated Database)
-
-| Table        | PK                         | Purpose                                                                                                                             |
-| ------------ | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `pii_tokens` | `token` (string, 20 chars) | HMAC-based PII tokens. Stores digest, normalized/canonical values, optional encrypted blob, prefix for entity type, pepper version. |
-
-### 2.8 Threat Intelligence & Analytics (TIFAP)
+### 2.7 Threat Intelligence & Analytics (TIFAP)
 
 | Table                    | PK                               | Purpose                                                                                                   |
 | ------------------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------- |
@@ -134,10 +127,8 @@ reference cases by `case_id` (no FK constraint — kept loose for cross-store fl
 
 ## 5. Migrations
 
-Schema changes are managed by Alembic. Two separate configuration files track the main
-and vault databases independently:
+Schema changes are managed by Alembic.
 
 - `alembic.ini` — main database (`METADATA`)
-- `alembic_vault.ini` — PII vault database (`VAULT_METADATA`)
 
 See `src/i4g/store/sql.py` for the authoritative table definitions.
