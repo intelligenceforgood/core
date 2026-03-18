@@ -59,6 +59,21 @@ Source: `ui/apps/web/src/lib/i4g-client.ts` → `resolveClient()`.
 | `/api/ssi/investigations/{id}` | `api/ssi/investigations/[id]/route.ts` | Core `GET /investigations/ssi/{id}`                                    | Direct proxy                                        |
 | `/api/ssi/wallets`             | `api/ssi/wallets/route.ts`             | Core `GET /investigations/ssi/wallets`                                 | Direct proxy                                        |
 
+### eCX proxy routes (direct to SSI — require `SSI_API_URL`)
+
+The eCX proxy routes forward **directly to ssi-svc** (not through core). They use `resolveSsiUrl()` from `ui/apps/web/src/lib/server/ssi-proxy.ts`, which reads `SSI_API_URL`. In cloud, this env var is injected via Terraform (`module.run_ssi_service[0].uri`). Auth is handled by `ssiHeaders()` (OIDC identity token with ssi-svc URL as audience).
+
+| Browser path                          | Next.js route file                                    | Proxies to (SSI)                       |
+| ------------------------------------- | ----------------------------------------------------- | -------------------------------------- |
+| `/api/ssi/ecx/feed`                   | `api/ssi/ecx/feed/route.ts`                           | SSI `GET /ecx/feed`                    |
+| `/api/ssi/ecx/polling-status`         | `api/ssi/ecx/polling-status/route.ts`                 | SSI `GET /ecx/polling-status`          |
+| `/api/ssi/ecx/submissions`            | `api/ssi/ecx/submissions/route.ts`                    | SSI `GET /ecx/submissions`             |
+| `/api/ssi/ecx/submissions/{id}/approve` | `api/ssi/ecx/submissions/[id]/approve/route.ts`     | SSI `POST /ecx/submissions/{id}/approve` |
+| `/api/ssi/ecx/submissions/{id}/reject`  | `api/ssi/ecx/submissions/[id]/reject/route.ts`      | SSI `POST /ecx/submissions/{id}/reject`  |
+| `/api/ssi/ecx/submissions/{id}/retract` | `api/ssi/ecx/submissions/[id]/retract/route.ts`     | SSI `POST /ecx/submissions/{id}/retract` |
+| `/api/ssi/ecx/investigate/{id}`       | `api/ssi/ecx/investigate/[id]/route.ts`               | SSI `POST /ecx/investigate/{id}`       |
+| `/api/ssi/ecx/stats/*`                | `api/ssi/ecx/stats/*/route.ts`                        | SSI `GET /ecx/stats/*`                 |
+
 ### Core API router mounts (prefix map)
 
 | Prefix                 | Router file             | Key endpoints                                                             |
