@@ -50,10 +50,10 @@ Source: `ui/apps/web/src/lib/i4g-client.ts` → `resolveClient()`.
 
 ### SSI-specific Next.js API routes
 
-| Browser path                   | Next.js route file                     | Proxies to (core API)                                                  | Notes                                               |
-| ------------------------------ | -------------------------------------- | ---------------------------------------------------------------------- | --------------------------------------------------- |
-| `/api/ssi/investigate`         | `api/ssi/investigate/route.ts`         | Local: SSI `POST /investigate`; Cloud: Core `POST /investigations/ssi` | Normalizes response shape                           |
-| `/api/ssi/investigate/{id}`    | `api/ssi/investigate/[id]/route.ts`    | Local: SSI `GET /investigate/{id}`; Cloud: Core `GET /tasks/{id}`      | Normalizes status + result                          |
+| Browser path                   | Next.js route file                     | Proxies to (core API)                                      | Notes                                               |
+| ------------------------------ | -------------------------------------- | ---------------------------------------------------------- | --------------------------------------------------- |
+| `/api/ssi/investigate`         | `api/ssi/investigate/route.ts`         | Core `POST /investigations/ssi`                            | Core orchestrates; triggers SSI service              |
+| `/api/ssi/investigate/{id}`    | `api/ssi/investigate/[id]/route.ts`    | Core `GET /tasks/{id}`                                     | Core is single source of truth for task status       |
 | `/api/ssi/report/{id}`         | `api/ssi/report/[id]/route.ts`         | Core `GET /investigations/ssi/{id}/report.pdf`                         | Handles GCS 307 redirects, sets Content-Disposition |
 | `/api/ssi/investigations`      | `api/ssi/investigations/route.ts`      | Core `GET /investigations/ssi/history`                                 | Passes query params                                 |
 | `/api/ssi/investigations/{id}` | `api/ssi/investigations/[id]/route.ts` | Core `GET /investigations/ssi/{id}`                                    | Direct proxy                                        |
@@ -182,12 +182,20 @@ When `ScanStore` creates a case, it stores `ssi_investigation_id` in case metada
 
 This ID links the case back to SSI's `site_scans` table and is used to construct evidence download URLs.
 
-### SSI dual-environment routing
+### SSI investigation routing (unified — all environments)
 
-| Environment | Investigation trigger                                                                                           | Status polling                                                             | Evidence download                                                                               |
-| ----------- | --------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Local       | UI → Next.js `/api/ssi/investigate` → SSI API (port 8100) `POST /investigate`                                   | UI → Next.js `/api/ssi/investigate/{id}` → SSI API `GET /investigate/{id}` | UI → Next.js `/api/ssi/report/{id}` → Core `GET /investigations/ssi/{id}/report.pdf` → local FS |
-| Cloud       | UI → Next.js `/api/ssi/investigate` → Core `POST /investigations/ssi` → SSI Service `POST /trigger/investigate` | UI → Next.js `/api/ssi/investigate/{id}` → Core `GET /tasks/{task_id}`     | UI → Next.js `/api/ssi/report/{id}` → Core → 307 → GCS signed URL                               |
+Investigation lifecycle routes **always** go through Core, regardless of environment.
+Core is the orchestrator: it creates task records, performs dedup, triggers SSI, and tracks status.
+This ensures manual (UI) and automated (case-intake) triggers share one code path.
+
+| Operation               | Flow                                                                                                             | Notes                                                                     |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Investigation trigger   | UI → Next.js `/api/ssi/investigate` → Core `POST /investigations/ssi` → SSI Service `POST /trigger/investigate`  | Core creates task, runs dedup, dispatches to SSI                          |
+| Status polling          | UI → Next.js `/api/ssi/investigate/{id}` → Core `GET /tasks/{id}`                                                | SSI pushes updates via `TaskStatusReporter`; Core is single status source |
+| Evidence download       | UI → Next.js `/api/ssi/report/{id}` → Core `GET /investigations/ssi/{id}/report.pdf`                             | Local: serves from FS; Cloud: 307 → GCS signed URL                       |
+| Automated trigger       | Core case-processing → Core `POST /investigations/ssi` → SSI Service                                             | Same endpoint, no UI involvement                                          |
+
+**Local dev requirement:** Core must have `I4G_SSI__SERVICE_URL=http://localhost:8100` so it can reach the SSI service.
 
 ---
 
@@ -236,7 +244,7 @@ site_scans ──1:N──▶ harvested_wallets
    - Catch-all: `/api/investigations/ssi/{scan_id}/report.pdf` (also works but less robust)
      Always use the dedicated route for consistency.
 
-4. **SSI API not running standalone in cloud** — The standalone SSI FastAPI (`port 8100`) only runs locally. In cloud, core triggers SSI via HTTP POST to the SSI Cloud Run Service (`POST /trigger/investigate`). Next.js SSI proxy routes handle the dual routing automatically.
+4. **SSI investigation routes always go through Core** — Investigation trigger and status polling are always proxied via Core API, not direct to SSI. This applies to both local and cloud. Core orchestrates the workflow (task creation, dedup, dispatch, status tracking). Only eCX routes go direct to SSI. If adding new SSI investigation endpoints, route them through Core.
 
 5. **Router registration order** — SSI routers with specific paths (wallets, evidence) must be registered before the `/{scan_id}` catch-all. Changing order in `app.py` can break routing.
 
