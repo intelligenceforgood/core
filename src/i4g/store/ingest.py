@@ -33,6 +33,12 @@ if TYPE_CHECKING:
 
 LOGGER = logging.getLogger(__name__)
 
+# Victim-contact markers used when redacting PII from case text.
+_REDACTION_MAP = {
+    "contact_email": "[VICTIM_EMAIL]",
+    "contact_phone": "[VICTIM_PHONE]",
+}
+
 
 @dataclass(slots=True)
 class IngestResult:
@@ -131,6 +137,25 @@ def _normalise_entity_value(raw_value: Any) -> tuple[str | None, float, str | No
     if isinstance(raw_value, str):
         return raw_value, 0.0, raw_value
     return None, 0.0, None
+
+
+def redact_victim_contact(text: str, contact_fields: dict[str, str | None]) -> str:
+    """Replace exact occurrences of victim contact values in *text* with markers.
+
+    Args:
+        text: The case text to redact.
+        contact_fields: Mapping of field name → value, e.g.
+            ``{"contact_email": "alice@example.com", "contact_phone": "555-1234"}``.
+
+    Returns:
+        Text with victim contact values replaced by ``[VICTIM_EMAIL]`` /
+        ``[VICTIM_PHONE]`` markers.
+    """
+    for field, marker in _REDACTION_MAP.items():
+        value = contact_fields.get(field)
+        if value:
+            text = text.replace(value, marker)
+    return text
 
 
 class IngestPipeline:
@@ -257,9 +282,17 @@ class IngestPipeline:
             }
         )
 
+        # Redact victim contact info from case text before storage
+        raw_text = classification_result.get("text", "")
+        contact_fields = {
+            "contact_email": final_metadata.get("contact_email") or classification_result.get("contact_email"),
+            "contact_phone": final_metadata.get("contact_phone") or classification_result.get("contact_phone"),
+        }
+        text = redact_victim_contact(raw_text, contact_fields) if raw_text else raw_text
+
         record = ScamRecord(
             case_id=case_id,
-            text=classification_result.get("text", ""),
+            text=text,
             entities={
                 k: [v["value"] if isinstance(v, dict) else v for v in vs]
                 for k, vs in classification_result.get("entities", {}).items()
@@ -277,8 +310,8 @@ class IngestPipeline:
         need_case_bundle = self._sql_enabled and self.sql_writer is not None
         bundle: CaseBundle | None = None
         if need_case_bundle:
-            text = classification_result.get("text") or record.text
-            if not text:
+            bundle_text = text or record.text
+            if not bundle_text:
                 LOGGER.debug("Skipping SQL fan-out for case_id=%s due to empty text", record.case_id)
             else:
                 dataset = self._resolve_dataset(classification_result)
@@ -287,7 +320,7 @@ class IngestPipeline:
                         classification_result,
                         case_id=record.case_id,
                         dataset=dataset,
-                        text=text,
+                        text=bundle_text,
                     )
                 except ValueError:
                     LOGGER.warning("Case bundle missing required fields for case_id=%s", record.case_id)

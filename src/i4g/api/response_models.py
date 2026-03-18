@@ -541,6 +541,17 @@ class IntakeRecordResponse(CamelModel):
     intake_id: str
 
 
+class IntakeContactResponse(CamelModel):
+    """Decrypted victim contact fields."""
+
+    intake_id: str
+    reporter_name: str | None = None
+    contact_email: str | None = None
+    contact_phone: str | None = None
+    contact_handle: str | None = None
+    preferred_contact: str | None = None
+
+
 class IntakeJobResponse(CamelModel):
     """Intake job status detail."""
 

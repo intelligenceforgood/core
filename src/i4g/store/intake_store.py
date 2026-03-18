@@ -7,6 +7,7 @@ sprint (WS-3 / D16).
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,6 +22,8 @@ from i4g.store.sql import (
     METADATA,
 )
 from i4g.store.sql import session_factory as build_session_factory
+
+logger = logging.getLogger(__name__)
 
 
 class IntakeStore:
@@ -372,6 +375,48 @@ class IntakeStore:
             else:
                 record["job"] = None
 
+            return record
+
+    def get_contact(self, intake_id: str, *, actor: str) -> dict[str, Any] | None:
+        """Return decrypted victim contact fields with audit logging.
+
+        Args:
+            intake_id: The intake record to retrieve contact info for.
+            actor: Username or identity of the requesting user (for audit).
+
+        Returns:
+            Dict with contact fields, or ``None`` if the intake does not exist.
+        """
+        with self._session_factory() as session:
+            row = session.execute(
+                sa.select(
+                    sql_schema.intake_records.c.intake_id,
+                    sql_schema.intake_records.c.reporter_name,
+                    sql_schema.intake_records.c.contact_email,
+                    sql_schema.intake_records.c.contact_phone,
+                    sql_schema.intake_records.c.contact_handle,
+                    sql_schema.intake_records.c.preferred_contact,
+                ).where(sql_schema.intake_records.c.intake_id == intake_id)
+            ).first()
+            if not row:
+                return None
+
+            record = self._decrypt_record(dict(row._mapping))
+
+            # Audit log the access
+            session.execute(
+                sa.insert(sql_schema.audit_log).values(
+                    audit_id=str(uuid.uuid4()),
+                    actor=actor,
+                    action="view_contact",
+                    resource_type="intake",
+                    resource_id=intake_id,
+                    created_at=datetime.now(UTC),
+                )
+            )
+            session.commit()
+
+            logger.info("victim contact accessed: intake_id=%s actor=%s", intake_id, actor)
             return record
 
     def list_intakes(self, limit: int = 25) -> list[dict[str, Any]]:

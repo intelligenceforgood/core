@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, ValidationError
 from i4g.api.auth import require_token
 from i4g.api.response_models import (
     IntakeCaseAttachResponse,
+    IntakeContactResponse,
     IntakeCreateResponse,
     IntakeJobResponse,
     IntakeJobUpdateResponse,
@@ -128,6 +129,15 @@ def get_intake(intake_id: str, user=Depends(require_token), service: IntakeServi
     if not record:
         raise HTTPException(status_code=404, detail="Intake not found")
     return record
+
+
+@router.get("/{intake_id}/contact", summary="Fetch decrypted victim contact info", response_model=IntakeContactResponse)
+def get_intake_contact(intake_id: str, user=Depends(require_token), service: IntakeService = Depends(get_service)):
+    actor = user.get("username") or user.get("email") or "unknown"
+    contact = service.get_contact(intake_id, actor=actor)
+    if not contact:
+        raise HTTPException(status_code=404, detail="Intake not found")
+    return contact
 
 
 @router.get("/jobs/{job_id}", summary="Fetch intake job status", response_model=IntakeJobResponse)

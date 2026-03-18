@@ -848,6 +848,25 @@ partner_feed_audit = sa.Table(
 sa.Index("idx_partner_audit_key", partner_feed_audit.c.key_id)
 sa.Index("idx_partner_audit_created", partner_feed_audit.c.created_at)
 
+# ---------------------------------------------------------------------------
+# Victim-contact access audit log
+# ---------------------------------------------------------------------------
+
+audit_log = sa.Table(
+    "audit_log",
+    METADATA,
+    sa.Column("audit_id", UUID_TYPE, primary_key=True),
+    sa.Column("actor", sa.Text(), nullable=False),
+    sa.Column("action", sa.Text(), nullable=False),
+    sa.Column("resource_type", sa.Text(), nullable=False),
+    sa.Column("resource_id", sa.Text(), nullable=False),
+    sa.Column("detail", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_audit_log_actor", audit_log.c.actor)
+sa.Index("idx_audit_log_resource", audit_log.c.resource_type, audit_log.c.resource_id)
+sa.Index("idx_audit_log_created", audit_log.c.created_at)
+
 
 def dialect_insert(session: Session, table: sa.Table):
     """Return a dialect-aware INSERT construct that supports ``on_conflict_do_update``.

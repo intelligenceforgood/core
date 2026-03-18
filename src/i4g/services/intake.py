@@ -93,6 +93,9 @@ class IntakeService:
     def get_intake(self, intake_id: str) -> dict[str, Any] | None:
         return self._store.get_intake(intake_id)
 
+    def get_contact(self, intake_id: str, *, actor: str) -> dict[str, Any] | None:
+        return self._store.get_contact(intake_id, actor=actor)
+
     def list_intakes(self, limit: int = 25) -> list[dict[str, Any]]:
         return self._store.list_intakes(limit=limit)
 
