@@ -26,7 +26,7 @@ Use `--skip-*` flags on bootstrap for partial rebuilds. Call out if tests are sk
 - **Background jobs:** `src/i4g/worker/jobs/*` and `src/i4g/worker/tasks.py` (e.g., `generate_report_for_case`)
 - **Settings:** `i4g.settings.get_settings()` — nested sections via `I4G_*` env vars (double underscores for nesting); never hard-code paths
 - **Store builders:** `src/i4g/services/factories.py` — use for structured/review/vector/intake/evidence stores
-- **Read `core/.github/architecture-cheatsheet.instructions.md`** at session start — covers UI↔API proxy routing, auth model per environment, SSI↔Core integration, storage flows, and common pitfalls.
+- **Read `copilot/.github/shared/architecture-cheatsheet.instructions.md`** at session start — covers UI↔API proxy routing, auth model per environment, SSI↔Core integration, storage flows, and common pitfalls.
 
 ## Environment Profiles
 
@@ -60,7 +60,7 @@ conda run -n i4g pre-commit run --all-files   # Pass 2 — must exit clean
 
 - Python: full type hints, Google-style docstrings, Black/isort at 120-char lines
 - Pydantic: `snake_case` internally, `alias_generator = to_camel` for JSON — never write manual translation functions
-- Follow `core/.github/general-coding.instructions.md` for complete language standards
+- Follow `copilot/.github/shared/general-coding.instructions.md` for complete language standards
 
 ## External Integrations
 
