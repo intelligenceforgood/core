@@ -1,5 +1,10 @@
 # Victim Contact Decryption & Subpoena SOP
 
+> **Consolidation pending.** This SOP was planned for consolidation into [`../design/pii_vault.md`](../design/pii_vault.md).
+> That consolidation is **not yet complete** — `pii_vault.md` covers the encryption design but does not yet contain this operational procedure.
+> Until the consolidation is complete, this file remains the authoritative source for decryption and subpoena procedures.
+> See `pii_vault.md` for the underlying PII vault design and encryption architecture.
+
 This SOP governs how encrypted victim contact fields may be decrypted for legal requests, investigations, or operational debugging. Apply it to every environment (local sandbox, dev, prod) with stricter enforcement in prod.
 
 ## Roles

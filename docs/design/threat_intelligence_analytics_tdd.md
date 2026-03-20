@@ -3,6 +3,7 @@
 > **Status**: Active (v1.3)
 > **Sprint**: S1–S6 — Data Foundation through Final Hardening
 > **Last Updated**: March 2026
+> **Last Verified**: March 2026
 
 ---
 

@@ -1,66 +1,89 @@
-# Technical Design Document (TDD)
+# Core Service — Master Technical Design Document
 
-**Version:** 2.0 • **Last Updated:** December 14, 2025
+> **This is the master TDD for `core-svc`.** It scopes the system and links to detailed design documents.
+> It is not a monolithic spec — deep implementation detail lives in the linked subsystem docs.
+> Read this document first; follow links for the detail you need.
+>
+> **Version:** 3.0 • **Last Updated:** March 2026 • **Last Verified:** March 2026
 
-**Purpose:** Implementation-level details and contracts that complement [architecture.md](../design/architecture.md). Use this to build, test, and operate the current system. For high-level diagrams and deployment context, start with architecture.md. Review this document together with [architecture.md](../design/architecture.md) whenever introducing or evaluating changes.
+For high-level architecture diagrams and deployment topology, start with [architecture.md](../design/architecture.md).
+For platform-level context (all services, integration contracts, ADRs), see [system_narrative.md](../../../planning/architecture/system_narrative.md).
 
 **Audience:** Software engineers, DevOps/SRE, security reviewers.
 
-### Quick navigation
+### Quick Navigation
 
-- [Scope and goals](#1-scope-and-goals)
-- [System overview](#2-system-overview-how-this-complements-architecturemd)
-- [Core components](#3-core-components)
-- [Data stores and contracts](#4-data-stores-and-contracts)
-- [Configuration and environment](#5-configuration-and-environment)
-- [Ingestion flow](#6-ingestion-flow-canonical)
-- [APIs and contracts](#7-apis-and-contracts-current-surface)
-- [Data model and schemas](#8-data-model-and-schemas)
-- [Reports and dossiers](#9-reports-and-dossiers)
-- [Deployment profiles](#10-deployment-profiles)
-- [Security and compliance](#11-security-and-compliance)
-- [Testing and validation](#12-testing-and-validation)
+- [System Scope](#1-system-scope)
+- [Subsystem Index](#2-subsystem-index)
+- [Key Architectural Decisions](#3-key-architectural-decisions)
+- [Configuration and Environment](#4-configuration-and-environment)
+- [Ingestion Flow](#5-ingestion-flow-canonical)
+- [APIs and Contracts](#6-apis-and-contracts-current-surface)
+- [Data Model and Schemas](#7-data-model-and-schemas)
+- [Reports and Dossiers](#8-reports-and-dossiers)
+- [Deployment Profiles](#9-deployment-profiles)
+- [Security and Compliance](#10-security-and-compliance)
+- [Testing and Validation](#11-testing-and-validation)
 
 ---
 
-## 1) Scope and Goals
+## 1) System Scope
 
-- Document the active design: hybrid search, dual-write ingestion, intake encryption, Next.js portal, and FastAPI backend.
-- Capture contracts: settings/env, data stores, APIs, and background jobs.
-- Provide implementation notes that are stable enough for code, tests, and runbooks.
+`core-svc` is the central FastAPI backend for the I4G platform. It owns:
 
-Out of scope: legacy Azure flow and deprecated endpoints; refer to planning archive if needed.
+- The full analyst API surface (22 routers: reviews, cases, intakes, reports, analytics, intelligence, campaigns, taxonomy, feeds, etc.)
+- The ingestion pipeline: normalization → SQL dual-write → vector indexing → PII encryption
+- Report and dossier generation
+- TIFAP (Threat Intelligence & Fraud Analytics Platform) — graph service, campaign detection, partner feeds — **internal to core-svc, not a separate service**
+- The SSI integration orchestration layer (core is the caller; SSI is a separate Cloud Run service)
 
-## 2) System Overview (how this complements architecture.md)
+**Explicit boundaries** — `core-svc` does NOT:
 
-- [Architecture.md](../design/architecture.md) supplies diagrams, deployment profiles, and guiding principles.
-- **This TDD** adds concrete implementation details and contracts: APIs, data model schemas, request/response shapes, toggles, and operational defaults.
+- Run browser automation or headless Chromium (that is `ssi-svc`)
+- Own the analyst console frontend (that is `ui/apps/web/`, a Next.js app on a separate Cloud Run service)
+- Run on the same process as SSI; cross-service calls are HTTP with OIDC auth
 
-## 3) Core Components
+---
 
-- **FastAPI backend** (`src/i4g/api/*`): REST endpoints for ingestion, search, reviews, tasks, and reports.
-- **Next.js portal** (ui/apps/web): primary analyst/victim/LEO UI; consumes the same API contracts documented here.
-- **Background jobs** (`src/i4g/worker/jobs/*`, `src/i4g/worker/tasks.py`): ingestion, report generation, dossier queue.
-- **Ingestion pipeline** (`src/i4g/store/ingest.py`): structured store write + SQL dual-write + optional vector/Vertex fan-out.
-- **Retrieval** (Hybrid): merges vector results and SQL entity filters; uses structured entities + embeddings.
-- **Reports/Dossiers** (`src/i4g/reports/*`): manifest generation, signatures, and packaging for LEA handoff.
+## 2) Subsystem Index
 
-## 4) Data Stores and Contracts
+| Subsystem                                          | Brief Description                                                  | Primary Doc                                                                                                                       | Last Verified |
+| -------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| Ingestion pipeline (ingest-job, intake-job)        | Normalize → encrypt PII → dual-write SQL + vector                  | [jobs.md](../design/jobs.md)                                                                                                      | ?             |
+| Review/search API (HybridRetriever, ReviewStore)   | Hybrid retrieval, saved searches, analyst queue                    | [rag.md](../design/rag.md)                                                                                                        | ?             |
+| Analyst console API surface (22 routers)           | Full REST surface for the Next.js console                          | [api_reference.md](../api_reference.md)                                                                                           | ?             |
+| Report generation (report-job, template system)    | Dossier assembly, LEA handoff, signature manifest                  | [jobs.md](../design/jobs.md)                                                                                                      | ?             |
+| Fraud taxonomy system (LLM tagging, versioning)    | Classification, tag hierarchy, confidence versioning               | [fraud_taxonomy_tdd.md](../design/fraud_taxonomy_tdd.md)                                                                          | ?             |
+| Threat Intelligence / TIFAP (campaign detection)   | Graph service, watchlist, partner indicator feeds                  | [threat_intelligence_analytics_tdd.md](../design/threat_intelligence_analytics_tdd.md)                                            | ?             |
+| Campaign governance bridge                         | Links campaigns to fraud taxonomy classification                   | [campaign_governance_bridge.md](../design/campaign_governance_bridge.md)                                                          | ?             |
+| PII vault (Fernet encryption, audit-logged access) | Victim contact encryption, key rotation, audit log                 | [pii_vault.md](../design/pii_vault.md)                                                                                            | March 2026    |
+| SSI integration (enrichment contracts)             | Core→SSI enrich requests, SSI→Core callbacks                       | [ssi/docs/tdd.md](../../../ssi/docs/tdd.md) + [integration_contracts.md](../../../planning/architecture/integration_contracts.md) | March 2026    |
+| Background job system (4 Cloud Run jobs)           | ingest-bootstrap, process-intakes, generate-reports, dossier-queue | [jobs.md](../design/jobs.md)                                                                                                      | ?             |
+| Data stores (SQL, vector, blob)                    | Cloud SQL / SQLite, Chroma / Vertex AI, GCS                        | [storage.md](../design/storage.md) + [data_model.md](../design/data_model.md)                                                     | ?             |
+| IAM and authentication                             | IAP, OIDC, service accounts, role matrix                           | [iam.md](../design/iam.md)                                                                                                        | ?             |
+| Retrieval (RAG, hybrid search)                     | LangChain LCEL, vector + SQL merge, structured filters             | [rag.md](../design/rag.md)                                                                                                        | ?             |
 
-> **Note**: For a detailed comparison of storage backends across environments, see [Storage Architecture](../design/storage_architecture.md).
+> Items marked `?` for Last Verified should be confirmed during the next quarterly doc review (see `copilot/.github/shared/doc-governance.instructions.md`).
 
-- **Structured store** (`src/i4g/store/structured.py`): SQLite (default) records for console reads; mirrors ingestion payloads.
-- **SQL dual-write** (`src/i4g/store/sql.py`): tables for cases, entities, documents, indicators, ingestion runs, retry queue. Key tables/fields:
-  - `cases(case_id, dataset, classification, confidence, raw_text_sha256, status, metadata)`
-  - `entities(entity_id, case_id, entity_type, canonical_value, raw_value, confidence)` (unique per case/type/value)
-  - `source_documents(document_id, case_id, title, source_url, mime_type, text, chunk_index)`
-  - `indicators` for structured filters; `ingestion_runs` for metrics; `ingestion_retry_queue` for fan-out retries.
-- **Vector store**: default Chroma (`vector.backend=chroma`, `vector.chroma_dir=data/chroma_store`); Vertex AI or pgvector planned via factories. Stores chunked text embeddings keyed by `case_id`/document.
-- **Structured Store**: Cloud SQL (Cloud) or SQLite (Local) for case metadata and flexible schema documents.
-- **Intake encryption** (`src/i4g/store/intake_store.py`): Fernet encryption of victim contact fields (reporter name, email, phone, handle) on write; decryption on authorized read via `GET /intakes/{id}/contact`.
-- **Artifacts**: reports and evidence in `data/` locally; Cloud Storage buckets in managed profiles.
+---
 
-## 5) Configuration and Environment
+## 3) Key Architectural Decisions
+
+| Decision                | Choice Made                                           | Key Reason                                                                                                          | ADR                                                                             |
+| ----------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Cloud provider          | GCP (Cloud Run, Cloud SQL, Vertex AI, Secret Manager) | Nonprofit credits, managed serverless                                                                               | [ADR-001](../../../planning/architecture/adr/adr-001-azure-to-gcp-migration.md) |
+| API framework           | FastAPI + Pydantic v2                                 | Async-first, automatic schema validation, `alias_generator = to_camel` eliminates manual translation                | [ADR-002](../../../planning/architecture/adr/adr-002-fastapi-pydantic-v2.md)    |
+| SSI as separate service | ssi-svc on its own Cloud Run instance                 | Browser automation isolation; Chromium can't share a container with the API under Cloud Run constraints             | [ADR-003](../../../planning/architecture/adr/adr-003-ssi-separate-service.md)   |
+| PII encryption          | Fernet (symmetric, audited)                           | Key-per-tenant not yet needed; Fernet is well-audited, fast for field-level encryption, and supports key rotation   | [ADR-004](../../../planning/architecture/adr/adr-004-pii-vault-fernet.md)       |
+| Vector store            | Chroma (local) / Vertex AI Search (cloud)             | Chroma for frictionless local dev; Vertex AI Search in production for managed scaling                               | [ADR-005](../../../planning/architecture/adr/adr-005-chroma-vs-pgvector.md)     |
+| Task status             | In-memory `TASK_STATUS` dict                          | Simplest implementation for single-instance dev; known limitation for multi-instance prod (Redis migration planned) | —                                                                               |
+| Settings pattern        | `I4G_*` env vars with `__` nesting                    | Pydantic BaseSettings with TOML defaults gives deterministic override chain without custom parsing                  | [config docs](../config/)                                                       |
+
+---
+
+## 4) Configuration and Environment
+
+## 4) Configuration and Environment
 
 - Load settings via `i4g.settings.get_settings()`; overrides: `config/settings.*.toml` → `.env.local` → `I4G_*` env vars (double underscores for nesting).
 - Key toggles (ingestion):
@@ -70,8 +93,15 @@ Out of scope: legacy Azure flow and deprecated endpoints; refer to planning arch
   - `ingestion.default_dataset`
 - Paths: `storage.sqlite_path`, `vector.chroma_dir`, `ingestion.dataset_path`, `data/` assets seeded via `i4g bootstrap local reset --report-dir data/reports/local_bootstrap`.
 - Secrets: prefer Secret Manager in managed envs; local `.env.local` for the Fernet key (`I4G_CRYPTO__PII_KEY`).
+- For adding a new setting: (a) add under the appropriate section in `config/settings.default.toml`, (b) add coverage under `tests/unit/settings/`, (c) refresh `docs/config/` env-var table + YAML manifest via `scripts/export_settings_manifest.py`.
 
-## 6) Ingestion Flow (canonical)
+### Data Stores (quick reference)
+
+See [storage.md](../design/storage.md) and the Subsystem Index for full detail.
+
+---
+
+## 5) Ingestion Flow (canonical)
 
 1. **Input normalization**: `prepare_ingest_payload()` merges text, entities, structured fields, network entities, metadata, dataset.
 2. **Intake encryption**: `IntakeStore.create()` encrypts victim contact fields (reporter_name, contact_email, contact_phone, contact_handle) with Fernet before the database write.

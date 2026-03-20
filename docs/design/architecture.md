@@ -1,7 +1,8 @@
 # i4g System Architecture
 
-> **Document Version**: 2.0
-> **Last Updated**: February 8, 2026
+> **Document Version**: 2.1
+> **Last Updated**: March 2026
+> **Last Verified**: March 2026
 > **Audience**: Engineers, technical stakeholders, university partners
 
 ---
@@ -21,7 +22,7 @@ The **Next.js analyst console** on Cloud Run serves victims, volunteer analysts,
 
 ## Guiding Objectives
 
-- **Parity then extension**: Maintain feature parity with the retired Azure stack before adding net-new workflows.
+- **Extend and differentiate**: Extend the platform with capabilities differentiated from the Azure starting point — deeper privacy controls (PII vault), richer analytics (TIFAP, fraud taxonomy), and automated investigation (SSI).
 - **Open-first**: Prefer open protocols/OSS-aligned services and keep clean swap points (Vertex ↔ pgvector, Gemini ↔ Ollama).
 - **Operate light**: Favor repeatable runbooks and Workload Identity over long-lived keys so small teams can maintain it.
 - **Privacy by design**: Victim intake encryption, victim-contact redaction in case text, and audit-logged decryption.
@@ -76,6 +77,7 @@ flowchart TB
   subgraph CloudRun["Cloud Run Services (us-central1)"]
     CoreSvc["Core API (core-svc)<br>(RAG, Intake, Reports)"]
     NextJS["Next.js Analyst Console<br>(OAuth/OIDC via IAP)"]
+    SSISvc["SSI Investigation Svc<br>(ssi-svc, port 8100)"]
   end
 
   subgraph DataLayer["Data & Intelligence Layer"]
@@ -102,6 +104,8 @@ flowchart TB
   CoreSvc -- Invoke Chains --> RAG
 
   NextJS -- API Calls --> CoreSvc
+  CoreSvc -- Enrich Request (OIDC) --> SSISvc
+  SSISvc -- Callbacks/Events --> CoreSvc
 
   IngestionPipelines -- Structured Writes --> CloudSQL
   IngestionPipelines -- Artifact Uploads --> Storage
@@ -118,7 +122,7 @@ flowchart TB
 
 ### Storage Architecture
 
-For a detailed breakdown of the storage backends (Relational, Document, Vector, Blob) and how they differ between Local Sandbox and Cloud Dev environments, see the [Storage Architecture Guide](storage_architecture.md).
+For a detailed breakdown of the storage backends (Relational, Document, Vector, Blob) and how they differ between Local Sandbox and Cloud Dev environments, see the [Storage Architecture Guide](storage.md).
 
 ### Cloud Run Deployment Swimlanes
 
@@ -137,6 +141,7 @@ flowchart LR
   subgraph RunServices["Cloud Run Services"]
     CoreSvc[Core API]
     NextJS[Next.js Console]
+    SSISvc[SSI Investigation Service]
     JobIngest[Cloud Run Jobs - Ingestion]
     JobReport[Cloud Run Jobs - Report Generator]
   end
@@ -165,6 +170,8 @@ flowchart LR
   IAP --> NextJS
 
   NextJS -->|Authenticated API| CoreSvc
+  CoreSvc -->|Enrich Request (OIDC)| SSISvc
+  SSISvc -->|Callbacks/Events| CoreSvc
   CoreSvc -->|REST| CloudSQL
   CoreSvc -->|Signed URLs| Storage
   CoreSvc -->|Vector Queries| Vector
@@ -179,6 +186,7 @@ flowchart LR
 
   Secrets -.-> CoreSvc
   Secrets -.-> NextJS
+  Secrets -.-> SSISvc
   Secrets -.-> JobIngest
   Secrets -.-> JobReport
 
@@ -215,16 +223,17 @@ resources require it. Observability remains centralized through Cloud Logging an
 ┌───────┼─────────────────┼─────────────────┼──────────────┐
 │       │     GCP Cloud Run (us-central1)   │              │
 │  ┌────▼─────────────────▼─────────────────▼────┐         │
-│  │         Load Balancer (HTTPS)               │         │
+│  │         Load Balancer (HTTPS / IAP)         │         │
 │  └──┬─────────────────────┬────────────────────┘         │
 │     │                     │                              │
-│  ┌──▼─────────┐      ┌────▼──────────┐                   │
-│  │  FastAPI   │      │  Next.js      │                   │
-│  │  Backend   │      │  Analyst      │                   │
-│  │  (Python)  │      │  Console      │                   │
-│  └──┬─────────┘      └────┬──────────┘                   │
-└─────┼─────────────────────┼──────────────────────────────┘
-      │                     │
+│  ┌──▼─────────┐      ┌────▼──────────┐  ┌─────────────┐  │
+│  │  FastAPI   │      │  Next.js      │  │  SSI Svc    │  │
+│  │  Backend   │◄────►│  Analyst      │  │  (Python,   │  │
+│  │  (Python)  │      │  Console      │  │  port 8100) │  │
+│  └──┬────┬────┘      └────┬──────────┘  └──────┬──────┘  │
+│     │    └────────────────┼─────────────────────┘        │
+└─────┼────────────────────────────────────────────────────┘
+      │  (enrich req/callbacks)
       │   Cloud SQL API     │
       │                     │
 ┌─────▼─────────────────────▼──────────────────────────────┐
@@ -349,6 +358,37 @@ flowchart LR
 
 ---
 
+### 2b. **SSI Investigation Service (ssi-svc)**
+
+**Responsibilities**:
+
+- Browser-automated scam site investigation using Playwright and zendriver (headless Chromium).
+- Receives enrichment requests from `core-svc` and triggers a full investigation pipeline.
+- Pushes structured investigation results back to `core-svc` via HTTP callbacks (`HttpEventSink`) and creates case records (`push_to_core`).
+- Periodically polls for analyst guidance via `GuidancePollRelay`.
+- Independently polls eCX (external exchange) data via Cloud Scheduler (`ssi-ecx-poller`, every 15 minutes).
+
+**Technology Stack**:
+
+- Python 3.11, FastAPI (port 8100), Playwright + zendriver for browser automation
+- Gemini 2.5 Flash for on-page intelligence extraction
+- Cloud Run service, separate from `core-svc` to isolate Chromium resource use and sandbox browser risk
+
+**Integration Points**:
+
+| Direction        | Mechanism                                    | Endpoint / Contract                             |
+| ---------------- | -------------------------------------------- | ----------------------------------------------- |
+| Core → SSI       | `POST {ssi.service_url}/trigger/investigate` | OIDC auth, httpx 30s timeout                    |
+| SSI → Core       | `HttpEventSink` (live events)                | `POST /cases/{id}/events` on core-svc           |
+| SSI → Core       | `push_to_core` (case creation)               | `POST /cases` on core-svc                       |
+| SSI → Core       | `GuidancePollRelay` (analyst cmds)           | `GET /cases/{id}/guidance` polled by SSI        |
+| UI → SSI (eCX)   | Direct HTTP via Next.js proxy                | `SSI_API_URL` env var, Cloud Run OIDC token     |
+| UI → SSI (invst) | Routed through core-svc                      | core-svc is the orchestrator for investigations |
+
+See `planning/architecture/integration_contracts.md` for the full contract specification.
+
+---
+
 ### 3b. **Dual Extraction Ingestion Pipeline**
 
 **Responsibilities**:
@@ -400,7 +440,42 @@ Row-level security and role-based access are enforced at the application layer v
 
 ---
 
-### 4. **LLM Inference**
+### 4. **TIFAP — Threat Intelligence & Fraud Analytics Platform**
+
+TIFAP is **not a separate service** — it is a subsystem within `core-svc` that reads from core's data stores using SQLAlchemy directly (no HTTP hop).
+
+**Responsibilities**:
+
+- Aggregates case and entity data to detect fraud campaigns (entity clustering, wallet graph traversal, timeline analysis).
+- Exposes graph service, watchlist management, and partner indicator feeds via `core-svc` API routes (`/intelligence`, `/feeds`).
+- Blockchain analytics enrichment: wallet labels, risk scores, cluster edges.
+- External enrichment integration: passive DNS, ASN lookup, takedown verification.
+
+**Key Fact**: TIFAP reads from core data at query time, not through a separate pipeline or scheduled job. The `/intelligence` router and `/feeds` router in `core-svc` are the TIFAP surface.
+
+---
+
+### 5. **PII Vault — Cross-Cutting Privacy Layer**
+
+The PII vault is an application-layer encryption facility that protects victim contact data across all flows.
+
+**Principle**: Investigation entities (wallet addresses, email addresses extracted from case narratives) remain in cleartext for analysis. Victim contact information (reporter name, email, phone, handle) is Fernet-encrypted before any database write.
+
+**Architecture**:
+
+| Layer          | Behavior                                                                     |
+| -------------- | ---------------------------------------------------------------------------- |
+| Intake write   | `intake.py` Fernet-encrypts contact fields before SQL write                  |
+| Storage        | `intake_records` table holds ciphertext; `cases` table holds cleartext entities |
+| Authorized read | Explicit decrypt endpoint; logs actor, timestamp, justification to `audit_log` |
+| Key storage    | `I4G_CRYPTO__PII_KEY` in Secret Manager; scheduled rotation via Cloud Scheduler |
+| Ingestion      | Victim contact info is redacted from case text before vector embedding       |
+
+See [PII Vault Design](pii_vault.md) for the complete specification including key rotation and the dual-key re-encryption procedure.
+
+---
+
+### 6. **LLM Inference**
 
 The platform supports three LLM providers, selectable via `settings.llm.provider`:
 
@@ -839,5 +914,6 @@ gcloud run services update i4g-api --traffic
 
 ---
 
-**Last Updated**: 2026-02-08<br/>
-**Next Review**: 2026-05-08
+**Last Updated**: 2026-03-19<br/>
+**Last Verified**: 2026-03-19<br/>
+**Next Review**: 2026-06-19

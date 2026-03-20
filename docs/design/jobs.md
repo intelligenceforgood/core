@@ -2,6 +2,7 @@
 
 > **Status**: Active (v1.1)
 > **Last Updated**: February 8, 2026
+> **Last Verified**: March 2026
 
 This document serves as the authoritative inventory of background jobs and worker processes in the I4G Core platform. It maps business logic (Python modules) to deployment artifacts (Docker images) and execution triggers.
 
