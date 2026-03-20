@@ -1,8 +1,8 @@
 # i4g System Architecture
 
-> **Document Version**: 2.1
-> **Last Updated**: March 2026
-> **Last Verified**: March 2026
+> **Document Version**: 2.2
+> **Last Updated**: 2026-03-20
+> **Last Verified**: 2026-03-20
 > **Audience**: Engineers, technical stakeholders, university partners
 
 ---
@@ -104,19 +104,24 @@ flowchart TB
   CoreSvc -- Invoke Chains --> RAG
 
   NextJS -- API Calls --> CoreSvc
+  NextJS -- eCX Direct (OIDC) --> SSISvc
   CoreSvc -- Enrich Request (OIDC) --> SSISvc
   SSISvc -- Callbacks/Events --> CoreSvc
+  SSISvc -- Direct SQL --> CloudSQL
 
   IngestionPipelines -- Structured Writes --> CloudSQL
   IngestionPipelines -- Artifact Uploads --> Storage
   IngestionPipelines -- Embed Jobs --> Vector
 
   Scheduler -- Triggers --> IngestionPipelines
+  Scheduler -- eCX Poller --> SSISvc
   Secrets -- Credentials --> CoreSvc
   Secrets -- Credentials --> NextJS
+  Secrets -- Credentials --> SSISvc
   Secrets -- Credentials --> IngestionPipelines
   Telemetry -- Metrics/Logs --> CoreSvc
   Telemetry -- Metrics/Logs --> NextJS
+  Telemetry -- Metrics/Logs --> SSISvc
   Telemetry -- Metrics/Logs --> IngestionPipelines
 ```
 
@@ -160,6 +165,7 @@ flowchart LR
   subgraph Platform["Platform Operations"]
     Secrets[Secret Manager]
     Logging[Cloud Logging / Monitoring]
+    Scheduler[Cloud Scheduler]
   end
 
   VictimUI --> IAP
@@ -170,8 +176,10 @@ flowchart LR
   IAP --> NextJS
 
   NextJS -->|Authenticated API| CoreSvc
+  NextJS -->|eCX Direct (OIDC)| SSISvc
   CoreSvc -->|Enrich Request (OIDC)| SSISvc
   SSISvc -->|Callbacks/Events| CoreSvc
+  SSISvc -->|Direct SQL| CloudSQL
   CoreSvc -->|REST| CloudSQL
   CoreSvc -->|Signed URLs| Storage
   CoreSvc -->|Vector Queries| Vector
@@ -183,6 +191,7 @@ flowchart LR
   JobReport -->|Reads| CloudSQL
   JobReport -->|Publishes| Storage
 
+  Scheduler -->|eCX Poller| SSISvc
 
   Secrets -.-> CoreSvc
   Secrets -.-> NextJS
@@ -191,6 +200,7 @@ flowchart LR
   Secrets -.-> JobReport
 
   CoreSvc -.->|Workload Identity| VPCConn
+  SSISvc -.->|Private Resources| VPCConn
   JobIngest -.->|Private Resources| VPCConn
   JobReport -.->|Private Resources| VPCConn
 
@@ -199,6 +209,7 @@ flowchart LR
 
   Logging -.-> CoreSvc
   Logging -.-> NextJS
+  Logging -.-> SSISvc
   Logging -.-> JobIngest
   Logging -.-> JobReport
 ```
@@ -228,15 +239,15 @@ resources require it. Observability remains centralized through Cloud Logging an
 │     │                     │                              │
 │  ┌──▼─────────┐      ┌────▼──────────┐  ┌─────────────┐  │
 │  │  FastAPI   │      │  Next.js      │  │  SSI Svc    │  │
-│  │  Backend   │◄────►│  Analyst      │  │  (Python,   │  │
+│  │  Backend   │◄────►│  Analyst   ───┼──►  (Python,   │  │
 │  │  (Python)  │      │  Console      │  │  port 8100) │  │
 │  └──┬────┬────┘      └────┬──────────┘  └──────┬──────┘  │
-│     │    └────────────────┼─────────────────────┘        │
-└─────┼────────────────────────────────────────────────────┘
-      │  (enrich req/callbacks)
-      │   Cloud SQL API     │
-      │                     │
-┌─────▼─────────────────────▼──────────────────────────────┐
+│     │    └─ enrich/callbacks ───────────────────┘        │
+│     │        Next.js ──► SSI = eCX direct (OIDC)         │
+└─────┼──────────────────────┼─────────────────────────────┘
+      │   Cloud SQL API      │
+      │                      │
+┌─────▼──────────────────────▼─────────────────────────────┐
 │                  Data Layer (GCP)                        │
 │  ┌──────────────┐  ┌────────────┐  ┌───────────┐  ┌────────────┐
 │  │  Cloud SQL   │  │   Cloud    │  │  Secret   │  │ Vertex AI  │
@@ -914,6 +925,6 @@ gcloud run services update i4g-api --traffic
 
 ---
 
-**Last Updated**: 2026-03-19<br/>
-**Last Verified**: 2026-03-19<br/>
-**Next Review**: 2026-06-19
+**Last Updated**: 2026-03-20<br/>
+**Last Verified**: 2026-03-20<br/>
+**Next Review**: 2026-06-20
