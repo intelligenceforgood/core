@@ -145,3 +145,30 @@ class SecretsSettings(BaseSettings):
         default=None,
         validation_alias=AliasChoices("SECRETS_LOCAL_ENV_FILE", "SECRETS__LOCAL_ENV_FILE"),
     )
+
+
+class MlPlatformSettings(BaseSettings):
+    """ML Platform inference routing settings."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    inference_backend: Literal["llm", "ml_platform"] = Field(
+        default="llm",
+        validation_alias=AliasChoices("ML_INFERENCE_BACKEND", "ML__INFERENCE_BACKEND"),
+        description=(
+            "Which inference backend to use: 'llm' (existing LLM classifier)"
+            " or 'ml_platform' (dedicated ML service)."
+        ),
+    )
+    platform_base_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("ML_PLATFORM_BASE_URL", "ML__PLATFORM_BASE_URL"),
+    )
+    platform_auth_method: Literal["iam", "api_key", "none"] = Field(
+        default="iam",
+        validation_alias=AliasChoices("ML_PLATFORM_AUTH_METHOD", "ML__PLATFORM_AUTH_METHOD"),
+    )
+    fallback_to_llm: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("ML_FALLBACK_TO_LLM", "ML__FALLBACK_TO_LLM"),
+    )

@@ -710,6 +710,48 @@ fields:
       - LLM_VERTEX_AI_PROJECT
       - LLM__VERTEX_AI__PROJECT
     description: Large language model provider settings.
+  - path: ml.fallback_to_llm
+    section: ml
+    type: bool
+    default: true
+    env_vars:
+      - I4G_ML__FALLBACK_TO_LLM
+      - ML_FALLBACK_TO_LLM
+      - ML__FALLBACK_TO_LLM
+    description: >-
+      When true, fall back to the LLM classifier if the ML platform is
+      unavailable or returns an error.
+  - path: ml.inference_backend
+    section: ml
+    type: str
+    default: llm
+    env_vars:
+      - I4G_ML__INFERENCE_BACKEND
+      - ML_INFERENCE_BACKEND
+      - ML__INFERENCE_BACKEND
+    description: >-
+      Which inference backend to use: 'llm' (existing LLM classifier)
+      or 'ml_platform' (dedicated ML service).
+  - path: ml.platform_auth_method
+    section: ml
+    type: str
+    default: iam
+    env_vars:
+      - I4G_ML__PLATFORM_AUTH_METHOD
+      - ML_PLATFORM_AUTH_METHOD
+      - ML__PLATFORM_AUTH_METHOD
+    description: >-
+      Authentication method for the ML platform endpoint: 'iam', 'api_key',
+      or 'none'.
+  - path: ml.platform_base_url
+    section: ml
+    type: str
+    default: ""
+    env_vars:
+      - I4G_ML__PLATFORM_BASE_URL
+      - ML_PLATFORM_BASE_URL
+      - ML__PLATFORM_BASE_URL
+    description: Base URL for the ML platform serving endpoint.
   - path: observability.contact_decrypt_alert_threshold
     section: observability
     type: int

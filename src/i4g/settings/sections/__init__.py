@@ -21,7 +21,7 @@ from i4g.settings.sections.jobs import (
     SsiSettings,
     SweepSettings,
 )
-from i4g.settings.sections.ml import CryptoSettings, LLMSettings, SecretsSettings, VectorSettings
+from i4g.settings.sections.ml import CryptoSettings, LLMSettings, MlPlatformSettings, SecretsSettings, VectorSettings
 
 __all__ = [
     "AnalyticsSettings",
@@ -50,5 +50,6 @@ __all__ = [
     "SsiSettings",
     "FeedbackSettings",
     "EnrichmentSettings",
+    "MlPlatformSettings",
     "PartnerFeedSettings",
 ]

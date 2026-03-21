@@ -398,6 +398,21 @@ def build_retention_service() -> RetentionService:
     )
 
 
+def build_inference_client():
+    """Return the configured inference backend.
+
+    Returns ``MLPlatformClient`` when ``settings.ml.inference_backend``
+    is ``"ml_platform"``, otherwise returns the existing LLM-based
+    classifier.
+    """
+    settings = get_settings()
+    if settings.ml.inference_backend == "ml_platform":
+        from i4g.ml.client import MLPlatformClient
+
+        return MLPlatformClient()
+    return build_llm_client()
+
+
 __all__ = [
     "build_fraud_classifier",
     "build_llm_client",
@@ -422,4 +437,5 @@ __all__ = [
     "build_threat_campaign_store",
     "build_analytics_store",
     "build_annotation_store",
+    "build_inference_client",
 ]
