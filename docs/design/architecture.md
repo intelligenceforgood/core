@@ -502,6 +502,8 @@ The platform supports three LLM providers, selectable via `settings.llm.provider
 
 Provider selection and model construction are handled by `build_fraud_classifier()` in `src/i4g/services/factories.py`.
 
+> **Future-state model serving:** The standalone ML Platform (separate `i4g-ml` GCP project) provides custom model training, serving, and monitoring. Core integrates via a thin `MLPlatformClient` HTTP client. See [ML Platform TDD](ml_infrastructure_tdd.md) for architecture, API contracts, and implementation plan.
+
 ---
 
 ## End-to-End Data Flows
