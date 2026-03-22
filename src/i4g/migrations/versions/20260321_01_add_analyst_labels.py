@@ -35,7 +35,7 @@ def upgrade() -> None:
         op.create_table(
             "analyst_labels",
             sa.Column("id", sa.String(length=64), primary_key=True),
-            sa.Column("case_id", sa.String(length=64), sa.ForeignKey("cases.id"), nullable=False, index=True),
+            sa.Column("case_id", sa.String(length=64), sa.ForeignKey("cases.case_id"), nullable=False, index=True),
             sa.Column("axis", sa.String(length=128), nullable=False),
             sa.Column("label_code", sa.String(length=128), nullable=False),
             sa.Column("analyst_id", sa.String(length=128), nullable=False),
