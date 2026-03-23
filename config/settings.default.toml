@@ -145,7 +145,7 @@ max_concurrent = 3
 staleness_days = 30
 
 [ml]
-# inference_backend = "llm"        # "llm" | "ml_platform"
-# platform_base_url = ""
-# platform_auth_method = "iam"     # "iam" | "api_key" | "none"
-# fallback_to_llm = true
+fallback_to_llm = true
+inference_backend = "llm" # "llm" | "ml_platform"
+platform_auth_method = "iam" # "iam" | "api_key" | "none"
+platform_base_url = "" # Set via I4G_ML__PLATFORM_BASE_URL per environment
