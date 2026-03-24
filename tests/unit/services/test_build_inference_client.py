@@ -20,8 +20,10 @@ def _isolate(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     for var in (
         "I4G_ML__INFERENCE_BACKEND",
         "I4G_ML__PLATFORM_BASE_URL",
+        "I4G_ML__ENTITY_EXTRACTION_BACKEND",
         "ML_INFERENCE_BACKEND",
         "ML_PLATFORM_BASE_URL",
+        "ML_ENTITY_EXTRACTION_BACKEND",
     ):
         monkeypatch.delenv(var, raising=False)
 
@@ -46,6 +48,31 @@ def test_build_inference_client_returns_ml_platform(monkeypatch: pytest.MonkeyPa
         from i4g.services.factories import build_inference_client
 
         client = build_inference_client()
+        from i4g.ml.client import MLPlatformClient
+
+        assert isinstance(client, MLPlatformClient)
+
+
+def test_build_entity_extraction_client_returns_llm_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When entity_extraction_backend is 'llm', factory returns the LLM client."""
+    settings = reload_settings(env="local")
+    with patch("i4g.services.factories.get_settings", return_value=settings):
+        from i4g.services.factories import build_entity_extraction_client
+
+        client = build_entity_extraction_client()
+        # Should NOT be MLPlatformClient
+        assert not hasattr(client, "extract_entities")
+
+
+def test_build_entity_extraction_client_returns_ml_platform(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When entity_extraction_backend is 'ml_platform', factory returns MLPlatformClient."""
+    monkeypatch.setenv("I4G_ML__ENTITY_EXTRACTION_BACKEND", "ml_platform")
+    monkeypatch.setenv("I4G_ML__PLATFORM_BASE_URL", "http://ml.example.com")
+    settings = reload_settings(env="local")
+    with patch("i4g.services.factories.get_settings", return_value=settings):
+        from i4g.services.factories import build_entity_extraction_client
+
+        client = build_entity_extraction_client()
         from i4g.ml.client import MLPlatformClient
 
         assert isinstance(client, MLPlatformClient)

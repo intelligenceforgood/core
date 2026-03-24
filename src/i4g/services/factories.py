@@ -413,6 +413,22 @@ def build_inference_client():
     return build_llm_client()
 
 
+def build_entity_extraction_client():
+    """Return the configured entity extraction backend.
+
+    Returns ``MLPlatformClient`` when
+    ``settings.ml.entity_extraction_backend`` is ``"ml_platform"``,
+    otherwise returns the LLM client for use with
+    ``extract_semantic_entities()``.
+    """
+    settings = get_settings()
+    if settings.ml.entity_extraction_backend == "ml_platform":
+        from i4g.ml.client import MLPlatformClient
+
+        return MLPlatformClient()
+    return build_llm_client()
+
+
 __all__ = [
     "build_fraud_classifier",
     "build_llm_client",
@@ -438,4 +454,5 @@ __all__ = [
     "build_analytics_store",
     "build_annotation_store",
     "build_inference_client",
+    "build_entity_extraction_client",
 ]
