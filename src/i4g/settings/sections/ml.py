@@ -172,3 +172,11 @@ class MlPlatformSettings(BaseSettings):
         default=True,
         validation_alias=AliasChoices("ML_FALLBACK_TO_LLM", "ML__FALLBACK_TO_LLM"),
     )
+    entity_extraction_backend: Literal["llm", "ml_platform"] = Field(
+        default="llm",
+        validation_alias=AliasChoices("ML_ENTITY_EXTRACTION_BACKEND", "ML__ENTITY_EXTRACTION_BACKEND"),
+        description=(
+            "Which backend to use for entity extraction: 'llm' (existing LLM NER)"
+            " or 'ml_platform' (dedicated ML NER model)."
+        ),
+    )

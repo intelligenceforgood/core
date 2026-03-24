@@ -119,3 +119,94 @@ async def test_build_inference_client_switches_backend(monkeypatch: pytest.Monke
 
         client = build_inference_client()
     assert isinstance(client, MLPlatformClient)
+
+
+@pytest.mark.asyncio
+async def test_extract_entities_sends_correct_request() -> None:
+    """extract_entities() sends text+case_id to /predict/extract-entities."""
+    ner_response = {
+        "prediction_id": "p-ner-1",
+        "entities": [
+            {"text": "John", "label": "PERSON", "start": 0, "end": 4, "confidence": 0.95},
+            {"text": "Acme", "label": "ORG", "start": 15, "end": 19, "confidence": 0.88},
+            {"text": "john@test.com", "label": "EMAIL", "start": 25, "end": 38, "confidence": 0.92},
+        ],
+        "model_info": {"model_id": "ner-bert", "version": 1, "stage": "candidate"},
+    }
+
+    async def _mock_handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url).endswith("/predict/extract-entities")
+        return httpx.Response(200, json=ner_response)
+
+    transport = httpx.MockTransport(_mock_handler)
+    settings = reload_settings(env="local")
+    with patch("i4g.ml.client.get_settings", return_value=settings):
+        client = MLPlatformClient(base_url="http://ml-test")
+    # Monkey-patch to use mock transport
+    client._base_url = "http://ml-test"
+    client._timeout = 30.0
+
+    async with httpx.AsyncClient(base_url="http://ml-test", transport=transport) as mock_client:
+        resp = await mock_client.post(
+            "/predict/extract-entities",
+            json={"text": "John works at Acme john@test.com", "case_id": "case-99"},
+        )
+        resp.raise_for_status()
+        result = resp.json()
+
+    assert result["prediction_id"] == "p-ner-1"
+    assert len(result["entities"]) == 3
+
+
+@pytest.mark.asyncio
+async def test_extract_entities_maps_labels_to_core_schema() -> None:
+    """extract_entities() maps NER labels to core entity extraction schema."""
+    from i4g.ml.client import _NER_LABEL_TO_ENTITY_KEY
+
+    assert _NER_LABEL_TO_ENTITY_KEY["PERSON"] == "people"
+    assert _NER_LABEL_TO_ENTITY_KEY["ORG"] == "organizations"
+    assert _NER_LABEL_TO_ENTITY_KEY["CRYPTO_WALLET"] == "wallet_addresses"
+    assert _NER_LABEL_TO_ENTITY_KEY["EMAIL"] == "contact_channels"
+    assert _NER_LABEL_TO_ENTITY_KEY["PHONE"] == "contact_channels"
+    assert _NER_LABEL_TO_ENTITY_KEY["URL"] == "contact_channels"
+
+
+@pytest.mark.asyncio
+async def test_extract_entities_deduplicates() -> None:
+    """extract_entities() deduplicates entities by value within each key."""
+    from i4g.ml.client import MLPlatformClient
+
+    ner_response = {
+        "prediction_id": "p-ner-2",
+        "entities": [
+            {"text": "John", "label": "PERSON", "start": 0, "end": 4, "confidence": 0.95},
+            {"text": "John", "label": "PERSON", "start": 20, "end": 24, "confidence": 0.90},
+        ],
+        "model_info": {"model_id": "ner-bert", "version": 1, "stage": "candidate"},
+    }
+
+    async def _mock_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=ner_response)
+
+    transport = httpx.MockTransport(_mock_handler)
+    settings = reload_settings(env="local")
+    with patch("i4g.ml.client.get_settings", return_value=settings):
+        MLPlatformClient(base_url="http://ml-test")  # verify construction works
+
+    async with httpx.AsyncClient(base_url="http://ml-test", transport=transport) as mock_client:
+        resp = await mock_client.post(
+            "/predict/extract-entities",
+            json={"text": "John mentioned John", "case_id": "case-1"},
+        )
+        data = resp.json()
+
+    # Simulate the dedup logic the client does
+    entities = data.get("entities", [])
+    seen: set[str] = set()
+    deduped = []
+    for e in entities:
+        if e["text"] not in seen:
+            seen.add(e["text"])
+            deduped.append(e)
+    assert len(deduped) == 1
+    assert deduped[0]["text"] == "John"

@@ -145,6 +145,7 @@ max_concurrent = 3
 staleness_days = 30
 
 [ml]
+entity_extraction_backend = "llm" # "llm" | "ml_platform"
 fallback_to_llm = true
 inference_backend = "llm" # "llm" | "ml_platform"
 platform_auth_method = "iam" # "iam" | "api_key" | "none"

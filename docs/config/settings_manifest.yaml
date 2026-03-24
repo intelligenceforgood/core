@@ -752,6 +752,17 @@ fields:
       - ML_PLATFORM_BASE_URL
       - ML__PLATFORM_BASE_URL
     description: Base URL for the ML platform serving endpoint.
+  - path: ml.entity_extraction_backend
+    section: ml
+    type: str
+    default: llm
+    env_vars:
+      - I4G_ML__ENTITY_EXTRACTION_BACKEND
+      - ML_ENTITY_EXTRACTION_BACKEND
+      - ML__ENTITY_EXTRACTION_BACKEND
+    description: >-
+      Which backend to use for entity extraction: 'llm' (existing LLM-based
+      extraction) or 'ml_platform' (dedicated NER model on ML serving endpoint).
   - path: observability.contact_decrypt_alert_threshold
     section: observability
     type: int
