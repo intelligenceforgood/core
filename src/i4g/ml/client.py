@@ -144,3 +144,49 @@ class MLPlatformClient:
             result[key] = deduped
 
         return result
+
+    async def score_risk(self, text: str, case_id: str) -> dict:
+        """Request a risk score prediction from the ML Platform.
+
+        Args:
+            text: Case narrative text to score.
+            case_id: Identifier of the case being scored.
+
+        Returns:
+            Prediction response dict with ``risk_score``, ``model_info``,
+            and ``prediction_id`` keys.
+
+        Raises:
+            httpx.HTTPStatusError: If the risk scoring request fails.
+        """
+        async with httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout) as client:
+            resp = await client.post(
+                "/predict/risk-score",
+                json={"text": text, "case_id": case_id},
+            )
+            resp.raise_for_status()
+            return resp.json()
+
+    async def find_similar_cases(self, text: str, case_id: str, top_k: int = 10) -> list[dict]:
+        """Find similar cases via the ML Platform document similarity endpoint.
+
+        Args:
+            text: Case narrative text to find similarities for.
+            case_id: Identifier of the query case.
+            top_k: Maximum number of similar cases to return.
+
+        Returns:
+            List of dicts with ``case_id`` and ``score`` keys, ordered
+            by descending similarity.
+
+        Raises:
+            httpx.HTTPStatusError: If the similarity endpoint returns an error.
+        """
+        async with httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout) as client:
+            resp = await client.post(
+                "/predict/similar-cases",
+                json={"text": text, "case_id": case_id, "top_k": top_k},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("similar_cases", [])

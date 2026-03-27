@@ -210,3 +210,90 @@ async def test_extract_entities_deduplicates() -> None:
             deduped.append(e)
     assert len(deduped) == 1
     assert deduped[0]["text"] == "John"
+
+
+@pytest.mark.asyncio
+async def test_score_risk_sends_correct_payload() -> None:
+    """score_risk() sends text+case_id to /predict/risk-score."""
+    expected = {"risk_score": 0.82, "prediction_id": "p-risk-1", "model_info": {"model_id": "risk-xgb"}}
+
+    async def _mock_handler(request: httpx.Request) -> httpx.Response:
+        import json
+
+        body = json.loads(request.content)
+        assert body["text"] == "suspicious activity"
+        assert body["case_id"] == "case-55"
+        assert str(request.url).endswith("/predict/risk-score")
+        return httpx.Response(200, json=expected)
+
+    transport = httpx.MockTransport(_mock_handler)
+    async with httpx.AsyncClient(base_url="http://ml-test", transport=transport) as mock_client:
+        resp = await mock_client.post(
+            "/predict/risk-score",
+            json={"text": "suspicious activity", "case_id": "case-55"},
+        )
+        resp.raise_for_status()
+        result = resp.json()
+
+    assert result["risk_score"] == 0.82
+    assert result["prediction_id"] == "p-risk-1"
+
+
+@pytest.mark.asyncio
+async def test_find_similar_cases_sends_correct_payload() -> None:
+    """find_similar_cases() sends text+case_id+top_k to /predict/similar-cases."""
+    expected = {
+        "similar_cases": [
+            {"case_id": "case-10", "score": 0.95},
+            {"case_id": "case-20", "score": 0.87},
+        ],
+        "prediction_id": "p-sim-1",
+    }
+
+    async def _mock_handler(request: httpx.Request) -> httpx.Response:
+        import json
+
+        body = json.loads(request.content)
+        assert body["text"] == "fraud pattern"
+        assert body["case_id"] == "case-77"
+        assert body["top_k"] == 5
+        assert str(request.url).endswith("/predict/similar-cases")
+        return httpx.Response(200, json=expected)
+
+    transport = httpx.MockTransport(_mock_handler)
+    async with httpx.AsyncClient(base_url="http://ml-test", transport=transport) as mock_client:
+        resp = await mock_client.post(
+            "/predict/similar-cases",
+            json={"text": "fraud pattern", "case_id": "case-77", "top_k": 5},
+        )
+        resp.raise_for_status()
+        result = resp.json()
+
+    assert len(result["similar_cases"]) == 2
+    assert result["similar_cases"][0]["case_id"] == "case-10"
+
+
+@pytest.mark.asyncio
+async def test_build_risk_scoring_client_switches_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Factory returns MLPlatformClient when risk_scoring_backend is ml_platform."""
+    monkeypatch.setenv("I4G_ML__RISK_SCORING_BACKEND", "ml_platform")
+    monkeypatch.setenv("I4G_ML__PLATFORM_BASE_URL", "http://ml-test")
+    settings = reload_settings(env="local")
+    with patch("i4g.services.factories.get_settings", return_value=settings):
+        from i4g.services.factories import build_risk_scoring_client
+
+        client = build_risk_scoring_client()
+    assert isinstance(client, MLPlatformClient)
+
+
+@pytest.mark.asyncio
+async def test_build_similarity_client_switches_backend(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Factory returns MLPlatformClient when similarity_backend is ml_platform."""
+    monkeypatch.setenv("I4G_ML__SIMILARITY_BACKEND", "ml_platform")
+    monkeypatch.setenv("I4G_ML__PLATFORM_BASE_URL", "http://ml-test")
+    settings = reload_settings(env="local")
+    with patch("i4g.services.factories.get_settings", return_value=settings):
+        from i4g.services.factories import build_similarity_client
+
+        client = build_similarity_client()
+    assert isinstance(client, MLPlatformClient)

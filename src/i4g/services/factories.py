@@ -429,6 +429,36 @@ def build_entity_extraction_client():
     return build_llm_client()
 
 
+def build_risk_scoring_client():
+    """Return the configured risk scoring backend.
+
+    Returns ``MLPlatformClient`` when
+    ``settings.ml.risk_scoring_backend`` is ``"ml_platform"``,
+    otherwise returns the LLM client.
+    """
+    settings = get_settings()
+    if settings.ml.risk_scoring_backend == "ml_platform":
+        from i4g.ml.client import MLPlatformClient
+
+        return MLPlatformClient()
+    return build_llm_client()
+
+
+def build_similarity_client():
+    """Return the configured document similarity backend.
+
+    Returns ``MLPlatformClient`` when
+    ``settings.ml.similarity_backend`` is ``"ml_platform"``,
+    otherwise returns the LLM client.
+    """
+    settings = get_settings()
+    if settings.ml.similarity_backend == "ml_platform":
+        from i4g.ml.client import MLPlatformClient
+
+        return MLPlatformClient()
+    return build_llm_client()
+
+
 __all__ = [
     "build_fraud_classifier",
     "build_llm_client",
@@ -455,4 +485,6 @@ __all__ = [
     "build_annotation_store",
     "build_inference_client",
     "build_entity_extraction_client",
+    "build_risk_scoring_client",
+    "build_similarity_client",
 ]

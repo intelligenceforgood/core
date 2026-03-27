@@ -150,3 +150,5 @@ fallback_to_llm = true
 inference_backend = "llm" # "llm" | "ml_platform"
 platform_auth_method = "iam" # "iam" | "api_key" | "none"
 platform_base_url = "" # Set via I4G_ML__PLATFORM_BASE_URL per environment
+risk_scoring_backend = "llm" # "llm" | "ml_platform"
+similarity_backend = "llm" # "llm" | "ml_platform"

@@ -180,3 +180,18 @@ class MlPlatformSettings(BaseSettings):
             " or 'ml_platform' (dedicated ML NER model)."
         ),
     )
+    risk_scoring_backend: Literal["llm", "ml_platform"] = Field(
+        default="llm",
+        validation_alias=AliasChoices("ML_RISK_SCORING_BACKEND", "ML__RISK_SCORING_BACKEND"),
+        description=(
+            "Which backend to use for risk scoring: 'llm' (existing LLM)" " or 'ml_platform' (dedicated ML risk model)."
+        ),
+    )
+    similarity_backend: Literal["llm", "ml_platform"] = Field(
+        default="llm",
+        validation_alias=AliasChoices("ML_SIMILARITY_BACKEND", "ML__SIMILARITY_BACKEND"),
+        description=(
+            "Which backend to use for document similarity: 'llm' (existing LLM)"
+            " or 'ml_platform' (FAISS-based embedding search)."
+        ),
+    )
