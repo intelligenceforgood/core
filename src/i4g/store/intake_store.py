@@ -62,10 +62,11 @@ class IntakeStore:
         else:
             self._session_factory = build_session_factory()
 
-        # Ensure schema exists
+        # Auto-create tables only for SQLite (local dev convenience).
+        # PostgreSQL schema is managed exclusively by Alembic migrations.
         with self._session_factory() as session:
-            conn = session.connection()
-            METADATA.create_all(conn)
+            if session.bind.dialect.name == "sqlite":
+                METADATA.create_all(session.connection())
 
     def _encrypt(self, value: str | None) -> str | None:
         """Encrypt a contact field value if a PII key is configured."""

@@ -42,7 +42,8 @@ class WatchlistStore:
             self._session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
         else:
             engine = build_engine()
-            METADATA.create_all(engine, checkfirst=True)
+            if engine.dialect.name == "sqlite":
+                METADATA.create_all(engine, checkfirst=True)
             self._session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
     @contextmanager

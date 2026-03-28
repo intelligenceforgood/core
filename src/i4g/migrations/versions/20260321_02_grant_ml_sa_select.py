@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from alembic import op
+from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision: str = "20260321_02"
@@ -35,14 +36,14 @@ def upgrade() -> None:
     # If it doesn't exist yet, skip — the GRANT will be applied on next
     # migration run after Terraform creates the user.
     result = conn.execute(
-        conn.engine.text("SELECT 1 FROM pg_roles WHERE rolname = :role"),
+        text("SELECT 1 FROM pg_roles WHERE rolname = :role"),
         {"role": ML_SA_ROLE},
     )
     if result.fetchone() is None:
         return
 
     table_list = ", ".join(TABLES)
-    conn.execute(conn.engine.text(f'GRANT SELECT ON TABLE {table_list} TO "{ML_SA_ROLE}"'))  # noqa: S608
+    conn.execute(text(f'GRANT SELECT ON TABLE {table_list} TO "{ML_SA_ROLE}"'))  # noqa: S608
 
 
 def downgrade() -> None:
@@ -50,11 +51,11 @@ def downgrade() -> None:
     conn = op.get_bind()
 
     result = conn.execute(
-        conn.engine.text("SELECT 1 FROM pg_roles WHERE rolname = :role"),
+        text("SELECT 1 FROM pg_roles WHERE rolname = :role"),
         {"role": ML_SA_ROLE},
     )
     if result.fetchone() is None:
         return
 
     table_list = ", ".join(TABLES)
-    conn.execute(conn.engine.text(f'REVOKE SELECT ON TABLE {table_list} FROM "{ML_SA_ROLE}"'))  # noqa: S608
+    conn.execute(text(f'REVOKE SELECT ON TABLE {table_list} FROM "{ML_SA_ROLE}"'))  # noqa: S608
