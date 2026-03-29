@@ -38,11 +38,11 @@ def main() -> int:
     settings = get_settings()
     env = settings.env or "dev"
 
-    # Resolve Cloud SQL connection parameters from app settings.
-    instance = settings.app.cloudsql.instance
-    database = settings.app.cloudsql.database
-    user = settings.app.cloudsql.user
-    enable_iam = settings.app.cloudsql.enable_iam_auth
+    # Resolve Cloud SQL connection parameters from storage settings.
+    instance = settings.storage.cloudsql_instance
+    database = settings.storage.cloudsql_database
+    user = settings.storage.cloudsql_user
+    enable_iam = settings.storage.cloudsql_enable_iam_auth
 
     if not instance or not database:
         logger.error("Cloud SQL instance/database not configured.")
