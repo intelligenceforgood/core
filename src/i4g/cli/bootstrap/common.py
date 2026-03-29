@@ -45,6 +45,13 @@ class SearchSmokeResult:
 
 def get_bundles() -> dict[str, str]:
     run_date = os.getenv("RUN_DATE", "2025-12-17")
+    use_golden = os.getenv("I4G_BOOTSTRAP__USE_GOLDEN_BUNDLE", "").lower() in ("1", "true", "yes")
+
+    if use_golden:
+        golden_date = os.getenv("GOLDEN_RUN_DATE", run_date)
+        return {
+            "golden": f"gs://i4g-dev-data-bundles/{golden_date}/golden/cases.jsonl",
+        }
 
     return {
         "legacy_azure": f"gs://i4g-dev-data-bundles/{run_date}/legacy_azure/search_exports/vertex",

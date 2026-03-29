@@ -17,6 +17,7 @@ from i4g.cli.utils import stage_bundle
 from .constants import BUNDLES_DIR, DATA_DIR
 from .steps import (
     apply_migrations,
+    apply_seed_sql,
     ensure_dirs,
     ensure_pilot_cases_file,
     ingest_bundles,
@@ -111,6 +112,8 @@ def run_local(
         ingest_bundles(skip_vector=skip_vector, limit=limit)
     else:
         print("⚠️  Skipping bundle ingestion as requested.")
+
+    apply_seed_sql()
 
     tesseract_available = shutil.which("tesseract") is not None
     if tesseract_available:

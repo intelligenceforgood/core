@@ -80,8 +80,8 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
             ingest_env["I4G_INGEST__RATE_LIMIT_DELAY"] = str(args.rate_limit_delay)
         if args.ingest_dry_run:
             ingest_env["I4G_INGEST__DRY_RUN"] = "1"
-
-        ingest_env["I4G_INGEST__SKIP_CLASSIFICATION"] = "1"
+        if getattr(args, "skip_classification", True):
+            ingest_env["I4G_INGEST__SKIP_CLASSIFICATION"] = "1"
 
         job_args: list[str] = ["jobs", "ingest"]
         job_args.append(f"--bundle-uri={bundle_uri}")

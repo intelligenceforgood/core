@@ -176,3 +176,97 @@ def test_writer_upserts_entities_and_indicator_sources(writer):
         assert indicator_sources[0].document_id == "doc-static"
 
     assert initial_result.indicator_ids[0] == updated_result.indicator_ids[0]
+
+
+def test_reingest_with_preprocessing_change_duplicates(writer):
+    """Re-ingesting the same raw data with a minor text change produces a duplicate
+    because the SHA-256 hash changes.  This documents the edge case that bootstrap
+    must wipe before re-ingesting when preprocessing logic changes."""
+
+    sql_writer, engine = writer
+
+    original_text = "Send USDT to 0xabc via Trust Wallet"
+    bundle_v1 = CaseBundle(
+        case=CasePayload(
+            case_id="case-dup-001",
+            dataset="test_dataset",
+            source_type="form",
+            classification="crypto_investment",
+            confidence=0.85,
+            text=original_text,
+        ),
+        documents=[SourceDocumentPayload(alias="d1", title="v1", text=original_text, chunk_index=0, chunk_count=1)],
+        entities=[],
+        indicators=[],
+    )
+    sql_writer.persist_case_bundle(bundle_v1, ingestion_run_id="run-a")
+
+    # Simulate a preprocessing change: extra whitespace normalisation
+    modified_text = "Send  USDT  to  0xabc  via  Trust  Wallet"  # same semantics, different bytes
+    assert modified_text != original_text  # different text → different hash
+    bundle_v2 = CaseBundle(
+        case=CasePayload(
+            case_id="case-dup-002",  # new id (real re-ingest generates new UUIDs)
+            dataset="test_dataset",
+            source_type="form",
+            classification="crypto_investment",
+            confidence=0.85,
+            text=modified_text,
+        ),
+        documents=[SourceDocumentPayload(alias="d2", title="v2", text=modified_text, chunk_index=0, chunk_count=1)],
+        entities=[],
+        indicators=[],
+    )
+    sql_writer.persist_case_bundle(bundle_v2, ingestion_run_id="run-b")
+
+    with engine.connect() as conn:
+        rows = conn.execute(sa.select(sql_schema.cases)).fetchall()
+        # Both rows exist because their SHA-256 hashes differ — this IS a duplicate
+        assert len(rows) == 2, (
+            "Expected 2 case rows (duplication) when text changes between ingestion runs. "
+            "Bootstrap must wipe the DB before re-ingesting to avoid this."
+        )
+
+
+def test_reingest_same_content_deduplicates(writer):
+    """Re-ingesting identical content (same dataset + SHA) correctly deduplicates."""
+
+    sql_writer, engine = writer
+
+    text = "Victim wired $5000 to unknown wallet"
+    bundle_a = CaseBundle(
+        case=CasePayload(
+            case_id="case-dedup-a",
+            dataset="dedup_ds",
+            source_type="form",
+            classification="wire_fraud",
+            confidence=0.90,
+            text=text,
+        ),
+        documents=[SourceDocumentPayload(alias="d1", title="doc", text=text, chunk_index=0, chunk_count=1)],
+        entities=[],
+        indicators=[],
+    )
+    result_a = sql_writer.persist_case_bundle(bundle_a)
+
+    # Re-ingest exact same content with different case_id → should dedup to original
+    bundle_b = CaseBundle(
+        case=CasePayload(
+            case_id="case-dedup-b",
+            dataset="dedup_ds",
+            source_type="form",
+            classification="wire_fraud",
+            confidence=0.92,
+            text=text,
+        ),
+        documents=[SourceDocumentPayload(alias="d2", title="doc-v2", text=text, chunk_index=0, chunk_count=1)],
+        entities=[],
+        indicators=[],
+    )
+    result_b = sql_writer.persist_case_bundle(bundle_b)
+
+    assert result_b.case_id == result_a.case_id, "Same content should dedup to the original case_id"
+
+    with engine.connect() as conn:
+        rows = conn.execute(sa.select(sql_schema.cases)).fetchall()
+        assert len(rows) == 1, "Only one case should exist after deduplication"

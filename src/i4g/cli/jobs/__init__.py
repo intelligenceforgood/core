@@ -141,3 +141,10 @@ def jobs_auto_investigate(
     from i4g.worker.jobs import auto_investigate
 
     _exit_from_return(auto_investigate.main(dry_run=dry_run, limit=limit))
+
+
+@jobs_app.command("backup-db", help="Backup Cloud SQL database to GCS via pg_dump.")
+def jobs_backup_db() -> None:
+    from i4g.worker.jobs import backup_db
+
+    _exit_from_return(backup_db.main())

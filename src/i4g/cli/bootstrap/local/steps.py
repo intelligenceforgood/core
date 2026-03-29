@@ -214,6 +214,31 @@ def apply_migrations() -> None:
     run([sys.executable, "-m", "alembic", "upgrade", "head"], unset_env_vars=["I4G_DATABASE_URL"])
 
 
+def apply_seed_sql() -> None:
+    """Apply seed.sql from the golden bundle to the local SQLite store."""
+
+    seed_path = BUNDLES_DIR / "golden" / "seed.sql"
+    if not seed_path.exists():
+        # Fall back to golden_seed location (pre-consolidation)
+        seed_path = BUNDLES_DIR / "golden_seed" / "seed.sql"
+    if not seed_path.exists():
+        print("⚠️  No seed.sql found in golden bundle. Skipping.")
+        return
+
+    import sqlite3
+
+    print(f"🌱 Applying seed SQL from {seed_path.name}...")
+    sql = seed_path.read_text(encoding="utf-8")
+
+    conn = sqlite3.connect(str(SQLITE_DB))
+    try:
+        conn.executescript(sql)
+        conn.commit()
+        print("   → Seed SQL applied successfully.")
+    finally:
+        conn.close()
+
+
 __all__ = [
     "run",
     "reset_artifacts",
@@ -227,4 +252,5 @@ __all__ = [
     "ensure_pilot_cases_file",
     "seed_review_cases",
     "apply_migrations",
+    "apply_seed_sql",
 ]

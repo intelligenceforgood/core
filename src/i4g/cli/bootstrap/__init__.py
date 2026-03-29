@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 
 from .dev import dev_app, run_dev
@@ -24,6 +26,22 @@ def bootstrap_seed_sample() -> None:
     from . import seed
 
     _exit_from_return(seed.seed_sample_dossier())
+
+
+@bootstrap_app.command("build-golden-bundle", help="Build the consolidated golden data bundle from all sources.")
+def build_golden_bundle(
+    bundles_dir: Path = typer.Option(Path("data/bundles"), help="Root bundles directory."),
+    output_dir: Path = typer.Option(Path("data/bundles/golden"), help="Output directory."),
+    skip_ids_file: Path | None = typer.Option(None, "--skip-ids", help="File with case IDs to skip (one per line)."),
+) -> None:
+    from scripts.build_golden_bundle import build
+
+    skip_ids: set[str] = set()
+    if skip_ids_file and skip_ids_file.exists():
+        skip_ids = {line.strip() for line in skip_ids_file.read_text().splitlines() if line.strip()}
+        typer.echo(f"Loaded {len(skip_ids)} case IDs to skip.")
+
+    build(bundles_dir, output_dir, skip_ids)
 
 
 __all__ = [

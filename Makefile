@@ -4,6 +4,7 @@
         build-intake-dev deploy-intake-dev build-intake-prod deploy-intake-prod \
         build-report-dev deploy-report-dev build-report-prod deploy-report-prod \
         build-dossier-dev deploy-dossier-dev build-dossier-prod deploy-dossier-prod \
+        build-backup-dev deploy-backup-dev build-backup-prod deploy-backup-prod \
         deploy-analytics-dev deploy-analytics-prod \
         deploy-all-jobs-dev deploy-all-jobs-prod rehydrate
 
@@ -96,6 +97,15 @@ deploy-dossier-dev: build-dossier-dev
 		--region us-central1 \
 		--project i4g-dev
 
+build-backup-dev:
+	scripts/build_image.sh backup-job dev
+
+deploy-backup-dev: build-backup-dev
+	gcloud run jobs deploy backup-db \
+		--image us-central1-docker.pkg.dev/i4g-dev/applications/backup-job:dev \
+		--region us-central1 \
+		--project i4g-dev
+
 # analytics-refresh reuses the ingest-job image (no separate build target).
 deploy-analytics-dev:
 	gcloud run jobs deploy analytics-refresh \
@@ -103,7 +113,7 @@ deploy-analytics-dev:
 		--region us-central1 \
 		--project i4g-dev
 
-deploy-all-jobs-dev: deploy-ingest-dev deploy-intake-dev deploy-report-dev deploy-dossier-dev deploy-analytics-dev
+deploy-all-jobs-dev: deploy-ingest-dev deploy-intake-dev deploy-report-dev deploy-dossier-dev deploy-backup-dev deploy-analytics-dev
 	@echo "✅ All dev jobs deployed."
 
 # ---------- Jobs (Prod) ----------
@@ -147,6 +157,16 @@ deploy-dossier-prod: build-dossier-prod
 		--region us-central1 \
 		--project i4g-prod
 
+build-backup-prod:
+	scripts/build_image.sh backup-job prod \
+		--registry us-central1-docker.pkg.dev/i4g-prod/applications
+
+deploy-backup-prod: build-backup-prod
+	gcloud run jobs deploy backup-db \
+		--image us-central1-docker.pkg.dev/i4g-prod/applications/backup-job:prod \
+		--region us-central1 \
+		--project i4g-prod
+
 # analytics-refresh reuses the ingest-job image (no separate build target).
 deploy-analytics-prod:
 	gcloud run jobs deploy analytics-refresh \
@@ -154,7 +174,7 @@ deploy-analytics-prod:
 		--region us-central1 \
 		--project i4g-prod
 
-deploy-all-jobs-prod: deploy-ingest-prod deploy-intake-prod deploy-report-prod deploy-dossier-prod deploy-analytics-prod
+deploy-all-jobs-prod: deploy-ingest-prod deploy-intake-prod deploy-report-prod deploy-dossier-prod deploy-backup-prod deploy-analytics-prod
 	@echo "✅ All prod jobs deployed."
 
 # ---------- Clean ----------

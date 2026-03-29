@@ -95,6 +95,8 @@ def run_local_ingest(args: argparse.Namespace) -> list[JobResult]:
             env["I4G_INGEST__RATE_LIMIT_DELAY"] = str(args.rate_limit_delay)
         if args.ingest_dry_run:
             env["I4G_INGEST__DRY_RUN"] = "1"
+        if getattr(args, "skip_classification", True):
+            env["I4G_INGEST__SKIP_CLASSIFICATION"] = "true"
 
         env["I4G_INGEST__ENABLE_VERTEX"] = "1" if "vertex" in requested_jobs else "0"
         env["I4G_INGEST__ENABLE_VECTOR"] = "1" if "vertex" in requested_jobs else "0"

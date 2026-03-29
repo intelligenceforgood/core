@@ -70,6 +70,19 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--skip-gcs-assets", action="store_true", help="Skip GCS asset sync job.")
     parser.add_argument("--skip-reports", action="store_true", help="Skip reports/dossiers job.")
     parser.add_argument("--skip-saved-searches", action="store_true", help="Skip saved searches job.")
+    parser.add_argument(
+        "--skip-classification",
+        action="store_true",
+        default=True,
+        help="Skip LLM classification during bulk ingest (default: True). "
+        "Cases are inserted as pending; the sweeper job classifies them asynchronously.",
+    )
+    parser.add_argument(
+        "--no-skip-classification",
+        dest="skip_classification",
+        action="store_false",
+        help="Enable inline LLM classification during ingest (slower).",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print planned commands without executing them.")
     parser.add_argument(
         "--ingest-dry-run",
@@ -299,6 +312,7 @@ def run_dev(
     skip_saved_searches: bool,
     skip_seed_reviews: bool,
     skip_ocr: bool,
+    skip_classification: bool = True,
     dry_run: bool,
     ingest_dry_run: bool,
     verify_only: bool,
@@ -350,6 +364,7 @@ def run_dev(
         skip_saved_searches=skip_saved_searches,
         skip_seed_reviews=skip_seed_reviews,
         skip_ocr=skip_ocr,
+        skip_classification=skip_classification,
         dry_run=dry_run,
         ingest_dry_run=ingest_dry_run,
         verify_only=verify_only,
@@ -397,6 +412,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         skip_saved_searches=args.skip_saved_searches,
         skip_seed_reviews=args.skip_seed_reviews,
         skip_ocr=args.skip_ocr,
+        skip_classification=args.skip_classification,
         dry_run=args.dry_run,
         ingest_dry_run=args.ingest_dry_run,
         verify_only=args.verify_only,

@@ -1,4 +1,4 @@
-"""Database administration CLI: migrations, permissions, and status checks for Cloud SQL."""
+"""Database administration CLI: migrations, permissions, status, wipe, backup, and restore."""
 
 from __future__ import annotations
 
@@ -6,8 +6,11 @@ import shutil
 import signal
 import subprocess
 import sys
+import tarfile
 import time
+from datetime import UTC, datetime
 from enum import StrEnum
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -16,7 +19,7 @@ from rich.console import Console
 from i4g.settings import get_settings
 
 console = Console()
-db_app = typer.Typer(help="Cloud SQL database administration (migrations, permissions, status).")
+db_app = typer.Typer(help="Cloud SQL database administration (migrations, permissions, status, wipe, backup, restore).")
 
 # ---------------------------------------------------------------------------
 # Environment definitions
@@ -310,5 +313,451 @@ def status(
         if result.returncode != 0:
             console.print(f"[red]Failed to check status (exit {result.returncode})[/red]")
             raise typer.Exit(result.returncode)
+    finally:
+        _stop_proxy(proxy)
+
+
+# ---------------------------------------------------------------------------
+# Tables to truncate during wipe (FK-safe dependency order, leaf → root).
+# Preserved: accounts, account_actions, alembic_version.
+# ---------------------------------------------------------------------------
+
+_WIPE_TABLE_ORDER: list[str] = [
+    "watchlist_alerts",
+    "watchlist_items",
+    "partner_feed_audit",
+    "partner_api_keys",
+    "chart_share_tokens",
+    "scheduled_reports",
+    "annotations",
+    "campaign_stats",
+    "threat_campaign_cases",
+    "threat_campaigns",
+    "platform_kpis",
+    "entity_stats",
+    "indicator_stats",
+    "infrastructure_edges",
+    "ssi_guidance_commands",
+    "ssi_events",
+    "pii_exposures",
+    "agent_sessions",
+    "harvested_wallets",
+    "case_investigations",
+    "site_scans",
+    "intake_indicator_links",
+    "intake_jobs",
+    "intake_attachments",
+    "intake_records",
+    "review_actions",
+    "review_queue",
+    "saved_searches",
+    "indicator_sources",
+    "indicators",
+    "entity_mentions",
+    "entities",
+    "source_documents",
+    "dossier_queue",
+    "ingestion_retry_queue",
+    "scam_records",
+    "cases",
+    "campaigns",
+    "ingestion_runs",
+    "audit_log",
+]
+
+
+class WipeEnv(StrEnum):
+    local = "local"
+    dev = "dev"
+
+
+@db_app.command()
+def wipe(
+    env: Annotated[WipeEnv, typer.Argument(help="Target environment: local or dev.")],
+    confirm: str = typer.Option("", "--confirm", help="Safety flag. For dev, pass 'yes-wipe-dev' to proceed."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print actions without executing them."),
+) -> None:
+    """Wipe all user-data tables, preserving schema, migrations, and accounts."""
+
+    if env == WipeEnv.local:
+        _wipe_local(dry_run=dry_run)
+    elif env == WipeEnv.dev:
+        if confirm != "yes-wipe-dev":
+            console.print(
+                "[red]Refusing to wipe dev without safety flag.[/red]\n"
+                "Pass [bold]--confirm 'yes-wipe-dev'[/bold] to proceed."
+            )
+            raise typer.Exit(1)
+        _wipe_dev(dry_run=dry_run)
+
+
+def _wipe_local(*, dry_run: bool) -> None:
+    """Delete local SQLite DB, Chroma dir, and generated artifacts."""
+
+    settings = get_settings()
+    project_root = settings.project_root
+    data_dir = Path(project_root) / "data"
+    sqlite_db = data_dir / "i4g_store.db"
+    chroma_dir = data_dir / "chroma_store"
+    reports_dir = data_dir / "reports"
+    manual_demo_dir = data_dir / "manual_demo"
+
+    targets = [
+        ("SQLite DB", sqlite_db),
+        ("Chroma store", chroma_dir),
+        ("Reports", reports_dir),
+        ("Manual demo", manual_demo_dir),
+    ]
+
+    if dry_run:
+        console.print("[yellow]Dry run[/yellow] — would delete:")
+        for label, path in targets:
+            status = "exists" if path.exists() else "not found"
+            console.print(f"  {label}: {path} ({status})")
+        return
+
+    for label, path in targets:
+        if path.is_file():
+            path.unlink()
+            console.print(f"  Deleted {label}: {path}")
+        elif path.is_dir():
+            shutil.rmtree(path)
+            console.print(f"  Deleted {label}: {path}")
+        else:
+            console.print(f"  {label}: {path} (not found, skipping)")
+
+    console.print("[green]Local wipe complete.[/green] Run `i4g bootstrap local reset` to repopulate.")
+
+
+def _wipe_dev(*, dry_run: bool) -> None:
+    """Connect to Cloud SQL and TRUNCATE all user-data tables."""
+
+    cfg = _get_db_config(Env.dev)
+    password = _get_password(cfg)
+    target_label = f"app ({cfg['database']}@{cfg['project']})"
+
+    if dry_run:
+        console.print(f"[yellow]Dry run[/yellow] — would TRUNCATE {len(_WIPE_TABLE_ORDER)} tables on {target_label}:")
+        for t in _WIPE_TABLE_ORDER:
+            console.print(f"  TRUNCATE TABLE {t} CASCADE;")
+        return
+
+    console.print(f"\n[bold]Wiping {target_label} ({len(_WIPE_TABLE_ORDER)} tables)[/bold]")
+
+    proxy = _start_proxy(cfg)
+    try:
+        import psycopg2
+
+        conn = psycopg2.connect(
+            host="127.0.0.1",
+            port=cfg["port"],
+            user="postgres",
+            password=password,
+            dbname=cfg["database"],
+        )
+        conn.autocommit = True
+        cursor = conn.cursor()
+
+        for table in _WIPE_TABLE_ORDER:
+            console.print(f"  TRUNCATE TABLE {table} CASCADE;")
+            cursor.execute(f"TRUNCATE TABLE {table} CASCADE;")  # noqa: S608 — table names from static list
+
+        cursor.close()
+        conn.close()
+        console.print(f"[green]Wipe complete on {target_label}.[/green]")
+    except ImportError:
+        console.print("[red]Error:[/red] psycopg2 not installed. Run: pip install psycopg2-binary")
+        raise typer.Exit(1) from None
+    finally:
+        _stop_proxy(proxy)
+
+
+@db_app.command()
+def backup(
+    env: Annotated[WipeEnv, typer.Argument(help="Target environment: local or dev.")],
+    output: Path = typer.Option(None, "--output", help="Output path for the backup archive."),
+) -> None:
+    """Create a backup of the platform database."""
+
+    if env == WipeEnv.local:
+        _backup_local(output=output)
+    elif env == WipeEnv.dev:
+        _backup_dev(output=output)
+
+
+def _backup_local(*, output: Path | None) -> None:
+    """Copy SQLite file + Chroma dir to a timestamped tar.gz archive."""
+
+    settings = get_settings()
+    project_root = Path(settings.project_root)
+    data_dir = project_root / "data"
+    sqlite_db = data_dir / "i4g_store.db"
+    chroma_dir = data_dir / "chroma_store"
+    backups_dir = data_dir / "backups"
+
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    archive_path = output or (backups_dir / f"backup_local_{ts}.tar.gz")
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+
+    sources: list[tuple[str, Path]] = []
+    if sqlite_db.exists():
+        sources.append(("i4g_store.db", sqlite_db))
+    if chroma_dir.exists():
+        sources.append(("chroma_store", chroma_dir))
+
+    if not sources:
+        console.print("[yellow]Nothing to backup — no SQLite DB or Chroma store found.[/yellow]")
+        return
+
+    with tarfile.open(archive_path, "w:gz") as tar:
+        for arcname, path in sources:
+            tar.add(path, arcname=arcname)
+
+    size_mb = archive_path.stat().st_size / (1024 * 1024)
+    console.print(f"[green]Backup saved:[/green] {archive_path} ({size_mb:.1f} MB)")
+
+
+def _backup_dev(*, output: Path | None) -> None:
+    """Export Cloud SQL database via pg_dump through cloud-sql-proxy."""
+
+    cfg = _get_db_config(Env.dev)
+    password = _get_password(cfg)
+    target_label = f"app ({cfg['database']}@{cfg['project']})"
+
+    ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    dump_path = output or Path(f"dump_dev_{ts}.sql.gz")
+    dump_path.parent.mkdir(parents=True, exist_ok=True)
+
+    console.print(f"\n[bold]Backing up {target_label}[/bold]")
+
+    proxy = _start_proxy(cfg)
+    try:
+        import gzip
+
+        pg_dump_bin = shutil.which("pg_dump")
+        if not pg_dump_bin:
+            console.print("[red]Error:[/red] pg_dump not found on PATH.")
+            raise typer.Exit(1)
+
+        pg_dump_cmd = [
+            pg_dump_bin,
+            "-h",
+            "127.0.0.1",
+            "-p",
+            str(cfg["port"]),
+            "-U",
+            "postgres",
+            "-d",
+            cfg["database"],
+            "--no-owner",
+            "--no-acl",
+        ]
+
+        env_copy = {**__import__("os").environ, "PGPASSWORD": password}
+        result = subprocess.run(pg_dump_cmd, env=env_copy, capture_output=True)
+        if result.returncode != 0:
+            console.print(f"[red]pg_dump failed:[/red]\n{result.stderr.decode()}")
+            raise typer.Exit(result.returncode)
+
+        with gzip.open(dump_path, "wb") as f:
+            f.write(result.stdout)
+
+        size_mb = dump_path.stat().st_size / (1024 * 1024)
+        console.print(f"[green]Backup saved:[/green] {dump_path} ({size_mb:.1f} MB)")
+
+        # Optionally upload to GCS
+        gcs_uri = f"gs://i4g-dev-data-bundles/backups/{ts}/dump.sql.gz"
+        console.print(f"[dim]To upload: gcloud storage cp {dump_path} {gcs_uri}[/dim]")
+    finally:
+        _stop_proxy(proxy)
+
+
+@db_app.command()
+def restore(
+    env: Annotated[WipeEnv, typer.Argument(help="Target environment: local or dev.")],
+    source: Path = typer.Option(..., "--from", help="Path to backup archive (local tar.gz or dev .sql.gz)."),
+    confirm: str = typer.Option("", "--confirm", help="Safety flag. For dev, pass 'yes-restore-dev'."),
+) -> None:
+    """Restore the platform database from a backup."""
+
+    if not source.exists():
+        console.print(f"[red]Backup not found:[/red] {source}")
+        raise typer.Exit(1)
+
+    if env == WipeEnv.local:
+        _restore_local(source=source)
+    elif env == WipeEnv.dev:
+        if confirm != "yes-restore-dev":
+            console.print(
+                "[red]Refusing to restore dev without safety flag.[/red]\n"
+                "Pass [bold]--confirm 'yes-restore-dev'[/bold] to proceed."
+            )
+            raise typer.Exit(1)
+        _restore_dev(source=source)
+
+
+def _get_alembic_head() -> str | None:
+    """Return the current Alembic HEAD revision from the migration scripts."""
+    alembic_cmd = [
+        sys.executable,
+        "-m",
+        "alembic",
+        "-c",
+        "alembic.ini",
+        "heads",
+    ]
+    result = subprocess.run(
+        alembic_cmd,
+        capture_output=True,
+        text=True,
+        cwd=str(get_settings().project_root),
+    )
+    if result.returncode != 0:
+        return None
+    # Output format: "20260321_02 (head)"
+    for line in result.stdout.strip().splitlines():
+        if "(head)" in line:
+            return line.split()[0].strip()
+    return None
+
+
+def _validate_alembic_local(data_dir: Path) -> None:
+    """Check that the restored SQLite DB has an Alembic revision matching the current HEAD."""
+    import sqlite3
+
+    db_path = data_dir / "i4g_store.db"
+    if not db_path.exists():
+        return
+
+    try:
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.execute("SELECT version_num FROM alembic_version LIMIT 1")
+        row = cursor.fetchone()
+        conn.close()
+    except Exception:
+        console.print("[yellow]⚠ Could not read alembic_version from restored DB — skipping revision check.[/yellow]")
+        return
+
+    if not row:
+        console.print("[yellow]⚠ No Alembic revision found in restored DB.[/yellow]")
+        return
+
+    backup_rev = row[0]
+    head_rev = _get_alembic_head()
+    if head_rev and backup_rev != head_rev:
+        console.print(
+            f"[yellow]⚠ Alembic revision mismatch:[/yellow] "
+            f"backup has [bold]{backup_rev}[/bold], current HEAD is [bold]{head_rev}[/bold].\n"
+            f"  Run [cyan]alembic upgrade head[/cyan] to migrate the restored database."
+        )
+    elif head_rev:
+        console.print(f"[green]Alembic revision OK:[/green] {backup_rev}")
+
+
+def _validate_alembic_dev(cfg: dict, password: str) -> None:
+    """Check that the restored Cloud SQL DB has an Alembic revision matching the current HEAD."""
+    try:
+        import psycopg2
+
+        conn = psycopg2.connect(
+            host="127.0.0.1",
+            port=cfg["port"],
+            user="postgres",
+            password=password,
+            dbname=cfg["database"],
+        )
+        cursor = conn.cursor()
+        cursor.execute("SELECT version_num FROM alembic_version LIMIT 1")
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+    except Exception:
+        console.print("[yellow]⚠ Could not read alembic_version from restored DB — skipping revision check.[/yellow]")
+        return
+
+    if not row:
+        console.print("[yellow]⚠ No Alembic revision found in restored DB.[/yellow]")
+        return
+
+    backup_rev = row[0]
+    head_rev = _get_alembic_head()
+    if head_rev and backup_rev != head_rev:
+        console.print(
+            f"[yellow]⚠ Alembic revision mismatch:[/yellow] "
+            f"backup has [bold]{backup_rev}[/bold], current HEAD is [bold]{head_rev}[/bold].\n"
+            f"  Run [cyan]i4g db migrate {cfg.get('env_name', 'dev')}[/cyan] to upgrade."
+        )
+    elif head_rev:
+        console.print(f"[green]Alembic revision OK:[/green] {backup_rev}")
+
+
+def _restore_local(*, source: Path) -> None:
+    """Wipe current local DB and extract backup archive."""
+
+    settings = get_settings()
+    project_root = Path(settings.project_root)
+    data_dir = project_root / "data"
+
+    console.print(f"[bold]Restoring local database from {source}[/bold]")
+
+    # Wipe first
+    _wipe_local(dry_run=False)
+
+    # Extract archive
+    with tarfile.open(source, "r:gz") as tar:
+        tar.extractall(path=data_dir)  # noqa: S202 — trusted backup archive from known backup command
+
+    # Validate Alembic revision after restore.
+    _validate_alembic_local(data_dir)
+
+    console.print("[green]Local restore complete.[/green]")
+
+
+def _restore_dev(*, source: Path) -> None:
+    """Wipe dev DB and restore from pg_dump archive."""
+
+    cfg = _get_db_config(Env.dev)
+    password = _get_password(cfg)
+    target_label = f"app ({cfg['database']}@{cfg['project']})"
+
+    console.print(f"\n[bold]Restoring {target_label} from {source}[/bold]")
+
+    # Wipe first
+    _wipe_dev(dry_run=False)
+
+    proxy = _start_proxy(cfg)
+    try:
+        import gzip
+
+        psql_bin = shutil.which("psql")
+        if not psql_bin:
+            console.print("[red]Error:[/red] psql not found on PATH.")
+            raise typer.Exit(1)
+
+        with gzip.open(source, "rb") as f:
+            sql_content = f.read()
+
+        psql_cmd = [
+            psql_bin,
+            "-h",
+            "127.0.0.1",
+            "-p",
+            str(cfg["port"]),
+            "-U",
+            "postgres",
+            "-d",
+            cfg["database"],
+        ]
+
+        env_copy = {**__import__("os").environ, "PGPASSWORD": password}
+        result = subprocess.run(psql_cmd, input=sql_content, env=env_copy, capture_output=True)
+        if result.returncode != 0:
+            console.print(f"[red]Restore failed:[/red]\n{result.stderr.decode()}")
+            raise typer.Exit(result.returncode)
+
+        # Validate Alembic revision after restore.
+        _validate_alembic_dev(cfg, password)
+
+        console.print(f"[green]Restore complete on {target_label}.[/green]")
     finally:
         _stop_proxy(proxy)
