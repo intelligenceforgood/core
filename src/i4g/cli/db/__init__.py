@@ -363,6 +363,7 @@ _WIPE_TABLE_ORDER: list[str] = [
     "campaigns",
     "ingestion_runs",
     "audit_log",
+    "backfill_locks",
 ]
 
 

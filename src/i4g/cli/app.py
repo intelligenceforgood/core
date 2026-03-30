@@ -13,6 +13,7 @@ import typer
 
 from i4g.cli.admin import admin_app
 from i4g.cli.azure import app as azure_app
+from i4g.cli.backfill import backfill_app
 from i4g.cli.bootstrap import bootstrap_app
 from i4g.cli.data import data_app
 from i4g.cli.db import db_app
@@ -46,6 +47,7 @@ if str(PROJECT_ROOT) not in sys.path:
 app = typer.Typer(add_completion=True, help=APP_HELP)
 
 app.add_typer(bootstrap_app, name="bootstrap")
+app.add_typer(backfill_app, name="backfill")
 app.add_typer(db_app, name="db")
 app.add_typer(settings_app, name="settings")
 app.add_typer(smoke_app, name="smoke")

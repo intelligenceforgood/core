@@ -867,6 +867,19 @@ sa.Index("idx_audit_log_actor", audit_log.c.actor)
 sa.Index("idx_audit_log_resource", audit_log.c.resource_type, audit_log.c.resource_id)
 sa.Index("idx_audit_log_created", audit_log.c.created_at)
 
+# ---------------------------------------------------------------------------
+# Backfill coordination
+# ---------------------------------------------------------------------------
+
+backfill_locks = sa.Table(
+    "backfill_locks",
+    METADATA,
+    sa.Column("task_name", sa.String(128), primary_key=True),
+    sa.Column("holder_id", sa.String(128), nullable=False),
+    sa.Column("acquired_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("expires_at", TIMESTAMP, nullable=False),
+)
+
 
 def dialect_insert(session: Session, table: sa.Table):
     """Return a dialect-aware INSERT construct that supports ``on_conflict_do_update``.

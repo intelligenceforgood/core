@@ -140,6 +140,52 @@ i4g bootstrap local verify --smoke-search --smoke-dossiers
   - Inspect `data/reports/bootstrap_local/` for verification reports.
   - Point ingestion/search to the refreshed dataset (`ingestion.default_dataset`).
 
+### Post-Bootstrap: Backfill Processing
+
+After bootstrap, many cases have `classification_status='pending'` and need async processing (classification, risk scoring, SSI investigation, analytics). Use the **backfill framework** to process them:
+
+```bash
+# Check what needs processing
+I4G_ENV=local i4g backfill status
+
+# Run all backfill tasks once
+I4G_ENV=local i4g backfill run all
+
+# Or launch the daemon (continuous loop — fire and forget)
+I4G_ENV=local nohup i4g backfill daemon --cycle 60 > data/logs/backfill.log 2>&1 &
+
+# Monitor progress
+tail -f data/logs/backfill.log
+I4G_ENV=local i4g backfill status
+```
+
+The daemon cycles through all registered tasks (classify, SSI, analytics, linkage, evidence, etc.), processing pending items until the queue is empty, then sleeping between cycles. It is **reentrant** — safe to restart at any time; it picks up where it left off.
+
+#### SSI Configuration (Local)
+
+The `ssi` backfill task triggers auto-investigations for uninvestigated URL indicators. In local mode, this requires the SSI dev server running alongside core. Enable it in `config/settings.local.toml`:
+
+```toml
+[auto_investigate]
+enabled = true
+max_concurrent = 3
+staleness_days = 30
+
+[ssi]
+service_url = "http://localhost:8100"
+```
+
+Then start the SSI service in a separate terminal:
+
+```bash
+cd ../ssi
+conda run -n i4g-ssi uvicorn ssi.api.app:app --reload --port 8100
+```
+
+No OIDC token is needed locally — auth falls back gracefully when the token fetch fails.
+
+See [Backfill Framework Runbook](backfill_framework.md) for full CLI reference, concurrency details, and troubleshooting.
+
 ## Dev environment (I4G_ENV=dev)
 
 ### Prerequisites
@@ -216,6 +262,90 @@ i4g bootstrap dev reset --bundle ocr_test_images --ingest-dry-run
 | `ingest-bootstrap` | `ingest-job.Dockerfile` | Primary ingestion: Cloud SQL, Vertex AI, BigQuery |
 | `generate-reports` | `report-job.Dockerfile` | Dossiers, reports, review seeding                 |
 | `process-intakes`  | `intake-job.Dockerfile` | Smoke test: processes new intake submissions      |
+
+### Post-Bootstrap: Backfill Processing (Dev)
+
+> **How environment targeting works:** The `i4g backfill` CLI does not have an `--env` flag. It reads `I4G_ENV` and the corresponding `I4G_*` env vars to determine which database and services to connect to — same pattern as `i4g jobs run`.
+
+#### Steady-state (already handled)
+
+In dev, Cloud Scheduler already triggers the individual Cloud Run jobs that backfill wraps:
+
+| Job                      | Schedule       | Cloud Run Image |
+| :----------------------- | :------------- | :-------------- |
+| `classification_sweeper` | `*/5 * * * *`  | `core-svc`      |
+| `analytics_aggregation`  | `0 */4 * * *`  | `core-svc`      |
+| `auto_investigate`       | `*/10 * * * *` | `core-svc`      |
+
+These jobs already process pending work continuously. You only need the backfill CLI for **post-bootstrap catch-up** or **ad-hoc runs**.
+
+#### Running backfill from your laptop against dev
+
+This runs the Python code locally but connects to dev Cloud SQL. Prerequisites:
+
+1. **Cloud SQL Auth Proxy** running (provides `localhost:5432` → Cloud SQL):
+   ```bash
+   cloud-sql-proxy i4g-dev:us-central1:i4g-dev-db --port 5432
+   ```
+2. **gcloud auth** active:
+   ```bash
+   gcloud auth application-default login
+   ```
+3. **Env vars** set for dev targeting:
+   ```bash
+   export I4G_ENV=dev
+   export I4G_SSI__SERVICE_URL="https://ssi-<hash>.a.run.app"  # from Terraform output
+   export I4G_AUTO_INVESTIGATE__ENABLED=true
+   ```
+
+Then run backfill commands normally:
+
+```bash
+i4g backfill status                    # check pending work against dev DB
+i4g backfill run classify --dry-run    # dry-run first
+i4g backfill run classify              # run for real
+i4g backfill run all                   # run all tasks
+```
+
+Advisory locks prevent concurrent execution, so it is safe to run backfill while Cloud Scheduler jobs are active. The SSI task respects URL deduplication — dozens of cases sharing the same URL trigger only one investigation.
+
+OIDC authentication for SSI is automatic — `google.oauth2.id_token.fetch_id_token()` generates a bearer token using your ADC identity. The SSI service calls back to core at `ssi.core_api_url` (defaults to `https://api.dev.intelligenceforgood.org`).
+
+#### Future: Cloud Run backfill job
+
+A dedicated `backfill-job` Cloud Run job is planned but not yet provisioned. Once available, it will support:
+
+```bash
+gcloud run jobs execute backfill-job \
+  --region us-central1 \
+  --args="backfill,run,all" \
+  --project i4g-dev
+```
+
+Until then, use the laptop-to-dev pattern above or rely on the existing per-job Cloud Scheduler entries.
+
+### Backfill on Prod
+
+Prod follows the same env-var pattern. All SSI values are injected via Terraform on Cloud Run:
+
+| Setting          | Env Var                         | Value                                 |
+| :--------------- | :------------------------------ | :------------------------------------ |
+| SSI service URL  | `I4G_SSI__SERVICE_URL`          | Cloud Run URL (Terraform-managed)     |
+| Auto-investigate | `I4G_AUTO_INVESTIGATE__ENABLED` | `true`                                |
+| Core callback    | `I4G_SSI__CORE_API_URL`         | `https://api.intelligenceforgood.org` |
+| OIDC auth        | Automatic                       | Service account identity token        |
+
+For ad-hoc backfill from a laptop against prod (requires prod Cloud SQL Auth Proxy + elevated access):
+
+```bash
+export I4G_ENV=prod
+i4g backfill run ssi --dry-run    # always dry-run first in prod
+i4g backfill run ssi
+```
+
+In practice, prod backfill should run via Cloud Run jobs once the `backfill-job` is provisioned — not from developer laptops.
+
+See [Backfill Framework Runbook](backfill_framework.md) for full documentation.
 
 ## Data Sources & Design
 

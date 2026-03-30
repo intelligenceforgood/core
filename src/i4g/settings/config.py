@@ -16,6 +16,7 @@ from i4g.settings.sections import (
     AnalyticsSettings,
     APISettings,
     AutoInvestigateSettings,
+    BackfillSettings,
     CryptoSettings,
     DbAdminSettings,
     DossierJobSettings,
@@ -219,6 +220,7 @@ class Settings(BaseSettings):
     partner_feed: PartnerFeedSettings = Field(default_factory=PartnerFeedSettings)
     db_admin: DbAdminSettings = Field(default_factory=DbAdminSettings)
     auto_investigate: AutoInvestigateSettings = Field(default_factory=AutoInvestigateSettings)
+    backfill: BackfillSettings = Field(default_factory=BackfillSettings)
     ml: MlPlatformSettings = Field(default_factory=MlPlatformSettings)
     env_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)
     config_files: tuple[Path, ...] = Field(default_factory=tuple, exclude=True)

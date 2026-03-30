@@ -149,6 +149,40 @@ fields:
     description:
       Scans older than this many days are considered stale and eligible for
       re-scan.
+  - path: backfill.cycle_interval_seconds
+    section: backfill
+    type: int
+    default: 300
+    env_vars:
+      - I4G_BACKFILL__CYCLE_INTERVAL_SECONDS
+      - BACKFILL_CYCLE_INTERVAL
+      - BACKFILL__CYCLE_INTERVAL_SECONDS
+    description: Seconds between daemon cycles.
+  - path: backfill.default_lock_ttl_seconds
+    section: backfill
+    type: int
+    default: 3600
+    env_vars:
+      - I4G_BACKFILL__DEFAULT_LOCK_TTL_SECONDS
+      - BACKFILL_LOCK_TTL
+      - BACKFILL__DEFAULT_LOCK_TTL_SECONDS
+    description: Default TTL for advisory locks.
+  - path: backfill.enabled_tasks
+    section: backfill
+    type: list[str]
+    default:
+      - classify
+      - ssi
+      - analytics
+      - linkage
+      - dossier
+      - evidence
+      - ingest-retry
+    env_vars:
+      - I4G_BACKFILL__ENABLED_TASKS
+      - BACKFILL_ENABLED_TASKS
+      - BACKFILL__ENABLED_TASKS
+    description: Task names to run in daemon mode.
   - path: crypto.pii_key
     section: crypto
     type: str | NoneType

@@ -4,6 +4,7 @@ from i4g.settings.sections.basic import APISettings, DbAdminSettings, IdentitySe
 from i4g.settings.sections.jobs import (
     AnalyticsSettings,
     AutoInvestigateSettings,
+    BackfillSettings,
     DossierJobSettings,
     EmailSettings,
     EnrichmentSettings,
@@ -27,6 +28,7 @@ __all__ = [
     "AnalyticsSettings",
     "APISettings",
     "AutoInvestigateSettings",
+    "BackfillSettings",
     "DbAdminSettings",
     "EmailSettings",
     "IdentitySettings",

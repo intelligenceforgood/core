@@ -208,6 +208,28 @@ class DossierJobSettings(BaseSettings):
     )
 
 
+class BackfillSettings(BaseSettings):
+    """Backfill daemon and coordinator configuration."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    cycle_interval_seconds: int = Field(
+        default=300,
+        validation_alias=AliasChoices("BACKFILL_CYCLE_INTERVAL", "BACKFILL__CYCLE_INTERVAL_SECONDS"),
+        description="Seconds between daemon cycles.",
+    )
+    default_lock_ttl_seconds: int = Field(
+        default=3600,
+        validation_alias=AliasChoices("BACKFILL_LOCK_TTL", "BACKFILL__DEFAULT_LOCK_TTL_SECONDS"),
+        description="Default TTL for advisory locks.",
+    )
+    enabled_tasks: list[str] = Field(
+        default_factory=lambda: ["classify", "ssi", "analytics", "linkage", "dossier", "evidence", "ingest-retry"],
+        validation_alias=AliasChoices("BACKFILL_ENABLED_TASKS", "BACKFILL__ENABLED_TASKS"),
+        description="Task names to run in daemon mode.",
+    )
+
+
 class SmokeSettings(BaseSettings):
     """Smoke test CLI defaults."""
 
