@@ -64,7 +64,12 @@ def clean(input_dir: Path, output_path: Path) -> int:
                     except json.JSONDecodeError:
                         continue
 
-                    text = record.get("text", "") or record.get("content", "") or ""
+                    # Vertex search export format: text lives in structData.content
+                    struct_data = record.get("structData", {})
+                    text = record.get("text", "") or struct_data.get("content", "") or ""
+                    # Skip if content is not a string (e.g. Vertex rawBytes wrapper)
+                    if not isinstance(text, str):
+                        text = ""
                     if len(text) < MIN_TEXT_CHARS:
                         skipped_short += 1
                         continue
@@ -82,6 +87,10 @@ def clean(input_dir: Path, output_path: Path) -> int:
                         record["source_type"] = "azure_export"
                     if "raw_text_sha256" not in record:
                         record["raw_text_sha256"] = text_hash
+
+                    # Normalize: promote text to top-level so downstream consumers
+                    # (build_golden_bundle, ingestion) can find it via record["text"]
+                    record["text"] = text
 
                     out.write(json.dumps(record, default=str) + "\n")
                     written += 1

@@ -45,20 +45,11 @@ class SearchSmokeResult:
 
 def get_bundles() -> dict[str, str]:
     run_date = os.getenv("RUN_DATE", "2025-12-17")
-    use_golden = os.getenv("I4G_BOOTSTRAP__USE_GOLDEN_BUNDLE", "").lower() in ("1", "true", "yes")
 
-    if use_golden:
-        golden_date = os.getenv("GOLDEN_RUN_DATE", run_date)
-        return {
-            "golden": f"gs://i4g-dev-data-bundles/{golden_date}/golden/cases.jsonl",
-        }
-
+    # Golden bundle is the default.  Legacy bundles are only used as fallback
+    # when the golden bundle is not present on GCS.
     return {
-        "legacy_azure": f"gs://i4g-dev-data-bundles/{run_date}/legacy_azure/search_exports/vertex",
-        "public_scams": f"gs://i4g-dev-data-bundles/{run_date}/public_scams/cases.jsonl",
-        "retrieval_poc": f"gs://i4g-dev-data-bundles/{run_date}/synthetic_coverage/retrieval_poc/cases.jsonl",
-        "synthetic_coverage": f"gs://i4g-dev-data-bundles/{run_date}/synthetic_coverage/full/cases.jsonl",
-        "ocr_test_images": f"gs://i4g-dev-data-bundles/{run_date}/synthetic_coverage/ocr_test_images",
+        "golden": f"gs://i4g-dev-data-bundles/{run_date}/golden",
     }
 
 
@@ -163,5 +154,13 @@ def download_bundles(bundles_dir: Path) -> None:
         print(f"⬇️  Downloading {name} from {uri}...")
         try:
             subprocess.run(["gcloud", "storage", "cp", "-r", uri, str(target_dir)], check=True)
-        except Exception:
-            print(f"⚠️  Failed to download {name}. Ensure you have gcloud auth and permissions.")
+        except subprocess.CalledProcessError:
+            run_date = os.getenv("RUN_DATE", "2025-12-17")
+            print(f"❌ Failed to download bundle '{name}' from {uri}")
+            print(f"   RUN_DATE={run_date!r} — verify this date exists on GCS:")
+            print(f"   gcloud storage ls gs://i4g-dev-data-bundles/{run_date}/")
+            print("   Also ensure gcloud auth is active: gcloud auth application-default login")
+            raise SystemExit(1) from None
+        except Exception as exc:
+            print(f"❌ Unexpected error downloading bundle '{name}': {exc}")
+            raise SystemExit(1) from None

@@ -62,8 +62,11 @@ def reset_artifacts(skip_vector: bool) -> None:
     if not skip_vector:
         shutil.rmtree(MANUAL_DEMO_DIR, ignore_errors=True)
         shutil.rmtree(CHROMA_DIR, ignore_errors=True)
-        if SQLITE_DB.exists():
-            SQLITE_DB.unlink()
+    # Always remove SQLite (including WAL/SHM) so reset starts clean.
+    for suffix in ("", "-wal", "-shm"):
+        p = SQLITE_DB.parent / (SQLITE_DB.name + suffix)
+        if p.exists():
+            p.unlink()
     shutil.rmtree(REPORTS_DIR, ignore_errors=True)
 
 
@@ -89,8 +92,170 @@ def build_bundles() -> None:
     )
 
 
+def _is_golden_mode() -> bool:
+    """Return True when the golden bundle is available locally."""
+    golden_path = BUNDLES_DIR / "golden" / "cases.jsonl"
+    return golden_path.exists()
+
+
+def ingest_golden_fast() -> bool:
+    """Fast-path: insert golden JSONL directly into SQLite.
+
+    Bypasses the heavyweight IngestPipeline (StructuredStore + SqlWriter +
+    VectorStore) by doing raw sqlite3 inserts.  Populates the same tables the
+    pipeline would: ``cases``, ``source_documents``, ``entities``, and
+    ``scam_records``.
+
+    Returns True on success, False if the golden bundle is missing.
+    """
+    import hashlib
+    import sqlite3
+    import uuid
+    from datetime import UTC, datetime
+
+    golden_path = BUNDLES_DIR / "golden" / "cases.jsonl"
+    if not golden_path.exists():
+        print("⚠️  Golden bundle not found at", golden_path)
+        return False
+
+    print("🚀 Fast-ingesting golden bundle into SQLite...")
+    conn = sqlite3.connect(str(SQLITE_DB))
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    cur = conn.cursor()
+    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+
+    count = 0
+    entity_count = 0
+    indicator_count = 0
+    with open(golden_path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            record = json.loads(line)
+
+            case_id = record.get("id") or record.get("case_id") or str(uuid.uuid4())
+            struct_data = record.get("structData") or {}
+            text = record.get("text", "") or struct_data.get("content", "")
+            dataset = record.get("dataset", "golden")
+            source_type = record.get("source_type", "golden_bundle")
+            classification = record.get("classification", "unclassified")
+            raw_hash = record.get("raw_text_sha256") or hashlib.sha256(text.encode()).hexdigest()
+            metadata = record.get("metadata") or {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+            title = struct_data.get("title", "")
+            # Normalize entities: ETL scripts produce [{entity_type, canonical_value, confidence}]
+            # but the old code expected {type: [values]}.  Convert list→dict for storage.
+            raw_entities = record.get("entities")
+            entities_dict: dict[str, list[str]] = {}
+            if isinstance(raw_entities, list):
+                for ent in raw_entities:
+                    if not isinstance(ent, dict):
+                        continue
+                    etype = ent.get("entity_type", "unknown")
+                    val = ent.get("canonical_value", "")
+                    if val:
+                        entities_dict.setdefault(etype, []).append(val)
+            elif isinstance(raw_entities, dict):
+                entities_dict = raw_entities
+
+            # -- cases table --
+            cur.execute(
+                "INSERT INTO cases "
+                "(case_id, dataset, source_type, classification, classification_status, "
+                "raw_text_sha256, status, metadata, created_at, updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?) "
+                "ON CONFLICT(case_id) DO NOTHING",
+                (
+                    case_id,
+                    dataset,
+                    source_type,
+                    classification,
+                    "pending",
+                    raw_hash,
+                    "open",
+                    json.dumps(metadata),
+                    now,
+                    now,
+                ),
+            )
+
+            # -- scam_records table (primary table the UI reads) --
+            cur.execute(
+                "INSERT INTO scam_records "
+                "(case_id, text, entities, classification, confidence, metadata, created_at) "
+                "VALUES (?,?,?,?,?,?,?) "
+                "ON CONFLICT(case_id) DO UPDATE SET text=excluded.text, entities=excluded.entities",
+                (case_id, text, json.dumps(entities_dict), classification, 0.0, json.dumps(metadata), now),
+            )
+
+            # -- source_documents table --
+            doc_id = str(uuid.uuid4())
+            cur.execute(
+                "INSERT INTO source_documents "
+                "(document_id, case_id, title, text, text_sha256, created_at, updated_at) "
+                "VALUES (?,?,?,?,?,?,?) "
+                "ON CONFLICT DO NOTHING",
+                (doc_id, case_id, title, text, raw_hash, now, now),
+            )
+
+            # -- entities table --
+            for etype, values in entities_dict.items():
+                if not isinstance(values, list):
+                    continue
+                for val in values:
+                    canonical = val if isinstance(val, str) else (val.get("value") or str(val))
+                    if not canonical:
+                        continue
+                    eid = str(uuid.uuid4())
+                    cur.execute(
+                        "INSERT INTO entities "
+                        "(entity_id, case_id, entity_type, canonical_value, raw_value, "
+                        "confidence, created_at, updated_at) "
+                        "VALUES (?,?,?,?,?,?,?,?) "
+                        "ON CONFLICT DO NOTHING",
+                        (eid, case_id, etype, canonical, canonical, 0.0, now, now),
+                    )
+                    entity_count += 1
+
+            # -- indicators table (IoC view of entities) --
+            for etype, values in entities_dict.items():
+                if not isinstance(values, list):
+                    continue
+                for val in values:
+                    canonical = val if isinstance(val, str) else (val.get("value") or str(val))
+                    if not canonical:
+                        continue
+                    iid = str(uuid.uuid4())
+                    cur.execute(
+                        "INSERT INTO indicators "
+                        "(indicator_id, case_id, category, type, number, dataset, "
+                        "status, confidence, first_seen_at, last_seen_at, "
+                        "created_at, updated_at) "
+                        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) "
+                        "ON CONFLICT DO NOTHING",
+                        (iid, case_id, etype, etype, canonical, dataset, "active", 0.0, now, now, now, now),
+                    )
+                    indicator_count += 1
+
+            count += 1
+
+    conn.commit()
+    conn.close()
+    print(f"✅ Fast-ingested {count} cases, {entity_count} entities, {indicator_count} indicators into SQLite.")
+    return True
+
+
 def ingest_bundles(skip_vector: bool, limit: int | None = None) -> None:
     """Ingest JSONL bundles into the local SQLite store."""
+
+    # Golden mode: use the fast direct-to-SQLite path
+    if _is_golden_mode():
+        if ingest_golden_fast():
+            return
+        print("⚠️  Golden fast-path failed; falling back to standard ingestion.")
 
     bundles = sorted(BUNDLES_DIR.glob("**/*.jsonl"))
 
@@ -214,8 +379,33 @@ def apply_migrations() -> None:
     run([sys.executable, "-m", "alembic", "upgrade", "head"], unset_env_vars=["I4G_DATABASE_URL"])
 
 
+def run_analytics_refresh() -> None:
+    """Run analytics aggregation to populate entity_stats, indicator_stats, campaign_stats.
+
+    This step is critical: intelligence pages (campaigns, indicators, graph)
+    read from pre-computed stats tables.  Without this, those pages are empty.
+    """
+
+    print("📊 Running analytics aggregation...")
+    try:
+        from i4g.worker.jobs.analytics_aggregation import main as analytics_main
+
+        result = analytics_main()
+        if result != 0:
+            print(f"⚠️  Analytics aggregation exited with code {result}. Intelligence pages may be incomplete.")
+        else:
+            print("   → Analytics aggregation complete.")
+    except Exception as exc:
+        print(f"⚠️  Analytics aggregation failed: {exc}. Intelligence pages may be incomplete.")
+
+
 def apply_seed_sql() -> None:
-    """Apply seed.sql from the golden bundle to the local SQLite store."""
+    """Apply seed.sql from the golden bundle to the local SQLite store.
+
+    The seed SQL references placeholder case IDs (``golden-case-XXXX``).  This
+    function substitutes them with real case IDs already present in the
+    ``cases`` table so that foreign-key relationships and UI joins work.
+    """
 
     seed_path = BUNDLES_DIR / "golden" / "seed.sql"
     if not seed_path.exists():
@@ -225,6 +415,7 @@ def apply_seed_sql() -> None:
         print("⚠️  No seed.sql found in golden bundle. Skipping.")
         return
 
+    import re
     import sqlite3
 
     print(f"🌱 Applying seed SQL from {seed_path.name}...")
@@ -232,6 +423,18 @@ def apply_seed_sql() -> None:
 
     conn = sqlite3.connect(str(SQLITE_DB))
     try:
+        # Gather real case IDs to replace golden-case-XXXX placeholders
+        real_ids = [row[0] for row in conn.execute("SELECT case_id FROM cases ORDER BY case_id").fetchall()]
+
+        placeholders = sorted(set(re.findall(r"golden-case-\d{4}", sql)))
+        if placeholders and real_ids:
+            for i, ph in enumerate(placeholders):
+                real = real_ids[i % len(real_ids)]
+                sql = sql.replace(ph, real)
+            print(f"   → Replaced {len(placeholders)} placeholder IDs with real case IDs.")
+        elif placeholders:
+            print("   ⚠️  No real case IDs in DB; placeholders left in seed SQL.")
+
         conn.executescript(sql)
         conn.commit()
         print("   → Seed SQL applied successfully.")
@@ -245,6 +448,7 @@ __all__ = [
     "ensure_dirs",
     "build_bundles",
     "ingest_bundles",
+    "ingest_golden_fast",
     "stage_ocr_images",
     "run_ocr",
     "run_semantic_extraction",
@@ -252,5 +456,6 @@ __all__ = [
     "ensure_pilot_cases_file",
     "seed_review_cases",
     "apply_migrations",
+    "run_analytics_refresh",
     "apply_seed_sql",
 ]

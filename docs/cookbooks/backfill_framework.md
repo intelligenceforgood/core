@@ -2,6 +2,20 @@
 
 This runbook describes how to use the **backfill framework** to manage reentrant batch processing tasks across local, dev, and prod environments. The framework unifies all async processing (classification, SSI investigation, analytics, linkage extraction, evidence integrity, and more) under a single CLI with advisory locking, progress reporting, and a launch-and-forget daemon mode.
 
+## Relationship with Bootstrap
+
+Bootstrap intentionally **skips** expensive processing (LLM classification, risk scoring, SSI investigation, linkage extraction) to keep the initial data load fast. After `i4g bootstrap local reset` completes, many cases have `classification_status='pending'` and zero entity/indicator stats. The backfill framework is the standard way to process these asynchronously:
+
+```bash
+# After bootstrap — check what's pending, then process
+i4g backfill status
+i4g backfill run all            # runs all tasks sequentially (can take hours)
+# or
+i4g backfill daemon --cycle 60  # fire-and-forget continuous processing
+```
+
+Bootstrap does automatically run **analytics aggregation** at the end, so intelligence pages (campaigns, graph, watchlist) are populated with seed data immediately. Running the full backfill enriches them with LLM-derived classifications and entity extractions.
+
 ## Concepts
 
 | Term              | Meaning                                                                                                                            |
@@ -120,11 +134,10 @@ The CLI runs Python code **on your machine** (or in a Cloud Run container). It i
 
 ### Local (`I4G_ENV=local`)
 
-After running `i4g bootstrap local reset`, many cases have `classification_status='pending'`. Start the daemon to process them:
+After `i4g bootstrap local reset`, cases have `classification_status='pending'`. Start the daemon to process them:
 
 ```bash
-# Full bootstrap + backfill
-export I4G_ENV=local
+# Bootstrap already sets I4G_ENV=local, so just run:
 i4g bootstrap local reset
 nohup i4g backfill daemon --cycle 60 > data/logs/backfill.log 2>&1 &
 

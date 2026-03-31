@@ -175,6 +175,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def bootstrap_dev(args: argparse.Namespace) -> int:
     configure_logging(args.log_level)
+
+    env_val = os.getenv("I4G_ENV", "")
+    if not env_val or env_val == "local":
+        os.environ["I4G_ENV"] = "dev"
+        if not env_val:
+            logging.info("I4G_ENV not set; defaulting to 'dev' for bootstrap dev.")
+
     guard_environment(args.project, args.force)
 
     if not args.search_project:

@@ -22,22 +22,31 @@ from pathlib import Path
 MIN_NARRATIVE_CHARS = 50
 
 # Column mapping: expected CSV columns → internal field names.
-# Adjust if the actual export headers differ.
+# These match the actual Google Sheet "Incident Report (Responses)" export.
 _COLUMN_MAP = {
     "Timestamp": "timestamp",
     "Email Address": "reporter_email",
-    "Date of Incident": "incident_date",
-    "Type of Scam": "scam_type",
-    "Description": "narrative",
-    "URLs": "urls",
-    "Email Addresses": "email_addresses",
-    "Phone Numbers": "phone_numbers",
-    "Wallet Addresses": "wallet_addresses",
-    "Bank Accounts": "bank_accounts",
-    "Loss Amount": "loss_amount",
-    "Loss Currency": "loss_currency",
-    "Victim Country": "victim_country",
-    "Suspect Info": "suspect_info",
+    "First Name": "first_name",
+    "Last Name": "last_name",
+    "Country": "victim_country",
+    "City": "victim_city",
+    "State / Province": "victim_state",
+    "Have you reported this incident to Law Enforcement?": "reported_to_law",
+    "If yes, what law enforcement agency(ies)?": "law_agencies",
+    "Tell us what happened, including how the criminal first contacted you.": "narrative",
+    "When you were asked to send money, how did you send it?": "payment_method",
+    "If you wired money, please provide the bank account information"
+    " the criminal provided to you below:": "bank_accounts",
+    "If cryptocurrency, please provide the type of crypto as well as the"
+    " sending and receiving wallet addresses:": "wallet_addresses",
+    "Please provide the name of any mobile apps you were asked to use or" " the URL of the investment website:": "urls",
+    "Please provide the phone number(s), email address(es), WhatsApp or"
+    " Telegram handles of the criminals who communicated with you:": "contact_handles",
+    "If the criminals provided a street address/mailing address at any"
+    " point, please share that here:": "suspect_address",
+    "If CashApp, PayPal, Venmo, etc., please provide all user names /" " handles / tags here:  ": "payment_handles",
+    "Please share any additional information you feel would be helpful in"
+    " understanding and investigating your case.": "additional_info",
 }
 
 
@@ -61,17 +70,23 @@ def _extract_entities(row: dict) -> list[dict]:
     for raw in _split_multi(row.get("urls", "")):
         entities.append({"entity_type": "url", "canonical_value": raw, "confidence": 0.8})
 
-    for raw in _split_multi(row.get("email_addresses", "")):
-        entities.append({"entity_type": "email_address", "canonical_value": raw.lower(), "confidence": 0.85})
-
-    for raw in _split_multi(row.get("phone_numbers", "")):
-        entities.append({"entity_type": "phone_number", "canonical_value": raw, "confidence": 0.8})
+    # contact_handles may contain emails, phone numbers, and messaging handles mixed together
+    for raw in _split_multi(row.get("contact_handles", "")):
+        if "@" in raw and " " not in raw.strip():
+            entities.append(
+                {"entity_type": "email_address", "canonical_value": raw.lower().strip(), "confidence": 0.85}
+            )
+        else:
+            entities.append({"entity_type": "contact_handle", "canonical_value": raw.strip(), "confidence": 0.7})
 
     for raw in _split_multi(row.get("wallet_addresses", "")):
         entities.append({"entity_type": "wallet_address", "canonical_value": raw, "confidence": 0.85})
 
     for raw in _split_multi(row.get("bank_accounts", "")):
         entities.append({"entity_type": "bank_account", "canonical_value": raw, "confidence": 0.75})
+
+    for raw in _split_multi(row.get("payment_handles", "")):
+        entities.append({"entity_type": "payment_handle", "canonical_value": raw.strip(), "confidence": 0.8})
 
     return entities
 
@@ -131,16 +146,19 @@ def convert(csv_path: Path, output_path: Path) -> int:
                     "source_type": "form",
                     "text": narrative,
                     "raw_text_sha256": text_hash,
-                    "classification": row.get("scam_type", "Unspecified"),
+                    "classification": "Unspecified",
                     "classification_status": "pending",
                     "confidence": 0.0,
                     "entities": entities,
                     "metadata": {
                         "victim_country": row.get("victim_country", ""),
-                        "loss_amount": _parse_loss(row.get("loss_amount", "")),
-                        "loss_currency": row.get("loss_currency", "USD"),
-                        "incident_date": row.get("incident_date", ""),
-                        "suspect_info": row.get("suspect_info", ""),
+                        "victim_city": row.get("victim_city", ""),
+                        "victim_state": row.get("victim_state", ""),
+                        "payment_method": row.get("payment_method", ""),
+                        "reported_to_law": row.get("reported_to_law", ""),
+                        "law_agencies": row.get("law_agencies", ""),
+                        "suspect_address": row.get("suspect_address", ""),
+                        "additional_info": row.get("additional_info", ""),
                     },
                 }
 

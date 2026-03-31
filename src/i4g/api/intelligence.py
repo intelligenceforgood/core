@@ -683,7 +683,7 @@ def get_search_facets(
 class ThreatCampaignResponse(CamelModel):
     """Threat campaign list item."""
 
-    campaign_id: str
+    id: str
     name: str
     description: str | None = None
     origin: str = "manual"
@@ -697,6 +697,7 @@ class ThreatCampaignResponse(CamelModel):
     case_count: int = 0
     loss_sum: float = 0.0
     indicator_count: int = 0
+    victim_count: int = 0
 
     @field_validator("created_at", "updated_at", mode="before")
     @classmethod
@@ -782,7 +783,7 @@ def list_threat_campaigns(
         stat = analytics_store.get_campaign_stat(cid) or {}
         items.append(
             ThreatCampaignResponse(
-                campaign_id=cid,
+                id=cid,
                 name=c.get("name", ""),
                 description=c.get("description"),
                 origin=c.get("origin", "manual"),
@@ -796,6 +797,7 @@ def list_threat_campaigns(
                 case_count=int(stat.get("case_count", 0)),
                 loss_sum=float(stat.get("loss_sum", 0)),
                 indicator_count=int(stat.get("indicator_count", 0)),
+                victim_count=int(stat.get("victim_count", 0)),
             )
         )
     return ThreatCampaignListResponse(items=items, count=len(items), limit=limit, offset=offset)
@@ -834,7 +836,7 @@ def get_threat_campaign_detail(
     lea_summary = _compute_lea_referral_summary(linked_cases)
 
     return ThreatCampaignDetailResponse(
-        campaign_id=campaign_id,
+        id=campaign_id,
         name=campaign.get("name", ""),
         description=campaign.get("description"),
         origin=campaign.get("origin", "manual"),
@@ -848,6 +850,7 @@ def get_threat_campaign_detail(
         case_count=int(stat.get("case_count", 0)),
         loss_sum=float(stat.get("loss_sum", 0)),
         indicator_count=int(stat.get("indicator_count", 0)),
+        victim_count=int(stat.get("victim_count", 0)),
         cases=linked_cases,
         entity_types=entity_types if isinstance(entity_types, dict) else {},
         lea_referral_summary=lea_summary,

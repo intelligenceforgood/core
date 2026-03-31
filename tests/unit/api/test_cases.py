@@ -5,28 +5,15 @@ from i4g.api.app import app
 client = TestClient(app)
 
 
-def test_get_case_detail_success():
-    """Test retrieving a mock case detail."""
-    # Using a known ID from the MOCK_CASES or one that triggers the fallback
-    case_id = "case-482"  # From the static list
+def test_get_case_detail_not_in_db():
+    """Cases not in the DB return 404 — static mock data was removed in E26."""
+    case_id = "case-482"
     response = client.get(f"/cases/{case_id}")
-
-    assert response.status_code == 200
-    data = response.json()
-
-    assert data["id"] == case_id
-    assert "artifacts" in data
-    assert "timeline" in data
-    assert "graphNodes" in data
-    assert "graphLinks" in data
-
-    # Check specific mock data structure
-    assert len(data["artifacts"]) >= 2
-    assert data["artifacts"][0]["type"] == "document"
+    assert response.status_code == 404
 
 
-def test_get_case_dynamic_mock():
-    """Test that case IDs not in the static list return 404."""
+def test_get_case_dynamic_not_found():
+    """Non-existent case IDs return 404."""
     case_id = "case-dynamic-999"
     response = client.get(f"/cases/{case_id}")
     assert response.status_code == 404

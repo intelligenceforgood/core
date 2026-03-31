@@ -247,6 +247,13 @@ def apply_environment_overrides(
         "INGEST__RESET_VECTOR",
         "INGEST_RESET_VECTOR",
     )
+    _ingestion_bool(
+        "skip_classification",
+        "INGESTION__SKIP_CLASSIFICATION",
+        "INGESTION_SKIP_CLASSIFICATION",
+        "INGEST__SKIP_CLASSIFICATION",
+        "INGEST_SKIP_CLASSIFICATION",
+    )
 
     if ingestion_alias_updates:
         object.__setattr__(settings, "ingestion", settings.ingestion.model_copy(update=ingestion_alias_updates))

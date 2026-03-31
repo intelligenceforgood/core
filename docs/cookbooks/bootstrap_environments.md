@@ -2,52 +2,42 @@
 
 Use these recipes to rebuild or verify the local sandbox and the shared dev environment.
 
-## Prepare the required bundles (GCS)
+## Prerequisites
 
-See [Prepare Bootstrap Data Bundles](prepare_bootstrap_bundles.md) for instructions on generating, exporting, and uploading the data bundles required for bootstrapping.
+Before bootstrapping, you need data bundles in `data/bundles/golden/`. Two ways to get them:
 
-## Golden Data Bundle
+1. **Build locally** (recommended for first-time setup) — see [Prepare Bootstrap Data Bundles](prepare_bootstrap_bundles.md)
+2. **Download from GCS** — the bootstrap command auto-downloads if `data/bundles/golden/` is empty:
+   ```bash
+   # Set RUN_DATE to the bundle date on GCS
+   export RUN_DATE=20260330
+   ```
+   > **Note:** `RUN_DATE` is only consulted when the bundle directory is absent or empty. If
+   > `data/bundles/golden/` already exists with files, the download is skipped regardless of
+   > `RUN_DATE`. To force a re-download with a different date, delete the directory first:
+   > `rm -rf data/bundles/golden/`
 
-The golden bundle consolidates all data sources into a single, quality-filtered package:
+The golden bundle contains:
 
-- **Cleaned legacy Azure** cases (min 50-char text, deduped by SHA-256)
-- **Public scam** corpora (kept as-is)
-- **Incident report responses** (Google Sheet CSV → JSONL ETL)
-- **Synthetic coverage** cases (minus OCR test images and low-quality records)
-- **Seed SQL** — direct DB inserts for campaigns, watchlists, graph edges, review queue, and geographic data
-
-To build the golden bundle locally:
-
-```bash
-# Run ETL scripts first (from core/ root)
-python scripts/etl/clean_legacy_azure.py --input data/bundles/legacy_azure --output data/bundles/legacy_azure_clean/cases.jsonl
-python scripts/etl/etl_incident_responses.py --csv data/exports/incident_responses.csv --output data/bundles/incident_responses/cases.jsonl
-python scripts/etl/synthesize_golden_data.py --output data/bundles/golden_seed/seed.sql
-
-# Build the consolidated bundle
-i4g bootstrap build-golden-bundle --bundles-dir data/bundles --output-dir data/bundles/golden
-```
-
-The golden bundle produces:
-
-- `cases.jsonl` — consolidated case data for the ingestion pipeline
+- `cases.jsonl` — consolidated case data (cleaned legacy Azure + incident responses + synthetic)
 - `seed.sql` — campaigns, watchlists, graph edges, timeline data, geography
 - `manifest.json` — provenance, counts, SHA-256 hashes
 
-## Two-Phase Ingestion (Fast Ingest → Async Classify)
+## Bootstrap Design: Fast Ingest → Async Backfill
 
-Bootstrap uses a two-phase approach for speed:
+Bootstrap is designed for **speed**. It loads data quickly and defers expensive processing:
 
-1. **Fast ingest** — cases are written to SQL/Vertex with `classification_status = 'pending'` (no LLM calls)
-2. **Async classify** — the `classification_sweeper` Cloud Run job runs every 5 minutes, picks up pending cases, and classifies them via Gemini
+| Step                                    | During Bootstrap      | After Bootstrap (backfill)  |
+| :-------------------------------------- | :-------------------- | :-------------------------- |
+| Case ingestion                          | ✅ Fast SQLite insert | —                           |
+| Seed SQL (campaigns, graph, watchlists) | ✅ Direct SQL         | —                           |
+| Analytics aggregation                   | ✅ Auto-runs at end   | —                           |
+| LLM classification                      | ❌ Skipped            | `i4g backfill run classify` |
+| Risk scoring                            | ❌ Skipped            | Runs with classification    |
+| SSI investigation                       | ❌ Skipped            | `i4g backfill run ssi`      |
+| Linkage extraction                      | ❌ Skipped            | `i4g backfill run linkage`  |
 
-This decouples the expensive LLM classification from bulk data loading. The sweeper is already scheduled in Cloud Scheduler (`*/5 * * * *`). To trigger it manually:
-
-```bash
-i4g jobs run classification-sweeper
-```
-
-The `analytics_aggregation` job updates entity/indicator/campaign stats every 4 hours (`0 */4 * * *`).
+This means bootstrap completes in minutes. The slow tasks (classification, SSI, linkage) can take hours and are run afterwards via the [Backfill Framework](backfill_framework.md).
 
 ## Database Management
 
@@ -55,10 +45,10 @@ The `analytics_aggregation` job updates entity/indicator/campaign stats every 4 
 
 ```bash
 # Local — deletes SQLite, Chroma, reports, manual demo
-i4g db wipe --env local
+i4g db wipe local
 
 # Dev — TRUNCATE all data tables in Cloud SQL (preserves schema + accounts)
-i4g db wipe --env dev --confirm "yes-wipe-dev"
+i4g db wipe dev --confirm "yes-wipe-dev"
 ```
 
 The wipe command supports `--dry-run` to preview which tables would be affected.
@@ -67,103 +57,108 @@ The wipe command supports `--dry-run` to preview which tables would be affected.
 
 ```bash
 # Local — creates timestamped tar.gz archive
-i4g db backup --env local
+i4g db backup local
 
 # Dev — pg_dump via Cloud SQL Auth Proxy
-i4g db backup --env dev
+i4g db backup dev
 ```
 
 ### Restore
 
 ```bash
 # Local — extract archive to data/
-i4g db restore --env local --from data/backups/backup_local_20250115_120000.tar.gz
+i4g db restore local --from data/backups/backup_local_20250115_120000.tar.gz
 
 # Dev — pg_restore via Cloud SQL Auth Proxy
-i4g db restore --env dev --from gs://i4g-dev-data-bundles/backups/20250115/dump.sql.gz --confirm
+i4g db restore dev --from gs://i4g-dev-data-bundles/backups/20250115/dump.sql.gz --confirm
 ```
 
-## Local sandbox (I4G_ENV=local)
+## Local Sandbox
 
 ### Prerequisites
 
-1.  **Conda Environment**: Ensure you are in the `i4g` environment.
-2.  **Directory**: Run from the `core/` root.
-3.  **Run Date**: Set the `RUN_DATE` environment variable (e.g., `2025-12-17`).
+1. **Conda env** `i4g` is active.
+2. **Directory**: `core/` root.
+3. **Bundles**: Either already in `data/bundles/golden/` or set `RUN_DATE` for GCS download.
 
 ### Bootstrap Command
 
-To fully reset the local sandbox (wipes and rebuilds structured DB, Chroma, OCR artifacts):
-
 ```bash
-# Using legacy bundles (default)
-RUN_DATE=2025-12-17 I4G_ENV=local i4g bootstrap local reset
-
-# Using golden bundle
-I4G_BOOTSTRAP__USE_GOLDEN_BUNDLE=true I4G_ENV=local i4g bootstrap local reset
+i4g bootstrap local reset
 ```
 
-The local bootstrap flow:
+That's it. The command auto-sets `I4G_ENV=local` if not already set. If bundles are present in `data/bundles/golden/`, they are used directly. If not, they are downloaded from GCS using `RUN_DATE` (defaults to `2025-12-17`).
 
-1. Reset artifacts (delete SQLite, Chroma, reports)
-2. Apply Alembic migrations
-3. Seed campaigns
-4. Ingest JSONL bundles (skip-classification is always on for local)
-5. **Apply seed SQL** from golden bundle (campaigns, watchlists, graph, timeline, geography)
-6. OCR processing (if Tesseract available)
-7. Rebuild manual demo
-8. Seed review cases
-9. Verify sandbox
+To use a specific bundle date from GCS:
+
+```bash
+RUN_DATE=20260330 i4g bootstrap local reset
+```
+
+### What the Bootstrap Does
+
+1. Download bundles from GCS (if `data/bundles/golden/` is empty)
+2. Reset artifacts (delete SQLite, Chroma, reports)
+3. Apply Alembic migrations
+4. Seed campaigns
+5. Fast-ingest cases into SQLite — cases are stored with pre-classified labels from the bundle;
+   no LLM calls are made. `classification_status` is set to `pending` so the backfill sweeper
+   can confirm them asynchronously.
+6. Apply seed SQL (campaigns, watchlists, graph edges, timeline, geography)
+7. OCR processing (if Tesseract available)
+8. Rebuild manual demo
+9. Seed review cases
+10. **Run analytics aggregation** (populates entity_stats, indicator_stats, campaign_stats)
+11. Verify sandbox
 
 ### Partial Rebuilds
 
-Skip heavy steps if you only need structured/vector data:
-
 ```bash
-i4g bootstrap local reset --skip-ocr --skip-vector
+i4g bootstrap local reset --skip-vector       # skip vector/structured store rebuild
+i4g bootstrap local reset --skip-ingest       # skip bundle ingestion (keep existing data)
+i4g bootstrap local reset --limit 100         # ingest only 100 records per bundle
 ```
 
 ### Verification
-
-To verify without regenerating data:
 
 ```bash
 i4g bootstrap local verify --smoke-search --smoke-dossiers
 ```
 
-- Flags to know:
-  - `--bundle-uri PATH` to stage a specific bundle into `data/bundles/` (in addition to the defaults).
-  - `--verify-only` (implied by `verify` command) to emit reports without regenerating data.
-  - `--smoke-search` to run the Vertex search smoke; `--smoke-dossiers` (FastAPI running) to verify dossier manifests/signatures.
-  - `--force` required if `I4G_ENV` is not `local` (use sparingly).
-- After running:
-  - Inspect `data/reports/bootstrap_local/` for verification reports.
-  - Point ingestion/search to the refreshed dataset (`ingestion.default_dataset`).
+After running, inspect `data/reports/bootstrap_local/` for verification reports.
 
-### Post-Bootstrap: Backfill Processing
+### Post-Bootstrap: Backfill (Optional but Recommended)
 
-After bootstrap, many cases have `classification_status='pending'` and need async processing (classification, risk scoring, SSI investigation, analytics). Use the **backfill framework** to process them:
+Bootstrap populates the intelligence pages (campaigns, indicators, graph) with seed data. For **full data processing** (LLM classification, risk scoring, linkage extraction), run the backfill framework:
 
 ```bash
 # Check what needs processing
-I4G_ENV=local i4g backfill status
+i4g backfill status
 
-# Run all backfill tasks once
-I4G_ENV=local i4g backfill run all
+# Run all backfill tasks once (can take hours with LLM classification)
+i4g backfill run all
+
+# Or run specific tasks
+i4g backfill run classify           # LLM classification + risk scoring
+i4g backfill run analytics          # refresh stats tables
+i4g backfill run linkage            # extract indicator links via LLM
 
 # Or launch the daemon (continuous loop — fire and forget)
-I4G_ENV=local nohup i4g backfill daemon --cycle 60 > data/logs/backfill.log 2>&1 &
-
-# Monitor progress
-tail -f data/logs/backfill.log
-I4G_ENV=local i4g backfill status
+nohup i4g backfill daemon --cycle 60 > data/logs/backfill.log 2>&1 &
 ```
 
-The daemon cycles through all registered tasks (classify, SSI, analytics, linkage, evidence, etc.), processing pending items until the queue is empty, then sleeping between cycles. It is **reentrant** — safe to restart at any time; it picks up where it left off.
+The daemon is **reentrant** — safe to restart at any time; it picks up where it left off.
 
-#### SSI Configuration (Local)
+#### SSI Backfill (Local)
 
-The `ssi` backfill task triggers auto-investigations for uninvestigated URL indicators. In local mode, this requires the SSI dev server running alongside core. Enable it in `config/settings.local.toml`:
+For SSI auto-investigations of URL indicators, start the SSI dev server in a separate terminal:
+
+```bash
+cd ../ssi
+conda run -n i4g-ssi uvicorn ssi.api.app:app --reload --port 8100
+```
+
+Enable in `config/settings.local.toml`:
 
 ```toml
 [auto_investigate]
@@ -175,38 +170,29 @@ staleness_days = 30
 service_url = "http://localhost:8100"
 ```
 
-Then start the SSI service in a separate terminal:
+Then run: `i4g backfill run ssi`
 
-```bash
-cd ../ssi
-conda run -n i4g-ssi uvicorn ssi.api.app:app --reload --port 8100
-```
+See [Backfill Framework Runbook](backfill_framework.md) for full reference.
 
-No OIDC token is needed locally — auth falls back gracefully when the token fetch fails.
-
-See [Backfill Framework Runbook](backfill_framework.md) for full CLI reference, concurrency details, and troubleshooting.
-
-## Dev environment (I4G_ENV=dev)
+## Dev Environment (I4G_ENV=dev)
 
 ### Prerequisites
 
-1.  **GCloud Auth**: You must be authenticated with `gcloud` and have access to the `i4g-dev` project.
-    ```bash
-    gcloud auth login
-    gcloud auth application-default login
-    gcloud config set project i4g-dev
-    ```
-2.  **Impersonation**: You need to impersonate the infra service account for Bootstrap operations.
-    ```bash
-    gcloud config set auth/impersonate_service_account sa-infra@i4g-dev.iam.gserviceaccount.com
-    ```
+1. **GCloud Auth**:
+   ```bash
+   gcloud auth login
+   gcloud auth application-default login
+   gcloud config set project i4g-dev
+   ```
+2. **Impersonation**:
+   ```bash
+   gcloud config set auth/impersonate_service_account sa-infra@i4g-dev.iam.gserviceaccount.com
+   ```
 
 ### Bootstrap Command
 
-To reset the dev environment by triggering Cloud Run jobs. Classification is skipped by default (two-phase approach):
-
 ```bash
-I4G_ENV=dev i4g bootstrap dev reset \
+i4g bootstrap dev reset \
   --rate-limit-delay 0.5 \
   --timeout 10800 \
   --run-smoke \
@@ -214,45 +200,29 @@ I4G_ENV=dev i4g bootstrap dev reset \
   --run-search-smoke
 ```
 
-To enable inline classification during ingest (slower):
+The command auto-sets `I4G_ENV=dev` if not already set — no prefix needed.
+
+Classification is skipped by default (two-phase approach). To enable inline classification (slower):
 
 ```bash
-I4G_ENV=dev i4g bootstrap dev reset --no-skip-classification ...
+i4g bootstrap dev reset --no-skip-classification ...
 ```
 
 ### Verification Only
 
-If you only want to run the smoke tests without rebuilding data:
-
 ```bash
-I4G_ENV=dev i4g bootstrap dev verify \
+i4g bootstrap dev verify \
   --run-smoke \
   --run-dossier-smoke \
   --run-search-smoke
 ```
 
-### Debugging: Local Execution
-
-To run the ingestion logic **locally** but target the Dev environment's infrastructure:
+### Debugging: Local Execution Against Dev
 
 ```bash
-I4G_ENV=dev RUN_DATE=2025-12-17 i4g bootstrap dev reset \
+RUN_DATE=20260330 i4g bootstrap dev reset \
   --local-execution \
   --rate-limit-delay 0.5
-```
-
-### Fast Testing / Debugging
-
-**Test specific bundles:**
-
-```bash
-i4g bootstrap dev --bundle ocr_test_images --skip-reports --skip-saved-searches
-```
-
-**Dry run ingestion (no DB writes):**
-
-```bash
-i4g bootstrap dev reset --bundle ocr_test_images --ingest-dry-run
 ```
 
 ### Job Reference
@@ -263,79 +233,29 @@ i4g bootstrap dev reset --bundle ocr_test_images --ingest-dry-run
 | `generate-reports` | `report-job.Dockerfile` | Dossiers, reports, review seeding                 |
 | `process-intakes`  | `intake-job.Dockerfile` | Smoke test: processes new intake submissions      |
 
-### Post-Bootstrap: Backfill Processing (Dev)
+### Post-Bootstrap: Backfill (Dev)
 
-> **How environment targeting works:** The `i4g backfill` CLI does not have an `--env` flag. It reads `I4G_ENV` and the corresponding `I4G_*` env vars to determine which database and services to connect to — same pattern as `i4g jobs run`.
+In dev, Cloud Scheduler already triggers backfill jobs:
 
-#### Steady-state (already handled)
+| Job                      | Schedule       |
+| :----------------------- | :------------- |
+| `classification_sweeper` | `*/5 * * * *`  |
+| `analytics_aggregation`  | `0 */4 * * *`  |
+| `auto_investigate`       | `*/10 * * * *` |
 
-In dev, Cloud Scheduler already triggers the individual Cloud Run jobs that backfill wraps:
+For **post-bootstrap catch-up** or ad-hoc runs from your laptop:
 
-| Job                      | Schedule       | Cloud Run Image |
-| :----------------------- | :------------- | :-------------- |
-| `classification_sweeper` | `*/5 * * * *`  | `core-svc`      |
-| `analytics_aggregation`  | `0 */4 * * *`  | `core-svc`      |
-| `auto_investigate`       | `*/10 * * * *` | `core-svc`      |
+1. Start Cloud SQL Auth Proxy: `cloud-sql-proxy i4g-dev:us-central1:i4g-dev-db --port 5432`
+2. Set env: `export I4G_ENV=dev`
+3. Run: `i4g backfill status` / `i4g backfill run all`
 
-These jobs already process pending work continuously. You only need the backfill CLI for **post-bootstrap catch-up** or **ad-hoc runs**.
+Advisory locks prevent concurrent execution. Safe to run while Cloud Scheduler is active.
 
-#### Running backfill from your laptop against dev
-
-This runs the Python code locally but connects to dev Cloud SQL. Prerequisites:
-
-1. **Cloud SQL Auth Proxy** running (provides `localhost:5432` → Cloud SQL):
-   ```bash
-   cloud-sql-proxy i4g-dev:us-central1:i4g-dev-db --port 5432
-   ```
-2. **gcloud auth** active:
-   ```bash
-   gcloud auth application-default login
-   ```
-3. **Env vars** set for dev targeting:
-   ```bash
-   export I4G_ENV=dev
-   export I4G_SSI__SERVICE_URL="https://ssi-<hash>.a.run.app"  # from Terraform output
-   export I4G_AUTO_INVESTIGATE__ENABLED=true
-   ```
-
-Then run backfill commands normally:
-
-```bash
-i4g backfill status                    # check pending work against dev DB
-i4g backfill run classify --dry-run    # dry-run first
-i4g backfill run classify              # run for real
-i4g backfill run all                   # run all tasks
-```
-
-Advisory locks prevent concurrent execution, so it is safe to run backfill while Cloud Scheduler jobs are active. The SSI task respects URL deduplication — dozens of cases sharing the same URL trigger only one investigation.
-
-OIDC authentication for SSI is automatic — `google.oauth2.id_token.fetch_id_token()` generates a bearer token using your ADC identity. The SSI service calls back to core at `ssi.core_api_url` (defaults to `https://api.dev.intelligenceforgood.org`).
-
-#### Future: Cloud Run backfill job
-
-A dedicated `backfill-job` Cloud Run job is planned but not yet provisioned. Once available, it will support:
-
-```bash
-gcloud run jobs execute backfill-job \
-  --region us-central1 \
-  --args="backfill,run,all" \
-  --project i4g-dev
-```
-
-Until then, use the laptop-to-dev pattern above or rely on the existing per-job Cloud Scheduler entries.
+See [Backfill Framework Runbook](backfill_framework.md) for details.
 
 ### Backfill on Prod
 
-Prod follows the same env-var pattern. All SSI values are injected via Terraform on Cloud Run:
-
-| Setting          | Env Var                         | Value                                 |
-| :--------------- | :------------------------------ | :------------------------------------ |
-| SSI service URL  | `I4G_SSI__SERVICE_URL`          | Cloud Run URL (Terraform-managed)     |
-| Auto-investigate | `I4G_AUTO_INVESTIGATE__ENABLED` | `true`                                |
-| Core callback    | `I4G_SSI__CORE_API_URL`         | `https://api.intelligenceforgood.org` |
-| OIDC auth        | Automatic                       | Service account identity token        |
-
-For ad-hoc backfill from a laptop against prod (requires prod Cloud SQL Auth Proxy + elevated access):
+Same env-var pattern as dev. All SSI values are injected via Terraform on Cloud Run. For ad-hoc runs:
 
 ```bash
 export I4G_ENV=prod
@@ -343,18 +263,53 @@ i4g backfill run ssi --dry-run    # always dry-run first in prod
 i4g backfill run ssi
 ```
 
-In practice, prod backfill should run via Cloud Run jobs once the `backfill-job` is provisioned — not from developer laptops.
+In practice, prod backfill should run via Cloud Run jobs — not from developer laptops.
 
-See [Backfill Framework Runbook](backfill_framework.md) for full documentation.
+## Environment Selection: I4G_ENV vs CLI Arguments
+
+The CLI uses two distinct patterns to target an environment, depending on the command:
+
+| Command group                                         | Pattern                       | `I4G_ENV` required?                                            |
+| :---------------------------------------------------- | :---------------------------- | :------------------------------------------------------------- |
+| `db wipe / backup / restore [local\|dev]`             | Explicit positional arg       | No — the arg is the sole authority                             |
+| `db migrate / status / grant-permissions [dev\|prod]` | Explicit positional arg       | No — the arg is the sole authority                             |
+| `bootstrap local reset`                               | Subcommand encodes the target | Auto-set to `local` if unset; blocks if set to non-`local`     |
+| `bootstrap dev reset`                                 | Subcommand encodes the target | Auto-set to `dev` if unset or `local`; blocks if set to `prod` |
+| `jobs`, `ingest`, `backfill`, etc.                    | None — reads `I4G_ENV`        | Yes — set explicitly or via container env                      |
+
+**Key rules:**
+
+- `db` commands use the positional argument exclusively. Setting `I4G_ENV` before running them has
+  no effect on which database is targeted.
+- `bootstrap` commands encode the environment in the subcommand name. Both `bootstrap local` and
+  `bootstrap dev` auto-set `I4G_ENV` for you, so no prefix is needed on the command line.
+- The `bootstrap local` guard **blocks** if `I4G_ENV` is set to a non-`local` value (protecting
+  against running reset while pointed at dev). Use `--force` to override.
+- The `bootstrap dev` guard **blocks** only if `I4G_ENV` is explicitly set to `prod`. It allows
+  `local` or unset so that developers without a persistent `I4G_ENV` export can still run it.
+- `jobs` and similar commands are designed for Cloud Run containers where `I4G_ENV` is injected
+  by Terraform. If you run them from your laptop, set `I4G_ENV` explicitly.
 
 ## Data Sources & Design
 
-The bootstrap process uses data bundles from `gs://i4g-dev-data-bundles`. Set `I4G_BOOTSTRAP__USE_GOLDEN_BUNDLE=true` to use the consolidated golden bundle, or leave unset for legacy bundle structure.
-
-For full inventory, licensing, and synthetic scope details, see [Bundle Sources and Synthetic Coverage](../development/bundle_sources_and_coverage.md).
+The bootstrap uses data bundles from `gs://i4g-dev-data-bundles/{RUN_DATE}/golden/`. For full inventory, licensing, and synthetic scope details, see [Bundle Sources and Synthetic Coverage](../development/bundle_sources_and_coverage.md).
 
 ### Maintenance Notes
 
 - **Do not hand-edit `data/`**: Rerun `i4g bootstrap local reset` to restore the baseline.
 - **Configuration**: Keep `config/settings.local.toml` aligned when overriding paths.
-- **Wipe before re-ingest**: The ingestion pipeline deduplicates by `(dataset, raw_text_sha256)`. If text normalization changes, wipe first to avoid duplicates.
+- **Wipe before re-ingest**: The ingestion pipeline deduplicates by `(dataset, raw_text_sha256)`. If text normalization changes, wipe first.
+
+## Reference: Legacy Bundle Structure (Deprecated)
+
+> The legacy bundle structure is no longer used by the bootstrap command. It is documented here for historical reference only.
+
+Before the golden bundle consolidation, bootstrap used 5 separate bundles from GCS:
+
+- `legacy_azure/search_exports/vertex` — Azure Cognitive Search exports
+- `public_scams/cases.jsonl` — Public scam corpora
+- `synthetic_coverage/retrieval_poc/cases.jsonl` — Retrieval PoC synthetic cases
+- `synthetic_coverage/full/cases.jsonl` — Full synthetic coverage
+- `synthetic_coverage/ocr_test_images` — OCR test images
+
+These were individually downloaded and ingested one at a time via the full `IngestPipeline` subprocess. The golden bundle replaces this with a single consolidated JSONL and fast SQLite inserts.

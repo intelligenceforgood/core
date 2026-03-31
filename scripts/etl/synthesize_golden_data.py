@@ -337,7 +337,7 @@ def generate_sql() -> str:
         cols = (
             "campaign_id, case_count, indicator_count, loss_sum, victim_count, "
             "risk_score, taxonomy_rollup, status, first_case_at, last_case_at, "
-            "entity_types, created_at, updated_at"
+            "entity_types, updated_at"
         )
         lines.append(
             f"INSERT INTO campaign_stats ({cols}) VALUES ("
@@ -352,7 +352,7 @@ def generate_sql() -> str:
             f"'{_ts(_NOW - timedelta(days=180))}', "
             f"'{now}', "
             f"{_json_lit(['wallet_address', 'url', 'email_address'])}, "
-            f"'{now}', '{now}'"
+            f"'{now}'"
             f") ON CONFLICT DO NOTHING;"
         )
 

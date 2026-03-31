@@ -23,6 +23,7 @@ from .steps import (
     ingest_bundles,
     rebuild_manual_demo,
     reset_artifacts,
+    run_analytics_refresh,
     run_ocr,
     run_semantic_extraction,
     seed_review_cases,
@@ -59,6 +60,10 @@ def run_local(
     """Execute the local sandbox bootstrap flow."""
 
     env_val = os.getenv("I4G_ENV", "")
+    if not env_val:
+        os.environ["I4G_ENV"] = "local"
+        env_val = "local"
+        print("ℹ️  I4G_ENV not set; defaulting to 'local'.")
     if env_val != "local" and not force:
         print(f"❌ Refusing to run: I4G_ENV={env_val!r} (expected 'local'). Pass --force to override.")
         return
@@ -134,6 +139,7 @@ def run_local(
     ensure_pilot_cases_file()
     seed_campaigns()
     seed_review_cases()
+    run_analytics_refresh()
 
     search_smoke = run_search_smoke(
         smoke_search=smoke_search,

@@ -32,6 +32,10 @@ def upgrade() -> None:
     """Grant SELECT on ML-relevant tables to the ML service account."""
     conn = op.get_bind()
 
+    # This migration is PostgreSQL-only; skip on SQLite.
+    if conn.dialect.name != "postgresql":
+        return
+
     # Check if the IAM database user exists (created by Terraform).
     # If it doesn't exist yet, skip — the GRANT will be applied on next
     # migration run after Terraform creates the user.
@@ -49,6 +53,10 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Revoke SELECT from the ML service account."""
     conn = op.get_bind()
+
+    # This migration is PostgreSQL-only; skip on SQLite.
+    if conn.dialect.name != "postgresql":
+        return
 
     result = conn.execute(
         text("SELECT 1 FROM pg_roles WHERE rolname = :role"),

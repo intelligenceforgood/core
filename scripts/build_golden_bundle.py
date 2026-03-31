@@ -2,11 +2,8 @@
 
 Combines:
   1. Cleaned legacy Azure cases (legacy_azure_clean/cases.jsonl)
-  2. Public scams (public_scams/cases.jsonl or *.jsonl) — kept as-is
-  3. Incident report responses (incident_responses/cases.jsonl) — if available
-  4. Synthetic coverage (synthetic_coverage/full/cases.jsonl) — minus OCR test images
-     and low-quality cases (< MIN_TEXT_CHARS or in skip-list)
-  5. Golden seed SQL (golden_seed/seed.sql)
+  2. Incident report responses (incident_responses/cases.jsonl)
+  3. Golden seed SQL (golden_seed/seed.sql)
 
 Output structure:
   data/bundles/golden/
@@ -31,9 +28,7 @@ MIN_TEXT_CHARS = 50
 # Bundles to combine and their sub-paths (relative to bundles_dir)
 _BUNDLE_SOURCES = [
     ("legacy_azure_clean", "legacy_azure_clean/cases.jsonl", False),
-    ("public_scams", "public_scams", True),  # may be dir with *.jsonl
     ("incident_responses", "incident_responses/cases.jsonl", False),
-    ("synthetic_coverage", "synthetic_coverage/full/cases.jsonl", False),
 ]
 
 
