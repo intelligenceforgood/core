@@ -23,6 +23,7 @@ from .constants import (
     DEFAULT_REGION,
     DEFAULT_REPORT_DIR,
     DEFAULT_SMOKE_API_URL,
+    DEFAULT_SSI_SERVICE_URL,
     DEFAULT_WIF_SA,
     JobResult,
 )
@@ -62,6 +63,18 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Job to run for seeding reviews (reuses report-job image).",
     )
     parser.add_argument("--skip-seed-reviews", action="store_true", help="Skip seeding reviews.")
+    parser.add_argument(
+        "--seed-sql-job",
+        default=DEFAULT_JOBS["seed_sql"],
+        help="Job to run for applying seed.sql (reuses ingest-bootstrap image).",
+    )
+    parser.add_argument("--skip-seed-sql", action="store_true", help="Skip applying seed.sql.")
+    parser.add_argument(
+        "--entity-extract-job",
+        default=DEFAULT_JOBS["entity_extract"],
+        help="Job to run for batch entity extraction (reuses ingest-bootstrap image).",
+    )
+    parser.add_argument("--skip-entity-extract", action="store_true", help="Skip batch entity extraction.")
     parser.add_argument("--skip-ingest", action="store_true", help="Skip ingestion job.")
     parser.add_argument("--skip-ocr", action="store_true", help="Skip OCR test images bundle.")
     parser.add_argument("--skip-vertex", action="store_true", help="Skip Vertex import job.")
@@ -70,6 +83,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--skip-gcs-assets", action="store_true", help="Skip GCS asset sync job.")
     parser.add_argument("--skip-reports", action="store_true", help="Skip reports/dossiers job.")
     parser.add_argument("--skip-saved-searches", action="store_true", help="Skip saved searches job.")
+    parser.add_argument("--analytics-job", default=DEFAULT_JOBS["analytics"], help="Analytics refresh job name.")
+    parser.add_argument("--skip-analytics", action="store_true", help="Skip analytics refresh job.")
     parser.add_argument(
         "--skip-classification",
         action="store_true",
@@ -140,6 +155,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--local-execution",
         action="store_true",
         help="Run ingestion logic locally instead of triggering Cloud Run jobs.",
+    )
+    parser.add_argument(
+        "--ssi-service-url",
+        default=os.getenv("I4G_SSI__SERVICE_URL", DEFAULT_SSI_SERVICE_URL),
+        help="SSI Cloud Run service URL injected into ingest job env (default: dev SSI service URL).",
     )
     parser.add_argument(
         "--rate-limit-delay",
@@ -343,6 +363,13 @@ def run_dev(
     limit: int = 0,
     rate_limit_delay: float = 0.0,
     timeout: str = "3600s",
+    ssi_service_url: str = DEFAULT_SSI_SERVICE_URL,
+    analytics_job: str = DEFAULT_JOBS["analytics"],
+    skip_analytics: bool = False,
+    seed_sql_job: str = DEFAULT_JOBS["seed_sql"],
+    skip_seed_sql: bool = False,
+    entity_extract_job: str = DEFAULT_JOBS["entity_extract"],
+    skip_entity_extract: bool = False,
 ) -> int:
     args = argparse.Namespace(
         project=project,
@@ -392,6 +419,13 @@ def run_dev(
         smoke_job=smoke_job,
         smoke_container=smoke_container,
         local_execution=local_execution,
+        ssi_service_url=ssi_service_url,
+        analytics_job=analytics_job,
+        skip_analytics=skip_analytics,
+        seed_sql_job=seed_sql_job,
+        skip_seed_sql=skip_seed_sql,
+        entity_extract_job=entity_extract_job,
+        skip_entity_extract=skip_entity_extract,
     )
     return bootstrap_dev(args)
 
@@ -443,4 +477,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         limit=args.limit,
         rate_limit_delay=args.rate_limit_delay,
         timeout=args.timeout,
+        ssi_service_url=args.ssi_service_url,
+        analytics_job=args.analytics_job,
+        skip_analytics=args.skip_analytics,
+        seed_sql_job=getattr(args, "seed_sql_job", DEFAULT_JOBS["seed_sql"]),
+        skip_seed_sql=getattr(args, "skip_seed_sql", False),
+        entity_extract_job=getattr(args, "entity_extract_job", DEFAULT_JOBS["entity_extract"]),
+        skip_entity_extract=getattr(args, "skip_entity_extract", False),
     )

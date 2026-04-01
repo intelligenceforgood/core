@@ -13,6 +13,7 @@ from .constants import (
     DEFAULT_REGION,
     DEFAULT_REPORT_DIR,
     DEFAULT_SMOKE_API_URL,
+    DEFAULT_SSI_SERVICE_URL,
     DEFAULT_WIF_SA,
 )
 from .orchestrator import run_dev
@@ -58,6 +59,9 @@ def bootstrap_dev_reset(
     seed_reviews_job: str = typer.Option(
         DEFAULT_JOBS["seed_reviews"], "--seed-reviews-job", help="Seed reviews job.", hidden=True
     ),
+    analytics_job: str = typer.Option(
+        DEFAULT_JOBS["analytics"], "--analytics-job", help="Analytics refresh job name.", hidden=True
+    ),
     skip_ingest: bool = typer.Option(False, "--skip-ingest", help="Skip ingestion job."),
     skip_vertex: bool = typer.Option(False, "--skip-vertex", help="Skip Vertex import job."),
     skip_vector: bool = typer.Option(False, "--skip-vector", help="Alias for --skip-vertex (for local parity)."),
@@ -67,6 +71,9 @@ def bootstrap_dev_reset(
     skip_reports: bool = typer.Option(False, "--skip-reports", help="Skip reports/dossiers job."),
     skip_saved_searches: bool = typer.Option(False, "--skip-saved-searches", help="Skip saved searches job."),
     skip_seed_reviews: bool = typer.Option(False, "--skip-seed-reviews", help="Skip seed reviews job."),
+    skip_seed_sql: bool = typer.Option(False, "--skip-seed-sql", help="Skip applying seed.sql."),
+    skip_entity_extract: bool = typer.Option(False, "--skip-entity-extract", help="Skip batch entity extraction."),
+    skip_analytics: bool = typer.Option(False, "--skip-analytics", help="Skip analytics refresh job."),
     skip_ocr: bool = typer.Option(False, "--skip-ocr", help="Skip OCR test images bundle."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print planned commands without executing."),
     ingest_dry_run: bool = typer.Option(
@@ -123,6 +130,11 @@ def bootstrap_dev_reset(
     ),
     rate_limit_delay: float = typer.Option(
         0.0, "--rate-limit-delay", help="Delay in seconds between records during ingestion (for rate limiting)."
+    ),
+    ssi_service_url: str = typer.Option(
+        os.getenv("I4G_SSI__SERVICE_URL", DEFAULT_SSI_SERVICE_URL),
+        "--ssi-service-url",
+        help="SSI Cloud Run service URL injected into ingest job env.",
     ),
     timeout: int = typer.Option(3600, "--timeout", help="Timeout in seconds for Cloud Run jobs."),
     verify_only: bool = typer.Option(
@@ -158,6 +170,8 @@ def bootstrap_dev_reset(
             skip_reports=skip_reports,
             skip_saved_searches=skip_saved_searches,
             skip_seed_reviews=skip_seed_reviews,
+            skip_seed_sql=skip_seed_sql,
+            skip_entity_extract=skip_entity_extract,
             skip_ocr=skip_ocr,
             dry_run=dry_run,
             ingest_dry_run=ingest_dry_run,
@@ -182,6 +196,9 @@ def bootstrap_dev_reset(
             limit=limit,
             rate_limit_delay=rate_limit_delay,
             timeout=f"{timeout}s",
+            ssi_service_url=ssi_service_url,
+            analytics_job=analytics_job,
+            skip_analytics=skip_analytics,
         )
     )
 
@@ -217,6 +234,9 @@ def bootstrap_dev_load(
     seed_reviews_job: str = typer.Option(
         DEFAULT_JOBS["seed_reviews"], "--seed-reviews-job", help="Seed reviews job.", hidden=True
     ),
+    analytics_job: str = typer.Option(
+        DEFAULT_JOBS["analytics"], "--analytics-job", help="Analytics refresh job name.", hidden=True
+    ),
     skip_ingest: bool = typer.Option(False, "--skip-ingest", help="Skip ingestion job."),
     skip_vertex: bool = typer.Option(False, "--skip-vertex", help="Skip Vertex import job."),
     skip_vector: bool = typer.Option(False, "--skip-vector", help="Alias for --skip-vertex (for local parity)."),
@@ -226,6 +246,9 @@ def bootstrap_dev_load(
     skip_reports: bool = typer.Option(False, "--skip-reports", help="Skip reports/dossiers job."),
     skip_saved_searches: bool = typer.Option(False, "--skip-saved-searches", help="Skip saved searches job."),
     skip_seed_reviews: bool = typer.Option(False, "--skip-seed-reviews", help="Skip seed reviews job."),
+    skip_seed_sql: bool = typer.Option(False, "--skip-seed-sql", help="Skip applying seed.sql."),
+    skip_entity_extract: bool = typer.Option(False, "--skip-entity-extract", help="Skip batch entity extraction."),
+    skip_analytics: bool = typer.Option(False, "--skip-analytics", help="Skip analytics refresh job."),
     skip_ocr: bool = typer.Option(False, "--skip-ocr", help="Skip OCR test images bundle."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print planned commands without executing."),
     ingest_dry_run: bool = typer.Option(
@@ -282,6 +305,11 @@ def bootstrap_dev_load(
     ),
     rate_limit_delay: float = typer.Option(
         0.0, "--rate-limit-delay", help="Delay in seconds between records during ingestion (for rate limiting)."
+    ),
+    ssi_service_url: str = typer.Option(
+        os.getenv("I4G_SSI__SERVICE_URL", DEFAULT_SSI_SERVICE_URL),
+        "--ssi-service-url",
+        help="SSI Cloud Run service URL injected into ingest job env.",
     ),
     timeout: int = typer.Option(3600, "--timeout", help="Timeout in seconds for Cloud Run jobs."),
 ) -> None:
@@ -338,6 +366,11 @@ def bootstrap_dev_load(
             limit=limit,
             rate_limit_delay=rate_limit_delay,
             timeout=f"{timeout}s",
+            ssi_service_url=ssi_service_url,
+            analytics_job=analytics_job,
+            skip_analytics=skip_analytics,
+            skip_seed_sql=skip_seed_sql,
+            skip_entity_extract=skip_entity_extract,
         )
     )
 

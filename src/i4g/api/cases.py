@@ -70,7 +70,7 @@ class CaseGraphLink(CamelModel):
 
 
 # Enum-like types matching SDK Zod schemas
-CaseStatus = Literal["new", "queued", "in_review", "awaiting_input", "closed", "accepted", "rejected"]
+CaseStatus = Literal["new", "queued", "in_review", "awaiting_input", "closed", "accepted", "rejected", "escalated"]
 CasePriority = Literal["critical", "high", "medium", "low"]
 
 

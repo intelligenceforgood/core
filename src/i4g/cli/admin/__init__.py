@@ -6,10 +6,20 @@ from pathlib import Path
 
 import typer
 
-from i4g.cli.admin import dossiers, pilot, saved_searches, seed
+from i4g.cli.admin import dossiers, pilot, saved_searches, seed, seed_sql
 from i4g.settings import get_settings
 
 admin_app = typer.Typer(help="Saved search and dossier administration.")
+
+
+@admin_app.command("apply-seed-sql", help="Apply seed.sql from the golden bundle to the configured database.")
+def admin_apply_seed_sql(
+    gcs_bucket: str | None = typer.Option(None, "--gcs-bucket", help="GCS bucket name for seed.sql (if not local)."),
+    run_date: str | None = typer.Option(None, "--run-date", help="RUN_DATE for GCS bundle path prefix."),
+) -> None:
+    code = seed_sql.apply_seed_sql(gcs_bucket=gcs_bucket, run_date=run_date)
+    if code != 0:
+        raise typer.Exit(code)
 
 
 @admin_app.command("seed-reviews", help="Seed the review queue with synthetic cases.")

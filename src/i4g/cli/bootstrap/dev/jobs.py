@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,7 @@ from googleapiclient.discovery import build
 
 from i4g.cli.bootstrap.common import get_bundles
 
-from .constants import JobResult, JobSpec
+from .constants import DEFAULT_JOBS, DEFAULT_SSI_SERVICE_URL, JobResult, JobSpec
 from .utils import format_command
 
 
@@ -65,6 +66,9 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
             common_env["I4G_LLM__VERTEX_AI_PROJECT"] = args.project
             common_env["I4G_LLM__VERTEX_AI_LOCATION"] = args.region
             common_env["I4G_LLM__CHAT_MODEL"] = "gemini-2.5-flash"
+
+            ssi_url = getattr(args, "ssi_service_url", None) or DEFAULT_SSI_SERVICE_URL
+            common_env["I4G_SSI__SERVICE_URL"] = ssi_url
 
     # Ingestion jobs (run per bundle)
     for bundle_uri in bundles_to_process:
@@ -140,6 +144,60 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
     if not args.skip_saved_searches and args.saved_searches_job:
         specs.append(
             JobSpec(label="saved_searches", job_name=args.saved_searches_job, args=common_args, env=common_env)
+        )
+
+    # Apply seed.sql — inserts threat_campaigns, campaign_stats,
+    # infrastructure_edges, watchlist_items with placeholder case IDs
+    # mapped to real ingested case IDs.  Must run AFTER ingest + seed.
+    seed_sql_job = getattr(args, "seed_sql_job", None) or DEFAULT_JOBS.get("seed_sql", "")
+    skip_seed_sql = getattr(args, "skip_seed_sql", False)
+    if not skip_seed_sql and seed_sql_job:
+        seed_sql_env = common_env.copy()
+        run_date = os.getenv("RUN_DATE", "2025-12-17")
+        seed_sql_args = [
+            "admin",
+            "apply-seed-sql",
+            "--gcs-bucket=i4g-dev-data-bundles",
+            f"--run-date={run_date}",
+        ]
+        specs.append(
+            JobSpec(
+                label="seed_sql",
+                job_name=seed_sql_job,
+                args=seed_sql_args,
+                env=seed_sql_env,
+            )
+        )
+
+    # Batch entity extraction — runs LLM-based NER on cases that lack
+    # entities.  Must run AFTER ingest so case text is available.
+    entity_extract_job = getattr(args, "entity_extract_job", None) or DEFAULT_JOBS.get("entity_extract", "")
+    skip_entity_extract = getattr(args, "skip_entity_extract", False)
+    if not skip_entity_extract and entity_extract_job:
+        entity_extract_env = common_env.copy()
+        specs.append(
+            JobSpec(
+                label="entity_extract",
+                job_name=entity_extract_job,
+                args=["jobs", "entity-extract"],
+                env=entity_extract_env,
+            )
+        )
+
+    # Analytics refresh — materializes entity_stats, indicator_stats,
+    # campaign_stats, platform_kpis from raw tables.  Must run AFTER
+    # ingest + seed so aggregate counts reflect the full dataset.
+    analytics_job = getattr(args, "analytics_job", None) or DEFAULT_JOBS.get("analytics", "")
+    skip_analytics = getattr(args, "skip_analytics", False)
+    if not skip_analytics and analytics_job:
+        analytics_env = common_env.copy()
+        specs.append(
+            JobSpec(
+                label="analytics_refresh",
+                job_name=analytics_job,
+                args=["jobs", "analytics"],
+                env=analytics_env,
+            )
         )
 
     return specs

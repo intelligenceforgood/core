@@ -95,6 +95,16 @@ def jobs_analytics() -> None:
     _exit_from_return(analytics_aggregation.main())
 
 
+@jobs_app.command("entity-extract", help="Batch entity extraction via LLM + rule-based NER.")
+def jobs_entity_extract(
+    backfill: bool = typer.Option(False, "--backfill", help="Re-extract entities for all cases, not just missing."),
+    limit: int = typer.Option(0, "--limit", help="Max cases to process (0 = unlimited)."),
+) -> None:
+    from i4g.worker.jobs import entity_extract
+
+    _exit_from_return(entity_extract.main(backfill=backfill, limit=limit))
+
+
 @jobs_app.command("linkage-extract", help="Extract indicator links from intake narratives via LLM.")
 def jobs_linkage_extract(
     backfill: bool = typer.Option(False, "--backfill", help="Process all intakes, not just unlinked ones."),

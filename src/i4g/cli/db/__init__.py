@@ -7,6 +7,7 @@ import signal
 import subprocess
 import sys
 import tarfile
+import tempfile
 import time
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -459,7 +460,13 @@ def _wipe_dev(*, dry_run: bool) -> None:
         conn.autocommit = True
         cursor = conn.cursor()
 
+        cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+        existing_tables = {row[0] for row in cursor.fetchall()}
+
         for table in _WIPE_TABLE_ORDER:
+            if table not in existing_tables:
+                console.print(f"  [dim]SKIP {table} (table does not exist)[/dim]")
+                continue
             console.print(f"  TRUNCATE TABLE {table} CASCADE;")
             cursor.execute(f"TRUNCATE TABLE {table} CASCADE;")  # noqa: S608 — table names from static list
 
@@ -576,17 +583,22 @@ def _backup_dev(*, output: Path | None) -> None:
 @db_app.command()
 def restore(
     env: Annotated[WipeEnv, typer.Argument(help="Target environment: local or dev.")],
-    source: Path = typer.Option(..., "--from", help="Path to backup archive (local tar.gz or dev .sql.gz)."),
+    source: str = typer.Option(..., "--from", help="Path to backup archive (local tar.gz or GCS URI gs://...)."),
     confirm: str = typer.Option("", "--confirm", help="Safety flag. For dev, pass 'yes-restore-dev'."),
 ) -> None:
     """Restore the platform database from a backup."""
 
-    if not source.exists():
-        console.print(f"[red]Backup not found:[/red] {source}")
-        raise typer.Exit(1)
+    if source.startswith("gs://"):
+        if env == WipeEnv.local:
+            console.print("[red]GCS URIs are not supported for local restore. Provide a local path.[/red]")
+            raise typer.Exit(1)
+    else:
+        if not Path(source).exists():
+            console.print(f"[red]Backup not found:[/red] {source}")
+            raise typer.Exit(1)
 
     if env == WipeEnv.local:
-        _restore_local(source=source)
+        _restore_local(source=Path(source))
     elif env == WipeEnv.dev:
         if confirm != "yes-restore-dev":
             console.print(
@@ -714,7 +726,7 @@ def _restore_local(*, source: Path) -> None:
     console.print("[green]Local restore complete.[/green]")
 
 
-def _restore_dev(*, source: Path) -> None:
+def _restore_dev(*, source: str | Path) -> None:
     """Wipe dev DB and restore from pg_dump archive."""
 
     cfg = _get_db_config(Env.dev)
@@ -727,6 +739,7 @@ def _restore_dev(*, source: Path) -> None:
     _wipe_dev(dry_run=False)
 
     proxy = _start_proxy(cfg)
+    _tmp_path: str | None = None
     try:
         import gzip
 
@@ -735,8 +748,44 @@ def _restore_dev(*, source: Path) -> None:
             console.print("[red]Error:[/red] psql not found on PATH.")
             raise typer.Exit(1)
 
-        with gzip.open(source, "rb") as f:
+        source_str = str(source)
+        if source_str.startswith("gs://"):
+            console.print(f"[dim]Downloading {source_str} ...[/dim]")
+            with tempfile.NamedTemporaryFile(suffix=".sql.gz", delete=False) as _tmpf:
+                _tmp_path = _tmpf.name
+            dl = subprocess.run(
+                ["gcloud", "storage", "cp", source_str, _tmp_path],
+                capture_output=True,
+                text=True,
+            )
+            if dl.returncode != 0:
+                console.print(f"[red]Download failed:[/red]\n{dl.stderr}")
+                raise typer.Exit(dl.returncode)
+            local_source: Path = Path(_tmp_path)
+        else:
+            local_source = Path(source)
+
+        with gzip.open(local_source, "rb") as f:
             sql_content = f.read()
+
+        # Clear alembic_version before loading the dump so the dump's revision
+        # is the only row.  _wipe_dev intentionally preserves alembic_version,
+        # which would leave the pre-restore revision alongside the one in the
+        # dump and cause "overlaps" errors on the next `alembic upgrade head`.
+        import psycopg2
+
+        _conn = psycopg2.connect(
+            host="127.0.0.1",
+            port=cfg["port"],
+            user="postgres",
+            password=password,
+            dbname=cfg["database"],
+        )
+        _conn.autocommit = True
+        _cur = _conn.cursor()
+        _cur.execute("TRUNCATE TABLE alembic_version;")
+        _cur.close()
+        _conn.close()
 
         psql_cmd = [
             psql_bin,
@@ -762,3 +811,5 @@ def _restore_dev(*, source: Path) -> None:
         console.print(f"[green]Restore complete on {target_label}.[/green]")
     finally:
         _stop_proxy(proxy)
+        if _tmp_path is not None:
+            Path(_tmp_path).unlink(missing_ok=True)

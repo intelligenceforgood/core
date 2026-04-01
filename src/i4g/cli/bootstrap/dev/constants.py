@@ -15,6 +15,7 @@ IAP_CLIENT_ID_FALLBACK = "544936845045-a87u04lgc7go7asc4nhed36ka50iqh0h.apps.goo
 DEFAULT_PROJECT = "i4g-dev"
 DEFAULT_REGION = "us-central1"
 DEFAULT_SMOKE_API_URL = "https://core-svc-y5jge5w2cq-uc.a.run.app"
+DEFAULT_SSI_SERVICE_URL = "https://ssi-svc-y5jge5w2cq-uc.a.run.app"
 DEFAULT_REPORT_DIR = REPO_ROOT / "data" / "reports" / "bootstrap_dev"
 DEFAULT_JOBS = {
     "ingest": "ingest-bootstrap",
@@ -25,6 +26,9 @@ DEFAULT_JOBS = {
     "reports": "generate-reports",
     "saved_searches": "",
     "seed_reviews": "ingest-bootstrap",
+    "seed_sql": "ingest-bootstrap",
+    "entity_extract": "ingest-bootstrap",
+    "analytics": "analytics-refresh",
 }
 
 
