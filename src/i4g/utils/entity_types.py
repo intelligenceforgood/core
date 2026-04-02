@@ -1,50 +1,96 @@
-"""Entity type normalization — singular, consistent naming."""
+"""Entity type canonical definitions — the single source of truth.
+
+Every entity that enters the database MUST use a canonical type defined here.
+All write paths (LLM extraction, rule-based extraction, golden-bundle ingest,
+SqlWriter, ETL scripts) call ``normalize_entity_type()`` before persisting.
+Read paths should NEVER need translation — entity_type values in the DB are
+already canonical.
+"""
 
 from __future__ import annotations
 
-# Maps raw (often LLM-extracted) entity types to canonical singular forms.
-# Add entries here when new inconsistent types appear in ingested data.
+# ---------------------------------------------------------------------------
+# Canonical entity types and their display labels
+# ---------------------------------------------------------------------------
+
+ENTITY_TYPE_LABELS: dict[str, str] = {
+    "person": "Person",
+    "organization": "Organization",
+    "phone_number": "Phone Number",
+    "account_number": "Account Number",
+    "routing_number": "Routing Number",
+    "wallet_address": "Wallet Address",
+    "transaction_id": "Transaction ID",
+    "ticket_id": "Ticket ID",
+    "location": "Location",
+    "bank": "Bank",
+    "bank_account": "Bank Account",
+    "agency": "Agency",
+    "retailer": "Retailer",
+    "social_handle": "Social Handle",
+    "crypto_token": "Crypto Token",
+    "scam_indicator": "Scam Indicator",
+    "email_address": "Email Address",
+    "url": "URL",
+    "domain": "Domain",
+    "ip_address": "IP Address",
+    "payment_handle": "Payment Handle",
+    "contact_handle": "Contact Handle",
+    "software": "Software",
+}
+
+# The set of valid canonical types (derived from the labels dict above).
+CANONICAL_ENTITY_TYPES: frozenset[str] = frozenset(ENTITY_TYPE_LABELS)
+
+# ---------------------------------------------------------------------------
+# Normalization map — maps every known variant to its canonical form.
+# Only used at write time so the DB is always clean.
+# ---------------------------------------------------------------------------
+
 _ENTITY_TYPE_MAP: dict[str, str] = {
-    # Plural → singular
+    # LLM extraction keys (plural / category-style)
     "people": "person",
     "organizations": "organization",
+    "wallet_addresses": "wallet_address",
+    "crypto_assets": "crypto_token",
+    "contact_channels": "contact_handle",
+    "locations": "location",
+    "scam_indicators": "scam_indicator",
+    # Rule-based extraction keys
+    "urls": "url",
     "phone_numbers": "phone_number",
+    "names": "person",
+    "crypto_keywords": "crypto_token",
+    # Legacy / synonym merges
+    "crypto_wallet": "wallet_address",
     "account_numbers": "account_number",
     "routing_numbers": "routing_number",
-    "wallet_addresses": "crypto_wallet",
     "transaction_ids": "transaction_id",
     "ticket_ids": "ticket_id",
-    "locations": "location",
     "banks": "bank",
     "agencies": "agency",
     "retailers": "retailer",
-    # Synonym merges
-    "crypto_assets": "crypto_wallet",
-    # Ambiguous → descriptive
     "handles": "social_handle",
     "tokens": "crypto_token",
-    "scam_indicators": "scam_indicator",
 }
-
-# Reverse map: canonical → all raw types that map to it
-_REVERSE_MAP: dict[str, list[str]] = {}
-for _raw, _canonical in _ENTITY_TYPE_MAP.items():
-    _REVERSE_MAP.setdefault(_canonical, [_canonical]).append(_raw)
-# Include identity mappings for types not in the map
-for _canonical in _REVERSE_MAP:
-    if _canonical not in _REVERSE_MAP[_canonical]:
-        _REVERSE_MAP[_canonical].insert(0, _canonical)
 
 
 def normalize_entity_type(raw: str) -> str:
-    """Return the canonical singular form of an entity type."""
+    """Return the canonical form of an entity type.
+
+    If *raw* is already canonical it is returned as-is.  Otherwise the
+    normalization map is consulted.  Unknown types pass through unchanged
+    so we don't silently drop data — but a warning should be logged by
+    the caller.
+    """
+    if raw in ENTITY_TYPE_LABELS:
+        return raw  # Already canonical
     return _ENTITY_TYPE_MAP.get(raw, raw)
 
 
-def expand_entity_type(canonical: str) -> list[str]:
-    """Return all raw DB types that map to a canonical type.
-
-    Used for SQL ``WHERE entity_type IN (...)`` queries so that filtering
-    by the normalized name matches all underlying raw variants.
-    """
-    return _REVERSE_MAP.get(canonical, [canonical])
+def entity_type_label(canonical: str) -> str:
+    """Return a user-friendly display label for a canonical entity type."""
+    if canonical in ENTITY_TYPE_LABELS:
+        return ENTITY_TYPE_LABELS[canonical]
+    # Fallback: replace underscores with spaces and title-case
+    return canonical.replace("_", " ").title()

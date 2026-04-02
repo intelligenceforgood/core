@@ -94,7 +94,7 @@ def build_bundles() -> None:
 
 def _is_golden_mode() -> bool:
     """Return True when the golden bundle is available locally."""
-    golden_path = BUNDLES_DIR / "golden" / "cases.jsonl"
+    golden_path = BUNDLES_DIR / "golden" / "golden" / "cases.jsonl"
     return golden_path.exists()
 
 
@@ -113,7 +113,7 @@ def ingest_golden_fast() -> bool:
     import uuid
     from datetime import UTC, datetime
 
-    golden_path = BUNDLES_DIR / "golden" / "cases.jsonl"
+    golden_path = BUNDLES_DIR / "golden" / "golden" / "cases.jsonl"
     if not golden_path.exists():
         print("⚠️  Golden bundle not found at", golden_path)
         return False
@@ -202,9 +202,12 @@ def ingest_golden_fast() -> bool:
             )
 
             # -- entities table --
-            for etype, values in entities_dict.items():
+            from i4g.utils.entity_types import normalize_entity_type
+
+            for raw_etype, values in entities_dict.items():
                 if not isinstance(values, list):
                     continue
+                etype = normalize_entity_type(raw_etype)
                 for val in values:
                     canonical = val if isinstance(val, str) else (val.get("value") or str(val))
                     if not canonical:
@@ -221,9 +224,10 @@ def ingest_golden_fast() -> bool:
                     entity_count += 1
 
             # -- indicators table (IoC view of entities) --
-            for etype, values in entities_dict.items():
+            for raw_etype2, values in entities_dict.items():
                 if not isinstance(values, list):
                     continue
+                etype2 = normalize_entity_type(raw_etype2)
                 for val in values:
                     canonical = val if isinstance(val, str) else (val.get("value") or str(val))
                     if not canonical:
@@ -236,7 +240,7 @@ def ingest_golden_fast() -> bool:
                         "created_at, updated_at) "
                         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) "
                         "ON CONFLICT DO NOTHING",
-                        (iid, case_id, etype, etype, canonical, dataset, "active", 0.0, now, now, now, now),
+                        (iid, case_id, etype2, etype2, canonical, dataset, "active", 0.0, now, now, now, now),
                     )
                     indicator_count += 1
 

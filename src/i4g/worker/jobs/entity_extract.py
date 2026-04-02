@@ -37,6 +37,7 @@ from i4g.store.sql import (
     source_documents,
 )
 from i4g.task_status import TaskStatusReporter
+from i4g.utils.entity_types import normalize_entity_type
 from i4g.worker.logging import configure_job_logging
 
 logger = logging.getLogger(__name__)
@@ -153,9 +154,10 @@ def _persist_extracted_entities(
     entity_count = 0
     indicator_count = 0
 
-    for entity_type, values in entity_map.items():
+    for raw_type, values in entity_map.items():
         if not isinstance(values, list):
             continue
+        entity_type = normalize_entity_type(raw_type)
         for val in values:
             canonical = str(val).strip() if isinstance(val, str) else str(val)
             if not canonical:

@@ -293,6 +293,9 @@ def _refresh_entity_stats(session: Session) -> int:
     # Collect loss + victim data per entity from intake_records via intake_indicator_links
     # For now, loss linkage is based on case-level loss from intake_records
     for row in rows:
+        # Safety net: normalize in case legacy data has non-canonical types.
+        # Once all write paths use normalize_entity_type() and data is
+        # re-bootstrapped, this call becomes a no-op and can be removed.
         etype = normalize_entity_type(row.entity_type)
         evalue = row.canonical_value
 

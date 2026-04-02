@@ -28,6 +28,7 @@ from i4g.store.analytics_store import AnalyticsStore
 from i4g.store.annotation_store import AnnotationStore
 from i4g.store.threat_campaign_store import ThreatCampaignStore
 from i4g.store.watchlist_store import WatchlistStore
+from i4g.utils.entity_types import entity_type_label, normalize_entity_type
 
 logger = logging.getLogger(__name__)
 
@@ -267,6 +268,23 @@ def list_entity_types(
 ) -> list[str]:
     """Return distinct entity types present in entity_stats."""
     return store.list_entity_types()
+
+
+class EntityTypeLabelItem(CamelModel):
+    """An entity type with its user-friendly label."""
+
+    value: str
+    label: str
+
+
+@router.get("/entities/type-labels", response_model=list[EntityTypeLabelItem])
+def list_entity_type_labels(
+    store: AnalyticsStore = Depends(get_analytics_store),
+    _user: dict[str, str] = Depends(require_token),
+) -> list[EntityTypeLabelItem]:
+    """Return entity types with user-friendly display labels."""
+    types = store.list_entity_types()
+    return [EntityTypeLabelItem(value=t, label=entity_type_label(t)) for t in types]
 
 
 @router.get("/entities", response_model=EntityListResponse)
@@ -600,9 +618,7 @@ def get_dashboard_widgets(
         Dashboard widget data.
     """
     # Active threats = entities with status 'active' or 'flagged'
-    all_active = store.list_entity_stats(status="active", limit=10000)
-    all_flagged = store.list_entity_stats(status="flagged", limit=10000)
-    active_threats = len(all_active) + len(all_flagged)
+    active_threats = store.count_entity_stats(status="active") + store.count_entity_stats(status="flagged")
 
     # New indicators = count from latest daily KPI
     latest_kpi = store.get_latest_kpi(period_type="daily")
@@ -1218,6 +1234,10 @@ def get_intelligence_graph(
         return GraphPayloadResponse(nodes=[], edges=[], node_count=0, edge_count=0)
 
     seed_et, seed_cv = seed.split(":", 1)
+    # Safety net: normalize in case the client sends a non-canonical type.
+    # Once all data and UI use canonical types exclusively, this is a no-op.
+    seed_et = normalize_entity_type(seed_et.strip())
+    seed_cv = seed_cv.strip()
     seed_stat = analytics_store.get_entity_stat(seed_et, seed_cv)
     if not seed_stat:
         return GraphPayloadResponse(nodes=[], edges=[], node_count=0, edge_count=0)
