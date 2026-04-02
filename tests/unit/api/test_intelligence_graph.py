@@ -6,17 +6,13 @@ and GET /intelligence/graph/export (PNG/SVG rendering).
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
 from i4g.api.app import create_app
 from i4g.api.intelligence import get_analytics_store, get_annotation_store, get_campaign_store
-
-# The GraphService import is local inside the endpoint functions, so we patch
-# it at the source module level: i4g.services.graph_service.GraphService
-_GS_PATCH = "i4g.services.graph_service.GraphService"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -69,6 +65,22 @@ def mock_analytics_store() -> MagicMock:
     store = MagicMock()
     store.list_entity_stats.return_value = list(SEED_ENTITIES)
     store.update_entity_status.return_value = True
+    # SQL-based graph endpoint uses get_entity_stat + get_entity_neighbors
+    store.get_entity_stat.return_value = {
+        "entity_type": "wallet",
+        "canonical_value": "0xAAA",
+        "case_count": 3,
+        "max_risk_score": 85,
+    }
+    store.get_entity_neighbors.return_value = [
+        {
+            "entity_type": "wallet",
+            "canonical_value": "0xBBB",
+            "case_count": 3,
+            "shared_cases": 2,
+            "risk_score": 40,
+        },
+    ]
     return store
 
 
@@ -102,70 +114,70 @@ def client(mock_analytics_store, mock_campaign_store, mock_annotation_store) -> 
 # ---------------------------------------------------------------------------
 
 
-@patch(_GS_PATCH)
-def test_graph_returns_payload(mock_gs_cls, client: TestClient) -> None:
+def test_graph_returns_payload(client: TestClient) -> None:
     """GET /intelligence/graph returns nodes, edges, counts."""
-    instance = mock_gs_cls.return_value
-    instance.get_neighbors.return_value = GRAPH_PAYLOAD
-
     resp = client.get("/intelligence/graph", params={"seed": "wallet:0xAAA"})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["nodeCount"] == 2
+    assert body["nodeCount"] == 2  # seed + 1 neighbor
     assert body["edgeCount"] == 1
     assert body["nodes"][0]["id"] == "wallet:0xAAA"
     assert body["edges"][0]["source"] == "wallet:0xAAA"
 
 
-@patch(_GS_PATCH)
-def test_graph_hop_param(mock_gs_cls, client: TestClient) -> None:
-    """hops param is forwarded to GraphService.get_neighbors."""
-    instance = mock_gs_cls.return_value
-    instance.get_neighbors.return_value = {"nodes": [], "edges": []}
+def test_graph_hop_param(client: TestClient, mock_analytics_store: MagicMock) -> None:
+    """hops param triggers multiple rounds of get_entity_neighbors."""
+    # With hops=2, get_entity_neighbors should be called for seed AND its neighbor
+    mock_analytics_store.get_entity_neighbors.return_value = [
+        {"entity_type": "wallet", "canonical_value": "0xBBB", "case_count": 3, "shared_cases": 2, "risk_score": 40},
+    ]
 
     client.get("/intelligence/graph", params={"seed": "wallet:0xAAA", "hops": 2})
-    _, kwargs = instance.get_neighbors.call_args
-    assert kwargs["hops"] == 2
+    # Called at least for seed (hop 1) and for 0xBBB (hop 2)
+    assert mock_analytics_store.get_entity_neighbors.call_count >= 2
 
 
-@patch(_GS_PATCH)
-def test_graph_entity_type_filter(mock_gs_cls, client: TestClient, mock_analytics_store: MagicMock) -> None:
-    """entity_types param filters entities forwarded to graph service."""
-    instance = mock_gs_cls.return_value
-    instance.get_neighbors.return_value = {"nodes": [], "edges": []}
+def test_graph_entity_type_filter(client: TestClient, mock_analytics_store: MagicMock) -> None:
+    """entity_types param filters neighbors by type."""
+    mock_analytics_store.get_entity_neighbors.return_value = [
+        {"entity_type": "wallet", "canonical_value": "0xBBB", "case_count": 3, "shared_cases": 2, "risk_score": 40},
+        {"entity_type": "email", "canonical_value": "a@b.com", "case_count": 2, "shared_cases": 1, "risk_score": 60},
+    ]
 
-    client.get("/intelligence/graph", params={"seed": "wallet:0xAAA", "entity_types": "wallet"})
-    _, kwargs = instance.get_neighbors.call_args
-    assert kwargs["entity_types"] == ["wallet"]
-
-
-@patch(_GS_PATCH)
-def test_graph_risk_threshold_filters_entities(
-    mock_gs_cls, client: TestClient, mock_analytics_store: MagicMock
-) -> None:
-    """risk_threshold filters out low-risk entities before graph construction."""
-    instance = mock_gs_cls.return_value
-    instance.get_neighbors.return_value = {"nodes": [], "edges": []}
-
-    client.get("/intelligence/graph", params={"seed": "wallet:0xAAA", "risk_threshold": 60})
-    # Only entities with risk >= 60 passed to GraphService — 0xAAA (85) and a@b.com (60)
-    args_list = mock_gs_cls.call_args
-    adjacency = args_list[0][0]  # first positional arg
-    assert "wallet:0xBBB" not in adjacency  # risk 40 < 60
+    resp = client.get("/intelligence/graph", params={"seed": "wallet:0xAAA", "entity_types": "wallet"})
+    body = resp.json()
+    # Only wallet entities should be in the result (seed + 0xBBB)
+    for node in body["nodes"]:
+        assert node["entityType"] == "wallet"
 
 
-@patch(_GS_PATCH)
-def test_graph_campaign_seed(mock_gs_cls, client: TestClient, mock_campaign_store: MagicMock) -> None:
-    """seed_type=campaign expands via campaign store linked cases."""
-    instance = mock_gs_cls.return_value
-    instance.serialize.return_value = {"nodes": [], "edges": [], "layout": None}
+def test_graph_risk_threshold_filters_entities(client: TestClient, mock_analytics_store: MagicMock) -> None:
+    """risk_threshold filters out low-risk neighbors."""
+    mock_analytics_store.get_entity_neighbors.return_value = [
+        {"entity_type": "wallet", "canonical_value": "0xBBB", "case_count": 3, "shared_cases": 2, "risk_score": 40},
+    ]
+    # Neighbor 0xBBB has risk 40, which is below threshold 60
+    mock_analytics_store.get_entity_stat.side_effect = lambda et, cv: (
+        {"entity_type": et, "canonical_value": cv, "case_count": 3, "max_risk_score": 85}
+        if cv == "0xAAA"
+        else {"entity_type": et, "canonical_value": cv, "case_count": 3, "max_risk_score": 40}
+    )
 
-    client.get("/intelligence/graph", params={"seed": "camp-1", "seed_type": "campaign"})
-    mock_campaign_store.list_linked_cases.assert_called_once()
+    resp = client.get("/intelligence/graph", params={"seed": "wallet:0xAAA", "risk_threshold": 60})
+    body = resp.json()
+    node_ids = [n["id"] for n in body["nodes"]]
+    assert "wallet:0xBBB" not in node_ids  # risk 40 < 60
 
 
-@patch(_GS_PATCH)
-def test_graph_campaign_seed_empty(mock_gs_cls, client: TestClient, mock_campaign_store: MagicMock) -> None:
+def test_graph_campaign_seed(client: TestClient, mock_campaign_store: MagicMock) -> None:
+    """seed_type=campaign returns empty graph (not yet supported via SQL)."""
+    resp = client.get("/intelligence/graph", params={"seed": "camp-1", "seed_type": "campaign"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["nodeCount"] == 0
+
+
+def test_graph_campaign_seed_empty(client: TestClient, mock_campaign_store: MagicMock) -> None:
     """Empty campaign returns empty graph."""
     mock_campaign_store.list_linked_cases.return_value = []
 
@@ -175,25 +187,14 @@ def test_graph_campaign_seed_empty(mock_gs_cls, client: TestClient, mock_campaig
     assert body["nodeCount"] == 0
 
 
-@patch(_GS_PATCH)
-def test_graph_large_layout(mock_gs_cls, client: TestClient, mock_analytics_store: MagicMock) -> None:
-    """Graph with >500 nodes triggers layout computation."""
-    # Return >500 entity stats
-    large_entities = [_make_entity("wallet", f"0x{i:04d}") for i in range(600)]
-    mock_analytics_store.list_entity_stats.return_value = large_entities
+def test_graph_seed_not_found(client: TestClient, mock_analytics_store: MagicMock) -> None:
+    """Unknown seed entity returns empty graph."""
+    mock_analytics_store.get_entity_stat.return_value = None
 
-    layout_data = {str(i): {"x": 0.1, "y": 0.2} for i in range(600)}
-    instance = mock_gs_cls.return_value
-    instance.get_neighbors.return_value = {
-        "nodes": [{"id": f"wallet:0x{i:04d}", "entity_type": "wallet", "label": f"0x{i:04d}"} for i in range(600)],
-        "edges": [],
-        "layout": layout_data,
-    }
-
-    resp = client.get("/intelligence/graph", params={"seed": "wallet:0x0000"})
+    resp = client.get("/intelligence/graph", params={"seed": "wallet:0xUNKNOWN"})
     assert resp.status_code == 200
     body = resp.json()
-    assert body["nodeCount"] == 600
+    assert body["nodeCount"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -201,12 +202,8 @@ def test_graph_large_layout(mock_gs_cls, client: TestClient, mock_analytics_stor
 # ---------------------------------------------------------------------------
 
 
-@patch(_GS_PATCH)
-def test_graph_export_png(mock_gs_cls, client: TestClient) -> None:
+def test_graph_export_png(client: TestClient) -> None:
     """GET /intelligence/graph/export returns PNG image."""
-    instance = mock_gs_cls.return_value
-    instance.get_neighbors.return_value = GRAPH_PAYLOAD
-
     resp = client.get("/intelligence/graph/export", params={"seed": "wallet:0xAAA", "fmt": "png"})
     # May return 200 (with matplotlib) or 501 (without matplotlib); both are valid
     assert resp.status_code in (200, 501)
@@ -214,12 +211,8 @@ def test_graph_export_png(mock_gs_cls, client: TestClient) -> None:
         assert resp.headers["content-type"] == "image/png"
 
 
-@patch(_GS_PATCH)
-def test_graph_export_svg(mock_gs_cls, client: TestClient) -> None:
+def test_graph_export_svg(client: TestClient) -> None:
     """GET /intelligence/graph/export?fmt=svg returns SVG image."""
-    instance = mock_gs_cls.return_value
-    instance.get_neighbors.return_value = GRAPH_PAYLOAD
-
     resp = client.get("/intelligence/graph/export", params={"seed": "wallet:0xAAA", "fmt": "svg"})
     assert resp.status_code in (200, 501)
     if resp.status_code == 200:

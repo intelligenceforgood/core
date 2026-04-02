@@ -1199,53 +1199,98 @@ def get_intelligence_graph(
     Returns:
         Graph payload with nodes, edges, counts, and optional layout.
     """
-    from i4g.services.graph_service import GraphService
-
-    # Build adjacency from entity_stats
-    all_entities = analytics_store.list_entity_stats(limit=10000)
-
-    # Filter by risk threshold if specified
-    if risk_threshold is not None:
-        all_entities = [e for e in all_entities if float(e.get("max_risk_score", 0)) >= risk_threshold]
-
     # Parse entity type filter
-    type_filter = [t.strip() for t in entity_types.split(",")] if entity_types else None
+    type_filter = set(t.strip() for t in entity_types.split(",")) if entity_types else None
 
-    # Build adjacency map: entity_id → case_ids (from entity_stats)
-    adjacency: dict[str, list[str]] = {}
-    entity_meta: dict[str, dict[str, Any]] = {}
-    for e in all_entities:
-        eid = f"{e['entity_type']}:{e['canonical_value']}"
-        # Synthesize case references from case_count
-        adjacency[eid] = [f"case-{i}" for i in range(int(e.get("case_count", 0)))]
-        entity_meta[eid] = {
-            "entity_type": e.get("entity_type", "unknown"),
-            "label": str(e.get("canonical_value", eid)),
-            "case_count": int(e.get("case_count", 0)),
-            "risk_score": float(e.get("max_risk_score", 0)),
-        }
+    # --- SQL-based iterative neighbor expansion ---
+    # Instead of loading all entities into memory and building a global
+    # NetworkX graph, we expand outward from the seed using the store's
+    # get_entity_neighbors (SQL co-occurrence query).  This keeps memory
+    # proportional to the result set, not the whole database.
 
-    graph_service = GraphService(adjacency, entity_meta)
-
-    # Handle campaign seeds — expand to member entity IDs
     if seed_type == "campaign":
-        linked_cases = campaign_store.list_linked_cases(seed, limit=1000)
-        if not linked_cases:
-            return GraphPayloadResponse(nodes=[], edges=[], node_count=0, edge_count=0)
-        # Use the campaign's scoped graph instead
-        payload = graph_service.serialize(include_layout=True)
-    else:
-        payload = graph_service.get_neighbors(seed, hops=hops, entity_types=type_filter, limit=limit)
+        # Campaign seed: not yet supported via SQL-based expansion.
+        # Return empty graph — the campaign detail page has its own graph.
+        return GraphPayloadResponse(nodes=[], edges=[], node_count=0, edge_count=0)
 
-    nodes = [GraphNodeResponse(**n) for n in payload.get("nodes", [])]
-    edges = [GraphEdgeResponse(**e) for e in payload.get("edges", [])]
+    # Entity seed — parse "entity_type:canonical_value"
+    if ":" not in seed:
+        return GraphPayloadResponse(nodes=[], edges=[], node_count=0, edge_count=0)
+
+    seed_et, seed_cv = seed.split(":", 1)
+    seed_stat = analytics_store.get_entity_stat(seed_et, seed_cv)
+    if not seed_stat:
+        return GraphPayloadResponse(nodes=[], edges=[], node_count=0, edge_count=0)
+
+    # Collect all nodes and edges via BFS
+    node_map: dict[str, GraphNodeResponse] = {}
+    edge_list: list[GraphEdgeResponse] = []
+    seen_edges: set[tuple[str, str]] = set()
+
+    seed_id = f"{seed_et}:{seed_cv}"
+    node_map[seed_id] = GraphNodeResponse(
+        id=seed_id,
+        label=seed_cv,
+        entity_type=seed_et,
+        case_count=int(seed_stat.get("case_count", 0)),
+        risk_score=float(seed_stat.get("max_risk_score", 0)),
+    )
+
+    frontier = [(seed_et, seed_cv)]
+    for _hop in range(hops):
+        next_frontier: list[tuple[str, str]] = []
+        for f_et, f_cv in frontier:
+            f_id = f"{f_et}:{f_cv}"
+            neighbors = analytics_store.get_entity_neighbors(f_et, f_cv, limit=limit)
+            for nb in neighbors:
+                n_et = nb["entity_type"]
+                n_cv = nb["canonical_value"]
+                n_id = f"{n_et}:{n_cv}"
+
+                # Apply filters
+                if type_filter and n_et not in type_filter:
+                    continue
+                if risk_threshold is not None:
+                    nb_stat = analytics_store.get_entity_stat(n_et, n_cv)
+                    if nb_stat and float(nb_stat.get("max_risk_score", 0)) < risk_threshold:
+                        continue
+
+                if n_id not in node_map:
+                    node_map[n_id] = GraphNodeResponse(
+                        id=n_id,
+                        label=n_cv,
+                        entity_type=n_et,
+                        case_count=nb.get("case_count", 0),
+                        risk_score=float(nb.get("risk_score", 0)),
+                    )
+                    next_frontier.append((n_et, n_cv))
+
+                edge_key = (min(f_id, n_id), max(f_id, n_id))
+                if edge_key not in seen_edges:
+                    seen_edges.add(edge_key)
+                    edge_list.append(
+                        GraphEdgeResponse(
+                            source=f_id,
+                            target=n_id,
+                            weight=nb.get("shared_cases", 1),
+                        )
+                    )
+
+            if len(node_map) >= limit:
+                break
+        frontier = next_frontier
+        if len(node_map) >= limit:
+            break
+
+    nodes = list(node_map.values())[:limit]
+    node_ids = {n.id for n in nodes}
+    edges = [e for e in edge_list if e.source in node_ids and e.target in node_ids]
 
     return GraphPayloadResponse(
         nodes=nodes,
         edges=edges,
         node_count=len(nodes),
         edge_count=len(edges),
-        layout=payload.get("layout"),
     )
 
 
@@ -1274,23 +1319,34 @@ def export_graph(
     """
     from fastapi.responses import Response
 
-    from i4g.services.graph_service import GraphService
+    # Use SQL-based neighbor expansion (same as /graph endpoint)
+    if ":" not in seed:
+        raise HTTPException(status_code=400, detail="Seed must be entity_type:canonical_value")
+    seed_et, seed_cv = seed.split(":", 1)
 
-    all_entities = analytics_store.list_entity_stats(limit=5000)
-    adjacency: dict[str, list[str]] = {}
-    entity_meta: dict[str, dict[str, Any]] = {}
-    for e in all_entities:
-        eid = f"{e['entity_type']}:{e['canonical_value']}"
-        adjacency[eid] = [f"case-{i}" for i in range(int(e.get("case_count", 0)))]
-        entity_meta[eid] = {
-            "entity_type": e.get("entity_type", "unknown"),
-            "label": str(e.get("canonical_value", eid)),
-            "case_count": int(e.get("case_count", 0)),
-            "risk_score": float(e.get("max_risk_score", 0)),
-        }
+    node_map: dict[str, dict[str, Any]] = {}
+    edge_list: list[tuple[str, str, int]] = []
 
-    graph_service = GraphService(adjacency, entity_meta)
-    payload = graph_service.get_neighbors(seed, hops=hops, limit=500)
+    seed_id = seed
+    node_map[seed_id] = {"label": seed_cv}
+
+    frontier = [(seed_et, seed_cv)]
+    for _hop in range(hops):
+        next_frontier: list[tuple[str, str]] = []
+        for f_et, f_cv in frontier:
+            f_id = f"{f_et}:{f_cv}"
+            neighbors = analytics_store.get_entity_neighbors(f_et, f_cv, limit=500)
+            for nb in neighbors:
+                n_id = f"{nb['entity_type']}:{nb['canonical_value']}"
+                if n_id not in node_map:
+                    node_map[n_id] = {"label": nb["canonical_value"]}
+                    next_frontier.append((nb["entity_type"], nb["canonical_value"]))
+                edge_list.append((f_id, n_id, nb.get("shared_cases", 1)))
+            if len(node_map) > 500:
+                break
+        frontier = next_frontier
+        if len(node_map) > 500:
+            break
 
     try:
         import io
@@ -1302,10 +1358,14 @@ def export_graph(
         import networkx as nx
 
         g = nx.Graph()
-        for n in payload.get("nodes", []):
-            g.add_node(n["id"], label=n.get("label", n["id"]))
-        for e in payload.get("edges", []):
-            g.add_edge(e["source"], e["target"], weight=e.get("weight", 1))
+        for nid, data in node_map.items():
+            g.add_node(nid, label=data.get("label", nid))
+        for src, tgt, w in edge_list:
+            if src in node_map and tgt in node_map:
+                if g.has_edge(src, tgt):
+                    g[src][tgt]["weight"] += w
+                else:
+                    g.add_edge(src, tgt, weight=w)
 
         fig, ax = plt.subplots(1, 1, figsize=(12, 8))
         pos = nx.spring_layout(g, seed=42)
