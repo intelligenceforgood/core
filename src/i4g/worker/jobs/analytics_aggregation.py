@@ -113,6 +113,7 @@ def compute_campaign_risk_score(
 # ---------------------------------------------------------------------------
 
 _LIFECYCLE_ORDER = ["emerging", "active", "declining", "dormant", "closed"]
+_ENTITY_LIFECYCLE_ORDER = ["active", "declining", "dormant", "resolved", "flagged"]
 _INACTIVITY_DECLINING_DAYS = 14
 _INACTIVITY_DORMANT_DAYS = 30
 
@@ -146,6 +147,40 @@ def _next_lifecycle_state(current: str, last_case_at: datetime | None, created_a
     if inactive_days < _INACTIVITY_DECLINING_DAYS and current in ("emerging", "declining", "dormant"):
         return "active"
     return None
+
+
+def _compute_entity_status(
+    current: str | None,
+    last_seen_at: datetime | None,
+    first_seen_at: datetime | None,
+    has_open_cases: bool,
+) -> str:
+    """Compute entity lifecycle status.
+
+    Rules:
+    - *flagged* is analyst-set and sticky — never auto-transitioned.
+    - No open cases → resolved.
+    - 30+ days since last seen → dormant.
+    - 14–29 days since last seen → declining.
+    - Otherwise → active.
+    """
+    if current == "flagged":
+        return "flagged"
+
+    if not has_open_cases:
+        return "resolved"
+
+    ref = last_seen_at or first_seen_at
+    if ref is not None:
+        if ref.tzinfo is None:
+            ref = ref.replace(tzinfo=UTC)
+        inactive_days = (datetime.now(tz=UTC) - ref).days
+        if inactive_days >= _INACTIVITY_DORMANT_DAYS:
+            return "dormant"
+        if inactive_days >= _INACTIVITY_DECLINING_DAYS:
+            return "declining"
+
+    return "active"
 
 
 # ---------------------------------------------------------------------------
@@ -341,6 +376,37 @@ def _refresh_entity_stats(session: Session) -> int:
             counter[str(cls)] += 1
         top_cls = [{"label": lbl, "count": cnt} for lbl, cnt in counter.most_common(5)]
 
+        # --- Entity lifecycle status ---
+        # Check current status (preserve analyst-set "flagged")
+        existing_status = session.execute(
+            sa.select(entity_stats.c.status).where(
+                entity_stats.c.entity_type == etype,
+                entity_stats.c.canonical_value == evalue,
+            )
+        ).scalar()
+
+        # Check if any linked cases are still open (not resolved)
+        open_case_count = (
+            session.execute(
+                sa.select(sa.func.count())
+                .select_from(entities.join(cases, entities.c.case_id == cases.c.case_id))
+                .where(
+                    entities.c.entity_type == etype,
+                    entities.c.canonical_value == evalue,
+                    cases.c.is_deleted == sa.false(),
+                    cases.c.resolved_at.is_(None),
+                )
+            ).scalar()
+            or 0
+        )
+
+        status = _compute_entity_status(
+            current=existing_status,
+            last_seen_at=row.last_seen_at,
+            first_seen_at=row.first_seen_at,
+            has_open_cases=open_case_count > 0,
+        )
+
         ins = dialect_insert(session, entity_stats)
         vals = {
             "entity_type": etype,
@@ -352,6 +418,7 @@ def _refresh_entity_stats(session: Session) -> int:
             "avg_risk_score": round(float(row.avg_risk_score or 0), 1),
             "first_seen_at": row.first_seen_at,
             "last_seen_at": row.last_seen_at,
+            "status": status,
             "campaign_ids": [str(c) for c in campaign_ids],
             "top_classifications": top_cls,
             "updated_at": now,
@@ -613,25 +680,27 @@ def _refresh_platform_kpis(session: Session) -> int:
             or 0
         )
 
-        # New indicators
+        # New indicators — use first_seen_at (real-world date) over created_at
+        # (row insertion time) so that bulk bootstrap/re-ingestion doesn't
+        # inflate the count.
         new_indicators = (
             session.execute(
                 sa.select(sa.func.count())
                 .select_from(indicators)
                 .where(
-                    indicators.c.created_at >= cutoff,
+                    sa.func.coalesce(indicators.c.first_seen_at, indicators.c.created_at) >= cutoff,
                 )
             ).scalar()
             or 0
         )
 
-        # New entities
+        # New entities — same first_seen_at preference as indicators.
         new_entities = (
             session.execute(
                 sa.select(sa.func.count())
                 .select_from(entities)
                 .where(
-                    entities.c.created_at >= cutoff,
+                    sa.func.coalesce(entities.c.first_seen_at, entities.c.created_at) >= cutoff,
                 )
             ).scalar()
             or 0

@@ -125,6 +125,19 @@ def ingest_golden_fast() -> bool:
     cur = conn.cursor()
     now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
 
+    # Use bundle build date as first_seen_at so KPI "new indicators" doesn't
+    # count historical data as new after a bootstrap.
+    manifest_path = golden_path.parent / "manifest.json"
+    bundle_date = now  # fallback
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            raw_ts = manifest.get("created_at", "")
+            if raw_ts:
+                bundle_date = datetime.fromisoformat(raw_ts).strftime("%Y-%m-%d %H:%M:%S")
+        except (json.JSONDecodeError, ValueError, KeyError):
+            pass  # keep fallback
+
     count = 0
     entity_count = 0
     indicator_count = 0
@@ -216,10 +229,10 @@ def ingest_golden_fast() -> bool:
                     cur.execute(
                         "INSERT INTO entities "
                         "(entity_id, case_id, entity_type, canonical_value, raw_value, "
-                        "confidence, created_at, updated_at) "
-                        "VALUES (?,?,?,?,?,?,?,?) "
+                        "confidence, first_seen_at, last_seen_at, created_at, updated_at) "
+                        "VALUES (?,?,?,?,?,?,?,?,?,?) "
                         "ON CONFLICT DO NOTHING",
-                        (eid, case_id, etype, canonical, canonical, 0.0, now, now),
+                        (eid, case_id, etype, canonical, canonical, 0.0, bundle_date, bundle_date, now, now),
                     )
                     entity_count += 1
 
@@ -240,7 +253,20 @@ def ingest_golden_fast() -> bool:
                         "created_at, updated_at) "
                         "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) "
                         "ON CONFLICT DO NOTHING",
-                        (iid, case_id, etype2, etype2, canonical, dataset, "active", 0.0, now, now, now, now),
+                        (
+                            iid,
+                            case_id,
+                            etype2,
+                            etype2,
+                            canonical,
+                            dataset,
+                            "active",
+                            0.0,
+                            bundle_date,
+                            bundle_date,
+                            now,
+                            now,
+                        ),
                     )
                     indicator_count += 1
 

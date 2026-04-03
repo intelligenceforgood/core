@@ -42,6 +42,30 @@ ENTITY_TYPE_LABELS: dict[str, str] = {
 # The set of valid canonical types (derived from the labels dict above).
 CANONICAL_ENTITY_TYPES: frozenset[str] = frozenset(ENTITY_TYPE_LABELS)
 
+# Entity types that represent actionable threat infrastructure — financial
+# accounts, digital identifiers, and contact mechanisms.  Used by the
+# dashboard "Active Threats" widget to filter out contextual NER noise
+# (person names, organizations, locations) that inflate the count after
+# LLM entity extraction.
+THREAT_ENTITY_TYPES: frozenset[str] = frozenset(
+    {
+        "wallet_address",
+        "bank_account",
+        "account_number",
+        "routing_number",
+        "payment_handle",
+        "email_address",
+        "phone_number",
+        "social_handle",
+        "contact_handle",
+        "crypto_token",
+        "url",
+        "domain",
+        "ip_address",
+        "transaction_id",
+    }
+)
+
 # ---------------------------------------------------------------------------
 # Normalization map — maps every known variant to its canonical form.
 # Only used at write time so the DB is always clean.

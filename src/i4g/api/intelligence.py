@@ -28,7 +28,7 @@ from i4g.store.analytics_store import AnalyticsStore
 from i4g.store.annotation_store import AnnotationStore
 from i4g.store.threat_campaign_store import ThreatCampaignStore
 from i4g.store.watchlist_store import WatchlistStore
-from i4g.utils.entity_types import entity_type_label, normalize_entity_type
+from i4g.utils.entity_types import THREAT_ENTITY_TYPES, entity_type_label, normalize_entity_type
 
 logger = logging.getLogger(__name__)
 
@@ -617,8 +617,13 @@ def get_dashboard_widgets(
     Returns:
         Dashboard widget data.
     """
-    # Active threats = entities with status 'active' or 'flagged'
-    active_threats = store.count_entity_stats(status="active") + store.count_entity_stats(status="flagged")
+    # Active threats = threat-indicator entities (financial, contact, digital
+    # infra) with status 'active' or 'flagged'.  Excludes contextual NER
+    # types (person, organization, location) to avoid inflated counts after
+    # LLM entity extraction.
+    active_threats = store.count_entity_stats(
+        status="active", entity_types=THREAT_ENTITY_TYPES
+    ) + store.count_entity_stats(status="flagged", entity_types=THREAT_ENTITY_TYPES)
 
     # New indicators = count from latest daily KPI
     latest_kpi = store.get_latest_kpi(period_type="daily")

@@ -68,6 +68,7 @@ class AnalyticsStore:
     def _entity_filters(
         *,
         entity_type: str | None = None,
+        entity_types: frozenset[str] | None = None,
         status: str | None = None,
         min_case_count: int | None = None,
         min_loss: float | None = None,
@@ -77,6 +78,8 @@ class AnalyticsStore:
         clauses: list[sa.ColumnElement] = []
         if entity_type:
             clauses.append(es.c.entity_type == entity_type)
+        if entity_types:
+            clauses.append(es.c.entity_type.in_(entity_types))
         if status:
             clauses.append(es.c.status == status)
         if min_case_count is not None:
@@ -89,6 +92,7 @@ class AnalyticsStore:
         self,
         *,
         entity_type: str | None = None,
+        entity_types: frozenset[str] | None = None,
         status: str | None = None,
         min_case_count: int | None = None,
         min_loss: float | None = None,
@@ -98,6 +102,7 @@ class AnalyticsStore:
         stmt = sa.select(sa.func.count()).select_from(es)
         for clause in self._entity_filters(
             entity_type=entity_type,
+            entity_types=entity_types,
             status=status,
             min_case_count=min_case_count,
             min_loss=min_loss,

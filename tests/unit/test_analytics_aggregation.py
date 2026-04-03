@@ -28,6 +28,7 @@ from i4g.store.sql import (
 )
 from i4g.worker.jobs.analytics_aggregation import (
     _anonymize_purged_entities,
+    _compute_entity_status,
     _next_lifecycle_state,
     _refresh_campaign_stats,
     _refresh_entity_stats,
@@ -400,3 +401,167 @@ def test_anonymize_purged_entities(tmp_path: Path) -> None:
         # Canonical value should now be a SHA-256 hash
         assert row.canonical_value != "+15551234567"
         assert len(row.canonical_value) == 64  # SHA-256 hex digest
+
+
+# ---------------------------------------------------------------------------
+# Entity lifecycle status
+# ---------------------------------------------------------------------------
+
+
+def test_entity_status_flagged_is_sticky() -> None:
+    """Analyst-set 'flagged' status is never auto-transitioned."""
+    recent = datetime.now(tz=UTC) - timedelta(days=1)
+    assert _compute_entity_status("flagged", recent, recent, has_open_cases=True) == "flagged"
+    assert _compute_entity_status("flagged", recent, recent, has_open_cases=False) == "flagged"
+
+
+def test_entity_status_resolved_when_no_open_cases() -> None:
+    """Entities with all cases resolved get 'resolved' status."""
+    recent = datetime.now(tz=UTC) - timedelta(days=1)
+    assert _compute_entity_status("active", recent, recent, has_open_cases=False) == "resolved"
+    assert _compute_entity_status(None, recent, recent, has_open_cases=False) == "resolved"
+
+
+def test_entity_status_dormant_after_30_days() -> None:
+    """Entities not seen in 30+ days become 'dormant'."""
+    old = datetime.now(tz=UTC) - timedelta(days=35)
+    assert _compute_entity_status("active", old, old, has_open_cases=True) == "dormant"
+
+
+def test_entity_status_declining_after_14_days() -> None:
+    """Entities not seen in 14-29 days become 'declining'."""
+    mid = datetime.now(tz=UTC) - timedelta(days=20)
+    assert _compute_entity_status("active", mid, mid, has_open_cases=True) == "declining"
+
+
+def test_entity_status_active_when_recent() -> None:
+    """Entities with recent activity and open cases are 'active'."""
+    recent = datetime.now(tz=UTC) - timedelta(days=3)
+    assert _compute_entity_status("active", recent, recent, has_open_cases=True) == "active"
+    assert _compute_entity_status(None, recent, recent, has_open_cases=True) == "active"
+
+
+def test_refresh_entity_stats_sets_status(tmp_path: Path) -> None:
+    """Entity stats refresh sets lifecycle status based on case state."""
+    sf = _make_session(tmp_path / "agg.db")
+    _seed_data(sf)
+
+    with sf() as session:
+        _refresh_entity_stats(session)
+        session.commit()
+
+    with sf() as session:
+        row = session.execute(sa.select(entity_stats).where(entity_stats.c.entity_type == "wallet")).fetchone()
+        assert row is not None
+        # Both cases are open and recent → status should be 'active'
+        assert row.status == "active"
+
+
+def test_refresh_entity_stats_resolved_status(tmp_path: Path) -> None:
+    """Entities linked only to resolved cases get 'resolved' status."""
+    sf = _make_session(tmp_path / "agg.db")
+    now = datetime.now(tz=UTC)
+
+    with sf() as session:
+        session.execute(
+            cases.insert().values(
+                case_id="resolved1",
+                dataset="test",
+                source_type="proactive",
+                raw_text_sha256="rhash1",
+                status="resolved",
+                risk_score=30.0,
+                resolved_at=now - timedelta(days=2),
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.execute(
+            entities.insert().values(
+                entity_id="er1",
+                case_id="resolved1",
+                entity_type="email",
+                canonical_value="bad@example.com",
+                confidence=0.9,
+                first_seen_at=now,
+                last_seen_at=now,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.commit()
+
+    with sf() as session:
+        _refresh_entity_stats(session)
+        session.commit()
+
+    with sf() as session:
+        row = session.execute(sa.select(entity_stats).where(entity_stats.c.entity_type == "email")).fetchone()
+        assert row is not None
+        assert row.status == "resolved"
+
+
+def test_platform_kpis_use_first_seen_at(tmp_path: Path) -> None:
+    """New indicators/entities KPI uses first_seen_at, not created_at.
+
+    Simulates a bootstrap scenario: created_at is NOW but first_seen_at
+    is months old. The KPI should NOT count these as 'new'.
+    """
+    sf = _make_session(tmp_path / "agg.db")
+    now = datetime.now(tz=UTC)
+    old_date = now - timedelta(days=90)
+
+    with sf() as session:
+        session.execute(
+            cases.insert().values(
+                case_id="kpi1",
+                dataset="test",
+                source_type="proactive",
+                raw_text_sha256="kpihash",
+                status="open",
+                risk_score=50.0,
+                created_at=old_date,
+                updated_at=now,
+            )
+        )
+        # Indicator: created_at = now (bootstrap time), first_seen_at = 90 days ago
+        session.execute(
+            indicators.insert().values(
+                indicator_id="ki1",
+                case_id="kpi1",
+                category="crypto",
+                type="bitcoin",
+                number="1OLDBTC",
+                status="active",
+                confidence=0.9,
+                dataset="test",
+                first_seen_at=old_date,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        # Entity: created_at = now, first_seen_at = 90 days ago
+        session.execute(
+            entities.insert().values(
+                entity_id="ke1",
+                case_id="kpi1",
+                entity_type="wallet",
+                canonical_value="0xOLD",
+                confidence=0.9,
+                first_seen_at=old_date,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.commit()
+
+    with sf() as session:
+        _refresh_platform_kpis(session)
+        session.commit()
+
+    with sf() as session:
+        daily = session.execute(sa.select(platform_kpis).where(platform_kpis.c.period_type == "daily")).fetchone()
+        assert daily is not None
+        # first_seen_at is 90 days ago → should NOT count as new
+        assert daily.new_indicators == 0
+        assert daily.new_entities == 0
