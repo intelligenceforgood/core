@@ -8,7 +8,6 @@ Use these step-by-step guides to create artifacts, run smokes, or set up infrast
 - Bootstrap or refresh sandbox/dev data: [bootstrap_environments.md](bootstrap_environments.md)
 - Configure Google Workspace SMTP for notifications: [google_workspace_smtp_setup.md](google_workspace_smtp_setup.md)
 - Prepare bootstrap data bundles (GCS upload): [prepare_bootstrap_bundles.md](prepare_bootstrap_bundles.md)
-- Azure legacy data migration workflow: [azure_legacy_data.md](azure_legacy_data.md)
 - Cloud SQL inspection, querying, and permissions: [cloud_sql_primer.md](cloud_sql_primer.md)
 - Configure GitHub Actions CI/CD with Workload Identity Federation: [github_actions_setup.md](github_actions_setup.md)
 - Run retrieval pipeline on GCP: [../development/retrieval_gcp_guide.md](../development/retrieval_gcp_guide.md)

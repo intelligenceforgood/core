@@ -19,7 +19,7 @@ Before bootstrapping, you need data bundles in `data/bundles/golden/`. Two ways 
 
 The golden bundle contains:
 
-- `cases.jsonl` — consolidated case data (cleaned legacy Azure + incident responses + synthetic)
+- `cases.jsonl` — consolidated case data (incident responses + synthetic)
 - `seed.sql` — campaigns, watchlists, graph edges, timeline data, geography
 - `manifest.json` — provenance, counts, SHA-256 hashes
 
@@ -299,17 +299,3 @@ The bootstrap uses data bundles from `gs://i4g-dev-data-bundles/{RUN_DATE}/golde
 - **Do not hand-edit `data/`**: Rerun `i4g bootstrap local reset` to restore the baseline.
 - **Configuration**: Keep `config/settings.local.toml` aligned when overriding paths.
 - **Wipe before re-ingest**: The ingestion pipeline deduplicates by `(dataset, raw_text_sha256)`. If text normalization changes, wipe first.
-
-## Reference: Legacy Bundle Structure (Deprecated)
-
-> The legacy bundle structure is no longer used by the bootstrap command. It is documented here for historical reference only.
-
-Before the golden bundle consolidation, bootstrap used 5 separate bundles from GCS:
-
-- `legacy_azure/search_exports/vertex` — Azure Cognitive Search exports
-- `public_scams/cases.jsonl` — Public scam corpora
-- `synthetic_coverage/retrieval_poc/cases.jsonl` — Retrieval PoC synthetic cases
-- `synthetic_coverage/full/cases.jsonl` — Full synthetic coverage
-- `synthetic_coverage/ocr_test_images` — OCR test images
-
-These were individually downloaded and ingested one at a time via the full `IngestPipeline` subprocess. The golden bundle replaces this with a single consolidated JSONL and fast SQLite inserts.

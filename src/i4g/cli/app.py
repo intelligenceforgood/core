@@ -12,7 +12,6 @@ from pathlib import Path
 import typer
 
 from i4g.cli.admin import admin_app
-from i4g.cli.azure import app as azure_app
 from i4g.cli.backfill import backfill_app
 from i4g.cli.bootstrap import bootstrap_app
 from i4g.cli.data import data_app
@@ -59,7 +58,6 @@ app.add_typer(data_app, name="data")
 app.add_typer(reports_app, name="reports")
 app.add_typer(extract_app, name="extract")
 app.add_typer(admin_app, name="admin")
-app.add_typer(azure_app, name="azure")
 
 
 @app.callback(invoke_without_command=True)

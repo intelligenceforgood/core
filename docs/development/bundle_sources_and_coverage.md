@@ -5,8 +5,6 @@ reviewing local/dev refreshes.
 
 ## Source inventory
 
-- Legacy Azure exports: historical intake, GroupsIO, and account artifacts pulled from Azure SQL/blob. Preserve schema
-  maps and row counts in the bundle manifest; ensure PII handling follows `core/docs/design/pii_vault.md` before promotion.
 - Public/third-party datasets (candidates):
   - UCI SMS Spam Collection (CC BY-NC 4.0) — already included in legacy bundle.
   - SpamAssassin corpus (Apache-style) — email spam/ham; confirm terms before shipping.
@@ -34,13 +32,12 @@ reviewing local/dev refreshes.
 
 The current bootstrap process relies on a frozen snapshot of data stored in `gs://i4g-dev-data-bundles/2025-12-17/`.
 
-| Bundle Key           | Description                                                | GCS Path (Relative to Run Date)                |
-| :------------------- | :--------------------------------------------------------- | :--------------------------------------------- |
-| `legacy_azure`       | Historical intake & account artifacts exported from Azure. | `legacy_azure/search_exports/vertex/`          |
-| `public_scams`       | Public datasets (SMS Spam Collection, SpamAssassin).       | `public_scams/cases.jsonl`                     |
-| `retrieval_poc`      | Small subset of synthetic cases for retrieval testing.     | `synthetic_coverage/retrieval_poc/cases.jsonl` |
-| `synthetic_coverage` | Full set of synthetic cases for broad coverage testing.    | `synthetic_coverage/full/cases.jsonl`          |
-| `ocr_test_images`    | Synthetic chat screenshots for OCR pipeline testing.       | `synthetic_coverage/ocr_test_images/`          |
+| Bundle Key           | Description                                             | GCS Path (Relative to Run Date)                |
+| :------------------- | :------------------------------------------------------ | :--------------------------------------------- |
+| `public_scams`       | Public datasets (SMS Spam Collection, SpamAssassin).    | `public_scams/cases.jsonl`                     |
+| `retrieval_poc`      | Small subset of synthetic cases for retrieval testing.  | `synthetic_coverage/retrieval_poc/cases.jsonl` |
+| `synthetic_coverage` | Full set of synthetic cases for broad coverage testing. | `synthetic_coverage/full/cases.jsonl`          |
+| `ocr_test_images`    | Synthetic chat screenshots for OCR pipeline testing.    | `synthetic_coverage/ocr_test_images/`          |
 
 ## Placement and manifests
 

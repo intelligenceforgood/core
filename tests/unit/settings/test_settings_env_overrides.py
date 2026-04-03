@@ -414,7 +414,7 @@ def test_runtime_fallback_dir_override(monkeypatch: object, tmp_path: Path) -> N
 def test_gcs_dataset_path_preserved(monkeypatch: object) -> None:
     """GCS URIs (gs://…) must not be coerced into local Path objects."""
 
-    gcs_uri = "gs://i4g-dev-data-bundles/2025-12-17/legacy_azure/search_exports/vertex"
+    gcs_uri = "gs://i4g-dev-data-bundles/2025-12-17/golden/cases.jsonl"
     _clear_env(monkeypatch, "I4G_INGEST__JSONL_PATH", "I4G_ENV")
     _set_env(monkeypatch, "I4G_ENV", "dev")
     _set_env(monkeypatch, "I4G_INGEST__JSONL_PATH", gcs_uri)
