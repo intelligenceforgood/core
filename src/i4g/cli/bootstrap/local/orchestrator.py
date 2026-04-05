@@ -118,8 +118,6 @@ def run_local(
     else:
         print("⚠️  Skipping bundle ingestion as requested.")
 
-    apply_seed_sql()
-
     tesseract_available = shutil.which("tesseract") is not None
     if tesseract_available:
         stage_ocr_images()
@@ -139,6 +137,7 @@ def run_local(
     ensure_pilot_cases_file()
     seed_campaigns()
     seed_review_cases()
+    apply_seed_sql()
     run_analytics_refresh()
 
     search_smoke = run_search_smoke(

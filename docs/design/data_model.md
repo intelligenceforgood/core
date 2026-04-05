@@ -1,7 +1,7 @@
 # Data Model
 
-> **Status**: Active (v2.0)
-> **Last Updated**: February 8, 2026
+> **Status**: Active (v2.1)
+> **Last Updated**: April 4, 2026
 
 This document describes the relational schema for the i4g platform. All tables are defined
 as SQLAlchemy Core `Table` objects in `src/i4g/store/sql.py` and managed via Alembic
@@ -33,14 +33,14 @@ default-settings path. Cloud SQL connections use `google-cloud-sql-connector` wi
 
 ### 2.2 Case & Evidence Domain
 
-| Table               | PK                                     | Purpose                                                                                                                         |
-| ------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `cases`             | `case_id` (text)                       | Central entity — one row per reported scam incident. Links to ingestion run and campaign. Carries classification, status, tags. |
-| `source_documents`  | `document_id` (UUID)                   | Evidence documents/chunks tied to a case (text, URL, mime type, score)                                                          |
-| `entities`          | `entity_id` (UUID)                     | Extracted entities (person, phone, email, etc.) per case, with confidence                                                       |
-| `entity_mentions`   | `(entity_id, document_id, span_start)` | Join table linking entities to specific text spans in source documents                                                          |
-| `indicators`        | `indicator_id` (UUID)                  | Fraud indicators (phone numbers, wallet addresses, URLs) linked to cases                                                        |
-| `indicator_sources` | `(indicator_id, document_id)`          | Join table linking indicators to source documents with evidence scores                                                          |
+| Table               | PK                                     | Purpose                                                                                                                                                       |
+| ------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cases`             | `case_id` (text)                       | Central entity — one row per reported scam incident. Links to ingestion run and campaign. Carries classification, description (narrative text), status, tags. |
+| `source_documents`  | `document_id` (UUID)                   | Evidence documents/chunks tied to a case (text, URL, mime type, score)                                                                                        |
+| `entities`          | `entity_id` (UUID)                     | Extracted entities (person, phone, email, etc.) per case, with confidence                                                                                     |
+| `entity_mentions`   | `(entity_id, document_id, span_start)` | Join table linking entities to specific text spans in source documents                                                                                        |
+| `indicators`        | `indicator_id` (UUID)                  | Fraud indicators (phone numbers, wallet addresses, URLs) linked to cases                                                                                      |
+| `indicator_sources` | `(indicator_id, document_id)`          | Join table linking indicators to source documents with evidence scores                                                                                        |
 
 ### 2.3 Review & Analyst Workflow
 
@@ -66,9 +66,9 @@ default-settings path. Cloud SQL connections use `google-cloud-sql-connector` wi
 
 ### 2.6 Legacy / Compatibility
 
-| Table          | PK               | Purpose                                                                                     |
-| -------------- | ---------------- | ------------------------------------------------------------------------------------------- |
-| `scam_records` | `case_id` (text) | Flat denormalized view used by the RAG pipeline (text, entities, classification, embedding) |
+| Table          | PK               | Purpose                                                                                                                                                   |
+| -------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scam_records` | `case_id` (text) | Search cache for hybrid retrieval (text, entities, classification, embedding). FK to `cases`. `classification_result` and `tags` columns removed in v2.1. |
 
 ### 2.7 Threat Intelligence & Analytics (TIFAP)
 
@@ -87,6 +87,14 @@ default-settings path. Cloud SQL connections use `google-cloud-sql-connector` wi
 - `cases.ingestion_batch_id` — replaces overloaded `campaign_id` for ingestion grouping.
 - `intake_records.loss_currency` — ISO 4217 currency code for the reported loss.
 - `intake_records.victim_country` — ISO 3166-1 alpha-2 country code.
+
+**Schema normalization** (migration `20260404_01`):
+
+- `cases.description` — narrative text (moved from `scam_records.text`).
+- `scam_records.classification_result` — **removed** (authoritative copy in `cases`).
+- `scam_records.tags` — **removed** (authoritative copy in `cases`).
+- FK constraints added on `review_queue.case_id` and `scam_records.case_id`.
+- Entity search (`StructuredStore.search_by_field`) now joins the `entities` table.
 
 See `docs/design/threat_intelligence_analytics_tdd.md` for the full data architecture.
 
@@ -109,8 +117,15 @@ intake_records ──1:N──▶ intake_jobs
 ```
 
 The `cases` table is the central hub. A case belongs to one ingestion run and one campaign.
-Each case can have multiple source documents, entities, and indicators. Review queue items
-reference cases by `case_id` (no FK constraint — kept loose for cross-store flexibility).
+Each case can have multiple source documents, entities, and indicators.
+
+**FK constraints** (added in migration `20260404_01`):
+
+- `review_queue.case_id` → `cases.case_id` (`ON DELETE CASCADE`)
+- `scam_records.case_id` → `cases.case_id` (`ON DELETE CASCADE`)
+
+All display reads (dashboard, case detail, analytics) join `cases` directly.
+`scam_records` is retained only as a write-through search cache for `StructuredStore`.
 
 ---
 
@@ -125,7 +140,33 @@ reference cases by `case_id` (no FK constraint — kept loose for cross-store fl
 
 ---
 
-## 5. Migrations
+## 5. ER Diagram
+
+The ER diagram is generated with **pgAdmin 4** and stored at:
+
+- **pgAdmin project file**: `docs/assets/design/data_model.pgerd`
+- **Exported PNG**: `docs/assets/design/data_model.png`
+
+![ER Diagram](../assets/design/data_model.png)
+
+### Regenerating the diagram
+
+After schema changes in `src/i4g/store/sql.py`:
+
+1. Open **pgAdmin 4** and connect to the dev Cloud SQL database (or a local PostgreSQL instance
+   after running `i4g db migrate`).
+2. Right-click the database → **ERD For Database**. This auto-discovers all tables and FKs.
+3. Arrange the layout as needed (pgAdmin preserves positions in the `.pgerd` file).
+4. **File → Save As** → `core/docs/assets/design/data_model.pgerd`
+5. **File → Generate/Save as Image** → `core/docs/assets/design/data_model.png`
+6. Commit both the `.pgerd` source and the `.png` output.
+
+> **Tip:** "ERD For Database" picks up all tables and foreign keys automatically.
+> If new tables don't appear, run the Alembic migration first so the schema is up to date.
+
+---
+
+## 6. Migrations
 
 Schema changes are managed by Alembic.
 

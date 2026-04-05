@@ -93,8 +93,6 @@ class StructuredStore:
             entities=row.entities or {},
             classification=row.classification,
             confidence=float(row.confidence) if row.confidence is not None else 0.0,
-            classification_result=row.classification_result,
-            tags=row.tags,
             created_at=created_at,
             embedding=row.embedding,
             metadata=row.metadata,
@@ -113,8 +111,6 @@ class StructuredStore:
                 entities=record.entities,
                 classification=record.classification,
                 confidence=float(record.confidence),
-                classification_result=record.classification_result,
-                tags=record.tags,
                 created_at=record.created_at,
                 embedding=record.embedding,
                 metadata=record.metadata,
@@ -126,8 +122,6 @@ class StructuredStore:
                     "entities": stmt.excluded.entities,
                     "classification": stmt.excluded.classification,
                     "confidence": stmt.excluded.confidence,
-                    "classification_result": stmt.excluded.classification_result,
-                    "tags": stmt.excluded.tags,
                     "created_at": stmt.excluded.created_at,
                     "embedding": stmt.excluded.embedding,
                     "metadata": stmt.excluded.metadata,
@@ -193,48 +187,36 @@ class StructuredStore:
                     )
 
             else:
-                # JSON entity search — dialect-aware
-                if dialect == "postgresql":
-                    if isinstance(value, str):
-                        query = query.where(sql_schema.scam_records.c.entities[field].astext.ilike(f"%{value}%"))
-                    else:
-                        query = query.where(sql_schema.scam_records.c.entities[field].isnot(None))
-                else:
-                    # SQLite: use json_extract + Python filter for value match
+                # Entity search — JOIN the entities table (authoritative source)
+                e = sql_schema.entities
+                query = query.join(e, e.c.case_id == sql_schema.scam_records.c.case_id).where(e.c.entity_type == field)
+                if isinstance(value, str):
                     query = query.where(
-                        sa.func.json_extract(sql_schema.scam_records.c.entities, f"$.{field}").isnot(None)
+                        sa.or_(
+                            e.c.canonical_value.ilike(f"%{value}%"),
+                            e.c.raw_value.ilike(f"%{value}%"),
+                        )
                     )
+                query = query.distinct()
 
             query = query.limit(top_k)
             rows = session.execute(query).all()
-            records = [self._row_to_record(r) for r in rows]
-
-            # For entity searches on SQLite, apply Python-side value filter
-            if (
-                field not in ("case_id", "classification", "confidence", "dataset")
-                and dialect != "postgresql"
-                and isinstance(value, str)
-            ):
-                records = [
-                    r
-                    for r in records
-                    if field in (r.entities or {})
-                    and any(value.lower() in str(x).lower() for x in (r.entities or {}).get(field, []))
-                ]
-
-            return records
+            return [self._row_to_record(r) for r in rows]
 
     def search_text(self, query: str, top_k: int = 50, offset: int = 0) -> list[ScamRecord]:
-        """Run a case-insensitive substring search against the text column."""
+        """Run a case-insensitive substring search against case descriptions."""
         if not query:
             return []
 
         with self._session_factory() as session:
             pattern = f"%{query.strip()}%"
+            c = sql_schema.cases
+            sr = sql_schema.scam_records
             stmt = (
-                sa.select(sql_schema.scam_records)
-                .where(sql_schema.scam_records.c.text.ilike(pattern))
-                .order_by(sql_schema.scam_records.c.created_at.desc())
+                sa.select(sr)
+                .join(c, c.c.case_id == sr.c.case_id)
+                .where(c.c.description.ilike(pattern))
+                .order_by(sr.c.created_at.desc())
                 .limit(top_k)
                 .offset(offset)
             )

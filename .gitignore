@@ -42,3 +42,4 @@ data/
 
 # Developer-specific configuration overrides
 config/settings.local.toml
+docs/assets/design/data_model.pgerd

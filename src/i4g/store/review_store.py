@@ -126,8 +126,9 @@ def _summarize_dashboard_rows(
             else:
                 updated_at = str(last_updated) if last_updated else ""
 
-            # Parse classification_result if available
-            classification = d_row.get("classification_result")
+            # Parse classification_result: prefer authoritative `cases` table
+            # (maintained by the classification sweeper), fall back to review_queue.
+            classification = d_row.get("cases_classification") or d_row.get("classification_result")
             if isinstance(classification, str):
                 try:
                     classification = json.loads(classification)
@@ -209,8 +210,8 @@ class ReviewStore:
     def get_extended_case(self, case_id: str) -> dict[str, Any] | None:
         """Fetch full case details including timeline and scam record data."""
         rq = sql_schema.review_queue
-        sr = sql_schema.scam_records
         ra = sql_schema.review_actions
+        c = sql_schema.cases
 
         stmt = (
             sa.select(
@@ -223,14 +224,13 @@ class ReviewStore:
                 rq.c.queued_at,
                 rq.c.last_updated,
                 rq.c.notes,
-                rq.c.classification_result,
-                sr.c.text,
-                sr.c.entities,
-                sr.c.classification,
-                sr.c.confidence,
-                sr.c.metadata,
+                c.c.classification_result,
+                c.c.description.label("text"),
+                c.c.classification,
+                c.c.confidence,
+                c.c.metadata,
             )
-            .select_from(rq.join(sr, rq.c.case_id == sr.c.case_id, isouter=True))
+            .select_from(rq.join(c, rq.c.case_id == c.c.case_id, isouter=True))
             .where(rq.c.case_id == case_id)
         )
 
@@ -281,9 +281,11 @@ class ReviewStore:
         """Aggregate summary statistics and recent cases for the dashboard."""
 
         rq = sql_schema.review_queue
-        sr = sql_schema.scam_records
+        c = sql_schema.cases
 
-        # Fetch all active items to aggregate counts correctly regardless of filters
+        # Fetch all active items to aggregate counts correctly regardless of filters.
+        # Classification is read from the authoritative `cases` table (maintained by
+        # the classification sweeper) with a fallback to `review_queue` for seed data.
         stmt = (
             sa.select(
                 rq.c.case_id,
@@ -293,10 +295,11 @@ class ReviewStore:
                 rq.c.tags,
                 rq.c.last_updated,
                 rq.c.queued_at,
+                c.c.classification_result.label("cases_classification"),
                 rq.c.classification_result,
-                sr.c.metadata,
+                c.c.metadata,
             )
-            .select_from(rq.join(sr, rq.c.case_id == sr.c.case_id, isouter=True))
+            .select_from(rq.join(c, rq.c.case_id == c.c.case_id, isouter=True))
             .where(sa.not_(rq.c.status.in_(["closed", "accepted", "rejected"])))
             .where(sa.not_(rq.c.case_id.like("system:%")))
             .order_by(rq.c.last_updated.desc())
@@ -848,14 +851,14 @@ class ReviewStore:
         status: str | None = None,
         limit: int = 50,
     ) -> list[dict[str, Any]]:
-        """Return review queue entries enriched with scam record metadata.
+        """Return review queue entries enriched with case metadata.
 
         Used by the dossier bundler to identify cases eligible for report
-        generation. Joins ``review_queue`` with ``scam_records`` to provide
+        generation. Joins ``review_queue`` with ``cases`` to provide
         loss band, geography, and cross-border indicators.
         """
         rq = sql_schema.review_queue
-        sr = sql_schema.scam_records
+        c = sql_schema.cases
 
         query = (
             sa.select(
@@ -864,9 +867,9 @@ class ReviewStore:
                 rq.c.status,
                 rq.c.priority,
                 rq.c.queued_at,
-                sr.c.metadata.label("sr_metadata"),
+                c.c.metadata.label("sr_metadata"),
             )
-            .select_from(rq.outerjoin(sr, rq.c.case_id == sr.c.case_id))
+            .select_from(rq.outerjoin(c, rq.c.case_id == c.c.case_id))
             .order_by(rq.c.queued_at.desc())
             .limit(limit)
         )

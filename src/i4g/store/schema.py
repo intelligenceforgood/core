@@ -31,8 +31,6 @@ class ScamRecord:
     classification: str
     confidence: float
     classification_status: str = "pending"
-    classification_result: dict[str, Any] | None = None
-    tags: list[str] | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     embedding: list[float] | None = None
     metadata: dict[str, Any] | None = None
@@ -69,8 +67,6 @@ class ScamRecord:
             classification=d.get("classification", ""),
             confidence=float(d.get("confidence", 0.0)),
             classification_status=d.get("classification_status", "pending"),
-            classification_result=d.get("classification_result"),
-            tags=d.get("tags"),
             created_at=created_at or datetime.now(UTC),
             embedding=d.get("embedding"),
             metadata=d.get("metadata"),

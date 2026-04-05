@@ -94,7 +94,7 @@ def build_bundles() -> None:
 
 def _is_golden_mode() -> bool:
     """Return True when the golden bundle is available locally."""
-    golden_path = BUNDLES_DIR / "golden" / "golden" / "cases.jsonl"
+    golden_path = BUNDLES_DIR / "golden" / "cases.jsonl"
     return golden_path.exists()
 
 
@@ -113,7 +113,7 @@ def ingest_golden_fast() -> bool:
     import uuid
     from datetime import UTC, datetime
 
-    golden_path = BUNDLES_DIR / "golden" / "golden" / "cases.jsonl"
+    golden_path = BUNDLES_DIR / "golden" / "cases.jsonl"
     if not golden_path.exists():
         print("⚠️  Golden bundle not found at", golden_path)
         return False
@@ -159,6 +159,8 @@ def ingest_golden_fast() -> bool:
             if not isinstance(metadata, dict):
                 metadata = {}
             title = struct_data.get("title", "")
+            if title:
+                metadata["title"] = title
             # Normalize entities: ETL scripts produce [{entity_type, canonical_value, confidence}]
             # but the old code expected {type: [values]}.  Convert list→dict for storage.
             raw_entities = record.get("entities")
@@ -178,8 +180,8 @@ def ingest_golden_fast() -> bool:
             cur.execute(
                 "INSERT INTO cases "
                 "(case_id, dataset, source_type, classification, classification_status, "
-                "raw_text_sha256, status, metadata, created_at, updated_at) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?) "
+                "raw_text_sha256, description, status, metadata, created_at, updated_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?) "
                 "ON CONFLICT(case_id) DO NOTHING",
                 (
                     case_id,
@@ -188,6 +190,7 @@ def ingest_golden_fast() -> bool:
                     classification,
                     "pending",
                     raw_hash,
+                    text,
                     "open",
                     json.dumps(metadata),
                     now,
@@ -463,7 +466,11 @@ def apply_seed_sql() -> None:
                 sql = sql.replace(ph, real)
             print(f"   → Replaced {len(placeholders)} placeholder IDs with real case IDs.")
         elif placeholders:
-            print("   ⚠️  No real case IDs in DB; placeholders left in seed SQL.")
+            print(
+                f"   ❌ No real case IDs in DB; cannot resolve {len(placeholders)} "
+                "placeholder IDs. Run ingestion first, then re-run seed SQL."
+            )
+            return
 
         conn.executescript(sql)
         conn.commit()

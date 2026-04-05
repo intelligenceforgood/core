@@ -11,7 +11,9 @@ tests run on an in-memory SQLite database for full isolation.
 """
 
 import pytest
+import sqlalchemy as sa
 
+from i4g.store import sql as sql_schema
 from i4g.store.schema import ScamRecord
 from i4g.store.structured import StructuredStore
 
@@ -107,9 +109,27 @@ def test_search_by_field_simple(temp_store, record_sample):
     assert results[0].case_id == "case-001"
 
 
-def test_search_by_field_entities_match(temp_store, record_sample):
-    """Search inside JSON entities when supported."""
+def test_search_by_field_entities_match(temp_store, record_sample, tmp_path):
+    """Search inside entities table when supported."""
     temp_store.upsert_record(record_sample)
+    # Insert entity row since entity search now joins the entities table
+    db_path = tmp_path / "test_store.db"
+    engine = sa.create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    with engine.begin() as conn:
+        conn.execute(
+            sa.insert(sql_schema.entities).values(
+                entity_id="ent-1",
+                case_id="case-001",
+                entity_type="wallet_addresses",
+                canonical_value="0xAbC...",
+                raw_value="0xAbC...",
+                confidence=0.87,
+                first_seen_at=record_sample.created_at,
+                last_seen_at=record_sample.created_at,
+                created_at=record_sample.created_at,
+                updated_at=record_sample.created_at,
+            )
+        )
     results = temp_store.search_by_field("wallet_addresses", "0xAbC")
     assert len(results) == 1
     assert results[0].case_id == "case-001"

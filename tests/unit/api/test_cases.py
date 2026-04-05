@@ -6,8 +6,8 @@ client = TestClient(app)
 
 
 def test_get_case_detail_not_in_db():
-    """Cases not in the DB return 404 — static mock data was removed in E26."""
-    case_id = "case-482"
+    """Cases not in the DB return 404."""
+    case_id = "case-nonexistent-xyz"
     response = client.get(f"/cases/{case_id}")
     assert response.status_code == 404
 

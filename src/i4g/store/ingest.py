@@ -275,6 +275,8 @@ class IngestPipeline:
             base_metadata = {}
 
         final_metadata = base_metadata.copy()
+        if classification_result.get("document_title"):
+            final_metadata.setdefault("title", classification_result["document_title"])
         final_metadata.update(
             {
                 "explanation": classification_result.get("explanation"),
@@ -304,9 +306,7 @@ class IngestPipeline:
             metadata=final_metadata,
         )
 
-        # 1️⃣ Structured storage
-        self.structured_store.upsert_record(record)
-
+        # 1️⃣ SQL cases table (must precede scam_records due to FK constraint)
         need_case_bundle = self._sql_enabled and self.sql_writer is not None
         bundle: CaseBundle | None = None
         if need_case_bundle:
@@ -326,6 +326,9 @@ class IngestPipeline:
                     LOGGER.warning("Case bundle missing required fields for case_id=%s", record.case_id)
 
         sql_result = self._write_sql_case(bundle, ingestion_run_id)
+
+        # 2️⃣ Structured storage (scam_records — search cache)
+        self.structured_store.upsert_record(record)
 
         # 2️⃣ Vector storage
         vector_written = False

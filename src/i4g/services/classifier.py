@@ -86,48 +86,48 @@ class VertexAIClient:
 class MockLLMClient:
     """Mock implementation for testing and development."""
 
+    _SINGLE_RESULT = {
+        "intent": [{"label": "INTENT.IMPOSTER", "confidence": 0.95, "explanation": "Mock classification for testing."}],
+        "channel": [{"label": "CHANNEL.SMS", "confidence": 0.9, "explanation": "Mock classification for testing."}],
+        "techniques": [{"label": "SE.URGENCY", "confidence": 0.85, "explanation": "Mock classification for testing."}],
+        "actions": [
+            {"label": "ACTION.CLICK_LINK", "confidence": 0.9, "explanation": "Mock classification for testing."}
+        ],
+        "persona": [{"label": "PERSONA.BANK", "confidence": 0.95, "explanation": "Mock classification for testing."}],
+        "taxonomy_version": "1.0",
+    }
+
     def generate(self, prompt: str) -> str:
-        """Return a dummy valid JSON response."""
-        return """
-        {
-          "intent": [
-            {
-              "label": "INTENT.IMPOSTER",
-              "confidence": 0.95,
-              "explanation": "Mock classification for testing."
-            }
-          ],
-          "channel": [
-            {
-              "label": "CHANNEL.SMS",
-              "confidence": 0.9,
-              "explanation": "Mock classification for testing."
-            }
-          ],
-          "techniques": [
-            {
-              "label": "SE.URGENCY",
-              "confidence": 0.85,
-              "explanation": "Mock classification for testing."
-            }
-          ],
-          "actions": [
-            {
-              "label": "ACTION.CLICK_LINK",
-              "confidence": 0.9,
-              "explanation": "Mock classification for testing."
-            }
-          ],
-          "persona": [
-            {
-              "label": "PERSONA.BANK",
-              "confidence": 0.95,
-              "explanation": "Mock classification for testing."
-            }
-          ],
-          "taxonomy_version": "1.0"
-        }
+        """Return a dummy valid JSON response.
+
+        Detects batch prompts (containing **BATCH MODE:**) and returns a JSON
+        list with the correct number of items.  Single-item prompts return a
+        plain dict as before.
         """
+        import json as _json
+
+        if "**BATCH MODE:**" in prompt:
+            # Extract the JSON list after "**Input Batch:**"
+            marker = "**Input Batch:**"
+            idx = prompt.find(marker)
+            if idx != -1:
+                rest = prompt[idx + len(marker) :].strip()
+                # Find the opening bracket and parse (may have trailing prompt text)
+                bracket_start = rest.find("[")
+                if bracket_start != -1:
+                    try:
+                        decoder = _json.JSONDecoder()
+                        batch_input, _ = decoder.raw_decode(rest[bracket_start:])
+                        count = len(batch_input) if isinstance(batch_input, list) else 1
+                    except _json.JSONDecodeError:
+                        count = 1
+                else:
+                    count = 1
+            else:
+                count = 1
+            return _json.dumps([self._SINGLE_RESULT] * count)
+
+        return _json.dumps(self._SINGLE_RESULT)
 
 
 class FraudClassifier:

@@ -319,6 +319,10 @@ def prepare_ingest_payload(
     source_type = record.get("source_type") or metadata.get("source_type")
     document_id = record.get("document_id") or metadata.get("document_id")
     document_title = record.get("document_title") or metadata.get("document_title")
+    if not document_title:
+        struct_data = record.get("structData")
+        if isinstance(struct_data, dict):
+            document_title = struct_data.get("title")
     source_url = record.get("source_url") or metadata.get("source_url")
 
     payload: dict[str, Any] = {

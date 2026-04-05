@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import random
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import delete
@@ -98,6 +100,26 @@ def _reset_store(store: ReviewStore) -> None:
 def _seed_case(store: ReviewStore, target_status: str) -> None:
     template = random.choice(CASE_TEMPLATES)
     case_id = f"{template['code']}-{uuid4().hex[:8].upper()}"
+
+    # Create a stub row in `cases` so the FK on review_queue is satisfied.
+    now = datetime.now(UTC)
+    with store._session_factory() as session:
+        import sqlalchemy as sa
+
+        session.execute(
+            sa.insert(sql_schema.cases).values(
+                case_id=case_id,
+                dataset="synthetic_seed",
+                source_type="seed",
+                raw_text_sha256=hashlib.sha256(case_id.encode()).hexdigest(),
+                description=template["summary"],
+                classification=template["code"].lower(),
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.commit()
+
     review_id = store.enqueue_case(case_id=case_id, priority=template["priority"])
 
     summary = template["summary"]

@@ -475,6 +475,7 @@ class AnalyticsStore:
                     entities_t.c.entity_type,
                     entities_t.c.canonical_value,
                     sa.func.count(sa.distinct(entities_t.c.case_id)).label("shared_cases"),
+                    sa.func.group_concat(sa.distinct(entities_t.c.case_id)).label("shared_case_ids"),
                 )
                 .where(entities_t.c.case_id.in_(seed_case_ids))
                 .where(
@@ -494,6 +495,8 @@ class AnalyticsStore:
                 n_et = row[0]
                 n_cv = row[1]
                 n_shared = row[2]
+                raw_ids = row[3] or ""
+                case_id_list = [cid for cid in raw_ids.split(",") if cid][:20]
                 # Look up stats for case_count
                 stat = session.execute(
                     sa.select(es.c.case_count).where(sa.and_(es.c.entity_type == n_et, es.c.canonical_value == n_cv))
@@ -504,6 +507,7 @@ class AnalyticsStore:
                         "canonical_value": n_cv,
                         "case_count": stat[0] if stat else 0,
                         "shared_cases": n_shared,
+                        "shared_case_ids": case_id_list,
                     }
                 )
 

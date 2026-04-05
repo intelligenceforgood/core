@@ -140,7 +140,13 @@ def apply_seed_sql(
                 len(real_ids),
             )
         elif placeholders:
-            LOGGER.warning("No real case IDs in DB; placeholders left in seed SQL.")
+            LOGGER.error(
+                "No real case IDs in DB; cannot resolve %d placeholder IDs. "
+                "Run the ingestion job first to populate the cases table, "
+                "then re-run seed SQL.",
+                len(placeholders),
+            )
+            return 1
 
         # 5. Execute each statement
         executed = 0

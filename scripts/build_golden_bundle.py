@@ -78,8 +78,8 @@ def build(bundles_dir: Path, output_dir: Path, skip_ids: set[str] | None = None)
                 except json.JSONDecodeError:
                     continue
 
-                # Skip by case_id
-                case_id = record.get("case_id", "")
+                # Skip by case_id (some sources use "id", others use "case_id")
+                case_id = record.get("case_id") or record.get("id") or ""
                 if case_id in skip_ids:
                     continue
 

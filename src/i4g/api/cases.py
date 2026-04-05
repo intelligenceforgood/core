@@ -52,6 +52,17 @@ class CaseTimelineEvent(CamelModel):
     type: str = Field(..., description="Type of event (comment, status_change, alert)")
 
 
+class CaseEntity(CamelModel):
+    """Structured entity extracted from a case."""
+
+    entity_type: str
+    entity_type_label: str
+    canonical_value: str
+    raw_value: str | None = None
+    confidence: float = 0.0
+    first_seen_at: str | None = None
+
+
 class CaseGraphNode(CamelModel):
     """Single node in the case investigation graph."""
 
@@ -105,6 +116,7 @@ class CaseDetail(CamelModel):
         description="Fraud classification result (intent, channel, techniques, actions, persona, risk_score, etc.)",
     )
     description: str = Field("", description="Detailed narrative of the case")
+    entities: list[CaseEntity] = Field(default_factory=list, description="Structured entities extracted from the case")
     artifacts: list[CaseArtifact] = Field(default_factory=list)
     timeline: list[CaseTimelineEvent] = Field(default_factory=list)
     graph_nodes: list[CaseGraphNode] = Field(default_factory=list)
@@ -329,6 +341,96 @@ def case_activity(
     has_running = any(a.status in ("pending", "running") for a in activities)
 
     return CaseActivityResponse(case_id=case_id, activities=activities, has_running=has_running)
+
+
+class RelatedCaseItem(CamelModel):
+    """A case related to another via shared entities."""
+
+    case_id: str
+    classification: str | None = None
+    shared_entity_count: int = 0
+    shared_entities: list[str] = Field(default_factory=list)
+
+
+class RelatedCasesResponse(CamelModel):
+    """Response for related cases."""
+
+    case_id: str
+    related: list[RelatedCaseItem] = Field(default_factory=list)
+
+
+@router.get("/{case_id}/related", response_model=RelatedCasesResponse, summary="Get related cases")
+def get_related_cases(
+    case_id: str,
+    limit: int = 10,
+    user: dict[str, str] = Depends(require_token),
+) -> RelatedCasesResponse:
+    """Return cases that share entities with this case, ranked by overlap.
+
+    Finds entities belonging to the given case, then finds other cases
+    sharing those entities, ranked by number of shared entities.
+    """
+    if is_researcher(user):
+        raise HTTPException(status_code=403, detail="Researcher role cannot access case details")
+
+    entities_t = sql_schema.entities
+    cases_t = sql_schema.cases
+    sf = build_sql_session_factory()
+    with sf() as session:
+        # Verify case exists
+        case_row = session.execute(sa.select(cases_t.c.case_id).where(cases_t.c.case_id == case_id)).first()
+        if not case_row:
+            raise HTTPException(status_code=404, detail="Case not found")
+
+        # Get entities for this case
+        my_entities_q = sa.select(entities_t.c.entity_type, entities_t.c.canonical_value).where(
+            entities_t.c.case_id == case_id
+        )
+        my_entities = [(r[0], r[1]) for r in session.execute(my_entities_q)]
+        if not my_entities:
+            return RelatedCasesResponse(case_id=case_id, related=[])
+
+        # Find other cases sharing these entities
+        conditions = [
+            sa.and_(entities_t.c.entity_type == et, entities_t.c.canonical_value == cv) for et, cv in my_entities
+        ]
+        related_q = (
+            sa.select(
+                entities_t.c.case_id,
+                sa.func.count(
+                    sa.distinct(entities_t.c.entity_type + sa.literal(":") + entities_t.c.canonical_value)
+                ).label("shared_count"),
+                sa.func.group_concat(
+                    sa.distinct(entities_t.c.entity_type + sa.literal(":") + entities_t.c.canonical_value)
+                ).label("shared_list"),
+            )
+            .where(sa.or_(*conditions))
+            .where(entities_t.c.case_id != case_id)
+            .group_by(entities_t.c.case_id)
+            .order_by(sa.desc("shared_count"))
+            .limit(limit)
+        )
+        related_rows = session.execute(related_q).all()
+
+        # Enrich with case metadata
+        items: list[RelatedCaseItem] = []
+        for row in related_rows:
+            r_case_id = row[0]
+            r_shared = row[1]
+            r_shared_list = (row[2] or "").split(",")[:5]
+            case_meta = session.execute(
+                sa.select(cases_t.c.classification).where(cases_t.c.case_id == r_case_id)
+            ).first()
+            items.append(
+                RelatedCaseItem(
+                    case_id=r_case_id,
+                    classification=case_meta[0] if case_meta else None,
+                    shared_entity_count=r_shared,
+                    shared_entities=r_shared_list,
+                )
+            )
+
+        return RelatedCasesResponse(case_id=case_id, related=items)
 
 
 @router.post(
@@ -594,8 +696,38 @@ def get_case(case_id: str, user: dict[str, str] = Depends(require_token)) -> Cas
                     )
                 )
 
-    # Also include evidence files from source_documents table
+    # Structured entities from the entities table
+    from i4g.utils.entity_types import ENTITY_TYPE_LABELS
+
     sf = build_sql_session_factory()
+    case_entities: list[CaseEntity] = []
+    with sf() as session:
+        entity_rows = session.execute(
+            sa.select(
+                sql_schema.entities.c.entity_type,
+                sql_schema.entities.c.canonical_value,
+                sql_schema.entities.c.raw_value,
+                sql_schema.entities.c.confidence,
+                sql_schema.entities.c.first_seen_at,
+            )
+            .where(sql_schema.entities.c.case_id == case_id)
+            .order_by(sql_schema.entities.c.entity_type, sql_schema.entities.c.canonical_value)
+        ).fetchall()
+        for erow in entity_rows:
+            em = erow._mapping
+            etype = em["entity_type"]
+            case_entities.append(
+                CaseEntity(
+                    entity_type=etype,
+                    entity_type_label=ENTITY_TYPE_LABELS.get(etype, etype.replace("_", " ").title()),
+                    canonical_value=em["canonical_value"],
+                    raw_value=em.get("raw_value"),
+                    confidence=float(em["confidence"]) if em["confidence"] else 0.0,
+                    first_seen_at=em["first_seen_at"].isoformat() if em.get("first_seen_at") else None,
+                )
+            )
+
+    # Also include evidence files from source_documents table
     with sf() as session:
         doc_rows = session.execute(
             sa.select(
@@ -691,6 +823,7 @@ def get_case(case_id: str, user: dict[str, str] = Depends(require_token)) -> Cas
         progress=props.get("progress"),
         dueAt=props.get("dueAt"),
         description=data.get("text", "")[:1000] if data.get("text") else "No description available.",
+        entities=case_entities,
         artifacts=artifacts,
         timeline=timeline_events,
         graph_nodes=nodes,
@@ -885,13 +1018,14 @@ def create_case(body: CreateCaseRequest) -> CreateCaseResponse:
                 risk_score=body.risk_score or 0,
                 raw_text_sha256=raw_text_sha256,
                 status="open",
+                description=body.source_url or "",
                 metadata=enriched_metadata,
                 created_at=now,
                 updated_at=now,
             )
         )
 
-        # Insert a scam_records row so the dashboard join finds this case
+        # Insert a scam_records row so StructuredStore search cache works
         session.execute(
             dialect_insert(session, sql_schema.scam_records)
             .values(
@@ -900,8 +1034,6 @@ def create_case(body: CreateCaseRequest) -> CreateCaseResponse:
                 entities=None,
                 classification=None,
                 confidence=0,
-                classification_result=body.classification_result,
-                tags=None,
                 created_at=now,
                 metadata=enriched_metadata,
             )
@@ -986,14 +1118,17 @@ def batch_create_entities(case_id: str, body: BatchEntitiesRequest) -> BatchEnti
     with sf() as session:
         _get_or_404(session, case_id)
 
+        from i4g.utils.entity_types import normalize_entity_type
+
         created = 0
         for entity in body.entities:
             entity_id = str(uuid.uuid4())
+            normalized_type = normalize_entity_type(entity.entity_type)
             # Try update first (natural key: case + type + canonical_value)
             result = session.execute(
                 sa.update(sql_schema.entities)
                 .where(sql_schema.entities.c.case_id == case_id)
-                .where(sql_schema.entities.c.entity_type == entity.entity_type)
+                .where(sql_schema.entities.c.entity_type == normalized_type)
                 .where(sql_schema.entities.c.canonical_value == entity.canonical_value)
                 .values(
                     raw_value=entity.raw_value,
@@ -1008,7 +1143,7 @@ def batch_create_entities(case_id: str, body: BatchEntitiesRequest) -> BatchEnti
                     sa.insert(sql_schema.entities).values(
                         entity_id=entity_id,
                         case_id=case_id,
-                        entity_type=entity.entity_type,
+                        entity_type=normalized_type,
                         canonical_value=entity.canonical_value,
                         raw_value=entity.raw_value,
                         confidence=entity.confidence,

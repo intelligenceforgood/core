@@ -127,7 +127,17 @@ class TestExtractCryptoKeywords:
 class TestExtractEntities:
     def test_returns_all_keys(self):
         result = extract_entities("Nothing here")
-        expected_keys = {"wallet_addresses", "urls", "phone_numbers", "names", "crypto_keywords"}
+        expected_keys = {
+            "wallet_addresses",
+            "contact_channels",
+            "email_address",
+            "bank_account",
+            "people",
+            "crypto_assets",
+            "organizations",
+            "locations",
+            "scam_indicators",
+        }
         assert set(result.keys()) == expected_keys
 
     def test_complex_text(self):
@@ -137,6 +147,6 @@ class TestExtractEntities:
         )
         result = extract_entities(text)
         assert len(result["wallet_addresses"]) >= 1
-        assert len(result["urls"]) >= 1
-        assert len(result["names"]) >= 1
-        assert len(result["crypto_keywords"]) >= 1
+        assert len(result["contact_channels"]) >= 1
+        assert len(result["people"]) >= 1
+        assert len(result["crypto_assets"]) >= 1

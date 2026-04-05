@@ -131,12 +131,18 @@ def _extract_entities_for_text(llm_client: object, text: str) -> dict[str, list[
     # Rule-based extraction (always runs as supplement/fallback)
     rule_result = rule_extract_entities(text)
 
-    # Merge: union of LLM + rules, deduped
+    # Merge: union of LLM + rules, deduped — iterate all keys from both sources
     merged: dict[str, list[str]] = {}
-    for key in _ENTITY_KEYS:
-        llm_items = set(llm_result.get(key, [])) if isinstance(llm_result.get(key), list) else set()
-        rule_items = set(rule_result.get(key, [])) if isinstance(rule_result.get(key), list) else set()
-        combined = sorted(str(v) for v in llm_items | rule_items if v)
+    all_keys = set(llm_result.keys()) | set(rule_result.keys())
+    for key in all_keys:
+        llm_raw = llm_result.get(key, [])
+        rule_raw = rule_result.get(key, [])
+        # Flatten to strings — LLM may return dicts or nested objects
+        llm_items = {str(v) for v in llm_raw if v and not isinstance(v, dict)} if isinstance(llm_raw, list) else set()
+        rule_items = (
+            {str(v) for v in rule_raw if v and not isinstance(v, dict)} if isinstance(rule_raw, list) else set()
+        )
+        combined = sorted(llm_items | rule_items)
         if combined:
             merged[key] = combined
 
@@ -167,7 +173,7 @@ def _persist_extracted_entities(
             eid = str(uuid4())
             ins = dialect_insert(session, entities)
             ins_stmt = ins.on_conflict_do_nothing(
-                constraint="uq_entities_case_type_value",
+                index_elements=["case_id", "entity_type", "canonical_value"],
             )
             session.execute(
                 ins_stmt.values(
@@ -187,7 +193,7 @@ def _persist_extracted_entities(
             iid = str(uuid4())
             ind_ins = dialect_insert(session, indicators)
             ind_ins_stmt = ind_ins.on_conflict_do_nothing(
-                constraint="uq_indicators_dataset_category_number",
+                index_elements=["dataset", "category", "number"],
             )
             session.execute(
                 ind_ins_stmt.values(

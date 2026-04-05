@@ -286,10 +286,10 @@ _ALL_REGIONS = ["North America", "Europe", "LATAM", "Asia-Pacific", "Africa"]
 
 
 def _get_geography_breakdown(session: Session) -> list[dict[str, Any]]:
-    """Derive geography from ``victim_country`` in scam_records metadata."""
-    from i4g.store.sql import scam_records
+    """Derive geography from ``victim_country`` in cases metadata."""
+    from i4g.store.sql import cases
 
-    rows = session.execute(select(scam_records.c.metadata)).all()
+    rows = session.execute(select(cases.c.metadata)).all()
     region_counts: dict[str, int] = {r: 0 for r in _ALL_REGIONS}
 
     for (meta_raw,) in rows:

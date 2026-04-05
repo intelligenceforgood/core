@@ -6,6 +6,7 @@ This module backs `i4g bootstrap seed-sample` and static data loading.
 from __future__ import annotations
 
 import json
+import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -16,6 +17,7 @@ from i4g.services.factories import build_review_store, build_structured_store
 from i4g.settings import get_settings
 from i4g.store.dossier_queue_store import DossierQueueStore
 from i4g.store.schema import ScamRecord
+from i4g.utils.entity_types import normalize_entity_type
 
 
 def seed_sample_dossier() -> int:
@@ -152,18 +154,84 @@ def seed_static_review_cases() -> None:
             "files": files_meta,
         }
 
+        classification_result = {
+            "intent": [{"label": "INTENT.IMPOSTER", "confidence": 0.95, "explanation": "Seeded mock case"}],
+            "channel": [{"label": "CHANNEL.SMS", "confidence": 0.9, "explanation": "Seeded mock case"}],
+            "techniques": [{"label": "SE.URGENCY", "confidence": 0.85, "explanation": "Seeded mock case"}],
+            "actions": [{"label": "ACTION.CLICK_LINK", "confidence": 0.9, "explanation": "Seeded mock case"}],
+            "persona": [{"label": "PERSONA.BANK", "confidence": 0.95, "explanation": "Seeded mock case"}],
+            "risk_score": 75.0,
+            "taxonomy_version": "1.0",
+        }
+
         record = ScamRecord(
             case_id=case_id,
             text=f"INVESTIGATION REPORT: {case_data['title']}.\n\nThis case involves potential {case_data.get('priority')} priority activity. The subject has been flagged in queue '{case_data.get('queue')}'.\n\nAutomated extraction found multiple entities.",  # noqa: E501
             entities=entities,
             classification=case_data.get("tags", ["unknown"])[0] if case_data.get("tags") else "unknown",
             confidence=0.85,
-            classification_result={"label": "fraud", "score": 0.85},
-            tags=case_data.get("tags", []),
             created_at=datetime.now(UTC),
             metadata=props,
         )
 
+        # --- Cases table (authoritative record — must precede scam_records due to FK) ---
+        import hashlib
+
+        import sqlalchemy as sa
+
+        from i4g.store import sql as sql_schema
+        from i4g.store.sql import session_factory as sql_session_factory
+
+        raw_hash = hashlib.sha256(record.text.encode()).hexdigest()
+        now_ts = datetime.now(UTC)
+        make_session = sql_session_factory()
+        with make_session() as session:
+            stmt = (
+                sa.dialects.postgresql.insert(sql_schema.cases)
+                .values(
+                    case_id=case_id,
+                    dataset="static-seed",
+                    source_type="api",
+                    classification=record.classification,
+                    classification_status="completed",
+                    classification_result=classification_result,
+                    raw_text_sha256=raw_hash,
+                    description=record.text,
+                    status="open",
+                    metadata=props,
+                    created_at=now_ts,
+                    updated_at=now_ts,
+                )
+                .on_conflict_do_nothing(index_elements=["case_id"])
+            )
+            session.execute(stmt)
+
+            # --- Entities table (for "Extracted Entities" UI box) ---
+            for raw_etype, values in entities.items():
+                etype = normalize_entity_type(raw_etype)
+                for val in values:
+                    eid = str(uuid.uuid4())
+                    ent_stmt = (
+                        sa.dialects.postgresql.insert(sql_schema.entities)
+                        .values(
+                            entity_id=eid,
+                            case_id=case_id,
+                            entity_type=etype,
+                            canonical_value=val,
+                            raw_value=val,
+                            confidence=0.85,
+                            first_seen_at=now_ts,
+                            last_seen_at=now_ts,
+                            created_at=now_ts,
+                            updated_at=now_ts,
+                        )
+                        .on_conflict_do_nothing()
+                    )
+                    session.execute(ent_stmt)
+
+            session.commit()
+
+        # --- Structured storage (scam_records — search cache, after cases row exists) ---
         struct_store.upsert_record(record)
 
         # --- Review Queue (State) ---
@@ -171,7 +239,7 @@ def seed_static_review_cases() -> None:
             case_id=case_id,
             priority=case_data["priority"],
             tags=case_data.get("tags", []),
-            classification_result=record.classification_result,
+            classification_result=classification_result,
         )
 
         # Update status if present

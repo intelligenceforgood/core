@@ -1176,6 +1176,7 @@ class GraphEdgeResponse(CamelModel):
     target: str
     weight: int = 1
     edge_type: str = "co-occurrence"
+    case_ids: list[str] = Field(default_factory=list)
 
 
 class GraphPayloadResponse(CamelModel):
@@ -1298,6 +1299,7 @@ def get_intelligence_graph(
                             source=f_id,
                             target=n_id,
                             weight=nb.get("shared_cases", 1),
+                            case_ids=nb.get("shared_case_ids", []),
                         )
                     )
 

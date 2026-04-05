@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -19,8 +20,10 @@ from i4g.services.factories import (
     build_structured_store,
 )
 from i4g.settings import get_settings
+from i4g.store import sql as sql_schema
 from i4g.store.review_store import ReviewStore
 from i4g.store.schema import ScamRecord
+from i4g.store.sql import dialect_insert
 from i4g.store.structured import StructuredStore
 
 SETTINGS = get_settings()
@@ -125,6 +128,28 @@ def seed_pilot_cases(
             metadata.setdefault("offender_country", spec.offender_country)
             metadata.setdefault("jurisdiction_country", spec.victim_country)
             metadata.setdefault("cross_border", int(spec.victim_country != spec.offender_country))
+
+            # Write authoritative case row
+            raw_hash = hashlib.sha256((spec.text or "").encode()).hexdigest()
+            sf = structured._session_factory
+            with sf() as session:
+                ins = dialect_insert(session, sql_schema.cases)
+                session.execute(
+                    ins.values(
+                        case_id=spec.case_id,
+                        dataset=spec.dataset,
+                        source_type="dossier-pilot",
+                        classification=spec.classification,
+                        classification_status="pending",
+                        raw_text_sha256=raw_hash,
+                        description=spec.text,
+                        status="open",
+                        metadata=metadata,
+                        created_at=spec.accepted_at,
+                        updated_at=spec.accepted_at,
+                    ).on_conflict_do_nothing()
+                )
+                session.commit()
 
             record = ScamRecord(
                 case_id=spec.case_id,

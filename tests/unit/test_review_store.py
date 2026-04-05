@@ -13,6 +13,7 @@ from pathlib import Path
 import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
 
+from i4g.store import sql as sql_schema
 from i4g.store.review_store import ReviewStore
 from i4g.store.schema import ScamRecord
 from i4g.store.sql import METADATA
@@ -204,21 +205,40 @@ def test_list_dossier_candidates_returns_metrics(tmp_path):
     db_path = tmp_path / "dossier_metrics.db"
     store = _make_review_store(db_path)
     structured = StructuredStore(db_path=db_path)
+    meta = {
+        "loss_amount_usd": 150000,
+        "jurisdiction": "US-CA",
+        "victim_country": "US",
+        "scammer_country": "RU",
+    }
     record = ScamRecord(
         case_id="case-view",
         text="",
         entities={},
         classification="investment",
         confidence=0.9,
-        metadata={
-            "loss_amount_usd": 150000,
-            "jurisdiction": "US-CA",
-            "victim_country": "US",
-            "scammer_country": "RU",
-        },
+        metadata=meta,
         created_at=datetime(2025, 12, 1, tzinfo=UTC),
     )
     structured.upsert_record(record)
+
+    # Insert authoritative cases row so the join finds metadata
+    engine = sa.create_engine(f"sqlite:///{db_path}", connect_args={"check_same_thread": False})
+    with engine.begin() as conn:
+        conn.execute(
+            sa.insert(sql_schema.cases).values(
+                case_id="case-view",
+                dataset="test",
+                source_type="test",
+                classification="investment",
+                classification_status="pending",
+                raw_text_sha256="abc",
+                status="open",
+                metadata=meta,
+                created_at=datetime(2025, 12, 1, tzinfo=UTC),
+                updated_at=datetime(2025, 12, 1, tzinfo=UTC),
+            )
+        )
 
     review_id = store.enqueue_case("case-view")
     store.update_status(review_id, status="accepted")

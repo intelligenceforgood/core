@@ -92,6 +92,7 @@ class CasePayload:
     classification_result: dict[str, Any] | None = None
     tags: list[str] | None = None
     text: str | None = None
+    description: str | None = None
     case_id: str | None = None
     raw_text_sha256: str | None = None
     detected_at: datetime | None = None
@@ -278,6 +279,7 @@ class SqlWriter:
             "reported_at": payload.reported_at,
             "raw_text_sha256": raw_hash,
             "status": payload.status,
+            "description": payload.description or payload.text,
             "metadata": payload.metadata,
             "is_deleted": payload.is_deleted,
             "deleted_at": payload.deleted_at,

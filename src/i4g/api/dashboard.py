@@ -13,7 +13,6 @@ from i4g.api.review_deps import get_db_session
 from i4g.store.sql import (
     review_actions,
     review_queue,
-    scam_records,
 )
 
 logger = logging.getLogger(__name__)
@@ -124,11 +123,12 @@ def _get_recent_activity(session: Session) -> list[dict[str, str]]:
 
 def _get_alerts(session: Session) -> list[dict[str, str]]:
     """Get alerts based on high priority cases created recently."""
-    # Use scam_records instead of cases since 'cases' table is missing in local mode
+    from i4g.store.sql import cases
+
     rows = session.execute(
-        select(scam_records.c.case_id, scam_records.c.classification, scam_records.c.created_at)
-        .where(scam_records.c.classification.in_(["scam", "fraud", "phishing"]))  # Example filters
-        .order_by(desc(scam_records.c.created_at))
+        select(cases.c.case_id, cases.c.classification, cases.c.created_at)
+        .where(cases.c.classification.in_(["scam", "fraud", "phishing"]))
+        .order_by(desc(cases.c.created_at))
         .limit(3)
     ).all()
 
