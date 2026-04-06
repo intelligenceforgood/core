@@ -17,6 +17,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session, sessionmaker
 
 from i4g.store import sql as sql_schema
+from i4g.store.sql import dialect_group_concat
 from i4g.store.sql import session_factory as default_session_factory
 
 LOGGER = logging.getLogger(__name__)
@@ -475,7 +476,7 @@ class AnalyticsStore:
                     entities_t.c.entity_type,
                     entities_t.c.canonical_value,
                     sa.func.count(sa.distinct(entities_t.c.case_id)).label("shared_cases"),
-                    sa.func.group_concat(sa.distinct(entities_t.c.case_id)).label("shared_case_ids"),
+                    dialect_group_concat(session, entities_t.c.case_id).label("shared_case_ids"),
                 )
                 .where(entities_t.c.case_id.in_(seed_case_ids))
                 .where(

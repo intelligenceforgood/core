@@ -216,22 +216,23 @@ class ReviewStore:
         stmt = (
             sa.select(
                 rq.c.review_id,
-                rq.c.case_id,
-                rq.c.status,
-                rq.c.priority,
+                c.c.case_id,
+                sa.func.coalesce(rq.c.status, sa.literal("new")).label("status"),
+                sa.func.coalesce(rq.c.priority, sa.literal("medium")).label("priority"),
                 rq.c.assigned_to,
                 rq.c.tags,
-                rq.c.queued_at,
-                rq.c.last_updated,
+                sa.func.coalesce(rq.c.queued_at, c.c.created_at).label("queued_at"),
+                sa.func.coalesce(rq.c.last_updated, c.c.updated_at).label("last_updated"),
                 rq.c.notes,
                 c.c.classification_result,
                 c.c.description.label("text"),
                 c.c.classification,
                 c.c.confidence,
                 c.c.metadata,
+                c.c.source_type,
             )
-            .select_from(rq.join(c, rq.c.case_id == c.c.case_id, isouter=True))
-            .where(rq.c.case_id == case_id)
+            .select_from(c.outerjoin(rq, rq.c.case_id == c.c.case_id))
+            .where(c.c.case_id == case_id)
         )
 
         with self._session_factory() as session:
@@ -247,26 +248,28 @@ class ReviewStore:
                 if isinstance(val, datetime):
                     data[field] = _iso_timestamp(val)
 
-            # Fetch Timeline
-            actions = session.execute(
-                sa.select(
-                    ra.c.action_id,
-                    ra.c.actor,
-                    ra.c.action,
-                    ra.c.payload,
-                    ra.c.created_at,
-                )
-                .where(ra.c.review_id == data["review_id"])
-                .order_by(ra.c.created_at.desc())
-            ).all()
-
+            # Fetch Timeline (only if the case has a review queue entry)
             data["timeline"] = []
-            for action in actions:
-                a_dict = dict(action._mapping)
-                ts = a_dict.get("created_at")
-                if isinstance(ts, datetime):
-                    a_dict["created_at"] = _iso_timestamp(ts)
-                data["timeline"].append(a_dict)
+            review_id = data.get("review_id")
+            if review_id:
+                actions = session.execute(
+                    sa.select(
+                        ra.c.action_id,
+                        ra.c.actor,
+                        ra.c.action,
+                        ra.c.payload,
+                        ra.c.created_at,
+                    )
+                    .where(ra.c.review_id == review_id)
+                    .order_by(ra.c.created_at.desc())
+                ).all()
+
+                for action in actions:
+                    a_dict = dict(action._mapping)
+                    ts = a_dict.get("created_at")
+                    if isinstance(ts, datetime):
+                        a_dict["created_at"] = _iso_timestamp(ts)
+                    data["timeline"].append(a_dict)
 
             return data
 

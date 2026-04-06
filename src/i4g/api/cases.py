@@ -26,7 +26,7 @@ from i4g.services.factories import build_retention_service, build_review_store, 
 from i4g.services.investigation_dedup import check_url_duplicate
 from i4g.settings import get_settings
 from i4g.store import sql as sql_schema
-from i4g.store.sql import dialect_insert
+from i4g.store.sql import dialect_group_concat, dialect_insert
 from i4g.store.sql import session_factory as build_sql_session_factory
 
 logger = logging.getLogger(__name__)
@@ -122,6 +122,9 @@ class CaseDetail(CamelModel):
     graph_nodes: list[CaseGraphNode] = Field(default_factory=list)
     graph_links: list[CaseGraphLink] = Field(default_factory=list)
     investigations: list[CaseInvestigationSummary] = Field(default_factory=list)
+    campaigns: list[dict[str, str]] = Field(
+        default_factory=list, description="Threat campaigns this case belongs to (id + name)"
+    )
 
 
 # --- Request models (write endpoints) ---
@@ -400,8 +403,8 @@ def get_related_cases(
                 sa.func.count(
                     sa.distinct(entities_t.c.entity_type + sa.literal(":") + entities_t.c.canonical_value)
                 ).label("shared_count"),
-                sa.func.group_concat(
-                    sa.distinct(entities_t.c.entity_type + sa.literal(":") + entities_t.c.canonical_value)
+                dialect_group_concat(
+                    session, entities_t.c.entity_type + sa.literal(":") + entities_t.c.canonical_value
                 ).label("shared_list"),
             )
             .where(sa.or_(*conditions))
@@ -811,6 +814,13 @@ def get_case(case_id: str, user: dict[str, str] = Depends(require_token)) -> Cas
         for r in inv_rows
     ]
 
+    # Fetch linked campaigns
+    from i4g.services.factories import build_threat_campaign_store
+
+    campaign_store = build_threat_campaign_store()
+    raw_campaigns = campaign_store.get_case_campaigns(case_id)
+    campaigns = [{"id": c["campaign_id"], "name": c.get("name", "")} for c in raw_campaigns]
+
     case_kwargs: dict[str, Any] = dict(
         id=data["case_id"],
         title=props.get("title", f"Case {data['case_id'][:8]}"),
@@ -829,6 +839,7 @@ def get_case(case_id: str, user: dict[str, str] = Depends(require_token)) -> Cas
         graph_nodes=nodes,
         graph_links=links,
         investigations=investigations,
+        campaigns=campaigns,
     )
     if classification_result is not None:
         case_kwargs["classification"] = classification_result

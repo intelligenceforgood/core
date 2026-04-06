@@ -205,6 +205,18 @@ def test_get_entity_neighbors_not_found(client: TestClient, mock_analytics_store
 
 
 # ---------------------------------------------------------------------------
+# Entity cases
+# ---------------------------------------------------------------------------
+
+
+def test_get_entity_cases_not_found(client: TestClient, mock_analytics_store: MagicMock) -> None:
+    """404 when entity doesn't exist for cases lookup."""
+    mock_analytics_store.get_entity_stat.return_value = None
+    resp = client.get("/intelligence/entities/crypto_wallet/gone/cases")
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
 # Indicator list
 # ---------------------------------------------------------------------------
 

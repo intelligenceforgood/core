@@ -896,6 +896,18 @@ def dialect_insert(session: Session, table: sa.Table):
     return insert(table)
 
 
+def dialect_group_concat(session: Session, col: sa.ColumnElement, separator: str = ","):
+    """Return a dialect-aware aggregation of DISTINCT values into a delimited string.
+
+    - **PostgreSQL:** ``string_agg(DISTINCT col::text, separator)``
+    - **SQLite:** ``group_concat(DISTINCT col)``
+    """
+    bind = session.get_bind()
+    if bind.dialect.name == "postgresql":
+        return sa.func.string_agg(sa.distinct(sa.cast(col, sa.Text())), separator)
+    return sa.func.group_concat(sa.distinct(col))
+
+
 def _resolve_database_url(settings: Settings | None = None) -> str:
     """Return the SQLAlchemy URL considering overrides and configured backend."""
 

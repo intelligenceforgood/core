@@ -11,6 +11,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import Field, field_validator
 
@@ -24,6 +25,7 @@ from i4g.services.factories import (
     build_watchlist_store,
 )
 from i4g.services.lea_referral import LeaReferralEngine
+from i4g.store import sql as sql_schema
 from i4g.store.analytics_store import AnalyticsStore
 from i4g.store.annotation_store import AnnotationStore
 from i4g.store.threat_campaign_store import ThreatCampaignStore
@@ -507,6 +509,131 @@ def get_entity_neighbors(
         )
 
     return NeighborGraphResponse(seed=seed_id, nodes=nodes, edges=edges)
+
+
+# ---------------------------------------------------------------------------
+# Entity → Cases endpoint
+# ---------------------------------------------------------------------------
+
+
+class EntityCaseSummary(CamelModel):
+    """A case summary for entity→cases lookup."""
+
+    case_id: str
+    title: str | None = None
+    status: str | None = None
+    classification: str | None = None
+    risk_score: float | None = None
+    created_at: str | None = None
+
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def _coerce_datetime(cls, v: Any) -> str | None:
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return v
+
+
+class EntityCasesResponse(CamelModel):
+    """Paginated list of cases containing a specific entity."""
+
+    entity_type: str
+    canonical_value: str
+    items: list[EntityCaseSummary]
+    count: int
+    limit: int
+    offset: int
+
+
+@router.get(
+    "/entities/{entity_type}/{canonical_value}/cases",
+    response_model=EntityCasesResponse,
+)
+def get_entity_cases(
+    entity_type: str,
+    canonical_value: str,
+    limit: int = Query(20, ge=1, le=100, description="Page size"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
+    store: AnalyticsStore = Depends(get_analytics_store),
+    user: dict[str, str] = Depends(require_token),
+) -> EntityCasesResponse:
+    """Return a paginated list of cases containing a specific entity.
+
+    Joins the entities table with cases to provide case summaries for
+    each case where this entity appears.
+
+    Args:
+        entity_type: The entity type.
+        canonical_value: The normalized entity value.
+        limit: Max rows per page.
+        offset: Pagination offset.
+        store: Injected AnalyticsStore (used to verify entity exists).
+        user: Authenticated user context.
+
+    Returns:
+        Paginated case summaries for the entity.
+
+    Raises:
+        HTTPException: If the entity is not found or researcher lacks access.
+    """
+    if _is_researcher(user):
+        raise HTTPException(status_code=403, detail="Researcher role cannot access entity case data")
+    stat = store.get_entity_stat(entity_type, canonical_value)
+    if not stat:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    entities_t = sql_schema.entities
+    cases_t = sql_schema.cases
+    sf = sql_schema.session_factory()
+    with sf() as session:
+        # Count total cases
+        count_q = (
+            sa.select(sa.func.count(sa.distinct(entities_t.c.case_id)))
+            .where(entities_t.c.entity_type == entity_type)
+            .where(entities_t.c.canonical_value == canonical_value)
+        )
+        total = session.execute(count_q).scalar() or 0
+
+        # Fetch paginated case summaries
+        case_q = (
+            sa.select(
+                cases_t.c.case_id,
+                cases_t.c.title,
+                cases_t.c.status,
+                cases_t.c.classification,
+                cases_t.c.risk_score,
+                cases_t.c.created_at,
+            )
+            .join(entities_t, entities_t.c.case_id == cases_t.c.case_id)
+            .where(entities_t.c.entity_type == entity_type)
+            .where(entities_t.c.canonical_value == canonical_value)
+            .distinct()
+            .order_by(cases_t.c.created_at.desc().nullslast())
+            .limit(limit)
+            .offset(offset)
+        )
+        rows = session.execute(case_q).all()
+
+    items = [
+        EntityCaseSummary(
+            case_id=r[0],
+            title=r[1],
+            status=r[2],
+            classification=r[3],
+            risk_score=float(r[4]) if r[4] is not None else None,
+            created_at=r[5],
+        )
+        for r in rows
+    ]
+
+    return EntityCasesResponse(
+        entity_type=entity_type,
+        canonical_value=canonical_value,
+        items=items,
+        count=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1234,6 +1361,91 @@ def get_intelligence_graph(
         # Campaign seed: not yet supported via SQL-based expansion.
         # Return empty graph — the campaign detail page has its own graph.
         return GraphPayloadResponse(nodes=[], edges=[], node_count=0, edge_count=0)
+
+    if seed_type == "case":
+        # Case seed: find all entities for the case, then build a graph
+        # by expanding from each entity.
+        entities_t = sql_schema.entities
+        sf = sql_schema.session_factory()
+        with sf() as session:
+            case_entities = session.execute(
+                sa.select(
+                    sa.distinct(entities_t.c.entity_type),
+                    entities_t.c.canonical_value,
+                ).where(entities_t.c.case_id == seed)
+            ).all()
+            if not case_entities:
+                return GraphPayloadResponse(nodes=[], edges=[], node_count=0, edge_count=0)
+
+        node_map: dict[str, GraphNodeResponse] = {}
+        edge_list: list[GraphEdgeResponse] = []
+        seen_edges: set[tuple[str, str]] = set()
+
+        # Add all case entities as seed nodes
+        for ce_et, ce_cv in case_entities:
+            ce_id = f"{ce_et}:{ce_cv}"
+            stat = analytics_store.get_entity_stat(ce_et, ce_cv)
+            node_map[ce_id] = GraphNodeResponse(
+                id=ce_id,
+                label=ce_cv,
+                entity_type=ce_et,
+                case_count=int(stat.get("case_count", 0)) if stat else 0,
+                risk_score=float(stat.get("max_risk_score", 0)) if stat else 0,
+            )
+
+        # Connect case entities that co-occur (they all share this case)
+        entity_ids = list(node_map.keys())
+        for i, eid_a in enumerate(entity_ids):
+            for eid_b in entity_ids[i + 1 :]:
+                edge_key = (min(eid_a, eid_b), max(eid_a, eid_b))
+                if edge_key not in seen_edges:
+                    seen_edges.add(edge_key)
+                    edge_list.append(
+                        GraphEdgeResponse(
+                            source=eid_a,
+                            target=eid_b,
+                            weight=1,
+                            case_ids=[seed],
+                        )
+                    )
+
+        # Expand 1 hop from each case entity to find external connections
+        if hops >= 1:
+            for ce_et, ce_cv in case_entities:
+                if len(node_map) >= limit:
+                    break
+                neighbors = analytics_store.get_entity_neighbors(ce_et, ce_cv, limit=min(10, limit))
+                ce_id = f"{ce_et}:{ce_cv}"
+                for nb in neighbors:
+                    n_et = nb["entity_type"]
+                    n_cv = nb["canonical_value"]
+                    n_id = f"{n_et}:{n_cv}"
+                    if type_filter and n_et not in type_filter:
+                        continue
+                    if n_id not in node_map:
+                        node_map[n_id] = GraphNodeResponse(
+                            id=n_id,
+                            label=n_cv,
+                            entity_type=n_et,
+                            case_count=nb.get("case_count", 0),
+                            risk_score=float(nb.get("risk_score", 0)),
+                        )
+                    edge_key = (min(ce_id, n_id), max(ce_id, n_id))
+                    if edge_key not in seen_edges:
+                        seen_edges.add(edge_key)
+                        edge_list.append(
+                            GraphEdgeResponse(
+                                source=ce_id,
+                                target=n_id,
+                                weight=nb.get("shared_cases", 1),
+                                case_ids=nb.get("shared_case_ids", []),
+                            )
+                        )
+
+        nodes = list(node_map.values())[:limit]
+        node_ids = {n.id for n in nodes}
+        edges = [e for e in edge_list if e.source in node_ids and e.target in node_ids]
+        return GraphPayloadResponse(nodes=nodes, edges=edges, node_count=len(nodes), edge_count=len(edges))
 
     # Entity seed — parse "entity_type:canonical_value"
     if ":" not in seed:

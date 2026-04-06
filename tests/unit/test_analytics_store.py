@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import sessionmaker
 
 from i4g.store.analytics_store import AnalyticsStore
-from i4g.store.sql import METADATA, entity_stats, indicator_stats, platform_kpis
+from i4g.store.sql import METADATA, cases, entities, entity_stats, indicator_stats, platform_kpis
 
 
 def _make_store(db_path: Path) -> tuple[AnalyticsStore, sessionmaker]:
@@ -194,3 +194,72 @@ def test_update_entity_status_not_found(tmp_path: Path) -> None:
         status="dormant",
     )
     assert success is False
+
+
+# ---------------------------------------------------------------------------
+# get_entity_neighbors — dialect-aware string aggregation regression test
+# ---------------------------------------------------------------------------
+
+
+def _seed_entities_for_neighbors(sf: sessionmaker) -> None:
+    """Insert cases + entities so two entities share a case."""
+    import uuid
+
+    now = datetime.now(tz=UTC)
+    with sf() as session:
+        # Two cases
+        for cid in ("case-1", "case-2"):
+            session.execute(
+                cases.insert().values(
+                    case_id=cid,
+                    dataset="test",
+                    source_type="reactive",
+                    raw_text_sha256=f"sha-{cid}",
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        # Seed entity: wallet 0xSEED appears in case-1 and case-2
+        for cid in ("case-1", "case-2"):
+            session.execute(
+                entities.insert().values(
+                    entity_id=str(uuid.uuid4()),
+                    case_id=cid,
+                    entity_type="wallet",
+                    canonical_value="0xSEED",
+                    confidence=0.9,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+        # Neighbor entity: email bad@example.com shares case-1 with the seed
+        session.execute(
+            entities.insert().values(
+                entity_id=str(uuid.uuid4()),
+                case_id="case-1",
+                entity_type="email",
+                canonical_value="bad@example.com",
+                confidence=0.8,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.commit()
+
+
+def test_get_entity_neighbors(tmp_path: Path) -> None:
+    """get_entity_neighbors returns neighbors with shared_case_ids as a list.
+
+    Regression test: previously used SQLite-only ``group_concat`` which fails
+    on PostgreSQL.  Now uses ``dialect_group_concat`` helper.
+    """
+    store, sf = _make_store(tmp_path / "analytics.db")
+    _seed_entity_stats(sf)
+    _seed_entities_for_neighbors(sf)
+
+    neighbors = store.get_entity_neighbors("wallet", "0xSEED")
+    assert len(neighbors) == 1
+    assert neighbors[0]["entity_type"] == "email"
+    assert neighbors[0]["canonical_value"] == "bad@example.com"
+    assert neighbors[0]["shared_cases"] == 1
+    assert "case-1" in neighbors[0]["shared_case_ids"]
