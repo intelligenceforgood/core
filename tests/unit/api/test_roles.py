@@ -12,7 +12,7 @@ class TestRoleEnum:
         assert Role.RESEARCHER.value == "researcher"
         assert Role.USER.value == "user"
         assert Role.ANALYST.value == "analyst"
-        assert Role.INSTRUCTOR.value == "instructor"
+        assert Role.MANAGER.value == "manager"
         assert Role.ADMIN.value == "admin"
         assert Role.LEO.value == "leo"
 
@@ -29,7 +29,7 @@ class TestRoleEnum:
             Role("superuser")
 
     def test_role_hierarchy_admin_has_all(self):
-        assert ROLE_HIERARCHY[Role.ADMIN] == {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.INSTRUCTOR, Role.LEO}
+        assert ROLE_HIERARCHY[Role.ADMIN] == {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.MANAGER, Role.LEO}
 
     def test_role_hierarchy_analyst_has_user(self):
         assert ROLE_HIERARCHY[Role.ANALYST] == {Role.RESEARCHER, Role.USER}
@@ -61,8 +61,8 @@ class TestHasRole:
     def test_leo_satisfies_analyst(self):
         assert has_role("leo", "analyst") is True
 
-    def test_leo_satisfies_instructor(self):
-        assert has_role("leo", "instructor") is True
+    def test_leo_satisfies_manager(self):
+        assert has_role("leo", "manager") is True
 
     def test_leo_satisfies_user(self):
         assert has_role("leo", "user") is True
@@ -83,14 +83,14 @@ class TestHasRole:
         assert has_role("admin", Role.LEO) is True
         assert has_role(Role.USER, "analyst") is False
 
-    def test_instructor_satisfies_analyst(self):
-        assert has_role("instructor", "analyst") is True
+    def test_manager_satisfies_analyst(self):
+        assert has_role("manager", "analyst") is True
 
-    def test_instructor_does_not_satisfy_leo(self):
-        assert has_role("instructor", "leo") is False
+    def test_manager_does_not_satisfy_leo(self):
+        assert has_role("manager", "leo") is False
 
-    def test_instructor_does_not_satisfy_admin(self):
-        assert has_role("instructor", "admin") is False
+    def test_manager_does_not_satisfy_admin(self):
+        assert has_role("manager", "admin") is False
 
-    def test_analyst_does_not_satisfy_instructor(self):
-        assert has_role("analyst", "instructor") is False
+    def test_analyst_does_not_satisfy_manager(self):
+        assert has_role("analyst", "manager") is False

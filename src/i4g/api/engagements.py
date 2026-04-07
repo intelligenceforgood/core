@@ -87,7 +87,7 @@ class CaseAssignmentResult(CamelModel):
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_engagement(
     body: EngagementCreate,
-    user: dict[str, str] = Depends(require_role("instructor")),
+    user: dict[str, str] = Depends(require_role("manager")),
     store: EngagementStore = Depends(get_engagement_store),
 ) -> EngagementResponse:
     try:
@@ -132,7 +132,7 @@ def get_engagement(
 def update_engagement(
     engagement_id: str,
     body: EngagementUpdate,
-    user: dict[str, str] = Depends(require_role("instructor")),
+    user: dict[str, str] = Depends(require_role("manager")),
     store: EngagementStore = Depends(get_engagement_store),
 ) -> EngagementResponse:
     update_fields = body.model_dump(exclude_unset=True)
@@ -160,7 +160,7 @@ def delete_engagement(
 def assign_cases(
     engagement_id: str,
     body: CaseAssignment,
-    user: dict[str, str] = Depends(require_role("instructor")),
+    user: dict[str, str] = Depends(require_role("manager")),
     store: EngagementStore = Depends(get_engagement_store),
 ) -> CaseAssignmentResult:
     # Verify engagement exists
@@ -174,7 +174,7 @@ def assign_cases(
 def remove_cases(
     engagement_id: str,
     body: CaseAssignment,
-    user: dict[str, str] = Depends(require_role("instructor")),
+    user: dict[str, str] = Depends(require_role("manager")),
     store: EngagementStore = Depends(get_engagement_store),
 ) -> CaseAssignmentResult:
     if store.get(engagement_id) is None:

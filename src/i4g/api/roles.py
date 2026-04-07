@@ -5,13 +5,13 @@ PRD FR-2 defines six roles with escalating permissions:
 * ``researcher`` — anonymized aggregate access only; no PII or raw entity values.
 * ``user`` — read-only access to public case summaries.
 * ``analyst`` — full case review, annotation, and report generation.
-* ``instructor`` — engagement management, student oversight, analytics.
+* ``manager`` — engagement management, team oversight, analytics.
 * ``admin`` — user management, campaign CRUD, bulk operations.
 * ``leo`` — law-enforcement liaison, can access LEO-specific reports.
 
 Admin always has superset permissions.  The hierarchy is::
 
-    researcher < user < analyst < instructor < leo ≤ admin
+    researcher < user < analyst < manager < leo ≤ admin
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ class Role(StrEnum):
     RESEARCHER = "researcher"
     USER = "user"
     ANALYST = "analyst"
-    INSTRUCTOR = "instructor"
+    MANAGER = "manager"
     ADMIN = "admin"
     LEO = "leo"
 
@@ -40,9 +40,9 @@ ROLE_HIERARCHY: dict[Role, set[Role]] = {
     Role.RESEARCHER: set(),
     Role.USER: {Role.RESEARCHER},
     Role.ANALYST: {Role.RESEARCHER, Role.USER},
-    Role.INSTRUCTOR: {Role.RESEARCHER, Role.USER, Role.ANALYST},
-    Role.LEO: {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.INSTRUCTOR},
-    Role.ADMIN: {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.INSTRUCTOR, Role.LEO},
+    Role.MANAGER: {Role.RESEARCHER, Role.USER, Role.ANALYST},
+    Role.LEO: {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.MANAGER},
+    Role.ADMIN: {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.MANAGER, Role.LEO},
 }
 
 

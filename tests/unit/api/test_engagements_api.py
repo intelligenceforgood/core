@@ -23,8 +23,8 @@ def _mock_store() -> MagicMock:
     return MagicMock()
 
 
-def _as_instructor():
-    app.dependency_overrides[require_token] = lambda: {"username": "instructor@test.io", "role": "instructor"}
+def _as_manager():
+    app.dependency_overrides[require_token] = lambda: {"username": "manager@test.io", "role": "manager"}
 
 
 def _as_analyst():
@@ -40,8 +40,8 @@ def _as_user():
 
 
 class TestCreateEngagement:
-    def test_instructor_can_create(self):
-        _as_instructor()
+    def test_manager_can_create(self):
+        _as_manager()
         store = _mock_store()
         store.create.return_value = {
             "engagement_id": "eng-1",
@@ -50,7 +50,7 @@ class TestCreateEngagement:
             "status": "draft",
             "starts_at": None,
             "ends_at": None,
-            "created_by": "instructor@test.io",
+            "created_by": "manager@test.io",
             "metadata": None,
             "created_at": "2026-04-07T00:00:00+00:00",
             "updated_at": "2026-04-07T00:00:00+00:00",
@@ -145,8 +145,8 @@ class TestGetEngagement:
 
 
 class TestUpdateEngagement:
-    def test_instructor_can_update(self):
-        _as_instructor()
+    def test_manager_can_update(self):
+        _as_manager()
         store = _mock_store()
         store.update.return_value = {
             "engagement_id": "eng-1",
@@ -182,8 +182,8 @@ class TestDeleteEngagement:
         r = client.delete("/engagements/eng-1")
         assert r.status_code == 204
 
-    def test_instructor_cannot_delete(self):
-        _as_instructor()
+    def test_manager_cannot_delete(self):
+        _as_manager()
         client = TestClient(app)
         r = client.delete("/engagements/eng-1")
         assert r.status_code == 403
@@ -191,7 +191,7 @@ class TestDeleteEngagement:
 
 class TestCaseAssignment:
     def test_assign_cases(self):
-        _as_instructor()
+        _as_manager()
         store = _mock_store()
         store.get.return_value = {"engagement_id": "eng-1", "name": "Test"}
         store.assign_cases.return_value = 3
@@ -202,7 +202,7 @@ class TestCaseAssignment:
         assert r.json()["count"] == 3
 
     def test_remove_cases(self):
-        _as_instructor()
+        _as_manager()
         store = _mock_store()
         store.get.return_value = {"engagement_id": "eng-1", "name": "Test"}
         store.remove_cases.return_value = 1
@@ -213,7 +213,7 @@ class TestCaseAssignment:
         assert r.json()["count"] == 1
 
     def test_assign_to_nonexistent_engagement(self):
-        _as_instructor()
+        _as_manager()
         store = _mock_store()
         store.get.return_value = None
         app.dependency_overrides[get_engagement_store] = lambda: store

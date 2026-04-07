@@ -8,11 +8,15 @@ from pathlib import Path
 from typing import Any
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, event, pool
 from sqlalchemy.engine import Connection
 
 from i4g.settings import get_settings
 from i4g.store.sql import METADATA
+
+# Prevent migrations from hanging indefinitely when another session holds a lock.
+_LOCK_TIMEOUT = "10s"
+_STATEMENT_TIMEOUT = "60s"
 
 config = context.config
 
@@ -45,6 +49,14 @@ def _prepare_config_section() -> dict[str, Any]:
     return section
 
 
+def _set_pg_timeouts(dbapi_connection, connection_record):  # noqa: ARG001
+    """Set lock_timeout and statement_timeout for PostgreSQL connections."""
+    cursor = dbapi_connection.cursor()
+    cursor.execute(f"SET lock_timeout = '{_LOCK_TIMEOUT}'")
+    cursor.execute(f"SET statement_timeout = '{_STATEMENT_TIMEOUT}'")
+    cursor.close()
+
+
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
 
@@ -67,6 +79,11 @@ def run_migrations_online() -> None:
     if connectable is None:
         section = _prepare_config_section()
         connectable = engine_from_config(section, prefix="sqlalchemy.", poolclass=pool.NullPool)
+
+    # Register timeout listener for PostgreSQL engines (skip for SQLite).
+    url_str = str(getattr(connectable, "url", ""))
+    if "postgresql" in url_str:
+        event.listen(connectable, "connect", _set_pg_timeouts)
 
     if isinstance(connectable, Connection):
         context.configure(connection=connectable, target_metadata=target_metadata)
