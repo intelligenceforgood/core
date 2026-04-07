@@ -82,6 +82,23 @@ campaigns = sa.Table(
     sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
 )
 
+engagements = sa.Table(
+    "engagements",
+    METADATA,
+    sa.Column("engagement_id", UUID_TYPE, primary_key=True),
+    sa.Column("name", sa.Text(), nullable=False),
+    sa.Column("description", sa.Text(), nullable=True),
+    sa.Column("status", sa.Text(), nullable=False, server_default="draft"),
+    sa.Column("starts_at", TIMESTAMP, nullable=True),
+    sa.Column("ends_at", TIMESTAMP, nullable=True),
+    sa.Column("created_by", sa.Text(), nullable=True),
+    sa.Column("metadata", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_engagements_status", engagements.c.status)
+sa.Index("idx_engagements_starts_at", engagements.c.starts_at)
+
 cases = sa.Table(
     "cases",
     METADATA,
@@ -91,6 +108,9 @@ cases = sa.Table(
     ),
     sa.Column("campaign_id", UUID_TYPE, sa.ForeignKey("campaigns.campaign_id", ondelete="SET NULL"), nullable=True),
     sa.Column("ingestion_batch_id", UUID_TYPE, nullable=True),
+    sa.Column(
+        "engagement_id", UUID_TYPE, sa.ForeignKey("engagements.engagement_id", ondelete="SET NULL"), nullable=True
+    ),
     sa.Column("dataset", sa.Text(), nullable=False),
     sa.Column("source_type", sa.Text(), nullable=False),
     sa.Column("classification", sa.Text(), nullable=True),  # Changed from JSON_TYPE to Text for label
@@ -125,6 +145,7 @@ sa.Index("idx_cases_status", cases.c.status)
 sa.Index("idx_cases_risk_score", cases.c.risk_score)
 sa.Index("idx_cases_created_at", cases.c.created_at)
 sa.Index("idx_cases_created_at_classification", cases.c.created_at, cases.c.classification)
+sa.Index("idx_cases_engagement_id", cases.c.engagement_id)
 
 source_documents = sa.Table(
     "source_documents",

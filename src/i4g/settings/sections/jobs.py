@@ -151,6 +151,16 @@ class IngestionSettings(BaseSettings):
         ),
         description="When True, skip fraud classification during ingestion.",
     )
+    engagement_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "INGEST_ENGAGEMENT_ID",
+            "INGEST__ENGAGEMENT_ID",
+            "INGESTION_ENGAGEMENT_ID",
+            "INGESTION__ENGAGEMENT_ID",
+        ),
+        description="When set, assign all ingested cases to this engagement.",
+    )
 
 
 class IngestRetryJobSettings(BaseSettings):

@@ -67,6 +67,7 @@ def build_case_bundle(
     case_id: str,
     dataset: str,
     text: str,
+    engagement_id: str | None = None,
 ) -> CaseBundle:
     """Construct a :class:`CaseBundle` from a classification payload."""
 
@@ -90,6 +91,7 @@ def build_case_bundle(
         metadata={k: v for k, v in case_metadata.items() if v is not None},
         classification_result=classification_result,
         tags=classification_result.get("tags", []),
+        engagement_id=engagement_id,
     )
 
     document_alias = "primary"
@@ -246,6 +248,7 @@ class IngestPipeline:
         classification_result: dict[str, Any],
         *,
         ingestion_run_id: str | None = None,
+        engagement_id: str | None = None,
     ) -> IngestResult:
         """Convert classification output into a ScamRecord and persist it.
 
@@ -321,6 +324,7 @@ class IngestPipeline:
                         case_id=record.case_id,
                         dataset=dataset,
                         text=bundle_text,
+                        engagement_id=engagement_id,
                     )
                 except ValueError:
                     LOGGER.warning("Case bundle missing required fields for case_id=%s", record.case_id)

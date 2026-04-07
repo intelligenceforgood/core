@@ -418,7 +418,9 @@ def main() -> int:
                 processed += 1
                 continue
             try:
-                result = pipeline.ingest_classified_case(payload, ingestion_run_id=run_id)
+                result = pipeline.ingest_classified_case(
+                    payload, ingestion_run_id=run_id, engagement_id=settings.ingestion.engagement_id
+                )
                 case_id = result.case_id
                 payload["case_id"] = case_id
                 if run_id:

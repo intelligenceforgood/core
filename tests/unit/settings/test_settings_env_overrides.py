@@ -134,6 +134,7 @@ def test_ingestion_sql_toggle_env_overrides(monkeypatch: object) -> None:
         "I4G_INGEST__MAX_RETRIES",
         "I4G_INGEST__RETRY_DELAY_SECONDS",
         "I4G_INGESTION__RETRY_DELAY_SECONDS",
+        "I4G_INGEST__ENGAGEMENT_ID",
     )
 
     default_settings = reload_settings(env="dev")
@@ -143,6 +144,7 @@ def test_ingestion_sql_toggle_env_overrides(monkeypatch: object) -> None:
     assert default_settings.ingestion.default_dataset == "unknown"
     assert default_settings.ingestion.max_retries == 3
     assert default_settings.ingestion.retry_delay_seconds == 60
+    assert default_settings.ingestion.engagement_id is None
 
     _set_env(monkeypatch, "I4G_INGEST__ENABLE_SQL", "false")
     _set_env(monkeypatch, "I4G_INGEST__ENABLE_VERTEX", "true")
@@ -150,6 +152,7 @@ def test_ingestion_sql_toggle_env_overrides(monkeypatch: object) -> None:
     _set_env(monkeypatch, "I4G_INGEST__MAX_RETRIES", "5")
     _set_env(monkeypatch, "I4G_INGEST__ENABLE_VECTOR", "false")
     _set_env(monkeypatch, "I4G_INGESTION__RETRY_DELAY_SECONDS", "120")
+    _set_env(monkeypatch, "I4G_INGESTION__ENGAGEMENT_ID", "eng-abc-123")
 
     overridden = reload_settings(env="dev")
     assert overridden.ingestion.enable_sql is False
@@ -158,6 +161,7 @@ def test_ingestion_sql_toggle_env_overrides(monkeypatch: object) -> None:
     assert overridden.ingestion.default_dataset == "account_list"
     assert overridden.ingestion.max_retries == 5
     assert overridden.ingestion.retry_delay_seconds == 120
+    assert overridden.ingestion.engagement_id == "eng-abc-123"
 
 
 def test_settings_file_override(tmp_path, monkeypatch: object) -> None:

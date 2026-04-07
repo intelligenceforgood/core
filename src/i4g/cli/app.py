@@ -16,6 +16,7 @@ from i4g.cli.backfill import backfill_app
 from i4g.cli.bootstrap import bootstrap_app
 from i4g.cli.data import data_app
 from i4g.cli.db import db_app
+from i4g.cli.engagements import engagements_app
 from i4g.cli.extract import extract_app
 from i4g.cli.ingest import ingest_app
 from i4g.cli.jobs import jobs_app
@@ -58,6 +59,7 @@ app.add_typer(data_app, name="data")
 app.add_typer(reports_app, name="reports")
 app.add_typer(extract_app, name="extract")
 app.add_typer(admin_app, name="admin")
+app.add_typer(engagements_app, name="engagements")
 
 
 @app.callback(invoke_without_command=True)

@@ -101,6 +101,7 @@ class CasePayload:
     metadata: dict[str, Any] | None = None
     is_deleted: bool = False
     deleted_at: datetime | None = None
+    engagement_id: str | None = None
 
 
 @dataclass(slots=True)
@@ -283,6 +284,7 @@ class SqlWriter:
             "metadata": payload.metadata,
             "is_deleted": payload.is_deleted,
             "deleted_at": payload.deleted_at,
+            "engagement_id": payload.engagement_id,
             "updated_at": timestamp,
         }
         result = session.execute(

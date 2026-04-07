@@ -532,6 +532,17 @@ fields:
       - INGESTION_DRY_RUN
       - INGESTION__DRY_RUN
     description: Scheduler + job configuration for ingestion workflows.
+  - path: ingestion.engagement_id
+    section: ingestion
+    type: str | None
+    default: null
+    env_vars:
+      - I4G_INGEST__ENGAGEMENT_ID
+      - INGEST_ENGAGEMENT_ID
+      - INGEST__ENGAGEMENT_ID
+      - INGESTION_ENGAGEMENT_ID
+      - INGESTION__ENGAGEMENT_ID
+    description: When set, assign all ingested cases to this engagement.
   - path: ingestion.enable_scheduled_jobs
     section: ingestion
     type: bool

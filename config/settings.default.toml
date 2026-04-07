@@ -99,6 +99,7 @@ vertex_ai_data_store = "retrieval-poc"
 # scheduler_project = ""
 # reset_vector = false
 # dry_run = false
+# engagement_id = ""  # Assign ingested cases to this engagement (env: I4G_INGEST__ENGAGEMENT_ID)
 
 [search]
 # semantic_weight = 0.65

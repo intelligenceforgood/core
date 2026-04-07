@@ -361,6 +361,7 @@ _WIPE_TABLE_ORDER: list[str] = [
     "ingestion_retry_queue",
     "scam_records",
     "cases",
+    "engagements",
     "campaigns",
     "ingestion_runs",
     "audit_log",

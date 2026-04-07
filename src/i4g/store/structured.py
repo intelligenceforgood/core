@@ -178,6 +178,13 @@ class StructuredStore:
             elif field in ("case_id", "classification"):
                 query = query.where(getattr(sql_schema.scam_records.c, field) == value)
 
+            elif field == "engagement_id":
+                # Join through cases table to filter by engagement
+                c = sql_schema.cases
+                query = query.join(c, c.c.case_id == sql_schema.scam_records.c.case_id).where(
+                    c.c.engagement_id == value
+                )
+
             elif field == "dataset":
                 if dialect == "postgresql":
                     query = query.where(sql_schema.scam_records.c.metadata["dataset"].astext == str(value))

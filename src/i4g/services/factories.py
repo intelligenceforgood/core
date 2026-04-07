@@ -23,6 +23,7 @@ from i4g.storage import EvidenceStorage
 from i4g.store.analytics_store import AnalyticsStore
 from i4g.store.annotation_store import AnnotationStore
 from i4g.store.dossier_queue_store import DossierQueueStore
+from i4g.store.engagement_store import EngagementStore
 from i4g.store.entity_store import EntityStore
 from i4g.store.ingestion_retry_store import IngestionRetryStore
 from i4g.store.ingestion_run_tracker import IngestionRunTracker
@@ -83,6 +84,12 @@ def build_review_store(db_path: str | Path | None = None) -> ReviewStore:
         METADATA.create_all(engine)
 
     return ReviewStore(session_factory=session_factory)
+
+
+def build_engagement_store() -> EngagementStore:
+    """Return an :class:`EngagementStore` backed by the configured SQL engine."""
+    session_factory = build_sql_session_factory()
+    return EngagementStore(session_factory=session_factory)
 
 
 def build_vector_store(

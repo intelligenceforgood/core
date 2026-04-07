@@ -9,7 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, ValidationError
 
 from i4g.api.auth import require_token
@@ -123,6 +123,7 @@ class BulkTagUpdateRequest(BaseModel):
 
 @router.get("/search", summary="Search cases across structured/vector stores", response_model=SearchResultsResponse)
 def search_cases(
+    request: Request,
     text: str | None = Query(None, description="Free-text search for semantic similarity"),
     classification: str | None = Query(None, description="Filter by classification label"),
     case_id: str | None = Query(None, description="Filter by exact case ID"),
@@ -164,6 +165,7 @@ def search_cases(
         offset=offset,
     )
     query = _build_hybrid_query_from_request(payload)
+    query.engagement_id = getattr(request.state, "engagement_id", None)
     query_result = search_service.search(query)
     results = query_result["results"]
     diagnostics = query_result.get("diagnostics")
@@ -203,6 +205,7 @@ def search_history(
     response_model=AdvancedSearchResultsResponse,
 )
 def search_cases_advanced(
+    request: Request,
     payload: HybridSearchRequest,
     search_service: HybridSearchService = Depends(get_hybrid_search_service),
     user=Depends(require_token),
@@ -216,6 +219,7 @@ def search_cases_advanced(
         payload.offset,
     )
     query = _build_hybrid_query_from_request(payload)
+    query.engagement_id = getattr(request.state, "engagement_id", None)
     query_result = search_service.search(query)
     search_id = f"search:{uuid.uuid4()}"
     diagnostics = query_result.get("diagnostics")

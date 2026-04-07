@@ -43,6 +43,7 @@ class HybridSearchQuery:
     loss_buckets: list[str] = field(default_factory=list)
     case_ids: list[str] = field(default_factory=list)
     time_range: QueryTimeRange | None = None
+    engagement_id: str | None = None
     limit: int | None = None
     vector_limit: int | None = None
     structured_limit: int | None = None
@@ -263,6 +264,8 @@ class HybridSearchService:
             filters.append(("dataset", dataset))
         for case_id in query.case_ids:
             filters.append(("case_id", case_id))
+        if query.engagement_id:
+            filters.append(("engagement_id", query.engagement_id))
         for entity in query.entities:
             filters.append(
                 (

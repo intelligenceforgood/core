@@ -3,7 +3,7 @@
 import logging
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
@@ -23,29 +23,27 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/dashboard", tags=["dashboard"], dependencies=[Depends(require_token)])
 
 
-def _get_active_investigations(session: Session) -> dict[str, str]:
+def _get_active_investigations(session: Session, engagement_id: str | None = None) -> dict[str, str]:
     """Count open cases in the review queue."""
-    count = (
-        session.scalar(
-            select(func.count(review_queue.c.review_id)).where(
-                review_queue.c.status.not_in(["closed", "accepted", "rejected"])
-            )
-        )
-        or 0
+    base = select(func.count(review_queue.c.review_id)).where(
+        review_queue.c.status.not_in(["closed", "accepted", "rejected"])
     )
+    if engagement_id:
+        base = base.join(cases, cases.c.case_id == review_queue.c.case_id).where(cases.c.engagement_id == engagement_id)
+    count = session.scalar(base) or 0
 
     # Compare to last week
     now = datetime.now(UTC)
     last_week = now - timedelta(days=7)
 
-    prev_count = (
-        session.scalar(
-            select(func.count(review_queue.c.review_id))
-            .where(review_queue.c.status.not_in(["closed", "resolved"]))
-            .where(review_queue.c.queued_at < last_week)
-        )
-        or 0
+    prev = (
+        select(func.count(review_queue.c.review_id))
+        .where(review_queue.c.status.not_in(["closed", "resolved"]))
+        .where(review_queue.c.queued_at < last_week)
     )
+    if engagement_id:
+        prev = prev.join(cases, cases.c.case_id == review_queue.c.case_id).where(cases.c.engagement_id == engagement_id)
+    prev_count = session.scalar(prev) or 0
 
     change_pct = 0
     if prev_count > 0:
@@ -58,29 +56,29 @@ def _get_active_investigations(session: Session) -> dict[str, str]:
     return {"label": "Active investigations", "value": str(count), "change": change_str}
 
 
-def _get_new_leads(session: Session) -> dict[str, str]:
+def _get_new_leads(session: Session, engagement_id: str | None = None) -> dict[str, str]:
     """Count new cases created in the last 7 days."""
     now = datetime.now(UTC)
     start_dt = now - timedelta(days=7)
 
-    # Use review_queue as proxy for cases in local mode if 'cases' table missing or mapped
-    # The 'cases' table exists in SQL metadata but might not be in SQLite if relying on ReviewStore init.
-    # We switch to review_queue here for consistency in the simple stack.
-    count = session.scalar(select(func.count(review_queue.c.case_id)).where(review_queue.c.queued_at >= start_dt)) or 0
+    base = select(func.count(review_queue.c.case_id)).where(review_queue.c.queued_at >= start_dt)
+    if engagement_id:
+        base = base.join(cases, cases.c.case_id == review_queue.c.case_id).where(cases.c.engagement_id == engagement_id)
+    count = session.scalar(base) or 0
 
     return {"label": "New leads this week", "value": str(count), "change": f"+{count} sourced automatically"}
 
 
-def _get_cases_at_risk(session: Session) -> dict[str, str]:
+def _get_cases_at_risk(session: Session, engagement_id: str | None = None) -> dict[str, str]:
     """Count high priority cases."""
-    count = (
-        session.scalar(
-            select(func.count(review_queue.c.review_id))
-            .where(review_queue.c.priority.in_(["high", "critical"]))
-            .where(review_queue.c.status.not_in(["closed", "resolved"]))
-        )
-        or 0
+    base = (
+        select(func.count(review_queue.c.review_id))
+        .where(review_queue.c.priority.in_(["high", "critical"]))
+        .where(review_queue.c.status.not_in(["closed", "resolved"]))
     )
+    if engagement_id:
+        base = base.join(cases, cases.c.case_id == review_queue.c.case_id).where(cases.c.engagement_id == engagement_id)
+    count = session.scalar(base) or 0
 
     return {"label": "Cases at risk", "value": str(count), "change": "Need follow-up within 24h"}
 
@@ -124,16 +122,16 @@ def _get_recent_activity(session: Session) -> list[dict[str, str]]:
     return activities
 
 
-def _get_alerts(session: Session) -> list[dict[str, str]]:
+def _get_alerts(session: Session, engagement_id: str | None = None) -> list[dict[str, str]]:
     """Get alerts based on high priority cases created recently."""
     from i4g.store.sql import cases
 
-    rows = session.execute(
-        select(cases.c.case_id, cases.c.classification, cases.c.created_at)
-        .where(cases.c.classification.in_(["scam", "fraud", "phishing"]))
-        .order_by(desc(cases.c.created_at))
-        .limit(3)
-    ).all()
+    base = select(cases.c.case_id, cases.c.classification, cases.c.created_at).where(
+        cases.c.classification.in_(["scam", "fraud", "phishing"])
+    )
+    if engagement_id:
+        base = base.where(cases.c.engagement_id == engagement_id)
+    rows = session.execute(base.order_by(desc(cases.c.created_at)).limit(3)).all()
 
     alerts = []
     now = datetime.now(UTC)
@@ -164,16 +162,17 @@ def _get_alerts(session: Session) -> list[dict[str, str]]:
 
 
 @router.get("/overview", response_model=DashboardOverviewResponse)
-def get_dashboard_overview(session: Session = Depends(get_db_session)):
+def get_dashboard_overview(request: Request, session: Session = Depends(get_db_session)):
     """Return live dashboard metrics from the database."""
+    engagement_id = getattr(request.state, "engagement_id", None)
     metrics = [
-        _get_active_investigations(session),
-        _get_new_leads(session),
-        _get_cases_at_risk(session),
+        _get_active_investigations(session, engagement_id=engagement_id),
+        _get_new_leads(session, engagement_id=engagement_id),
+        _get_cases_at_risk(session, engagement_id=engagement_id),
     ]
 
     activity = _get_recent_activity(session)
-    alerts = _get_alerts(session)
+    alerts = _get_alerts(session, engagement_id=engagement_id)
 
     # TODO: Wire to a task/reminder system when available.
     reminders: list[dict[str, str]] = []
@@ -200,21 +199,30 @@ class ProcessingProgressResponse(CamelModel):
 
 
 @router.get("/processing-progress", response_model=ProcessingProgressResponse)
-def get_processing_progress(session: Session = Depends(get_db_session)) -> ProcessingProgressResponse:
+def get_processing_progress(request: Request, session: Session = Depends(get_db_session)) -> ProcessingProgressResponse:
     """Return processing pipeline progress counts."""
-    total = session.execute(select(func.count()).select_from(cases).where(cases.c.is_deleted.is_(False))).scalar() or 0
+    engagement_id = getattr(request.state, "engagement_id", None)
 
-    classified = (
-        session.execute(
-            select(func.count())
-            .select_from(cases)
-            .where(cases.c.is_deleted.is_(False))
-            .where(cases.c.classification_status == "classified")
-        ).scalar()
-        or 0
+    total_q = select(func.count()).select_from(cases).where(cases.c.is_deleted.is_(False))
+    classified_q = (
+        select(func.count())
+        .select_from(cases)
+        .where(cases.c.is_deleted.is_(False))
+        .where(cases.c.classification_status == "classified")
     )
+    if engagement_id:
+        total_q = total_q.where(cases.c.engagement_id == engagement_id)
+        classified_q = classified_q.where(cases.c.engagement_id == engagement_id)
 
-    with_entities = session.execute(select(func.count(func.distinct(entities.c.case_id)))).scalar() or 0
+    total = session.execute(total_q).scalar() or 0
+    classified = session.execute(classified_q).scalar() or 0
+
+    entities_q = select(func.count(func.distinct(entities.c.case_id)))
+    if engagement_id:
+        entities_q = entities_q.join(cases, cases.c.case_id == entities.c.case_id).where(
+            cases.c.engagement_id == engagement_id
+        )
+    with_entities = session.execute(entities_q).scalar() or 0
 
     return ProcessingProgressResponse(
         total_cases=total,

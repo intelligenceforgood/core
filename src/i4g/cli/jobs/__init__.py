@@ -20,11 +20,14 @@ def jobs_ingest(
     dataset: str | None = typer.Option(
         None, "--dataset", help="Override dataset name (sets I4G_INGEST__DATASET_NAME)."
     ),
+    engagement_id: str | None = typer.Option(None, "--engagement-id", help="Assign ingested cases to this engagement."),
 ) -> None:
     if bundle_uri:
         os.environ["I4G_INGEST__JSONL_PATH"] = bundle_uri
     if dataset:
         os.environ["I4G_INGEST__DATASET_NAME"] = dataset
+    if engagement_id:
+        os.environ["I4G_INGEST__ENGAGEMENT_ID"] = engagement_id
 
     from i4g.worker.jobs import ingest
 

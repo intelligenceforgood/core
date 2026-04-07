@@ -280,6 +280,7 @@ class ReviewStore:
         priority: str | None = None,
         queue: str | None = None,
         due_date: str | None = None,
+        engagement_id: str | None = None,
     ) -> dict[str, Any]:
         """Aggregate summary statistics and recent cases for the dashboard."""
 
@@ -307,6 +308,9 @@ class ReviewStore:
             .where(sa.not_(rq.c.case_id.like("system:%")))
             .order_by(rq.c.last_updated.desc())
         )
+
+        if engagement_id is not None:
+            stmt = stmt.where(c.c.engagement_id == engagement_id)
 
         with self._session_factory() as session:
             rows = session.execute(stmt).all()

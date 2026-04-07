@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -140,6 +140,7 @@ class CreateCaseRequest(BaseModel):
     classification_result: dict[str, Any] | None = Field(None, description="Taxonomy classification result.")
     risk_score: float | None = Field(None, description="Numeric risk score (0-100).")
     metadata: dict[str, Any] | None = Field(None, description="Arbitrary metadata dict.")
+    engagement_id: str | None = Field(None, description="Engagement to assign this case to.")
 
 
 class CreateCaseResponse(CamelModel):
@@ -238,6 +239,7 @@ class BatchIndicatorsResponse(CamelModel):
 
 @router.get("", summary="List active cases", response_model=CasesListResponse)
 def list_cases(
+    request: Request,
     limit: int = 50,
     status: str | None = None,
     priority: str | None = None,
@@ -246,7 +248,10 @@ def list_cases(
 ) -> dict[str, Any]:
     """Return summaries for the Cases console view (from Live DB)."""
     store = build_review_store()
-    return store.get_dashboard_summary(limit=limit, status=status, priority=priority, queue=queue, due_date=due_date)
+    engagement_id = getattr(request.state, "engagement_id", None)
+    return store.get_dashboard_summary(
+        limit=limit, status=status, priority=priority, queue=queue, due_date=due_date, engagement_id=engagement_id
+    )
 
 
 # --- Activity & Investigation models ---
@@ -948,7 +953,7 @@ def _get_review_id_for_case(sf: Any, case_id: str) -> str | None:
 
 
 @router.post("", summary="Create a new case", response_model=CreateCaseResponse, status_code=201)
-def create_case(body: CreateCaseRequest) -> CreateCaseResponse:
+def create_case(request: Request, body: CreateCaseRequest) -> CreateCaseResponse:
     """Create a case record and enqueue it for review.
 
     Called by SSI's ``ScanStore.create_case_record()`` after an investigation
@@ -1016,6 +1021,9 @@ def create_case(body: CreateCaseRequest) -> CreateCaseResponse:
         enriched_metadata = dict(body.metadata or {})
         enriched_metadata.setdefault("title", title)
 
+        # Resolve engagement: explicit body field > middleware header
+        engagement_id = body.engagement_id or getattr(request.state, "engagement_id", None)
+
         # Insert new case
         session.execute(
             sa.insert(sql_schema.cases).values(
@@ -1031,6 +1039,7 @@ def create_case(body: CreateCaseRequest) -> CreateCaseResponse:
                 status="open",
                 description=body.source_url or "",
                 metadata=enriched_metadata,
+                engagement_id=engagement_id,
                 created_at=now,
                 updated_at=now,
             )

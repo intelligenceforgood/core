@@ -1,16 +1,17 @@
 """Role definitions for the i4g RBAC system.
 
-PRD FR-2 defines five roles with escalating permissions:
+PRD FR-2 defines six roles with escalating permissions:
 
 * ``researcher`` — anonymized aggregate access only; no PII or raw entity values.
 * ``user`` — read-only access to public case summaries.
 * ``analyst`` — full case review, annotation, and report generation.
+* ``instructor`` — engagement management, student oversight, analytics.
 * ``admin`` — user management, campaign CRUD, bulk operations.
 * ``leo`` — law-enforcement liaison, can access LEO-specific reports.
 
 Admin always has superset permissions.  The hierarchy is::
 
-    researcher < user < analyst < leo ≤ admin
+    researcher < user < analyst < instructor < leo ≤ admin
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ class Role(StrEnum):
     RESEARCHER = "researcher"
     USER = "user"
     ANALYST = "analyst"
+    INSTRUCTOR = "instructor"
     ADMIN = "admin"
     LEO = "leo"
 
@@ -38,8 +40,9 @@ ROLE_HIERARCHY: dict[Role, set[Role]] = {
     Role.RESEARCHER: set(),
     Role.USER: {Role.RESEARCHER},
     Role.ANALYST: {Role.RESEARCHER, Role.USER},
-    Role.LEO: {Role.RESEARCHER, Role.USER, Role.ANALYST},
-    Role.ADMIN: {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.LEO},
+    Role.INSTRUCTOR: {Role.RESEARCHER, Role.USER, Role.ANALYST},
+    Role.LEO: {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.INSTRUCTOR},
+    Role.ADMIN: {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.INSTRUCTOR, Role.LEO},
 }
 
 
