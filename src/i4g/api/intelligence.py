@@ -1293,6 +1293,7 @@ class GraphNodeResponse(CamelModel):
     entity_type: str
     case_count: int = 0
     risk_score: float = 0.0
+    campaign_ids: list[str] = Field(default_factory=list)
     data: dict[str, Any] | None = None
 
 
@@ -1391,6 +1392,7 @@ def get_intelligence_graph(
                 entity_type=ce_et,
                 case_count=int(stat.get("case_count", 0)) if stat else 0,
                 risk_score=float(stat.get("max_risk_score", 0)) if stat else 0,
+                campaign_ids=(stat.get("campaign_ids") or []) if stat else [],
             )
 
         # Connect case entities that co-occur (they all share this case)
@@ -1423,12 +1425,14 @@ def get_intelligence_graph(
                     if type_filter and n_et not in type_filter:
                         continue
                     if n_id not in node_map:
+                        nb_stat = analytics_store.get_entity_stat(n_et, n_cv)
                         node_map[n_id] = GraphNodeResponse(
                             id=n_id,
                             label=n_cv,
                             entity_type=n_et,
                             case_count=nb.get("case_count", 0),
                             risk_score=float(nb.get("risk_score", 0)),
+                            campaign_ids=(nb_stat.get("campaign_ids") or []) if nb_stat else [],
                         )
                     edge_key = (min(ce_id, n_id), max(ce_id, n_id))
                     if edge_key not in seen_edges:
@@ -1472,6 +1476,7 @@ def get_intelligence_graph(
         entity_type=seed_et,
         case_count=int(seed_stat.get("case_count", 0)),
         risk_score=float(seed_stat.get("max_risk_score", 0)),
+        campaign_ids=seed_stat.get("campaign_ids") or [],
     )
 
     frontier = [(seed_et, seed_cv)]
@@ -1488,10 +1493,13 @@ def get_intelligence_graph(
                 # Apply filters
                 if type_filter and n_et not in type_filter:
                     continue
-                if risk_threshold is not None:
-                    nb_stat = analytics_store.get_entity_stat(n_et, n_cv)
-                    if nb_stat and float(nb_stat.get("max_risk_score", 0)) < risk_threshold:
-                        continue
+                nb_stat = (
+                    analytics_store.get_entity_stat(n_et, n_cv)
+                    if n_id not in node_map or risk_threshold is not None
+                    else None
+                )
+                if risk_threshold is not None and nb_stat and float(nb_stat.get("max_risk_score", 0)) < risk_threshold:
+                    continue
 
                 if n_id not in node_map:
                     node_map[n_id] = GraphNodeResponse(
@@ -1500,6 +1508,7 @@ def get_intelligence_graph(
                         entity_type=n_et,
                         case_count=nb.get("case_count", 0),
                         risk_score=float(nb.get("risk_score", 0)),
+                        campaign_ids=(nb_stat.get("campaign_ids") or []) if nb_stat else [],
                     )
                     next_frontier.append((n_et, n_cv))
 

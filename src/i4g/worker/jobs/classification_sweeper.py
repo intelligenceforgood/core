@@ -57,8 +57,14 @@ def run() -> None:
     start_time = time.time()
     max_runtime_seconds = settings.sweep.max_runtime_seconds
     batch_size = settings.sweep.batch_size
+    llm_delay = settings.sweep.llm_delay_seconds
 
-    LOGGER.info(f"Starting classification sweeper (batch_size={batch_size}, timeout={max_runtime_seconds}s)")
+    LOGGER.info(
+        "Starting classification sweeper (batch_size=%d, timeout=%ds, llm_delay=%ss)",
+        batch_size,
+        max_runtime_seconds,
+        llm_delay,
+    )
 
     reporter = TaskStatusReporter()
     if reporter.is_enabled():
@@ -131,6 +137,10 @@ def run() -> None:
                         classified=metrics.classified_count,
                         errors=metrics.error_count,
                     )
+
+                # Throttle to avoid LLM quota contention with entity extraction
+                if llm_delay > 0:
+                    time.sleep(llm_delay)
 
     except Exception as e:
         LOGGER.exception("Job failed unexpectedly")

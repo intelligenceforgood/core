@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import sys
+import time
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -237,6 +239,7 @@ def main(*, backfill: bool = False, limit: int = 0) -> int:
     sf = build_sql_session_factory()
     session: Session = sf()
     llm_client = build_llm_client()
+    llm_delay = float(os.environ.get("ENTITY_EXTRACT_LLM_DELAY_SECONDS", "0.5"))
 
     try:
         # Build query: cases joined with their primary document text
@@ -305,6 +308,10 @@ def main(*, backfill: bool = False, limit: int = 0) -> int:
                 session.rollback()
                 failures += 1
                 logger.exception("entity-extract: failed for case %s", case_id)
+
+            # Throttle to avoid LLM quota contention with classification sweeper
+            if llm_delay > 0:
+                time.sleep(llm_delay)
 
             if (i + 1) % 25 == 0:
                 logger.info(

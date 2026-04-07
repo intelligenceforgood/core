@@ -149,6 +149,9 @@ cycle_interval_seconds = 300
 default_lock_ttl_seconds = 3600
 enabled_tasks = ["classify", "ssi", "analytics", "linkage", "dossier", "evidence", "ingest-retry"]
 
+[sweep]
+llm_delay_seconds = 0.5
+
 [ml]
 entity_extraction_backend = "llm" # "llm" | "ml_platform"
 fallback_to_llm = true

@@ -8,9 +8,12 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from i4g.api.auth import require_token
+from i4g.api.camel import CamelModel
 from i4g.api.response_models import DashboardOverviewResponse
 from i4g.api.review_deps import get_db_session
 from i4g.store.sql import (
+    cases,
+    entities,
     review_actions,
     review_queue,
 )
@@ -181,3 +184,40 @@ def get_dashboard_overview(session: Session = Depends(get_db_session)):
         "activity": activity,
         "reminders": reminders,
     }
+
+
+# ---------------------------------------------------------------------------
+# Processing progress — ingestion pipeline health at a glance
+# ---------------------------------------------------------------------------
+
+
+class ProcessingProgressResponse(CamelModel):
+    """Data pipeline processing progress."""
+
+    total_cases: int = 0
+    classified_cases: int = 0
+    cases_with_entities: int = 0
+
+
+@router.get("/processing-progress", response_model=ProcessingProgressResponse)
+def get_processing_progress(session: Session = Depends(get_db_session)) -> ProcessingProgressResponse:
+    """Return processing pipeline progress counts."""
+    total = session.execute(select(func.count()).select_from(cases).where(cases.c.is_deleted.is_(False))).scalar() or 0
+
+    classified = (
+        session.execute(
+            select(func.count())
+            .select_from(cases)
+            .where(cases.c.is_deleted.is_(False))
+            .where(cases.c.classification_status == "classified")
+        ).scalar()
+        or 0
+    )
+
+    with_entities = session.execute(select(func.count(func.distinct(entities.c.case_id)))).scalar() or 0
+
+    return ProcessingProgressResponse(
+        total_cases=total,
+        classified_cases=classified,
+        cases_with_entities=with_entities,
+    )

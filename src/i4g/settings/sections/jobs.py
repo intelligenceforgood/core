@@ -191,6 +191,14 @@ class SweepSettings(BaseSettings):
         ),
         description="Number of cases to classify per loop iteration.",
     )
+    llm_delay_seconds: float = Field(
+        default=0.5,
+        validation_alias=AliasChoices(
+            "SWEEP_LLM_DELAY_SECONDS",
+            "SWEEP__LLM_DELAY_SECONDS",
+        ),
+        description="Delay in seconds between LLM batch calls to avoid quota contention with other jobs.",
+    )
 
 
 class DossierJobSettings(BaseSettings):

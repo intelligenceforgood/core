@@ -1463,6 +1463,15 @@ fields:
       - SWEEP__MAX_RUNTIME_SECONDS
       - JOB_MAX_RUNTIME_SECONDS
     description: Maximum wall-clock seconds before the sweeper exits gracefully.
+  - path: sweep.llm_delay_seconds
+    section: sweep
+    type: float
+    default: 0.5
+    env_vars:
+      - I4G_SWEEP__LLM_DELAY_SECONDS
+      - SWEEP_LLM_DELAY_SECONDS
+      - SWEEP__LLM_DELAY_SECONDS
+    description: Delay in seconds between LLM batch calls to avoid quota contention with other jobs.
   - path: vector.backend
     section: vector
     type: Literal['chroma', 'faiss', 'pgvector', 'vertex_ai']
