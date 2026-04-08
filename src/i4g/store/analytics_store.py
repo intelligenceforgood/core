@@ -319,6 +319,7 @@ class AnalyticsStore:
         period_type: str = "daily",
         start_date: date | None = None,
         end_date: date | None = None,
+        engagement_id: str | None = "__global__",
         limit: int = 365,
     ) -> list[dict[str, Any]]:
         """Query platform KPIs for a date range.
@@ -327,6 +328,9 @@ class AnalyticsStore:
             period_type: "day", "week", "month", or "quarter".
             start_date: Start of the date range (inclusive).
             end_date: End of the date range (inclusive).
+            engagement_id: Filter to a specific engagement. Defaults to
+                ``"__global__"`` for aggregate rows. Pass an engagement
+                UUID for per-engagement data.
             limit: Max rows.
 
         Returns:
@@ -334,6 +338,9 @@ class AnalyticsStore:
         """
         pk = sql_schema.platform_kpis
         stmt = sa.select(pk).where(pk.c.period_type == period_type)
+
+        if engagement_id is not None:
+            stmt = stmt.where(pk.c.engagement_id == engagement_id)
 
         if start_date:
             stmt = stmt.where(pk.c.period_start >= start_date)
@@ -346,20 +353,28 @@ class AnalyticsStore:
             rows = session.execute(stmt).all()
             return [dict(r._mapping) for r in rows]
 
-    def get_latest_kpi(self, period_type: str = "daily") -> dict[str, Any] | None:
+    def get_latest_kpi(
+        self,
+        period_type: str = "daily",
+        engagement_id: str | None = "__global__",
+    ) -> dict[str, Any] | None:
         """Fetch the most recent KPI row for a given period type.
 
         Args:
             period_type: The period granularity.
+            engagement_id: Filter to a specific engagement. Defaults to
+                ``"__global__"`` for aggregate rows.
 
         Returns:
             The latest KPI dict or None.
         """
         pk = sql_schema.platform_kpis
+        stmt = sa.select(pk).where(pk.c.period_type == period_type)
+        if engagement_id is not None:
+            stmt = stmt.where(pk.c.engagement_id == engagement_id)
+        stmt = stmt.order_by(pk.c.period_start.desc()).limit(1)
         with self._session_scope() as session:
-            row = session.execute(
-                sa.select(pk).where(pk.c.period_type == period_type).order_by(pk.c.period_start.desc()).limit(1)
-            ).first()
+            row = session.execute(stmt).first()
             if not row:
                 return None
             return dict(row._mapping)

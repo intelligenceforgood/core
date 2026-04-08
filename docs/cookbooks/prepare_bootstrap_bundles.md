@@ -67,6 +67,25 @@ i4g bootstrap local reset
 
 If the golden bundle exists in `data/bundles/golden/`, it is used automatically. No extra env vars needed.
 
+### 7. Seed test engagements (optional)
+
+After bootstrap completes, run the engagement seed script to create a
+"Spring 2026 — UAB" engagement and assign the incident_responses cases:
+
+```bash
+sqlite3 data/i4g_store.db < scripts/sql/seed_engagement_spring_2026_uab.sql
+```
+
+For Cloud SQL (PostgreSQL), paste the contents of
+`scripts/sql/seed_engagement_spring_2026_uab.sql` into the Cloud SQL Studio
+query editor. The SQL is compatible with both SQLite and PostgreSQL.
+
+This creates:
+
+- An active engagement named "Spring 2026 — UAB" spanning the spring semester
+- Assigns all ~56 incident_responses cases to the engagement
+- Seeds 13 weekly/daily platform_kpis rows for immediate dashboard rendering
+
 ## Adding New Data Sources
 
 1. Create an ETL script under `scripts/etl/` that reads the source and outputs JSONL

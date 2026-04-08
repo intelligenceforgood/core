@@ -146,6 +146,7 @@ def test_list_platform_kpis(tmp_path: Path) -> None:
             platform_kpis.insert().values(
                 period_type="daily",
                 period_start=date(2025, 1, 15),
+                engagement_id="__global__",
                 total_cases=10,
                 proactive_cases=3,
                 reactive_cases=7,

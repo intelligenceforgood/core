@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from datetime import UTC, date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -47,6 +47,18 @@ router = APIRouter(
 def _get_analytics_store() -> AnalyticsStore:
     """Return an AnalyticsStore instance."""
     return build_analytics_store()
+
+
+def _engagement_id(request: Request) -> str | None:
+    """Extract engagement_id from middleware state.
+
+    Returns the engagement UUID when set, or ``None`` for 'All Engagements'.
+    The analytics store interprets ``None`` differently from ``"__global__"``:
+    * ``"__global__"`` — aggregate KPI rows (default for unscoped views)
+    * A UUID string — per-engagement KPI rows
+    * ``None`` — no engagement filter (all rows)
+    """
+    return getattr(request.state, "engagement_id", None)
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +165,7 @@ def _parse_period(period: str) -> tuple[date, date]:
 
 @router.get("/dashboard", response_model=DashboardResponse)
 def get_impact_dashboard(
+    request: Request,
     period: str = Query("30d", description="Period preset: 7d, 30d, 90d, quarter, year"),
     store: AnalyticsStore = Depends(_get_analytics_store),
     session: Session = Depends(get_db_session),
@@ -178,22 +191,23 @@ def get_impact_dashboard(
     now_dt = datetime.combine(end, datetime.min.time(), tzinfo=UTC)
     start_dt = datetime.combine(start, datetime.min.time(), tzinfo=UTC)
     prev_start_dt = datetime.combine(prev_start, datetime.min.time(), tzinfo=UTC)
+    eid = _engagement_id(request)
 
     def _count_cases(s: datetime, e: datetime) -> int:
-        return (
-            session.scalar(select(func.count(cases.c.case_id)).where(cases.c.created_at >= s, cases.c.created_at < e))
-            or 0
-        )
+        stmt = select(func.count(cases.c.case_id)).where(cases.c.created_at >= s, cases.c.created_at < e)
+        if eid:
+            stmt = stmt.where(cases.c.engagement_id == eid)
+        return session.scalar(stmt) or 0
 
     def _sum_loss(s: datetime, e: datetime) -> float:
-        return float(
-            session.scalar(
-                select(func.coalesce(func.sum(intake_records.c.loss_amount), 0)).where(
-                    intake_records.c.created_at >= s, intake_records.c.created_at < e
-                )
-            )
-            or 0
+        stmt = select(func.coalesce(func.sum(intake_records.c.loss_amount), 0)).where(
+            intake_records.c.created_at >= s, intake_records.c.created_at < e
         )
+        if eid:
+            stmt = stmt.select_from(intake_records.join(cases, intake_records.c.case_id == cases.c.case_id)).where(
+                cases.c.engagement_id == eid
+            )
+        return float(session.scalar(stmt) or 0)
 
     cur_cases = _count_cases(start_dt, now_dt)
     prev_cases = _count_cases(prev_start_dt, start_dt)
@@ -223,13 +237,15 @@ def get_impact_dashboard(
     )
 
     # Median action time
-    action_rows = session.execute(
+    action_stmt = (
         select(review_actions.c.created_at, cases.c.created_at.label("case_created"))
         .join(review_queue, review_actions.c.review_id == review_queue.c.review_id)
         .join(cases, review_queue.c.case_id == cases.c.case_id)
         .where(review_actions.c.created_at >= start_dt, review_actions.c.created_at < now_dt)
-        .order_by(review_actions.c.created_at)
-    ).all()
+    )
+    if eid:
+        action_stmt = action_stmt.where(cases.c.engagement_id == eid)
+    action_rows = session.execute(action_stmt.order_by(review_actions.c.created_at)).all()
     if action_rows:
         deltas = []
         for row in action_rows:
@@ -273,17 +289,20 @@ def get_impact_dashboard(
 
 @router.get("/loss-by-taxonomy", response_model=list[TaxonomyLossItem])
 def get_loss_by_taxonomy(
+    request: Request,
     session: Session = Depends(get_db_session),
 ) -> list[TaxonomyLossItem]:
     """Return loss sums grouped by case classification for the treemap.
 
     Args:
+        request: Incoming request (engagement context).
         session: DB session.
 
     Returns:
         List of taxonomy-label / loss / case-count tuples.
     """
-    rows = session.execute(
+    eid = _engagement_id(request)
+    stmt = (
         select(
             cases.c.classification,
             func.coalesce(func.sum(intake_records.c.loss_amount), 0).label("loss_sum"),
@@ -292,8 +311,11 @@ def get_loss_by_taxonomy(
         .select_from(cases)
         .outerjoin(intake_records, intake_records.c.case_id == cases.c.case_id)
         .where(cases.c.classification.is_not(None))
-        .group_by(cases.c.classification)
-        .order_by(func.sum(intake_records.c.loss_amount).desc())
+    )
+    if eid:
+        stmt = stmt.where(cases.c.engagement_id == eid)
+    rows = session.execute(
+        stmt.group_by(cases.c.classification).order_by(func.sum(intake_records.c.loss_amount).desc())
     ).all()
 
     return [
@@ -314,20 +336,20 @@ def get_loss_by_taxonomy(
 
 @router.get("/detection-velocity", response_model=list[DetectionVelocityPoint])
 def get_detection_velocity(
+    request: Request,
     period: str = Query("30d", description="Period preset"),
     store: AnalyticsStore = Depends(_get_analytics_store),
 ) -> list[DetectionVelocityPoint]:
-    """Return weekly case counts split by proactive/reactive sources.
-
-    Args:
-        period: Time window preset.
-        store: Pre-computed analytics store.
-
-    Returns:
-        List of weekly detection velocity data points.
-    """
+    """Return weekly case counts split by proactive/reactive sources."""
     start, end = _parse_period(period)
-    kpis = store.list_platform_kpis(period_type="weekly", start_date=start, end_date=end, limit=52)
+    eid = _engagement_id(request)
+    kpis = store.list_platform_kpis(
+        period_type="weekly",
+        start_date=start,
+        end_date=end,
+        engagement_id=eid or "__global__",
+        limit=52,
+    )
     return [
         DetectionVelocityPoint(
             period=str(k.get("period_start", "")),
@@ -346,35 +368,45 @@ def get_detection_velocity(
 
 @router.get("/pipeline-funnel", response_model=list[PipelineFunnelStage])
 def get_pipeline_funnel(
+    request: Request,
     session: Session = Depends(get_db_session),
 ) -> list[PipelineFunnelStage]:
     """Return pipeline funnel stages: intake → ingestion → classification → review → action.
 
     Args:
+        request: Incoming request (engagement context).
         session: DB session.
 
     Returns:
         List of funnel stages with counts.
     """
-    intake_count = session.scalar(select(func.count(intake_records.c.intake_id))) or 0
-    case_count = session.scalar(select(func.count(cases.c.case_id))) or 0
-    classified_count = (
-        session.scalar(select(func.count(cases.c.case_id)).where(cases.c.classification.is_not(None))) or 0
+    eid = _engagement_id(request)
+
+    intake_q = select(func.count(intake_records.c.intake_id))
+    case_q = select(func.count(cases.c.case_id))
+    classified_q = select(func.count(cases.c.case_id)).where(cases.c.classification.is_not(None))
+    reviewed_q = select(func.count(cases.c.case_id)).where(cases.c.status.in_(["accepted", "rejected", "escalated"]))
+    actioned_q = (
+        select(func.count(func.distinct(review_queue.c.case_id)))
+        .select_from(review_actions)
+        .join(review_queue, review_actions.c.review_id == review_queue.c.review_id)
     )
-    reviewed_count = (
-        session.scalar(
-            select(func.count(cases.c.case_id)).where(cases.c.status.in_(["accepted", "rejected", "escalated"]))
+    if eid:
+        intake_q = intake_q.select_from(intake_records.join(cases, intake_records.c.case_id == cases.c.case_id)).where(
+            cases.c.engagement_id == eid
         )
-        or 0
-    )
-    actioned_count = (
-        session.scalar(
-            select(func.count(func.distinct(review_queue.c.case_id)))
-            .select_from(review_actions)
-            .join(review_queue, review_actions.c.review_id == review_queue.c.review_id)
+        case_q = case_q.where(cases.c.engagement_id == eid)
+        classified_q = classified_q.where(cases.c.engagement_id == eid)
+        reviewed_q = reviewed_q.where(cases.c.engagement_id == eid)
+        actioned_q = actioned_q.join(cases, review_queue.c.case_id == cases.c.case_id).where(
+            cases.c.engagement_id == eid
         )
-        or 0
-    )
+
+    intake_count = session.scalar(intake_q) or 0
+    case_count = session.scalar(case_q) or 0
+    classified_count = session.scalar(classified_q) or 0
+    reviewed_count = session.scalar(reviewed_q) or 0
+    actioned_count = session.scalar(actioned_q) or 0
 
     return [
         PipelineFunnelStage(stage="Intake", count=intake_count),
@@ -392,20 +424,20 @@ def get_pipeline_funnel(
 
 @router.get("/cumulative-indicators", response_model=list[CumulativeIndicatorPoint])
 def get_cumulative_indicators(
+    request: Request,
     period: str = Query("90d", description="Period preset"),
     store: AnalyticsStore = Depends(_get_analytics_store),
 ) -> list[CumulativeIndicatorPoint]:
-    """Return running totals of unique indicators over time, stacked by category.
-
-    Args:
-        period: Time window preset.
-        store: Pre-computed analytics store.
-
-    Returns:
-        List of cumulative indicator data points.
-    """
+    """Return running totals of unique indicators over time, stacked by category."""
     start, end = _parse_period(period)
-    kpis = store.list_platform_kpis(period_type="weekly", start_date=start, end_date=end, limit=52)
+    eid = _engagement_id(request)
+    kpis = store.list_platform_kpis(
+        period_type="weekly",
+        start_date=start,
+        end_date=end,
+        engagement_id=eid or "__global__",
+        limit=52,
+    )
 
     # KPIs track new_indicators per period; build cumulative sums
     cumulative = 0
@@ -476,6 +508,7 @@ def _resolve_taxonomy_label(code: str) -> str:
 
 @router.get("/taxonomy/sankey", response_model=SankeyResponse)
 def get_taxonomy_sankey(
+    request: Request,
     period: str = Query("90d", description="Period preset"),
     db: Session = Depends(get_db_session),
 ) -> SankeyResponse:
@@ -492,6 +525,7 @@ def get_taxonomy_sankey(
         Sankey diagram data with nodes and links.
     """
     start, _ = _parse_period(period)
+    eid = _engagement_id(request)
     stmt = (
         select(
             cases.c.classification,
@@ -499,8 +533,10 @@ def get_taxonomy_sankey(
         )
         .where(cases.c.created_at >= datetime.combine(start, datetime.min.time(), tzinfo=UTC))
         .where(cases.c.classification.is_not(None))
-        .group_by(cases.c.classification)
     )
+    if eid:
+        stmt = stmt.where(cases.c.engagement_id == eid)
+    stmt = stmt.group_by(cases.c.classification)
     rows = db.execute(stmt).fetchall()
 
     node_set: dict[str, int] = {}
@@ -544,6 +580,7 @@ class HeatmapCell(CamelModel):
 
 @router.get("/taxonomy/heatmap", response_model=list[HeatmapCell])
 def get_taxonomy_heatmap(
+    request: Request,
     period: str = Query("90d", description="Period preset"),
     granularity: str = Query("week", description="Granularity: day, week, month"),
     db: Session = Depends(get_db_session),
@@ -561,6 +598,7 @@ def get_taxonomy_heatmap(
         List of heatmap cells.
     """
     start, end = _parse_period(period)
+    eid = _engagement_id(request)
     stmt = select(
         cases.c.classification,
         cases.c.created_at,
@@ -568,6 +606,8 @@ def get_taxonomy_heatmap(
         cases.c.created_at >= datetime.combine(start, datetime.min.time(), tzinfo=UTC),
         cases.c.classification.is_not(None),
     )
+    if eid:
+        stmt = stmt.where(cases.c.engagement_id == eid)
     rows = db.execute(stmt).fetchall()
 
     cells: dict[tuple[str, str], int] = {}
@@ -608,6 +648,7 @@ class TaxonomyTrendPoint(CamelModel):
 
 @router.get("/taxonomy/trend", response_model=list[TaxonomyTrendPoint])
 def get_taxonomy_trend(
+    request: Request,
     period: str = Query("90d", description="Period preset"),
     categories: str | None = Query(None, description="Comma-separated category filter"),
     db: Session = Depends(get_db_session),
@@ -623,6 +664,7 @@ def get_taxonomy_trend(
         List of taxonomy trend data points.
     """
     start, end = _parse_period(period)
+    eid = _engagement_id(request)
     stmt = select(
         cases.c.classification,
         cases.c.created_at,
@@ -630,6 +672,8 @@ def get_taxonomy_trend(
         cases.c.created_at >= datetime.combine(start, datetime.min.time(), tzinfo=UTC),
         cases.c.classification.is_not(None),
     )
+    if eid:
+        stmt = stmt.where(cases.c.engagement_id == eid)
 
     if categories:
         cat_list = [c.strip() for c in categories.split(",")]
@@ -675,6 +719,7 @@ class GeographySummary(CamelModel):
 
 @router.get("/geography", response_model=list[GeographySummary])
 def get_geography_summary(
+    request: Request,
     period: str = Query("90d", description="Period preset"),
     db: Session = Depends(get_db_session),
 ) -> list[GeographySummary]:
@@ -688,16 +733,24 @@ def get_geography_summary(
         List of per-country summary objects.
     """
     start, _ = _parse_period(period)
+    eid = _engagement_id(request)
+    base = intake_records
+    if eid:
+        base = intake_records.join(cases, intake_records.c.case_id == cases.c.case_id)
+    geo_filter = [
+        intake_records.c.created_at >= datetime.combine(start, datetime.min.time(), tzinfo=UTC),
+        intake_records.c.victim_country.is_not(None),
+    ]
+    if eid:
+        geo_filter.append(cases.c.engagement_id == eid)
     stmt = (
         select(
             intake_records.c.victim_country,
             func.count().label("case_count"),
             func.coalesce(func.sum(intake_records.c.loss_amount), 0).label("total_loss"),
         )
-        .where(
-            intake_records.c.created_at >= datetime.combine(start, datetime.min.time(), tzinfo=UTC),
-            intake_records.c.victim_country.is_not(None),
-        )
+        .select_from(base)
+        .where(*geo_filter)
         .group_by(intake_records.c.victim_country)
     )
     rows = db.execute(stmt).fetchall()
@@ -740,6 +793,7 @@ class CountryDetailResponse(CamelModel):
 @router.get("/geography/{country}", response_model=CountryDetailResponse)
 def get_geography_detail(
     country: str,
+    request: Request,
     period: str = Query("90d", description="Period preset"),
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db_session),
@@ -756,6 +810,13 @@ def get_geography_detail(
         Country detail with individual case records.
     """
     start, _ = _parse_period(period)
+    eid = _engagement_id(request)
+    detail_filters = [
+        intake_records.c.victim_country == country,
+        intake_records.c.created_at >= datetime.combine(start, datetime.min.time(), tzinfo=UTC),
+    ]
+    if eid:
+        detail_filters.append(cases.c.engagement_id == eid)
     stmt = (
         select(
             intake_records.c.case_id,
@@ -764,10 +825,7 @@ def get_geography_detail(
             intake_records.c.created_at,
         )
         .select_from(intake_records.join(cases, intake_records.c.case_id == cases.c.case_id))
-        .where(
-            intake_records.c.victim_country == country,
-            intake_records.c.created_at >= datetime.combine(start, datetime.min.time(), tzinfo=UTC),
-        )
+        .where(*detail_filters)
         .limit(limit)
     )
     rows = db.execute(stmt).fetchall()
@@ -817,6 +875,7 @@ class VictimAnalyticsResponse(CamelModel):
 
 @router.get("/victims", response_model=VictimAnalyticsResponse)
 def get_victim_analytics(
+    request: Request,
     period: str = Query("90d", description="Time period: 30d, 90d, 1y, all"),
     db: Session = Depends(get_db_session),
 ) -> VictimAnalyticsResponse:
@@ -833,11 +892,16 @@ def get_victim_analytics(
     """
     start, _ = _parse_period(period)
     start_dt = datetime.combine(start, datetime.min.time(), tzinfo=UTC)
+    eid = _engagement_id(request)
 
     base_filter = [intake_records.c.created_at >= start_dt]
+    base_from = intake_records
+    if eid:
+        base_from = intake_records.join(cases, intake_records.c.case_id == cases.c.case_id)
+        base_filter.append(cases.c.engagement_id == eid)
 
     # Total count
-    total_stmt = select(func.count()).select_from(intake_records).where(*base_filter)
+    total_stmt = select(func.count()).select_from(base_from).where(*base_filter)
     total_victims = db.execute(total_stmt).scalar() or 0
 
     # By age range
@@ -847,6 +911,7 @@ def get_victim_analytics(
             func.count().label("cnt"),
             func.coalesce(func.sum(intake_records.c.loss_amount), 0).label("loss"),
         )
+        .select_from(base_from)
         .where(*base_filter, intake_records.c.victim_age_range.isnot(None))
         .group_by(intake_records.c.victim_age_range)
         .order_by(func.count().desc())
@@ -869,6 +934,7 @@ def get_victim_analytics(
             func.count().label("cnt"),
             func.coalesce(func.sum(intake_records.c.loss_amount), 0).label("loss"),
         )
+        .select_from(base_from)
         .where(*base_filter, intake_records.c.victim_country.isnot(None))
         .group_by(intake_records.c.victim_country)
         .order_by(func.count().desc())
@@ -892,6 +958,7 @@ def get_victim_analytics(
             func.count().label("cnt"),
             func.coalesce(func.sum(intake_records.c.loss_amount), 0).label("loss"),
         )
+        .select_from(base_from)
         .where(*base_filter, intake_records.c.contact_channel.isnot(None))
         .group_by(intake_records.c.contact_channel)
         .order_by(func.count().desc())

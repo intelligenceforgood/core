@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Any
 
 import sqlalchemy as sa
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import Field, field_validator
 
 from i4g.api.auth import require_token
@@ -552,6 +552,7 @@ class EntityCasesResponse(CamelModel):
 def get_entity_cases(
     entity_type: str,
     canonical_value: str,
+    request: Request,
     limit: int = Query(20, ge=1, le=100, description="Page size"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     store: AnalyticsStore = Depends(get_analytics_store),
@@ -584,14 +585,18 @@ def get_entity_cases(
 
     entities_t = sql_schema.entities
     cases_t = sql_schema.cases
+    eid = getattr(request.state, "engagement_id", None)
     sf = sql_schema.session_factory()
     with sf() as session:
         # Count total cases
         count_q = (
             sa.select(sa.func.count(sa.distinct(entities_t.c.case_id)))
+            .select_from(entities_t.join(cases_t, entities_t.c.case_id == cases_t.c.case_id))
             .where(entities_t.c.entity_type == entity_type)
             .where(entities_t.c.canonical_value == canonical_value)
         )
+        if eid:
+            count_q = count_q.where(cases_t.c.engagement_id == eid)
         total = session.execute(count_q).scalar() or 0
 
         # Fetch paginated case summaries
@@ -607,11 +612,10 @@ def get_entity_cases(
             .join(entities_t, entities_t.c.case_id == cases_t.c.case_id)
             .where(entities_t.c.entity_type == entity_type)
             .where(entities_t.c.canonical_value == canonical_value)
-            .distinct()
-            .order_by(cases_t.c.created_at.desc().nullslast())
-            .limit(limit)
-            .offset(offset)
         )
+        if eid:
+            case_q = case_q.where(cases_t.c.engagement_id == eid)
+        case_q = case_q.distinct().order_by(cases_t.c.created_at.desc().nullslast()).limit(limit).offset(offset)
         rows = session.execute(case_q).all()
 
     items = [
@@ -729,6 +733,7 @@ def get_indicator(
 
 @router.get("/dashboard", response_model=DashboardWidgetsResponse)
 def get_dashboard_widgets(
+    request: Request,
     store: AnalyticsStore = Depends(get_analytics_store),
     campaign_store: ThreatCampaignStore = Depends(get_campaign_store),
 ) -> DashboardWidgetsResponse:
@@ -752,8 +757,11 @@ def get_dashboard_widgets(
         status="active", entity_types=THREAT_ENTITY_TYPES
     ) + store.count_entity_stats(status="flagged", entity_types=THREAT_ENTITY_TYPES)
 
+    eid = getattr(request.state, "engagement_id", None)
+    kpi_eid = eid or "__global__"
+
     # New indicators = count from latest daily KPI
-    latest_kpi = store.get_latest_kpi(period_type="daily")
+    latest_kpi = store.get_latest_kpi(period_type="daily", engagement_id=kpi_eid)
     new_indicators = latest_kpi.get("new_indicators", 0) if latest_kpi else 0
 
     # Emerging campaigns
@@ -761,7 +769,7 @@ def get_dashboard_widgets(
     emerging_campaigns = len(emerging)
 
     # Loss trend = last 12 weekly KPIs
-    weekly_kpis = store.list_platform_kpis(period_type="weekly", limit=12)
+    weekly_kpis = store.list_platform_kpis(period_type="weekly", engagement_id=kpi_eid, limit=12)
     loss_trend = [
         {"period": str(kpi.get("period_start", "")), "loss": float(kpi.get("total_loss", 0))} for kpi in weekly_kpis
     ]
@@ -1657,6 +1665,7 @@ class TimelineResponse(CamelModel):
 
 @router.get("/timeline", response_model=TimelineResponse)
 def get_timeline(
+    request: Request,
     period: str = Query("90d", description="Period preset: 7d, 30d, 90d, quarter, year"),
     granularity: str = Query("week", description="Granularity: day, week, month"),
     analytics_store: AnalyticsStore = Depends(get_analytics_store),
@@ -1682,7 +1691,14 @@ def get_timeline(
 
     # Map granularity to platform_kpis period_type
     pt = "weekly" if granularity == "week" else ("monthly" if granularity == "month" else "daily")
-    kpis = analytics_store.list_platform_kpis(period_type=pt, start_date=start, end_date=today, limit=365)
+    eid = getattr(request.state, "engagement_id", None)
+    kpis = analytics_store.list_platform_kpis(
+        period_type=pt,
+        start_date=start,
+        end_date=today,
+        engagement_id=eid or "__global__",
+        limit=365,
+    )
 
     case_track = []
     indicator_track = []

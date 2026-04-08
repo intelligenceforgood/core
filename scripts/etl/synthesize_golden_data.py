@@ -525,6 +525,38 @@ def generate_sql() -> str:
             f") ON CONFLICT DO NOTHING;"
         )
 
+    lines.extend(
+        [
+            "",
+            "-- ===================================================================",
+            "-- engagements — Spring 2026 UAB example engagement",
+            "-- ===================================================================",
+            "",
+            "INSERT INTO engagements ("
+            "engagement_id, name, description, status, starts_at, ends_at, "
+            "created_by, metadata, created_at, updated_at"
+            ") VALUES ("
+            "'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d', "
+            "'Spring 2026 — UAB', "
+            "'Spring 2026 semester engagement for the University of Alabama at Birmingham. "
+            "Cases sourced from the Incident Report (Responses) Google Sheet.', "
+            "'active', "
+            "'2026-01-13 00:00:00', '2026-05-08 00:00:00', "
+            f"'bootstrap', "
+            '\'{"university": "UAB", "semester": "Spring 2026", "source": "incident_responses"}\', '
+            f"'{now}', '{now}'"
+            ") ON CONFLICT DO NOTHING;",
+            "",
+            "-- Assign incident_responses cases to the Spring 2026 — UAB engagement.",
+            "-- The build_golden_bundle step resolves CASE_ID_xxx placeholders to real IDs;",
+            "-- this UPDATE uses dataset='incident_responses' as a fallback for direct runs.",
+            "UPDATE cases SET engagement_id = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d', "
+            f"updated_at = '{now}' "
+            "WHERE dataset = 'incident_responses' "
+            "AND (engagement_id IS NULL OR engagement_id = '');",
+        ]
+    )
+
     lines.extend(["", "-- Golden seed complete.", ""])
     return "\n".join(lines)
 
