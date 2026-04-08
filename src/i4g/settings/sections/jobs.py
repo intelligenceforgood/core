@@ -650,6 +650,15 @@ class AnalyticsSettings(BaseSettings):
         ),
         description="Deactivate a schedule after this many consecutive failures.",
     )
+    leaderboard_weights: dict[str, float] = Field(
+        default_factory=lambda: {
+            "accuracy": 0.40,
+            "throughput": 0.35,
+            "quality": 0.25,
+        },
+        validation_alias=AliasChoices("ANALYTICS_LEADERBOARD_WEIGHTS", "ANALYTICS__LEADERBOARD_WEIGHTS"),
+        description="Weight factors for engagement leaderboard composite score.",
+    )
 
 
 class EnrichmentSettings(BaseSettings):

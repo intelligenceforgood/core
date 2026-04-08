@@ -99,6 +99,23 @@ engagements = sa.Table(
 sa.Index("idx_engagements_status", engagements.c.status)
 sa.Index("idx_engagements_starts_at", engagements.c.starts_at)
 
+engagement_analyst_stats = sa.Table(
+    "engagement_analyst_stats",
+    METADATA,
+    sa.Column(
+        "engagement_id", UUID_TYPE, sa.ForeignKey("engagements.engagement_id", ondelete="CASCADE"), nullable=False
+    ),
+    sa.Column("analyst_email", sa.Text(), nullable=False),
+    sa.Column("cases_reviewed", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("avg_review_time_seconds", sa.Numeric(12, 2), nullable=True),
+    sa.Column("classification_accuracy", sa.Numeric(5, 4), nullable=True),
+    sa.Column("risk_score_mae", sa.Numeric(5, 2), nullable=True),
+    sa.Column("actions_logged", sa.Integer(), nullable=False, server_default="0"),
+    sa.Column("last_activity_at", TIMESTAMP, nullable=True),
+    sa.Column("computed_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.PrimaryKeyConstraint("engagement_id", "analyst_email", name="pk_engagement_analyst_stats"),
+)
+
 cases = sa.Table(
     "cases",
     METADATA,

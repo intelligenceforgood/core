@@ -17,12 +17,16 @@ from i4g.store.sql import (
     METADATA,
     campaign_stats,
     cases,
+    engagement_analyst_stats,
+    engagements,
     entities,
     entity_stats,
     indicator_stats,
     indicators,
     intake_records,
     platform_kpis,
+    review_actions,
+    review_queue,
     threat_campaign_cases,
     threat_campaigns,
 )
@@ -31,6 +35,7 @@ from i4g.worker.jobs.analytics_aggregation import (
     _compute_entity_status,
     _next_lifecycle_state,
     _refresh_campaign_stats,
+    _refresh_engagement_analyst_stats,
     _refresh_entity_stats,
     _refresh_indicator_stats,
     _refresh_platform_kpis,
@@ -565,3 +570,137 @@ def test_platform_kpis_use_first_seen_at(tmp_path: Path) -> None:
         # first_seen_at is 90 days ago → should NOT count as new
         assert daily.new_indicators == 0
         assert daily.new_entities == 0
+
+
+# ---------------------------------------------------------------------------
+# Engagement analyst stats aggregation
+# ---------------------------------------------------------------------------
+
+
+def _seed_engagement_data(sf: sessionmaker) -> str:
+    """Seed an engagement with cases, review queue entries, and actions."""
+    now = datetime.now(tz=UTC)
+    eng_id = "eng-test-1"
+
+    with sf() as session:
+        session.execute(
+            engagements.insert().values(
+                engagement_id=eng_id,
+                name="Test Engagement",
+                status="active",
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        for i in range(1, 4):
+            session.execute(
+                cases.insert().values(
+                    case_id=f"eng-c{i}",
+                    dataset="test",
+                    source_type="proactive",
+                    raw_text_sha256=f"enghash{i}",
+                    status="open",
+                    risk_score=50.0,
+                    classification="phishing" if i <= 2 else "scam",
+                    engagement_id=eng_id,
+                    created_at=now,
+                    updated_at=now,
+                )
+            )
+            # Review queue entry
+            session.execute(
+                review_queue.insert().values(
+                    review_id=f"rev-eng-c{i}",
+                    case_id=f"eng-c{i}",
+                    queued_at=now,
+                    priority="medium",
+                    status="accepted",
+                    assigned_to="alice@test.io" if i <= 2 else "bob@test.io",
+                    classification_result=json.dumps({"label": "phishing"}) if i <= 2 else None,
+                )
+            )
+            actor = "alice@test.io" if i <= 2 else "bob@test.io"
+            session.execute(
+                review_actions.insert().values(
+                    action_id=f"act-eng-c{i}",
+                    review_id=f"rev-eng-c{i}",
+                    actor=actor,
+                    action="classify",
+                    created_at=now,
+                )
+            )
+        session.commit()
+    return eng_id
+
+
+def test_refresh_engagement_analyst_stats(tmp_path: Path) -> None:
+    """Analyst stats are computed per (engagement, analyst) pair."""
+    sf = _make_session(tmp_path / "agg.db")
+    _seed_engagement_data(sf)
+
+    with sf() as session:
+        count = _refresh_engagement_analyst_stats(session)
+        session.commit()
+
+    assert count == 2  # alice + bob
+
+    with sf() as session:
+        rows = session.execute(
+            sa.select(engagement_analyst_stats).order_by(engagement_analyst_stats.c.analyst_email)
+        ).fetchall()
+        assert len(rows) == 2
+
+        alice = [r for r in rows if r.analyst_email == "alice@test.io"][0]
+        assert alice.cases_reviewed == 2
+        assert alice.actions_logged == 2
+        # classification_result was provided for alice's reviews
+        assert alice.classification_accuracy is not None
+        assert alice.classification_accuracy > 0
+
+        bob = [r for r in rows if r.analyst_email == "bob@test.io"][0]
+        assert bob.cases_reviewed == 1
+        assert bob.actions_logged == 1
+
+
+def test_refresh_engagement_analyst_stats_idempotent(tmp_path: Path) -> None:
+    """Running the refresh twice produces the same results (upsert)."""
+    sf = _make_session(tmp_path / "agg.db")
+    _seed_engagement_data(sf)
+
+    with sf() as session:
+        _refresh_engagement_analyst_stats(session)
+        session.commit()
+
+    with sf() as session:
+        count = _refresh_engagement_analyst_stats(session)
+        session.commit()
+
+    assert count == 2
+
+    with sf() as session:
+        rows = session.execute(sa.select(engagement_analyst_stats)).fetchall()
+        assert len(rows) == 2  # no duplicates
+
+
+def test_refresh_engagement_analyst_stats_skips_draft(tmp_path: Path) -> None:
+    """Draft engagements are not processed."""
+    sf = _make_session(tmp_path / "agg.db")
+    now = datetime.now(tz=UTC)
+
+    with sf() as session:
+        session.execute(
+            engagements.insert().values(
+                engagement_id="eng-draft",
+                name="Draft Eng",
+                status="draft",
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        session.commit()
+
+    with sf() as session:
+        count = _refresh_engagement_analyst_stats(session)
+        session.commit()
+
+    assert count == 0

@@ -249,3 +249,159 @@ class TestSummary:
         data = r.json()
         assert data["caseCount"] == 50
         assert data["reviewCompletionPct"] == 64.0
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 — Analytics, Leaderboard, Export
+# ---------------------------------------------------------------------------
+
+_EXTENDED_SUMMARY = {
+    "engagement_id": "eng-1",
+    "name": "Spring 2026",
+    "description": None,
+    "status": "active",
+    "starts_at": None,
+    "ends_at": None,
+    "created_by": "admin@test.io",
+    "metadata": None,
+    "created_at": "2026-04-07T00:00:00+00:00",
+    "updated_at": "2026-04-07T00:00:00+00:00",
+    "case_count": 50,
+    "cases_reviewed": 32,
+    "cases_remaining": 18,
+    "review_completion_pct": 64.0,
+    "classification_distribution": {"phishing": 20, "scam": 12},
+    "top_classifications": ["phishing", "scam"],
+    "analyst_count": 5,
+    "days_elapsed": 10,
+    "days_remaining": 20,
+    "avg_review_time_hours": 1.5,
+}
+
+
+class TestAnalytics:
+    def test_analyst_can_get_analytics(self):
+        _as_analyst()
+        store = _mock_store()
+        store.get_extended_summary.return_value = _EXTENDED_SUMMARY
+        app.dependency_overrides[get_engagement_store] = lambda: store
+        client = TestClient(app)
+        r = client.get("/engagements/eng-1/analytics")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["classificationDistribution"] == {"phishing": 20, "scam": 12}
+        assert data["analystCount"] == 5
+        assert data["avgReviewTimeHours"] == 1.5
+
+    def test_analytics_not_found(self):
+        _as_analyst()
+        store = _mock_store()
+        store.get_extended_summary.return_value = None
+        app.dependency_overrides[get_engagement_store] = lambda: store
+        client = TestClient(app)
+        r = client.get("/engagements/nonexistent/analytics")
+        assert r.status_code == 404
+
+    def test_user_cannot_get_analytics(self):
+        _as_user()
+        client = TestClient(app)
+        r = client.get("/engagements/eng-1/analytics")
+        assert r.status_code == 403
+
+
+class TestLeaderboard:
+    def test_analyst_can_get_leaderboard(self):
+        _as_analyst()
+        store = _mock_store()
+        store.get_leaderboard.return_value = [
+            {
+                "rank": 1,
+                "analyst_email": "alice@test.io",
+                "cases_reviewed": 10,
+                "avg_review_time_seconds": 300.0,
+                "classification_accuracy": 0.92,
+                "risk_score_mae": 5.0,
+                "actions_logged": 20,
+                "last_activity_at": "2026-04-07T00:00:00+00:00",
+                "composite_score": 85.5,
+            },
+        ]
+        app.dependency_overrides[get_engagement_store] = lambda: store
+        client = TestClient(app)
+        r = client.get("/engagements/eng-1/leaderboard")
+        assert r.status_code == 200
+        data = r.json()
+        assert data["engagementId"] == "eng-1"
+        assert data["totalAnalysts"] == 1
+        assert data["entries"][0]["analystEmail"] == "alice@test.io"
+        assert data["entries"][0]["compositeScore"] == 85.5
+
+    def test_leaderboard_not_found(self):
+        _as_analyst()
+        store = _mock_store()
+        store.get_leaderboard.return_value = None
+        app.dependency_overrides[get_engagement_store] = lambda: store
+        client = TestClient(app)
+        r = client.get("/engagements/nonexistent/leaderboard")
+        assert r.status_code == 404
+
+    def test_user_cannot_get_leaderboard(self):
+        _as_user()
+        client = TestClient(app)
+        r = client.get("/engagements/eng-1/leaderboard")
+        assert r.status_code == 403
+
+
+class TestExport:
+    def test_manager_can_export_csv(self):
+        _as_manager()
+        store = _mock_store()
+        store.get_extended_summary.return_value = _EXTENDED_SUMMARY
+        store.get_leaderboard.return_value = [
+            {
+                "rank": 1,
+                "analyst_email": "alice@test.io",
+                "cases_reviewed": 10,
+                "avg_review_time_seconds": 300.0,
+                "classification_accuracy": 0.92,
+                "risk_score_mae": 5.0,
+                "actions_logged": 20,
+                "composite_score": 85.5,
+            },
+        ]
+        app.dependency_overrides[get_engagement_store] = lambda: store
+        client = TestClient(app)
+        r = client.get("/engagements/eng-1/export?fmt=csv")
+        assert r.status_code == 200
+        assert "text/csv" in r.headers["content-type"]
+        assert "Rank" in r.text
+        assert "alice@test.io" in r.text
+
+    def test_manager_can_export_json(self):
+        _as_manager()
+        store = _mock_store()
+        store.get_extended_summary.return_value = _EXTENDED_SUMMARY
+        store.get_leaderboard.return_value = []
+        app.dependency_overrides[get_engagement_store] = lambda: store
+        client = TestClient(app)
+        r = client.get("/engagements/eng-1/export?fmt=json")
+        assert r.status_code == 200
+        assert "application/json" in r.headers["content-type"]
+        data = r.json()
+        assert "summary" in data
+        assert "leaderboard" in data
+
+    def test_analyst_cannot_export(self):
+        _as_analyst()
+        client = TestClient(app)
+        r = client.get("/engagements/eng-1/export")
+        assert r.status_code == 403
+
+    def test_export_not_found(self):
+        _as_manager()
+        store = _mock_store()
+        store.get_extended_summary.return_value = None
+        app.dependency_overrides[get_engagement_store] = lambda: store
+        client = TestClient(app)
+        r = client.get("/engagements/nonexistent/export")
+        assert r.status_code == 404

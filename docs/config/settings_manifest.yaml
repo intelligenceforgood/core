@@ -25,6 +25,18 @@ fields:
       - ANALYTICS_INFRASTRUCTURE_CLUSTERING_INTERVAL_HOURS
       - ANALYTICS__INFRASTRUCTURE_CLUSTERING_INTERVAL_HOURS
     description: Hours between infrastructure clustering runs.
+  - path: analytics.leaderboard_weights
+    section: analytics
+    type: dict[str, float]
+    default:
+      accuracy: 0.4
+      throughput: 0.35
+      quality: 0.25
+    env_vars:
+      - I4G_ANALYTICS__LEADERBOARD_WEIGHTS
+      - ANALYTICS_LEADERBOARD_WEIGHTS
+      - ANALYTICS__LEADERBOARD_WEIGHTS
+    description: Weight factors for engagement leaderboard composite score.
   - path: analytics.loss_linkage_confidence_threshold
     section: analytics
     type: float

@@ -178,3 +178,253 @@ class TestSummary:
     def test_summary_nonexistent_returns_none(self, tmp_path):
         store, _ = _make_store(tmp_path / "test.db")
         assert store.get_summary("no-such-id") is None
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 — Extended analytics & Leaderboard
+# ---------------------------------------------------------------------------
+
+
+def _seed_review_data(
+    sf: sessionmaker,
+    engagement_id: str,
+    analysts: list[str],
+) -> None:
+    """Insert review_queue + review_actions rows for engagement cases."""
+    from datetime import UTC, datetime
+
+    from i4g.store import sql as sql_schema
+
+    now = datetime.now(UTC)
+    with sf() as session:
+        cases = session.execute(
+            sa.select(sql_schema.cases.c.case_id).where(sql_schema.cases.c.engagement_id == engagement_id)
+        ).fetchall()
+        for idx, (case_id,) in enumerate(cases):
+            review_id = f"rev-{case_id}"
+            analyst = analysts[idx % len(analysts)]
+            session.execute(
+                sa.insert(sql_schema.review_queue).values(
+                    review_id=review_id,
+                    case_id=case_id,
+                    queued_at=now,
+                    priority="medium",
+                    status="accepted",
+                    assigned_to=analyst,
+                )
+            )
+            session.execute(
+                sa.insert(sql_schema.review_actions).values(
+                    action_id=f"act-{case_id}",
+                    review_id=review_id,
+                    actor=analyst,
+                    action="classify",
+                    created_at=now,
+                )
+            )
+        session.commit()
+
+
+def _seed_analyst_stats(
+    sf: sessionmaker,
+    engagement_id: str,
+    stats: list[dict],
+) -> None:
+    """Insert rows into engagement_analyst_stats directly."""
+    from datetime import UTC, datetime
+
+    from i4g.store import sql as sql_schema
+
+    now = datetime.now(UTC)
+    with sf() as session:
+        for s in stats:
+            session.execute(
+                sa.insert(sql_schema.engagement_analyst_stats).values(
+                    engagement_id=engagement_id,
+                    analyst_email=s["analyst_email"],
+                    cases_reviewed=s.get("cases_reviewed", 0),
+                    avg_review_time_seconds=s.get("avg_review_time_seconds"),
+                    classification_accuracy=s.get("classification_accuracy"),
+                    risk_score_mae=s.get("risk_score_mae"),
+                    actions_logged=s.get("actions_logged", 0),
+                    last_activity_at=s.get("last_activity_at"),
+                    computed_at=now,
+                )
+            )
+        session.commit()
+
+
+class TestExtendedSummary:
+    def test_extended_summary_basic(self, tmp_path):
+        store, sf = _make_store(tmp_path / "test.db")
+        eng = store.create(name="Test Ext Summary", status="active")
+        eid = eng["engagement_id"]
+        _insert_case(sf, "case-1", engagement_id=eid)
+        _insert_case(sf, "case-2", engagement_id=eid)
+
+        summary = store.get_extended_summary(eid)
+        assert summary is not None
+        assert summary["case_count"] == 2
+        assert "classification_distribution" in summary
+        assert "top_classifications" in summary
+        assert "analyst_count" in summary
+        assert summary["analyst_count"] == 0  # no reviews yet
+
+    def test_extended_summary_with_analysts(self, tmp_path):
+        store, sf = _make_store(tmp_path / "test.db")
+        eng = store.create(name="With Analysts", status="active")
+        eid = eng["engagement_id"]
+        _insert_case(sf, "case-1", engagement_id=eid)
+        _insert_case(sf, "case-2", engagement_id=eid)
+        _seed_review_data(sf, eid, ["alice@test.io", "bob@test.io"])
+
+        summary = store.get_extended_summary(eid)
+        assert summary["analyst_count"] == 2
+
+    def test_extended_summary_days_elapsed(self, tmp_path):
+        from datetime import UTC, datetime, timedelta
+
+        store, sf = _make_store(tmp_path / "test.db")
+        eng = store.create(
+            name="With Dates",
+            status="active",
+            starts_at=datetime.now(UTC) - timedelta(days=5),
+            ends_at=datetime.now(UTC) + timedelta(days=10),
+        )
+        summary = store.get_extended_summary(eng["engagement_id"])
+        assert summary["days_elapsed"] == 5
+        assert summary["days_remaining"] is not None
+        assert summary["days_remaining"] >= 9
+
+    def test_extended_summary_avg_review_time(self, tmp_path):
+        store, sf = _make_store(tmp_path / "test.db")
+        eng = store.create(name="With Stats", status="active")
+        eid = eng["engagement_id"]
+        _insert_case(sf, "case-1", engagement_id=eid)
+        _seed_analyst_stats(
+            sf,
+            eid,
+            [
+                {"analyst_email": "alice@test.io", "cases_reviewed": 5, "avg_review_time_seconds": 360},
+                {"analyst_email": "bob@test.io", "cases_reviewed": 3, "avg_review_time_seconds": 720},
+            ],
+        )
+
+        summary = store.get_extended_summary(eid)
+        # Average of 360 and 720 = 540 seconds / 3600 = 0.15 → rounded to 0.1
+        assert summary["avg_review_time_hours"] == 0.1
+
+    def test_extended_summary_nonexistent_returns_none(self, tmp_path):
+        store, _ = _make_store(tmp_path / "test.db")
+        assert store.get_extended_summary("no-such-id") is None
+
+
+class TestLeaderboard:
+    def test_leaderboard_empty(self, tmp_path):
+        store, _ = _make_store(tmp_path / "test.db")
+        eng = store.create(name="Empty Eng", status="active")
+        entries = store.get_leaderboard(eng["engagement_id"])
+        assert entries == []
+
+    def test_leaderboard_nonexistent_returns_none(self, tmp_path):
+        store, _ = _make_store(tmp_path / "test.db")
+        assert store.get_leaderboard("no-such-id") is None
+
+    def test_leaderboard_ranking(self, tmp_path):
+        store, sf = _make_store(tmp_path / "test.db")
+        eng = store.create(name="Ranked Eng", status="active")
+        eid = eng["engagement_id"]
+        _seed_analyst_stats(
+            sf,
+            eid,
+            [
+                {
+                    "analyst_email": "alice@test.io",
+                    "cases_reviewed": 10,
+                    "classification_accuracy": 0.9,
+                    "risk_score_mae": 5.0,
+                    "actions_logged": 20,
+                },
+                {
+                    "analyst_email": "bob@test.io",
+                    "cases_reviewed": 5,
+                    "classification_accuracy": 0.7,
+                    "risk_score_mae": 10.0,
+                    "actions_logged": 10,
+                },
+            ],
+        )
+
+        entries = store.get_leaderboard(eid)
+        assert len(entries) == 2
+        assert entries[0]["rank"] == 1
+        assert entries[1]["rank"] == 2
+        # Alice should rank higher due to more reviews and higher accuracy
+        assert entries[0]["analyst_email"] == "alice@test.io"
+        assert entries[0]["composite_score"] > entries[1]["composite_score"]
+
+    def test_leaderboard_with_custom_weights(self, tmp_path):
+        store, sf = _make_store(tmp_path / "test.db")
+        eng = store.create(name="Custom Weights", status="active")
+        eid = eng["engagement_id"]
+        _seed_analyst_stats(
+            sf,
+            eid,
+            [
+                {
+                    "analyst_email": "alice@test.io",
+                    "cases_reviewed": 10,
+                    "classification_accuracy": 0.5,
+                    "actions_logged": 20,
+                },
+                {
+                    "analyst_email": "bob@test.io",
+                    "cases_reviewed": 3,
+                    "classification_accuracy": 0.99,
+                    "actions_logged": 5,
+                },
+            ],
+        )
+
+        # Heavily weight accuracy only
+        entries = store.get_leaderboard(eid, weights={"accuracy": 1.0, "throughput": 0.0, "quality": 0.0})
+        assert entries[0]["analyst_email"] == "bob@test.io"
+
+    def test_leaderboard_entries_have_required_fields(self, tmp_path):
+        store, sf = _make_store(tmp_path / "test.db")
+        eng = store.create(name="Fields Check", status="active")
+        eid = eng["engagement_id"]
+        _seed_analyst_stats(
+            sf,
+            eid,
+            [
+                {
+                    "analyst_email": "alice@test.io",
+                    "cases_reviewed": 5,
+                    "classification_accuracy": 0.8,
+                    "actions_logged": 10,
+                },
+            ],
+        )
+
+        entries = store.get_leaderboard(eid)
+        entry = entries[0]
+        assert "rank" in entry
+        assert "analyst_email" in entry
+        assert "cases_reviewed" in entry
+        assert "composite_score" in entry
+        assert "classification_accuracy" in entry
+        assert "actions_logged" in entry
+
+    def test_leaderboard_limit(self, tmp_path):
+        store, sf = _make_store(tmp_path / "test.db")
+        eng = store.create(name="Limit Test", status="active")
+        eid = eng["engagement_id"]
+        _seed_analyst_stats(
+            sf,
+            eid,
+            [{"analyst_email": f"analyst{i}@test.io", "cases_reviewed": i, "actions_logged": i} for i in range(1, 6)],
+        )
+
+        entries = store.get_leaderboard(eid, limit=3)
+        assert len(entries) == 3

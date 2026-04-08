@@ -129,6 +129,7 @@ vertex_ai_data_store = "retrieval-poc"
 # watchlist_check_interval_minutes = 30
 # infrastructure_clustering_interval_hours = 6
 # scheduled_report_check_interval_minutes = 15
+# leaderboard_weights = {accuracy = 0.40, throughput = 0.35, quality = 0.25}
 
 [enrichment]
 # securitytrails_api_key = ""

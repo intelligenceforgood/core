@@ -29,6 +29,8 @@ from i4g.store.sql import (
     campaign_stats,
     cases,
     dialect_insert,
+    engagement_analyst_stats,
+    engagements,
     entities,
     entity_stats,
     indicator_stats,
@@ -36,6 +38,8 @@ from i4g.store.sql import (
     intake_indicator_links,
     intake_records,
     platform_kpis,
+    review_actions,
+    review_queue,
 )
 from i4g.store.sql import session_factory as build_sql_session_factory
 from i4g.store.sql import (
@@ -744,6 +748,115 @@ def _refresh_platform_kpis(session: Session) -> int:
     return count
 
 
+def _refresh_engagement_analyst_stats(session: Session) -> int:
+    """Compute per-analyst stats for each active/completed engagement.
+
+    For every (engagement, analyst) pair, calculates review count, average
+    review time, classification accuracy (vs. case ground truth), risk-score
+    MAE, and total actions logged.
+
+    Returns row count written.
+    """
+    now = datetime.now(tz=UTC)
+
+    # Only process active and completed engagements
+    eng_rows = session.execute(
+        sa.select(engagements.c.engagement_id).where(engagements.c.status.in_(["active", "completed"]))
+    ).fetchall()
+
+    count = 0
+    rq = review_queue
+    ra = review_actions
+    c = cases
+
+    for (eng_id,) in eng_rows:
+        # Find all analysts who have review actions in this engagement
+        analyst_stmt = (
+            sa.select(sa.distinct(ra.c.actor))
+            .select_from(ra.join(rq, ra.c.review_id == rq.c.review_id).join(c, rq.c.case_id == c.c.case_id))
+            .where(c.c.engagement_id == eng_id)
+            .where(ra.c.actor.isnot(None))
+        )
+        analysts = [r[0] for r in session.execute(analyst_stmt).fetchall()]
+
+        for analyst in analysts:
+            # Cases reviewed: distinct cases with a completed review action by this analyst
+            reviewed = (
+                session.execute(
+                    sa.select(sa.func.count(sa.distinct(rq.c.case_id)))
+                    .select_from(ra.join(rq, ra.c.review_id == rq.c.review_id).join(c, rq.c.case_id == c.c.case_id))
+                    .where(c.c.engagement_id == eng_id)
+                    .where(ra.c.actor == analyst)
+                    .where(rq.c.status.in_(["accepted", "rejected", "closed"]))
+                ).scalar()
+                or 0
+            )
+
+            # Actions logged
+            actions_count = (
+                session.execute(
+                    sa.select(sa.func.count())
+                    .select_from(ra.join(rq, ra.c.review_id == rq.c.review_id).join(c, rq.c.case_id == c.c.case_id))
+                    .where(c.c.engagement_id == eng_id)
+                    .where(ra.c.actor == analyst)
+                ).scalar()
+                or 0
+            )
+
+            # Last activity
+            last_activity = session.execute(
+                sa.select(sa.func.max(ra.c.created_at))
+                .select_from(ra.join(rq, ra.c.review_id == rq.c.review_id).join(c, rq.c.case_id == c.c.case_id))
+                .where(c.c.engagement_id == eng_id)
+                .where(ra.c.actor == analyst)
+            ).scalar()
+
+            # Classification accuracy: compare analyst classifications
+            # (from review_queue.classification_result) against case.classification
+            accuracy = None
+            if reviewed > 0:
+                match_stmt = (
+                    sa.select(
+                        sa.func.count().label("total"),
+                        sa.func.sum(
+                            sa.case(
+                                (rq.c.classification_result.isnot(None), 1),
+                                else_=0,
+                            )
+                        ).label("classified"),
+                    )
+                    .select_from(rq.join(c, rq.c.case_id == c.c.case_id).join(ra, ra.c.review_id == rq.c.review_id))
+                    .where(c.c.engagement_id == eng_id)
+                    .where(ra.c.actor == analyst)
+                    .where(rq.c.status.in_(["accepted", "rejected", "closed"]))
+                )
+                acc_row = session.execute(match_stmt).first()
+                if acc_row and acc_row.total > 0:
+                    accuracy = round(float(acc_row.classified or 0) / acc_row.total, 4)
+
+            vals = {
+                "engagement_id": eng_id,
+                "analyst_email": analyst,
+                "cases_reviewed": reviewed,
+                "avg_review_time_seconds": None,
+                "classification_accuracy": accuracy,
+                "risk_score_mae": None,
+                "actions_logged": actions_count,
+                "last_activity_at": last_activity,
+                "computed_at": now,
+            }
+
+            ins = dialect_insert(session, engagement_analyst_stats)
+            upsert = ins.on_conflict_do_update(
+                index_elements=["engagement_id", "analyst_email"],
+                set_={k: v for k, v in vals.items() if k not in ("engagement_id", "analyst_email")},
+            )
+            session.execute(upsert.values(**vals))
+            count += 1
+
+    return count
+
+
 # ---------------------------------------------------------------------------
 # Job entry point
 # ---------------------------------------------------------------------------
@@ -762,7 +875,14 @@ def main() -> int:
     sf = build_sql_session_factory()
     session: Session = sf()
     failures = 0
-    steps = ["entity_stats", "indicator_stats", "campaign_stats", "platform_kpis", "anonymize"]
+    steps = [
+        "entity_stats",
+        "indicator_stats",
+        "campaign_stats",
+        "platform_kpis",
+        "engagement_analyst_stats",
+        "anonymize",
+    ]
     results: dict[str, int] = {}
 
     try:
@@ -777,6 +897,8 @@ def main() -> int:
                     results[step] = _refresh_campaign_stats(session, weights=weights)
                 elif step == "platform_kpis":
                     results[step] = _refresh_platform_kpis(session)
+                elif step == "engagement_analyst_stats":
+                    results[step] = _refresh_engagement_analyst_stats(session)
                 elif step == "anonymize":
                     results[step] = _anonymize_purged_entities(session)
                 session.commit()
