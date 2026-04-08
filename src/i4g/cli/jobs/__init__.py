@@ -98,6 +98,15 @@ def jobs_analytics() -> None:
     _exit_from_return(analytics_aggregation.main())
 
 
+@jobs_app.command("bq-export", help="Export analytics aggregate tables to BigQuery.")
+def jobs_bq_export(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Simulate export (print row counts without writing to BQ)."),
+) -> None:
+    from i4g.worker.jobs import bq_export
+
+    _exit_from_return(bq_export.main(dry_run=dry_run))
+
+
 @jobs_app.command("entity-extract", help="Batch entity extraction via LLM + rule-based NER.")
 def jobs_entity_extract(
     backfill: bool = typer.Option(False, "--backfill", help="Re-extract entities for all cases, not just missing."),

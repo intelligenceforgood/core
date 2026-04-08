@@ -636,114 +636,147 @@ def _refresh_campaign_stats(session: Session, weights: dict[str, float] | None =
 def _refresh_platform_kpis(session: Session) -> int:
     """Compute daily and weekly KPI snapshots and upsert into ``platform_kpis``.
 
+    Produces one global row (engagement_id = '__global__') plus one row per
+    active/completed engagement for each (period_type, period_start) pair.
+
     Returns row count written.
     """
     now = datetime.now(tz=UTC)
     today = now.date()
     count = 0
 
+    # Collect engagement IDs to compute per-engagement KPIs for.
+    active_eng_ids: list[str] = [
+        row[0]
+        for row in session.execute(
+            sa.select(engagements.c.engagement_id).where(engagements.c.status.in_(["active", "completed"]))
+        ).fetchall()
+    ]
+    # __global__ sentinel means "all engagements combined".
+    scope_ids: list[str | None] = ["__global__", *active_eng_ids]
+
     for period_type, days_back in [("daily", 1), ("weekly", 7)]:
         period_start = today - timedelta(days=days_back)
         cutoff = datetime(period_start.year, period_start.month, period_start.day, tzinfo=UTC)
 
-        # Total / proactive / reactive cases
-        total_cases = (
-            session.execute(
-                sa.select(sa.func.count())
-                .select_from(cases)
-                .where(
-                    cases.c.created_at >= cutoff,
-                    cases.c.is_deleted == sa.false(),
+        for eid in scope_ids:
+            eng_filter = sa.true() if eid == "__global__" else (cases.c.engagement_id == eid)
+            intake_eng_filter = sa.true()
+            if eid != "__global__":
+                # Filter intake_records through their linked cases
+                intake_eng_filter = intake_records.c.case_id.in_(
+                    sa.select(cases.c.case_id).where(cases.c.engagement_id == eid)
                 )
-            ).scalar()
-            or 0
-        )
 
-        proactive_cases = (
-            session.execute(
-                sa.select(sa.func.count())
-                .select_from(cases)
-                .where(
-                    cases.c.created_at >= cutoff,
-                    cases.c.is_deleted == sa.false(),
-                    cases.c.source_type == "proactive",
-                )
-            ).scalar()
-            or 0
-        )
+            # Total / proactive / reactive cases
+            total_cases = (
+                session.execute(
+                    sa.select(sa.func.count())
+                    .select_from(cases)
+                    .where(
+                        cases.c.created_at >= cutoff,
+                        cases.c.is_deleted == sa.false(),
+                        eng_filter,
+                    )
+                ).scalar()
+                or 0
+            )
 
-        reactive_cases = total_cases - proactive_cases
+            proactive_cases = (
+                session.execute(
+                    sa.select(sa.func.count())
+                    .select_from(cases)
+                    .where(
+                        cases.c.created_at >= cutoff,
+                        cases.c.is_deleted == sa.false(),
+                        cases.c.source_type == "proactive",
+                        eng_filter,
+                    )
+                ).scalar()
+                or 0
+            )
 
-        # Total loss from intake_records in period
-        total_loss = float(
-            session.execute(
-                sa.select(sa.func.coalesce(sa.func.sum(intake_records.c.loss_amount), 0)).where(
-                    intake_records.c.created_at >= cutoff,
-                )
-            ).scalar()
-            or 0
-        )
+            reactive_cases = total_cases - proactive_cases
 
-        # New indicators — use first_seen_at (real-world date) over created_at
-        # (row insertion time) so that bulk bootstrap/re-ingestion doesn't
-        # inflate the count.
-        new_indicators = (
-            session.execute(
-                sa.select(sa.func.count())
-                .select_from(indicators)
-                .where(
-                    sa.func.coalesce(indicators.c.first_seen_at, indicators.c.created_at) >= cutoff,
-                )
-            ).scalar()
-            or 0
-        )
+            # Total loss from intake_records in period
+            total_loss = float(
+                session.execute(
+                    sa.select(sa.func.coalesce(sa.func.sum(intake_records.c.loss_amount), 0)).where(
+                        intake_records.c.created_at >= cutoff,
+                        intake_eng_filter,
+                    )
+                ).scalar()
+                or 0
+            )
 
-        # New entities — same first_seen_at preference as indicators.
-        new_entities = (
-            session.execute(
-                sa.select(sa.func.count())
-                .select_from(entities)
-                .where(
-                    sa.func.coalesce(entities.c.first_seen_at, entities.c.created_at) >= cutoff,
-                )
-            ).scalar()
-            or 0
-        )
+            # New indicators
+            ind_eng_join = sa.true()
+            if eid != "__global__":
+                ind_eng_join = indicators.c.case_id.in_(sa.select(cases.c.case_id).where(cases.c.engagement_id == eid))
+            new_indicators = (
+                session.execute(
+                    sa.select(sa.func.count())
+                    .select_from(indicators)
+                    .where(
+                        sa.func.coalesce(indicators.c.first_seen_at, indicators.c.created_at) >= cutoff,
+                        ind_eng_join,
+                    )
+                ).scalar()
+                or 0
+            )
 
-        # Cases actioned (resolved_at set in period)
-        cases_actioned = (
-            session.execute(
-                sa.select(sa.func.count())
-                .select_from(cases)
-                .where(
-                    cases.c.resolved_at >= cutoff,
-                    cases.c.is_deleted == sa.false(),
-                )
-            ).scalar()
-            or 0
-        )
+            # New entities
+            ent_eng_join = sa.true()
+            if eid != "__global__":
+                ent_eng_join = entities.c.case_id.in_(sa.select(cases.c.case_id).where(cases.c.engagement_id == eid))
+            new_entities = (
+                session.execute(
+                    sa.select(sa.func.count())
+                    .select_from(entities)
+                    .where(
+                        sa.func.coalesce(entities.c.first_seen_at, entities.c.created_at) >= cutoff,
+                        ent_eng_join,
+                    )
+                ).scalar()
+                or 0
+            )
 
-        ins = dialect_insert(session, platform_kpis)
-        vals = {
-            "period_type": period_type,
-            "period_start": period_start,
-            "total_cases": total_cases,
-            "proactive_cases": proactive_cases,
-            "reactive_cases": reactive_cases,
-            "total_loss": total_loss,
-            "new_indicators": new_indicators,
-            "new_entities": new_entities,
-            "site_scans": 0,  # populated by SSI integration
-            "ecx_submissions": 0,  # populated by eCrimeX integration
-            "cases_actioned": cases_actioned,
-            "updated_at": now,
-        }
-        upsert = ins.on_conflict_do_update(
-            index_elements=["period_type", "period_start"],
-            set_={k: v for k, v in vals.items() if k not in ("period_type", "period_start")},
-        )
-        session.execute(upsert.values(**vals))
-        count += 1
+            # Cases actioned (resolved_at set in period)
+            cases_actioned = (
+                session.execute(
+                    sa.select(sa.func.count())
+                    .select_from(cases)
+                    .where(
+                        cases.c.resolved_at >= cutoff,
+                        cases.c.is_deleted == sa.false(),
+                        eng_filter,
+                    )
+                ).scalar()
+                or 0
+            )
+
+            ins = dialect_insert(session, platform_kpis)
+            vals = {
+                "period_type": period_type,
+                "period_start": period_start,
+                "engagement_id": eid,
+                "total_cases": total_cases,
+                "proactive_cases": proactive_cases,
+                "reactive_cases": reactive_cases,
+                "total_loss": total_loss,
+                "new_indicators": new_indicators,
+                "new_entities": new_entities,
+                "site_scans": 0,
+                "ecx_submissions": 0,
+                "cases_actioned": cases_actioned,
+                "updated_at": now,
+            }
+            upsert = ins.on_conflict_do_update(
+                index_elements=["period_type", "period_start", "engagement_id"],
+                set_={k: v for k, v in vals.items() if k not in ("period_type", "period_start", "engagement_id")},
+            )
+            session.execute(upsert.values(**vals))
+            count += 1
 
     return count
 

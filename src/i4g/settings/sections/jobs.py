@@ -661,6 +661,36 @@ class AnalyticsSettings(BaseSettings):
     )
 
 
+class BigQueryExportSettings(BaseSettings):
+    """BigQuery export configuration for analytics warehouse sync.
+
+    Controls the scheduled job that exports pre-computed aggregate tables
+    (``platform_kpis``, ``entity_stats``, ``indicator_stats``,
+    ``campaign_stats``, ``engagement_analyst_stats``, ``engagements``) from
+    Cloud SQL to BigQuery for Looker dashboards and cross-engagement analytics.
+
+    Env vars: ``I4G_BQ_EXPORT__PROJECT_ID``, etc.
+    """
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    project_id: str = Field(
+        default="i4g-dev",
+        validation_alias=AliasChoices("BQ_EXPORT_PROJECT_ID", "BQ_EXPORT__PROJECT_ID"),
+        description="GCP project containing the target BigQuery dataset.",
+    )
+    dataset_id: str = Field(
+        default="i4g_analytics",
+        validation_alias=AliasChoices("BQ_EXPORT_DATASET_ID", "BQ_EXPORT__DATASET_ID"),
+        description="BigQuery dataset for exported analytics tables.",
+    )
+    enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("BQ_EXPORT_ENABLED", "BQ_EXPORT__ENABLED"),
+        description="Enable BigQuery export. Disabled by default for local/test environments.",
+    )
+
+
 class EnrichmentSettings(BaseSettings):
     """External enrichment service configuration.
 

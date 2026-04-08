@@ -17,6 +17,7 @@ from i4g.settings.sections import (
     APISettings,
     AutoInvestigateSettings,
     BackfillSettings,
+    BigQueryExportSettings,
     CryptoSettings,
     DbAdminSettings,
     DossierJobSettings,
@@ -215,6 +216,7 @@ class Settings(BaseSettings):
     redis: RedisSettings = Field(default_factory=RedisSettings)
     feedback: FeedbackSettings = Field(default_factory=FeedbackSettings)
     analytics: AnalyticsSettings = Field(default_factory=AnalyticsSettings)
+    bq_export: BigQueryExportSettings = Field(default_factory=BigQueryExportSettings)
     enrichment: EnrichmentSettings = Field(default_factory=EnrichmentSettings)
     email: EmailSettings = Field(default_factory=EmailSettings)
     partner_feed: PartnerFeedSettings = Field(default_factory=PartnerFeedSettings)

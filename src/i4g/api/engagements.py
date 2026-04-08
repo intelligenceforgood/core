@@ -17,6 +17,7 @@ from i4g.api.camel import CamelModel
 from i4g.services.factories import build_engagement_store
 from i4g.settings import get_settings
 from i4g.store.engagement_store import EngagementStore
+from i4g.store.sql import session_factory as build_sql_session_factory
 
 logger = logging.getLogger(__name__)
 
@@ -334,3 +335,90 @@ def export_engagement(
         media_type="text/csv",
         headers={"Content-Disposition": f'attachment; filename="engagement_{eng_name}.csv"'},
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 — Cross-Engagement Intelligence
+# ---------------------------------------------------------------------------
+
+
+class CrossEngagementKPI(CamelModel):
+    engagement_id: str
+    engagement_name: str | None = None
+    engagement_status: str | None = None
+    starts_at: datetime | None = None
+    ends_at: datetime | None = None
+    total_cases: int = 0
+    proactive_cases: int = 0
+    reactive_cases: int = 0
+    total_loss: float = 0.0
+    new_indicators: int = 0
+    new_entities: int = 0
+    cases_actioned: int = 0
+    period_start: datetime | None = None
+
+
+class SemesterTrendRow(CamelModel):
+    engagement_id: str
+    engagement_name: str | None = None
+    period_type: str
+    period_start: datetime | None = None
+    total_cases: int = 0
+    proactive_cases: int = 0
+    reactive_cases: int = 0
+    total_loss: float = 0.0
+    new_indicators: int = 0
+    new_entities: int = 0
+    cases_actioned: int = 0
+
+
+class UniversityComparison(CamelModel):
+    university: str
+    engagement_count: int = 0
+    total_cases: int = 0
+    total_loss: float = 0.0
+    total_indicators: int = 0
+    total_entities: int = 0
+    cases_actioned: int = 0
+    engagements: list[dict[str, Any]] = []
+
+
+@router.get("/compare/kpis")
+def compare_engagement_kpis(
+    user: dict[str, str] = Depends(require_role("manager")),
+) -> list[CrossEngagementKPI]:
+    """Cross-engagement KPI comparison — latest weekly snapshot per engagement."""
+    from i4g.worker.jobs.bq_export import get_cross_engagement_kpis
+
+    sf = build_sql_session_factory()
+    with sf() as session:
+        rows = get_cross_engagement_kpis(session)
+    return [CrossEngagementKPI(**r) for r in rows]
+
+
+@router.get("/compare/trends")
+def compare_engagement_trends(
+    engagement_ids: str | None = Query(None, description="Comma-separated engagement IDs"),
+    user: dict[str, str] = Depends(require_role("manager")),
+) -> list[SemesterTrendRow]:
+    """Semester-over-semester weekly KPI time series per engagement."""
+    from i4g.worker.jobs.bq_export import get_semester_trends
+
+    ids = [eid.strip() for eid in engagement_ids.split(",") if eid.strip()] if engagement_ids else None
+    sf = build_sql_session_factory()
+    with sf() as session:
+        rows = get_semester_trends(session, engagement_ids=ids)
+    return [SemesterTrendRow(**r) for r in rows]
+
+
+@router.get("/compare/universities")
+def compare_universities(
+    user: dict[str, str] = Depends(require_role("manager")),
+) -> list[UniversityComparison]:
+    """Aggregate KPIs by university for partnership comparison reports."""
+    from i4g.worker.jobs.bq_export import get_university_comparison
+
+    sf = build_sql_session_factory()
+    with sf() as session:
+        rows = get_university_comparison(session)
+    return [UniversityComparison(**r) for r in rows]

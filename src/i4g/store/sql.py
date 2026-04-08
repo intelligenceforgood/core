@@ -718,6 +718,7 @@ platform_kpis = sa.Table(
     METADATA,
     sa.Column("period_type", sa.Text(), nullable=False),
     sa.Column("period_start", sa.Date(), nullable=False),
+    sa.Column("engagement_id", UUID_TYPE, nullable=True),  # NULL = global row
     sa.Column("total_cases", sa.Integer(), nullable=False, server_default="0"),
     sa.Column("proactive_cases", sa.Integer(), nullable=False, server_default="0"),
     sa.Column("reactive_cases", sa.Integer(), nullable=False, server_default="0"),
@@ -729,8 +730,9 @@ platform_kpis = sa.Table(
     sa.Column("cases_actioned", sa.Integer(), nullable=False, server_default="0"),
     sa.Column("median_action_hours", sa.Numeric(10, 2), nullable=True),
     sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
-    sa.PrimaryKeyConstraint("period_type", "period_start", name="pk_platform_kpis"),
+    sa.PrimaryKeyConstraint("period_type", "period_start", "engagement_id", name="pk_platform_kpis"),
 )
+sa.Index("idx_platform_kpis_engagement_id", platform_kpis.c.engagement_id)
 
 annotations = sa.Table(
     "annotations",

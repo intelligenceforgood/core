@@ -195,6 +195,35 @@ fields:
       - BACKFILL_ENABLED_TASKS
       - BACKFILL__ENABLED_TASKS
     description: Task names to run in daemon mode.
+  - path: bq_export.dataset_id
+    section: bq_export
+    type: str
+    default: i4g_analytics
+    env_vars:
+      - I4G_BQ_EXPORT__DATASET_ID
+      - BQ_EXPORT_DATASET_ID
+      - BQ_EXPORT__DATASET_ID
+    description: BigQuery dataset for exported analytics tables.
+  - path: bq_export.enabled
+    section: bq_export
+    type: bool
+    default: false
+    env_vars:
+      - I4G_BQ_EXPORT__ENABLED
+      - BQ_EXPORT_ENABLED
+      - BQ_EXPORT__ENABLED
+    description: >-
+      Enable BigQuery export. Disabled by default for local/test
+      environments.
+  - path: bq_export.project_id
+    section: bq_export
+    type: str
+    default: i4g-dev
+    env_vars:
+      - I4G_BQ_EXPORT__PROJECT_ID
+      - BQ_EXPORT_PROJECT_ID
+      - BQ_EXPORT__PROJECT_ID
+    description: GCP project containing the target BigQuery dataset.
   - path: crypto.pii_key
     section: crypto
     type: str | NoneType

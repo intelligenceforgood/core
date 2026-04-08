@@ -131,6 +131,11 @@ vertex_ai_data_store = "retrieval-poc"
 # scheduled_report_check_interval_minutes = 15
 # leaderboard_weights = {accuracy = 0.40, throughput = 0.35, quality = 0.25}
 
+[bq_export]
+# project_id = "i4g-dev"
+# dataset_id = "i4g_analytics"
+# enabled = false
+
 [enrichment]
 # securitytrails_api_key = ""
 # takedown_check_interval_hours = 12
