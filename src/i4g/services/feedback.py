@@ -20,7 +20,9 @@ logger = logging.getLogger(__name__)
 # Payload model
 # ---------------------------------------------------------------------------
 
-# Map feedback-ID page prefix → Google Sheet tab name
+# Map feedback-ID page prefix → Google Sheet tab name.
+# Keys may span multiple dot-separated segments; resolution prefers the longest
+# matching prefix so page families like reports/intelligence can route cleanly.
 PAGE_TAB_MAP: dict[str, str] = {
     "dashboard": "Dashboard",
     "search": "Search",
@@ -30,16 +32,55 @@ PAGE_TAB_MAP: dict[str, str] = {
     "case-detail": "Case Detail",
     "case-intake": "Case Intake",
     "dossiers": "Dossiers",
+    "reports.library": "Reports Library",
+    "reports.builder": "Report Builder",
     "campaigns": "Campaigns",
+    "campaigns.detail": "Campaign Detail",
     "taxonomy": "Taxonomy",
     "analytics": "Analytics",
+    "intelligence.dashboard": "Intelligence Dashboard",
+    "intelligence.entities": "Intelligence Entities",
+    "intelligence.indicators": "Intelligence Indicators",
+    "intelligence.campaigns": "Intelligence Campaigns",
+    "intelligence.campaign-detail": "Intelligence Campaign Detail",
+    "intelligence.graph": "Intelligence Graph",
+    "intelligence.timeline": "Intelligence Timeline",
+    "intelligence.watchlist": "Intelligence Watchlist",
+    "impact": "Impact Dashboard",
+    "impact.geography": "Impact Geography",
+    "impact.taxonomy-explorer": "Impact Taxonomy Explorer",
     "ssi-investigate": "SSI Investigate",
     "ssi-investigations": "SSI Investigations",
     "ssi-detail": "SSI Investigation Detail",
     "ssi-wallets": "SSI Wallets",
+    "ssi-submissions": "SSI Submissions",
+    "ssi-ecx-feed": "SSI eCX Feed",
+    "ssi-ecx-dashboard": "SSI eCX Dashboard",
+    "admin-engagements.compare": "Engagement Comparison",
+    "admin-engagements.leaderboard": "Engagement Leaderboard",
+    "admin-engagements": "Engagement Management",
     "admin-users": "Admin Users",
     "navigation": "Dashboard",  # global nav feedback goes to Dashboard tab
 }
+
+
+def _resolve_feedback_destination(feedback_id: str) -> tuple[str, str]:
+    """Resolve a feedback ID into a Google Sheet tab and section.
+
+    Resolution prefers the longest matching prefix in ``PAGE_TAB_MAP``. This
+    allows IDs like ``reports.builder`` or ``intelligence.entities`` to map to
+    dedicated tabs while still supporting broader prefixes like ``dashboard``.
+    """
+    parts = feedback_id.split(".")
+    for idx in range(len(parts), 0, -1):
+        candidate = ".".join(parts[:idx])
+        if candidate in PAGE_TAB_MAP:
+            section = ".".join(parts[idx:]) or "page"
+            return PAGE_TAB_MAP[candidate], section
+
+    page_key = parts[0]
+    section = ".".join(parts[1:]) or "page"
+    return PAGE_TAB_MAP.get(page_key, "Dashboard"), section
 
 
 class FeedbackPayload(BaseModel):
@@ -158,11 +199,7 @@ class GoogleSheetsFeedbackService:
         Returns:
             Tuple of (tab_name, section).
         """
-        parts = feedback_id.split(".", 1)
-        page_key = parts[0]
-        section = parts[1] if len(parts) > 1 else "page"
-        tab_name = PAGE_TAB_MAP.get(page_key, "Dashboard")
-        return tab_name, section
+        return _resolve_feedback_destination(feedback_id)
 
     def submit(self, payload: FeedbackPayload) -> bool:
         """Append a row to the appropriate sheet tab.
@@ -244,11 +281,7 @@ class LoggingFeedbackService:
         Returns:
             Tuple of (tab_name, section).
         """
-        parts = feedback_id.split(".", 1)
-        page_key = parts[0]
-        section = parts[1] if len(parts) > 1 else "page"
-        tab_name = PAGE_TAB_MAP.get(page_key, page_key)
-        return tab_name, section
+        return _resolve_feedback_destination(feedback_id)
 
     def submit(self, payload: FeedbackPayload) -> bool:
         """Log the feedback payload.

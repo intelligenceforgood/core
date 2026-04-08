@@ -33,7 +33,7 @@ from googleapiclient.errors import HttpError
 SHEET_ID = "1o8iSyLtFbSxdqEtT-L7OQvSqKTealP1H8f0VZzZKTw8"
 
 SUMMARY_TAB = "Summary"
-SUMMARY_STATUSES = ["New", "Accepted", "In Progress", "Done", "Won't Fix"]
+SUMMARY_STATUSES = ["New", "Accepted", "In Progress", "Done", "Won't Fix", "Verified"]
 
 # Tab name → page route (for reference; route is not written to the sheet)
 TABS: dict[str, str] = {
@@ -45,14 +45,33 @@ TABS: dict[str, str] = {
     "Case Detail": "/cases/[id]",
     "Case Intake": "/cases/intake",
     "Dossiers": "/reports/dossiers",
+    "Reports Library": "/reports/library",
+    "Report Builder": "/reports/builder",
     "Campaigns": "/campaigns",
+    "Campaign Detail": "/campaigns/[id]",
     "Taxonomy": "/taxonomy",
     "Analytics": "/analytics",
+    "Intelligence Dashboard": "/intelligence",
+    "Intelligence Entities": "/intelligence/entities",
+    "Intelligence Indicators": "/intelligence/indicators",
+    "Intelligence Campaigns": "/intelligence/campaigns",
+    "Intelligence Campaign Detail": "/intelligence/campaigns/[id]",
+    "Intelligence Graph": "/intelligence/graph",
+    "Intelligence Timeline": "/intelligence/timeline",
+    "Intelligence Watchlist": "/intelligence/watchlist",
+    "Impact Dashboard": "/impact",
+    "Impact Geography": "/impact/geography",
+    "Impact Taxonomy Explorer": "/impact/taxonomy-explorer",
     "SSI Investigate": "/ssi",
     "SSI Investigations": "/ssi/investigations",
     "SSI Investigation Detail": "/ssi/investigations/[id]",
     "SSI Wallets": "/ssi/wallets",
     "SSI Submissions": "/ssi/submissions",
+    "SSI eCX Feed": "/ssi/ecx-feed",
+    "SSI eCX Dashboard": "/ssi/ecx-dashboard",
+    "Engagement Management": "/admin/engagements",
+    "Engagement Comparison": "/admin/engagements/compare",
+    "Engagement Leaderboard": "/admin/engagements/[id]/leaderboard",
     "Admin Users": "/admin/users",
 }
 
@@ -118,6 +137,7 @@ COND_FORMATS: list[tuple[int, str, str]] = [
     (2, "In Progress", "#FFF2CC"),
     (2, "Done", "#C9DAF8"),
     (2, "Won't Fix", "#F0F0F0"),
+    (2, "Verified", "#B7E1CD"),
     # D — Effort
     (3, "XS", "#D9EAD3"),
     (3, "S", "#B6D7A8"),
@@ -130,7 +150,7 @@ COND_FORMATS: list[tuple[int, str, str]] = [
 DROPDOWNS: dict[int, list[str]] = {
     0: ["Bug", "Feature Request", "UX Issue", "Question", "Other"],  # Type
     1: ["P0-Critical", "P1-High", "P2-Medium", "P3-Low"],  # Priority
-    2: ["New", "Accepted", "In Progress", "Done", "Won't Fix"],  # Status
+    2: ["New", "Accepted", "In Progress", "Done", "Won't Fix", "Verified"],  # Status
     3: ["XS", "S", "M", "L", "XL"],  # Effort
 }
 
@@ -175,6 +195,36 @@ def _get_existing_tabs(service) -> dict[str, int]:
     """Return mapping of tab title → sheetId for all existing tabs."""
     meta = service.spreadsheets().get(spreadsheetId=SHEET_ID).execute()
     return {s["properties"]["title"]: s["properties"]["sheetId"] for s in meta.get("sheets", [])}
+
+
+def _get_conditional_rule_clear_requests(service, tab_sheet_ids: dict[str, int]) -> list[dict]:
+    """Build delete requests for all conditional-format rules on the given tabs."""
+    target_ids = set(tab_sheet_ids.values())
+    meta = (
+        service.spreadsheets()
+        .get(
+            spreadsheetId=SHEET_ID,
+            fields="sheets(properties(sheetId),conditionalFormats)",
+        )
+        .execute()
+    )
+
+    requests: list[dict] = []
+    for sheet in meta.get("sheets", []):
+        sheet_id = sheet.get("properties", {}).get("sheetId")
+        if sheet_id not in target_ids:
+            continue
+        rules = sheet.get("conditionalFormats", [])
+        for idx in range(len(rules) - 1, -1, -1):
+            requests.append(
+                {
+                    "deleteConditionalFormatRule": {
+                        "sheetId": sheet_id,
+                        "index": idx,
+                    }
+                }
+            )
+    return requests
 
 
 def _recreate_tabs(service) -> dict[str, int]:
@@ -371,7 +421,7 @@ def _write_headers(service, tab_sheet_ids: dict[str, int]) -> None:
         print(f"Wrote headers to {len(data)} tabs")
 
 
-def _format_tabs(service, tab_sheet_ids: dict[str, int]) -> None:
+def _format_tabs(service, tab_sheet_ids: dict[str, int], *, clear_existing_conditional_rules: bool = False) -> None:
     """Apply comprehensive formatting to all tabs.
 
     Per-tab:
@@ -384,6 +434,9 @@ def _format_tabs(service, tab_sheet_ids: dict[str, int]) -> None:
     - Conditional formatting (TEXT_EQ) on Type (col D) and Priority (col E).
     """
     requests = []
+    if clear_existing_conditional_rules:
+        requests.extend(_get_conditional_rule_clear_requests(service, tab_sheet_ids))
+
     num_cols = len(HEADERS)
     last_col_letter = chr(ord("A") + num_cols - 1)  # "N" for 14 cols
     _ = last_col_letter  # referenced in header-write step only
@@ -845,9 +898,10 @@ def _parse_args():
         "--update",
         action="store_true",
         help=(
-            "Safe update: apply RENAMES, add missing tabs in nav order, warn about stale "
-            "tabs, and reorder all tabs to match the canonical TABS sequence. "
-            "Existing feedback data is never modified or deleted."
+            "Safe update: apply RENAMES, add missing tabs in nav order, refresh "
+            "headers/validation/conditional formatting across tracked tabs, warn "
+            "about stale tabs, and reorder all tabs to match the canonical TABS "
+            "sequence. Existing feedback rows are never modified or deleted."
         ),
     )
     group.add_argument(
@@ -888,13 +942,10 @@ def main() -> None:
     elif args.update:
         existing = _get_existing_tabs(service)
         print(f"Existing tabs: {len(existing)}")
-        tab_sheet_ids, new_tab_names = _update_tabs(service, existing)
-        # Only write headers and format newly created tabs to avoid duplicating
-        # conditional-format rules on tabs that were already fully set up.
-        if new_tab_names:
-            new_tab_ids = {name: tab_sheet_ids[name] for name in new_tab_names if name in tab_sheet_ids}
-            _write_headers(service, new_tab_ids)
-            _format_tabs(service, new_tab_ids)
+        tab_sheet_ids, _new_tab_names = _update_tabs(service, existing)
+        tracked_tab_ids = {name: tab_sheet_ids[name] for name in TABS if name in tab_sheet_ids}
+        _write_headers(service, tracked_tab_ids)
+        _format_tabs(service, tracked_tab_ids, clear_existing_conditional_rules=True)
     else:
         existing = _get_existing_tabs(service)
         print(f"Existing tabs: {set(existing) or '(none)'}")

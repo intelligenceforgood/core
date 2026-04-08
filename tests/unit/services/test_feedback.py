@@ -75,6 +75,10 @@ class TestPageTabMap:
         assert "search" in PAGE_TAB_MAP
         assert "ssi-investigate" in PAGE_TAB_MAP
         assert "admin-users" in PAGE_TAB_MAP
+        assert "reports.builder" in PAGE_TAB_MAP
+        assert "intelligence.entities" in PAGE_TAB_MAP
+        assert "impact.geography" in PAGE_TAB_MAP
+        assert "admin-engagements.compare" in PAGE_TAB_MAP
 
     def test_navigation_fallback(self) -> None:
         """Global nav feedback maps to Dashboard."""
@@ -133,6 +137,20 @@ class TestGoogleSheetsFeedbackService:
         tab, section = svc._resolve_tab("search.filters")
         assert tab == "Search"
         assert section == "filters"
+
+    def test_resolve_tab_longest_prefix(self) -> None:
+        """Longest matching feedback prefix wins when multiple prefixes fit."""
+        svc = self._make_service()
+        tab, section = svc._resolve_tab("reports.builder")
+        assert tab == "Report Builder"
+        assert section == "page"
+
+    def test_resolve_tab_nested_exact_prefix(self) -> None:
+        """Nested page families resolve to their dedicated tabs."""
+        svc = self._make_service()
+        tab, section = svc._resolve_tab("admin-engagements.compare")
+        assert tab == "Engagement Comparison"
+        assert section == "page"
 
     def test_resolve_tab_unknown_page(self) -> None:
         """Unknown page prefix defaults to Dashboard."""
