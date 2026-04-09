@@ -492,7 +492,7 @@ The platform supports three LLM providers, selectable via `settings.llm.provider
 
 | Provider | Setting Value | Model | Use Case |
 |----------|---------------|-------|----------|
-| Vertex AI Gemini | `vertex_ai` | `gemini-2.5-flash` via `google-cloud-aiplatform` | Cloud / production inference |
+| Vertex AI Gemini | `vertex_ai` | `gemini-3-flash-preview` via `google-genai` | Cloud / production inference |
 | Ollama | `ollama` | `llama3` (default, configurable) | Local development on developer laptops |
 | Mock | `mock` | Deterministic canned responses | Unit tests and CI pipelines |
 

@@ -825,7 +825,7 @@
         "LLM_CHAT_MODEL",
         "LLM__CHAT_MODEL"
       ],
-      "description": "Primary model identifier (e.g. 'llama3', 'gemini-2.5-flash'). Used for all providers."
+      "description": "Primary model identifier (e.g. 'llama3', 'gemini-3-flash-preview'). Used for all providers."
     },
     {
       "path": "llm.ollama_base_url",

@@ -65,7 +65,7 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
             common_env["I4G_LLM__PROVIDER"] = "vertex_ai"
             common_env["I4G_LLM__VERTEX_AI_PROJECT"] = args.project
             common_env["I4G_LLM__VERTEX_AI_LOCATION"] = args.region
-            common_env["I4G_LLM__CHAT_MODEL"] = "gemini-2.5-flash"
+            common_env["I4G_LLM__CHAT_MODEL"] = "gemini-3-flash-preview"
 
             ssi_url = getattr(args, "ssi_service_url", None) or DEFAULT_SSI_SERVICE_URL
             common_env["I4G_SSI__SERVICE_URL"] = ssi_url

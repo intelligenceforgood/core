@@ -59,7 +59,7 @@ class TestBuildLlmClient:
     def test_vertex_ai_provider(self) -> None:
         from i4g.services.classifier import VertexAIClient
 
-        s = _make_settings(provider="vertex_ai", vertex_ai_project="my-proj", chat_model="gemini-2.5-flash")
+        s = _make_settings(provider="vertex_ai", vertex_ai_project="my-proj", chat_model="gemini-3-flash-preview")
         client = build_llm_client(settings=s)
         assert isinstance(client, VertexAIClient)
 

@@ -97,7 +97,7 @@ class LLMSettings(BaseSettings):
     chat_model: str = Field(
         default="llama3",
         validation_alias=AliasChoices("LLM_CHAT_MODEL", "LLM__CHAT_MODEL"),
-        description="Primary model identifier (e.g. 'llama3', 'gemini-2.5-flash'). Used for all providers.",
+        description="Primary model identifier (e.g. 'llama3', 'gemini-3-flash-preview'). Used for all providers.",
     )
     temperature: float = Field(
         default=0.1,

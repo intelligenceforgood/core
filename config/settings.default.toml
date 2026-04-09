@@ -39,7 +39,7 @@
 
 [llm]
 # provider = "mock"
-# chat_model = "llama3"          # local default; use "gemini-2.5-flash" for vertex_ai/gemini provider
+# chat_model = "llama3"          # local default; use "gemini-3-flash-preview" for vertex_ai/gemini provider
 # temperature = 0.1
 # ollama_base_url = "http://127.0.0.1:11434"
 # vertex_ai_project = ""
