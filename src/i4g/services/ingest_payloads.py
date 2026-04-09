@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable
 from typing import Any
+
+from i4g.extraction.ner_rules import extract_entities as rule_extract_entities
+from i4g.utils.entity_types import normalize_entity_type
+
+logger = logging.getLogger(__name__)
 
 _NETWORK_ENTITY_FIELDS: dict[str, tuple[str, ...]] = {
     "browser_agent": ("browser_agent", "browser", "browser_string", "user_agent", "ua"),
@@ -311,6 +317,26 @@ def prepare_ingest_payload(
         entities = _merge_network_entities(entities, network_entities)
         if "network" not in entities_source:
             entities_source = f"{entities_source}+network" if entities_source else "network"
+
+    # Rule-based extraction fallback: when no pre-structured entities exist and
+    # we have text, run regex/rule extraction to provide baseline entity coverage
+    # without waiting for the batch LLM entity extraction job.
+    if entities_source in ("none", "network") and text and len(text) >= 50:
+        rule_result = rule_extract_entities(text)
+        for key, values in rule_result.items():
+            if not values:
+                continue
+            canon_type = normalize_entity_type(key)
+            if canon_type not in entities:
+                entities[canon_type] = values
+            else:
+                existing = set(str(v) for v in entities[canon_type])
+                for v in values:
+                    if str(v) not in existing:
+                        entities[canon_type].append(v)
+        if any(v for v in rule_result.values()):
+            entities_source = f"{entities_source}+rules" if entities_source != "none" else "rules"
+
     channel = record.get("channel") or metadata.get("channel")
     timestamp = record.get("timestamp") or metadata.get("timestamp")
     risk_level = record.get("risk_level") or metadata.get("risk_level")

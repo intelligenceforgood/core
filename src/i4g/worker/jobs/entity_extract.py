@@ -39,22 +39,38 @@ from i4g.store.sql import (
     source_documents,
 )
 from i4g.task_status import TaskStatusReporter
-from i4g.utils.entity_types import normalize_entity_type
+from i4g.utils.entity_types import THREAT_ENTITY_TYPES, normalize_entity_type, normalize_entity_value
 from i4g.worker.logging import configure_job_logging
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# NER prompt — mirrors semantic_ner.py but works with the simple generate()
-# interface so it's compatible with all LLM providers (Vertex AI, Ollama, mock).
+# Confidence scores by extraction source and entity type.
+#
+# Rule-based regex (wallets, emails, phones, URLs): high precision → 0.9
+# Rule-based heuristic (names, crypto keywords): noisy → 0.5
+# LLM extraction: 0.7 default (no per-entity confidence from LLM)
+# When both rule + LLM agree, keep the higher score.
 # ---------------------------------------------------------------------------
+
+_RULE_REGEX_TYPES = frozenset({"wallet_addresses", "urls", "phone_numbers", "email_addresses", "bank_accounts"})
+_RULE_HEURISTIC_TYPES = frozenset({"people", "crypto_assets", "organizations", "locations", "scam_indicators"})
+
+_LLM_DEFAULT_CONFIDENCE = 0.7
+_RULE_REGEX_CONFIDENCE = 0.9
+_RULE_HEURISTIC_CONFIDENCE = 0.5
 
 _ENTITY_KEYS = [
     "people",
     "organizations",
-    "crypto_assets",
     "wallet_addresses",
-    "contact_channels",
+    "bank_accounts",
+    "email_addresses",
+    "phone_numbers",
+    "urls",
+    "domains",
+    "social_handles",
+    "crypto_assets",
     "locations",
     "scam_indicators",
 ]
@@ -69,11 +85,42 @@ Return ONLY a JSON object with these exact top-level keys:
 
 If a field has no values, return an empty list for that field. Do NOT add extra keys.
 
+Field definitions:
+- "people": ACTUAL person names only (first + last or full names)
+- "organizations": Company, exchange, or institution names
+- "wallet_addresses": Cryptocurrency wallet addresses (0x…, bc1…, etc.)
+- "bank_accounts": Bank account numbers, routing numbers, IBANs, SWIFT/BIC codes
+- "email_addresses": Email addresses
+- "phone_numbers": Phone numbers
+- "urls": Full URLs (https://…, http://…)
+- "domains": Domain names without protocol (example.com)
+- "social_handles": Social media usernames (@user, Telegram handles)
+- "crypto_assets": Cryptocurrency names/tickers (Bitcoin, USDT, ETH)
+- "locations": Geographic locations (cities, countries, addresses)
+- "scam_indicators": Short phrases describing suspicious tactics
+
+IMPORTANT — do NOT extract these as people:
+- Field labels: "Account Number", "Bank Name", "Routing Number", "Sort Code"
+- Scam type names: "Advance Fee", "Money Mule", "Romance Scam"
+- Financial terms: "Wire Transfer", "Gift Card", "Credit Card"
+- Generic titles: "Customer Service", "Tech Support"
+
 Example Input: "Hi, I'm Anna from TrustWallet. Send 0xAbC... to verify and pay 50 USDT."
 Example Output:
 {{"people": ["Anna"], "organizations": ["TrustWallet"], "crypto_assets": ["USDT"], \
-"wallet_addresses": ["0xAbC..."], "contact_channels": [], "locations": [], \
+"wallet_addresses": ["0xAbC..."], "bank_accounts": [], \
+"email_addresses": [], "phone_numbers": [], "urls": [], \
+"domains": [], "social_handles": [], "locations": [], \
 "scam_indicators": ["verification fee", "send to verify"]}}
+
+Example Input: "Contact james@fraud.com or call +1-555-999-0000. Account number 12345678, routing 021000021."
+Example Output:
+{{"people": [], "organizations": [], "crypto_assets": [], \
+"wallet_addresses": [], "bank_accounts": ["12345678", "021000021"], \
+"email_addresses": ["james@fraud.com"], \
+"phone_numbers": ["+1-555-999-0000"], "urls": [], \
+"domains": ["fraud.com"], "social_handles": [], "locations": [], \
+"scam_indicators": []}}
 
 Now analyze the following text and return ONLY the JSON object:
 
@@ -118,8 +165,12 @@ def _parse_entity_response(response_text: str) -> dict[str, list[str]]:
     return {}
 
 
-def _extract_entities_for_text(llm_client: object, text: str) -> dict[str, list[str]]:
-    """Run LLM + rule-based NER on a text and merge results."""
+def _extract_entities_for_text(llm_client: object, text: str) -> dict[str, list[dict]]:
+    """Run LLM + rule-based NER on a text and merge results.
+
+    Returns ``{entity_key: [{"value": str, "confidence": float}, ...]}`` with
+    calibrated confidence scores per extraction source.
+    """
     llm_result: dict[str, list[str]] = {}
 
     # LLM extraction
@@ -133,20 +184,28 @@ def _extract_entities_for_text(llm_client: object, text: str) -> dict[str, list[
     # Rule-based extraction (always runs as supplement/fallback)
     rule_result = rule_extract_entities(text)
 
-    # Merge: union of LLM + rules, deduped — iterate all keys from both sources
-    merged: dict[str, list[str]] = {}
+    # Merge: union of LLM + rules, deduped, with calibrated confidence
+    merged: dict[str, list[dict]] = {}
     all_keys = set(llm_result.keys()) | set(rule_result.keys())
     for key in all_keys:
         llm_raw = llm_result.get(key, [])
         rule_raw = rule_result.get(key, [])
-        # Flatten to strings — LLM may return dicts or nested objects
+        # Flatten to strings
         llm_items = {str(v) for v in llm_raw if v and not isinstance(v, dict)} if isinstance(llm_raw, list) else set()
         rule_items = (
             {str(v) for v in rule_raw if v and not isinstance(v, dict)} if isinstance(rule_raw, list) else set()
         )
-        combined = sorted(llm_items | rule_items)
-        if combined:
-            merged[key] = combined
+        # Assign confidence based on source
+        rule_conf = _RULE_REGEX_CONFIDENCE if key in _RULE_REGEX_TYPES else _RULE_HEURISTIC_CONFIDENCE
+        scored: dict[str, float] = {}
+        for v in rule_items:
+            scored[v] = rule_conf
+        for v in llm_items:
+            # If also found by rules, keep the higher confidence
+            scored[v] = max(scored.get(v, 0.0), _LLM_DEFAULT_CONFIDENCE)
+
+        if scored:
+            merged[key] = [{"value": val, "confidence": conf} for val, conf in sorted(scored.items())]
 
     return merged
 
@@ -154,10 +213,13 @@ def _extract_entities_for_text(llm_client: object, text: str) -> dict[str, list[
 def _persist_extracted_entities(
     session: Session,
     case_id: str,
-    entity_map: dict[str, list[str]],
+    entity_map: dict[str, list[dict]],
     dataset: str,
 ) -> tuple[int, int]:
-    """Write entities and indicators to the DB. Returns (entity_count, indicator_count)."""
+    """Write entities and indicators to the DB. Returns (entity_count, indicator_count).
+
+    Each value in entity_map is ``[{"value": str, "confidence": float}, ...]``.
+    """
     now = datetime.now(UTC)
     entity_count = 0
     indicator_count = 0
@@ -166,10 +228,18 @@ def _persist_extracted_entities(
         if not isinstance(values, list):
             continue
         entity_type = normalize_entity_type(raw_type)
-        for val in values:
-            canonical = str(val).strip() if isinstance(val, str) else str(val)
+        for item in values:
+            if isinstance(item, dict):
+                canonical = str(item.get("value", "")).strip()
+                confidence = float(item.get("confidence", _LLM_DEFAULT_CONFIDENCE))
+            else:
+                canonical = str(item).strip()
+                confidence = _LLM_DEFAULT_CONFIDENCE
             if not canonical:
                 continue
+
+            # Apply value normalization for dedup consistency
+            canonical = normalize_entity_value(entity_type, canonical)
 
             # Upsert entity
             eid = str(uuid4())
@@ -184,14 +254,16 @@ def _persist_extracted_entities(
                     entity_type=entity_type,
                     canonical_value=canonical,
                     raw_value=canonical,
-                    confidence=0.7,
+                    confidence=confidence,
                     created_at=now,
                     updated_at=now,
                 )
             )
             entity_count += 1
 
-            # Upsert indicator (IoC mirror)
+            # Upsert indicator (IoC mirror) — only for threat infrastructure types
+            if entity_type not in THREAT_ENTITY_TYPES:
+                continue
             iid = str(uuid4())
             ind_ins = dialect_insert(session, indicators)
             ind_ins_stmt = ind_ins.on_conflict_do_nothing(
@@ -206,7 +278,7 @@ def _persist_extracted_entities(
                     number=canonical,
                     dataset=dataset,
                     status="active",
-                    confidence=0.7,
+                    confidence=confidence,
                     first_seen_at=now,
                     last_seen_at=now,
                     created_at=now,

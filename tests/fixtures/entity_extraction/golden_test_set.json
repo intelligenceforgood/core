@@ -1,0 +1,359 @@
+[
+  {
+    "id": "crypto_scam_01",
+    "category": "crypto_scam",
+    "text": "I met someone on Instagram who said they could double my Bitcoin. I sent 0.5 BTC to bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh and another 1.2 ETH to 0x71C7656EC7ab88b098defB751B7401B5f6d8976F. Their Telegram was @crypto_doubler and they also used the email scammer2024@protonmail.com. The website was https://crypto-double-fast.com.",
+    "expected": {
+      "wallet_address": [
+        "bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh",
+        "0x71c7656ec7ab88b098defb751b7401b5f6d8976f"
+      ],
+      "social_handle": [
+        "@crypto_doubler"
+      ],
+      "email_address": [
+        "scammer2024@protonmail.com"
+      ],
+      "url": [
+        "https://crypto-double-fast.com"
+      ]
+    }
+  },
+  {
+    "id": "romance_scam_01",
+    "category": "romance_scam",
+    "text": "I met John Smith on a dating app. He said he was in the military overseas and needed money for a plane ticket. He asked me to send $3000 via CashApp to $JohnDoe2024 or wire it to Bank of America routing 021000021 account 483726159012. His phone number is +1 (415) 555-0123 and his WhatsApp is the same number. He also gave me his email john.smith.military@gmail.com.",
+    "expected": {
+      "payment_handle": [
+        "$JohnDoe2024"
+      ],
+      "phone_number": [
+        "+14155550123"
+      ],
+      "email_address": [
+        "john.smith.military@gmail.com"
+      ],
+      "bank_account": [
+        "483726159012",
+        "021000021"
+      ]
+    }
+  },
+  {
+    "id": "advance_fee_01",
+    "category": "advance_fee",
+    "text": "I received a letter saying I won $1.5 million in a lottery. To claim it, I had to pay a processing fee of $500. The contact was Barrister James Williams at barrister.williams@lawclaim.org, phone 44-20-7946-0958. They asked me to wire the fee to HSBC Bank, IBAN GB29NWBK60161331926819, SWIFT/BIC: HBUKGB4B.",
+    "expected": {
+      "email_address": [
+        "barrister.williams@lawclaim.org"
+      ],
+      "phone_number": [
+        "442079460958"
+      ],
+      "bank_account": [
+        "GB29NWBK60161331926819",
+        "HBUKGB4B"
+      ]
+    }
+  },
+  {
+    "id": "impersonation_01",
+    "category": "impersonation",
+    "text": "Someone called from 1-800-555-0199 pretending to be from the IRS. They said I owed $5,400 in back taxes and would be arrested if I didn't pay immediately. They told me to buy Google Play gift cards and read the codes to them. Their callback number was 202-555-0147. They also sent a fake notice from notice@irs-payment-center.com, and the website was www.irs-payment-center.com.",
+    "expected": {
+      "phone_number": [
+        "18005550199",
+        "2025550147"
+      ],
+      "email_address": [
+        "notice@irs-payment-center.com"
+      ],
+      "url": [
+        "www.irs-payment-center.com"
+      ]
+    }
+  },
+  {
+    "id": "investment_scam_01",
+    "category": "investment_scam",
+    "text": "I was approached on LinkedIn by a person calling themselves Sarah Chen. She introduced me to an investment platform at https://globalfx-trading.vip where I could trade forex and crypto. I deposited funds through my Coinbase wallet 0xAbC123456789dEf0AbC123456789dEf0AbC12345 to their receiving address 0x9876FeDcBa5432109876FeDcBa5432109876FeDc. When I tried to withdraw, they said I needed to pay a 20% tax. Customer support was at support@globalfx-trading.vip and their Telegram was @gfx_support.",
+    "expected": {
+      "url": [
+        "https://globalfx-trading.vip"
+      ],
+      "wallet_address": [
+        "0xabc123456789def0abc123456789def0abc12345",
+        "0x9876fedcba5432109876fedcba5432109876fedc"
+      ],
+      "email_address": [
+        "support@globalfx-trading.vip"
+      ],
+      "social_handle": [
+        "@gfx_support"
+      ]
+    }
+  },
+  {
+    "id": "tech_support_01",
+    "category": "tech_support",
+    "text": "A popup appeared on my computer saying it was infected with a virus and to call Microsoft Support at 888-555-0134. I called and they had me install AnyDesk and gave them remote access. They said they found hackers and I needed to move my money to a safe account. They had me wire $15,000 to Chase Bank routing 021000021 account number 629187345021. The technician's name was David Miller and his direct line was 347-555-0198.",
+    "expected": {
+      "phone_number": [
+        "8885550134",
+        "3475550198"
+      ],
+      "bank_account": [
+        "629187345021",
+        "021000021"
+      ]
+    }
+  },
+  {
+    "id": "pig_butchering_01",
+    "category": "investment_scam",
+    "text": "Met a woman named Mei on WhatsApp (+852 6234 5678). She gradually convinced me to invest in crypto through aximain.com. Over 3 months I sent USDT to TKw2MggexbaBMXEJX74uEcr8zey1yBYudS totaling $180,000. Their support email was help@aximain.com. When I tried to withdraw they asked for another $30,000 \"tax deposit\". The Telegram group was t.me/aximain_vip.",
+    "expected": {
+      "phone_number": [
+        "+85262345678"
+      ],
+      "url": [
+        "aximain.com"
+      ],
+      "wallet_address": [
+        "TKw2MggexbaBMXEJX74uEcr8zey1yBYudS"
+      ],
+      "email_address": [
+        "help@aximain.com"
+      ],
+      "social_handle": [
+        "@aximain_vip"
+      ]
+    }
+  },
+  {
+    "id": "nigerian_scam_01",
+    "category": "advance_fee",
+    "text": "Email from Dr. Peter Okonkwo claiming to be a Nigerian government official with $12.5 million to transfer. He needs my bank details and a $2,500 transfer fee. Contact: peterokonkwo_official@yahoo.com and +234 802 345 6789. Wire fee to First Bank of Nigeria, Account 2034567890, routing through FBNINGLA.",
+    "expected": {
+      "email_address": [
+        "peterokonkwo_official@yahoo.com"
+      ],
+      "phone_number": [
+        "+2348023456789"
+      ],
+      "bank_account": [
+        "FBNINGLA",
+        "2034567890"
+      ]
+    }
+  },
+  {
+    "id": "cashapp_scam_01",
+    "category": "payment_scam",
+    "text": "Someone on Facebook said they could flip my money - send $200 get $2000 back. I sent to $FlipKing2024 and $MoneyMaker_X on CashApp. Also sent via Venmo to @quickflip99. Their number was 678-555-0142. After I sent money they blocked me. Their Facebook profile linked to the email quickflips@outlook.com.",
+    "expected": {
+      "payment_handle": [
+        "$FlipKing2024",
+        "$MoneyMaker_X",
+        "@quickflip99"
+      ],
+      "phone_number": [
+        "6785550142"
+      ],
+      "email_address": [
+        "quickflips@outlook.com"
+      ]
+    }
+  },
+  {
+    "id": "phishing_01",
+    "category": "phishing",
+    "text": "I received an email from noreply@amaz0n-security.com saying my account was compromised. The link went to https://amaz0n-security.com/verify-account. I entered my credentials. Later I found unauthorized transactions. The reply-to address was support@amaz0n-security.com. The domain amaz0n-security.com was registered recently.",
+    "expected": {
+      "email_address": [
+        "noreply@amaz0n-security.com",
+        "support@amaz0n-security.com"
+      ],
+      "url": [
+        "https://amaz0n-security.com/verify-account"
+      ],
+      "domain": [
+        "amaz0n-security.com"
+      ]
+    }
+  },
+  {
+    "id": "crypto_wallet_drain_01",
+    "category": "crypto_scam",
+    "text": "I connected my MetaMask wallet to what I thought was Uniswap at https://app-uniswap.exchange. It drained my wallet. My address is 0xABcDe12345678901234567890123456789012345 and the funds went to 0x1111222233334444555566667777888899990000. I found their Discord server linked from @fake_uniswap on Twitter. Total loss was 15 ETH worth about $45,000.",
+    "expected": {
+      "url": [
+        "https://app-uniswap.exchange"
+      ],
+      "wallet_address": [
+        "0xabcde12345678901234567890123456789012345",
+        "0x1111222233334444555566667777888899990000"
+      ],
+      "social_handle": [
+        "@fake_uniswap"
+      ]
+    }
+  },
+  {
+    "id": "zelle_scam_01",
+    "category": "payment_scam",
+    "text": "I was selling furniture on Facebook Marketplace. The buyer said they'd pay via Zelle but \"accidentally\" sent $1500 instead of $150. They asked me to refund the difference via Zelle to 310-555-0176 or email janedoe_buyer@gmail.com. The initial payment was fake - it never actually appeared in my bank account. Their phone was 213-555-0189.",
+    "expected": {
+      "phone_number": [
+        "3105550176",
+        "2135550189"
+      ],
+      "email_address": [
+        "janedoe_buyer@gmail.com"
+      ]
+    }
+  },
+  {
+    "id": "mixed_entities_01",
+    "category": "investment_scam",
+    "text": "The scam operation used multiple payment methods. Bank wire to Wells Fargo routing 121000248 account 4521789632. Bitcoin to bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4 and 3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy. CashApp $ScamTrader, PayPal @traderPro99. Contact was via Signal at +44 7911 123456 and email trade@secure-fx-platform.net. Website https://secure-fx-platform.net.",
+    "expected": {
+      "wallet_address": [
+        "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
+        "3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy"
+      ],
+      "payment_handle": [
+        "$ScamTrader",
+        "@traderPro99"
+      ],
+      "phone_number": [
+        "+447911123456"
+      ],
+      "email_address": [
+        "trade@secure-fx-platform.net"
+      ],
+      "url": [
+        "https://secure-fx-platform.net"
+      ],
+      "bank_account": [
+        "4521789632",
+        "121000248"
+      ]
+    }
+  },
+  {
+    "id": "rental_scam_01",
+    "category": "advance_fee",
+    "text": "Found an apartment listing on Craigslist that was too good to be true. The landlord said they were overseas and I could rent it sight-unseen for $1200/month. They asked for first month plus deposit via wire to TD Bank account 7823456901 routing 031101266. The listing contact was rentals@premium-housing.net, phone 917-555-0163.",
+    "expected": {
+      "email_address": [
+        "rentals@premium-housing.net"
+      ],
+      "phone_number": [
+        "9175550163"
+      ],
+      "bank_account": [
+        "7823456901",
+        "031101266"
+      ]
+    }
+  },
+  {
+    "id": "sextortion_01",
+    "category": "sextortion",
+    "text": "Someone on Snapchat screenshotted our conversation and threatened to send it to my contacts unless I paid $500 in Bitcoin to 1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa or $300 via CashApp $paymeNOW2024. Their Snapchat was @darkside_threat, phone +1 (786) 555-0134, and backup email threats.are.real@protonmail.com.",
+    "expected": {
+      "wallet_address": [
+        "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa"
+      ],
+      "payment_handle": [
+        "$paymeNOW2024"
+      ],
+      "social_handle": [
+        "@darkside_threat"
+      ],
+      "phone_number": [
+        "+17865550134"
+      ],
+      "email_address": [
+        "threats.are.real@protonmail.com"
+      ]
+    }
+  },
+  {
+    "id": "job_scam_01",
+    "category": "employment_scam",
+    "text": "Applied for a remote data entry job at https://careers-globaldata.com. After a fake interview on WhatsApp with HR manager Lisa (+1 332 555 0188), they said I was hired but needed to buy equipment. They sent a check for $3500 and said to forward $2800 to their vendor via Zelle at vendor.payments@globaldata-hr.com. The check bounced. Their Telegram channel was t.me/globaldata_jobs.",
+    "expected": {
+      "url": [
+        "https://careers-globaldata.com"
+      ],
+      "phone_number": [
+        "+13325550188"
+      ],
+      "email_address": [
+        "vendor.payments@globaldata-hr.com"
+      ],
+      "social_handle": [
+        "@globaldata_jobs"
+      ]
+    }
+  },
+  {
+    "id": "bank_transfer_01",
+    "category": "investment_scam",
+    "text": "Bank Name: Bank Mandiri\nRecipient: AUTO SUKSES BERJAYA\nAccount Number: 1220013445237\nRouting Number: 021814725\nSWIFT/BIC: BMRIIDJA\nI was told to wire $25,000 for my investment account setup fee. Contact: invest@mandiri-prime.com",
+    "expected": {
+      "bank_account": [
+        "BMRIIDJA",
+        "1220013445237",
+        "021814725"
+      ],
+      "email_address": [
+        "invest@mandiri-prime.com"
+      ]
+    }
+  },
+  {
+    "id": "iban_scam_01",
+    "category": "advance_fee",
+    "text": "Wire transfer instructions from the scammer: Send EUR 5,000 to IBAN ES5968490001540000718262 at bank EAPFESM2XXX. Beneficiary: Huanyu Technology Co LTD. Contact the office at +34 91 555 0123 or finance@huanyu-tech.eu for confirmation.",
+    "expected": {
+      "bank_account": [
+        "ES5968490001540000718262",
+        "EAPFESM2XXX"
+      ],
+      "phone_number": [
+        "+34915550123"
+      ],
+      "email_address": [
+        "finance@huanyu-tech.eu"
+      ]
+    }
+  },
+  {
+    "id": "multi_wallet_01",
+    "category": "crypto_scam",
+    "text": "Sent USDT via Tron: TQ7EWR9BedK2uctN4mW7fv4QnDkhRCgy66, TWoodyYh1yyCYRyf1txvGUpdsCGZ2BoDBv. Also sent BTC to bc1qxyhspj8zkasmky0edefwwn07pzku5a4k52pye0 and ETH to 0xF171565488B6b6CE852C2b298Ad5f98BC63e15A9. Platform: https://mxci-ind.com. Support Telegram: @MXCI_service.",
+    "expected": {
+      "wallet_address": [
+        "TQ7EWR9BedK2uctN4mW7fv4QnDkhRCgy66",
+        "TWoodyYh1yyCYRyf1txvGUpdsCGZ2BoDBv",
+        "bc1qxyhspj8zkasmky0edefwwn07pzku5a4k52pye0",
+        "0xf171565488b6b6ce852c2b298ad5f98bc63e15a9"
+      ],
+      "url": [
+        "https://mxci-ind.com"
+      ],
+      "social_handle": [
+        "@MXCI_service"
+      ]
+    }
+  },
+  {
+    "id": "no_entities_01",
+    "category": "general_scam",
+    "text": "I was contacted by someone who seemed very nice and professional. They told me about an amazing investment opportunity but I got suspicious when they started asking for money. I decided not to send anything and blocked them. No financial information was exchanged.",
+    "expected": {}
+  }
+]

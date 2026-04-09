@@ -166,9 +166,10 @@ async def test_extract_entities_maps_labels_to_core_schema() -> None:
     assert _NER_LABEL_TO_ENTITY_KEY["PERSON"] == "people"
     assert _NER_LABEL_TO_ENTITY_KEY["ORG"] == "organizations"
     assert _NER_LABEL_TO_ENTITY_KEY["CRYPTO_WALLET"] == "wallet_addresses"
-    assert _NER_LABEL_TO_ENTITY_KEY["EMAIL"] == "contact_channels"
-    assert _NER_LABEL_TO_ENTITY_KEY["PHONE"] == "contact_channels"
-    assert _NER_LABEL_TO_ENTITY_KEY["URL"] == "contact_channels"
+    assert _NER_LABEL_TO_ENTITY_KEY["BANK_ACCOUNT"] == "bank_accounts"
+    assert _NER_LABEL_TO_ENTITY_KEY["EMAIL"] == "email_addresses"
+    assert _NER_LABEL_TO_ENTITY_KEY["PHONE"] == "phone_numbers"
+    assert _NER_LABEL_TO_ENTITY_KEY["URL"] == "urls"
 
 
 @pytest.mark.asyncio

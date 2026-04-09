@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from i4g.store import sql as sql_schema
 from i4g.store.sql import session_factory as default_session_factory
-from i4g.utils.entity_types import normalize_entity_type
+from i4g.utils.entity_types import normalize_entity_type, normalize_entity_value
 
 LOGGER = logging.getLogger(__name__)
 
@@ -369,11 +369,13 @@ class SqlWriter:
             ids.append(entity_id)
             if entity.alias:
                 alias_map[entity.alias] = entity_id
+            norm_type = normalize_entity_type(entity.entity_type)
+            norm_value = normalize_entity_value(norm_type, entity.canonical_value)
             values = {
                 "entity_id": entity_id,
                 "case_id": case_id,
-                "entity_type": normalize_entity_type(entity.entity_type),
-                "canonical_value": entity.canonical_value,
+                "entity_type": norm_type,
+                "canonical_value": norm_value,
                 "raw_value": entity.raw_value,
                 "confidence": _quantize_decimal(entity.confidence),
                 "first_seen_at": entity.first_seen_at,
@@ -391,10 +393,12 @@ class SqlWriter:
         return ids, alias_map
 
     def _lookup_entity_id(self, session: Session, case_id: str, entity: EntityPayload) -> str | None:
+        norm_type = normalize_entity_type(entity.entity_type)
+        norm_value = normalize_entity_value(norm_type, entity.canonical_value)
         stmt = sa.select(sql_schema.entities.c.entity_id).where(
             sql_schema.entities.c.case_id == case_id,
-            sql_schema.entities.c.entity_type == normalize_entity_type(entity.entity_type),
-            sql_schema.entities.c.canonical_value == entity.canonical_value,
+            sql_schema.entities.c.entity_type == norm_type,
+            sql_schema.entities.c.canonical_value == norm_value,
         )
         return session.execute(stmt).scalar_one_or_none()
 

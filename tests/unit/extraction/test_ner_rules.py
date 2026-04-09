@@ -96,6 +96,35 @@ class TestExtractNames:
     def test_no_names_in_lowercase(self):
         assert extract_names("hello world") == []
 
+    def test_banking_labels_not_extracted_as_names(self):
+        text = "Bank Name: HSBC\nAccount Number: 12345678\nSort Code: 12-34-56"
+        names = extract_names(text)
+        assert "Bank Name" not in names
+        assert "Account Number" not in names
+        assert "Sort Code" not in names
+
+    def test_scam_terms_not_extracted_as_names(self):
+        text = "This is an Advance Fee scam involving a Money Mule"
+        names = extract_names(text)
+        assert "Advance Fee" not in names
+        assert "Money Mule" not in names
+
+    def test_financial_labels_not_extracted_as_names(self):
+        text = "Routing Number: 021000021, Bank Address: 123 Main St, " "Account Name: Savings, Wire Transfer pending"
+        names = extract_names(text)
+        assert "Routing Number" not in names
+        assert "Bank Address" not in names
+        assert "Account Name" not in names
+        assert "Wire Transfer" not in names
+
+    def test_real_names_still_extracted_alongside_labels(self):
+        text = "John Doe, Bank Name: HSBC, Account Number: 12345678, Jane Smith"
+        names = extract_names(text)
+        assert "John Doe" in names
+        assert "Jane Smith" in names
+        assert "Bank Name" not in names
+        assert "Account Number" not in names
+
 
 # ---------------------------------------------------------------------------
 # extract_crypto_keywords
@@ -129,9 +158,11 @@ class TestExtractEntities:
         result = extract_entities("Nothing here")
         expected_keys = {
             "wallet_addresses",
-            "contact_channels",
-            "email_address",
-            "bank_account",
+            "urls",
+            "phone_numbers",
+            "email_addresses",
+            "bank_accounts",
+            "social_handles",
             "people",
             "crypto_assets",
             "organizations",
@@ -147,6 +178,25 @@ class TestExtractEntities:
         )
         result = extract_entities(text)
         assert len(result["wallet_addresses"]) >= 1
-        assert len(result["contact_channels"]) >= 1
+        assert len(result["urls"]) >= 1
+        assert len(result["phone_numbers"]) >= 1
         assert len(result["people"]) >= 1
         assert len(result["crypto_assets"]) >= 1
+
+    def test_urls_and_phones_in_separate_keys(self):
+        text = "Visit https://example.com or call +1 555-000-1111"
+        result = extract_entities(text)
+        assert any("example.com" in u for u in result["urls"])
+        assert len(result["phone_numbers"]) >= 1
+        # The old contact_channels key should not exist
+        assert "contact_channels" not in result
+
+    def test_emails_in_own_key(self):
+        text = "Email alice@example.com for details"
+        result = extract_entities(text)
+        assert any("alice@example.com" in e for e in result["email_addresses"])
+
+    def test_bank_accounts_in_own_key(self):
+        text = "Account number 12345678"
+        result = extract_entities(text)
+        assert "12345678" in result["bank_accounts"]

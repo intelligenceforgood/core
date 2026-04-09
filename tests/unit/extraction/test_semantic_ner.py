@@ -115,7 +115,10 @@ class TestExtractSemanticEntities:
         mock_llm.invoke.return_value = (
             '{"people": ["Alice"], "organizations": ["Acme"], '
             '"crypto_assets": [], "wallet_addresses": [], '
-            '"contact_channels": [], "locations": [], "scam_indicators": []}'
+            '"bank_accounts": [], '
+            '"email_addresses": [], "phone_numbers": [], "urls": [], '
+            '"domains": [], "social_handles": [], '
+            '"locations": [], "scam_indicators": []}'
         )
         result = extract_semantic_entities("Alice works at Acme", mock_llm)
         # Should have scored entities

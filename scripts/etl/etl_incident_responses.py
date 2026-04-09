@@ -14,6 +14,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import re
 import sys
 import uuid
 from pathlib import Path
@@ -64,38 +65,300 @@ def _normalize_header(header: str) -> str:
 
 
 def _extract_entities(row: dict) -> list[dict]:
-    """Pull out structured entities from free-text indicator columns."""
+    """Pull out structured entities from free-text indicator columns.
+
+    Each column gets purpose-built extraction — regex patterns matched to the
+    actual data observed in the incident-response spreadsheet.  No naive
+    split-and-hope.
+    """
     entities: list[dict] = []
 
+    # --- URLs -----------------------------------------------------------------
     for raw in _split_multi(row.get("urls", "")):
-        entities.append({"entity_type": "url", "canonical_value": raw, "confidence": 0.8})
+        if _looks_like_url(raw):
+            entities.append({"entity_type": "url", "canonical_value": raw.strip(), "confidence": 0.8})
 
-    # contact_handles may contain emails, phone numbers, and messaging handles mixed together
-    for raw in _split_multi(row.get("contact_handles", "")):
-        if "@" in raw and " " not in raw.strip():
-            entities.append(
-                {"entity_type": "email_address", "canonical_value": raw.lower().strip(), "confidence": 0.85}
-            )
-        else:
-            entities.append({"entity_type": "contact_handle", "canonical_value": raw.strip(), "confidence": 0.7})
+    # --- Contact handles → emails, phones, social handles --------------------
+    _extract_contact_handles(row.get("contact_handles", ""), entities)
 
-    for raw in _split_multi(row.get("wallet_addresses", "")):
-        entities.append({"entity_type": "wallet_address", "canonical_value": raw, "confidence": 0.85})
+    # --- Wallet addresses (regex extraction — already battle-tested) ----------
+    wallet_text = row.get("wallet_addresses", "")
+    for addr in _extract_wallet_addresses(wallet_text):
+        entities.append({"entity_type": "wallet_address", "canonical_value": addr, "confidence": 0.85})
 
-    for raw in _split_multi(row.get("bank_accounts", "")):
-        entities.append({"entity_type": "bank_account", "canonical_value": raw, "confidence": 0.75})
+    # --- Bank accounts → account numbers, routing numbers, IBANs -------------
+    _extract_bank_accounts(row.get("bank_accounts", ""), entities)
 
-    for raw in _split_multi(row.get("payment_handles", "")):
-        entities.append({"entity_type": "payment_handle", "canonical_value": raw.strip(), "confidence": 0.8})
+    # --- Payment handles → CashApp $tags, emails, @handles ------------------
+    _extract_payment_handles(row.get("payment_handles", ""), entities)
 
     return entities
 
 
+# ---------------------------------------------------------------------------
+# Per-column extraction helpers
+# ---------------------------------------------------------------------------
+
+# Phone number patterns (international and US domestic)
+_PHONE_RE = re.compile(
+    r"""
+    (?:\+\d{1,3}[\s.-]?)?       # optional country code
+    (?:\(?\d{3}\)?[\s.\-]?)?     # optional area code
+    \d{3}[\s.\-]?\d{4}           # 7-digit local number
+    """,
+    re.VERBOSE,
+)
+# Stricter: must have at least 7 digits total once non-digits are removed
+_MIN_PHONE_DIGITS = 7
+
+_EMAIL_RE = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}")
+_TELEGRAM_HANDLE_RE = re.compile(r"@[A-Za-z]\w{2,}")
+_TELEGRAM_LINK_RE = re.compile(r"t\.me/([A-Za-z]\w{2,})")
+
+
+def _extract_contact_handles(text: str, entities: list[dict]) -> None:
+    """Extract emails, phone numbers, and social handles from contact_handles column."""
+    if not text:
+        return
+
+    seen: set[str] = set()
+
+    # Emails
+    for m in _EMAIL_RE.finditer(text):
+        val = m.group().lower().strip().rstrip(".")
+        if val not in seen:
+            seen.add(val)
+            entities.append({"entity_type": "email_address", "canonical_value": val, "confidence": 0.9})
+
+    # t.me/ links → social handles
+    for m in _TELEGRAM_LINK_RE.finditer(text):
+        handle = "@" + m.group(1)
+        key = handle.lower()
+        if key not in seen:
+            seen.add(key)
+            entities.append({"entity_type": "social_handle", "canonical_value": handle, "confidence": 0.85})
+
+    # @handles (Telegram / social)
+    for m in _TELEGRAM_HANDLE_RE.finditer(text):
+        handle = m.group()
+        key = handle.lower()
+        if key not in seen:
+            seen.add(key)
+            entities.append({"entity_type": "social_handle", "canonical_value": handle, "confidence": 0.85})
+
+    # Phone numbers
+    for m in _PHONE_RE.finditer(text):
+        raw_phone = m.group()
+        digits = re.sub(r"\D", "", raw_phone)
+        if len(digits) < _MIN_PHONE_DIGITS:
+            continue
+        # Skip if this looks like it's part of an already-extracted email
+        start = max(0, m.start() - 1)
+        surrounding = text[start : m.end() + 1]
+        if "@" in surrounding:
+            continue
+        canonical = "+" + digits if raw_phone.strip().startswith("+") else digits
+        if canonical not in seen:
+            seen.add(canonical)
+            entities.append({"entity_type": "phone_number", "canonical_value": canonical, "confidence": 0.85})
+
+
+# Bank account extraction patterns
+_ACCOUNT_NUM_RE = re.compile(r"(?:Account\s*(?:Number|#|No\.?)\s*:?\s*)(\d[\d\s\-]{4,19}\d)", re.IGNORECASE)
+_ROUTING_NUM_RE = re.compile(r"(?:Routing\s*(?:Number|#|No\.?)\s*:?\s*)(\d{9})", re.IGNORECASE)
+_IBAN_RE = re.compile(r"\b([A-Z]{2}\d{2}\s?\d{4}\s?\d{4}\s?\d{4}\s?[\d\s]{0,14})\b")
+_SWIFT_RE = re.compile(
+    r"(?:SWIFT|BIC|SWIFT/BIC)\s*(?:Code|#|No\.?)?\s*[:：]?\s*([A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?)\b",
+    re.IGNORECASE,
+)
+_BSB_RE = re.compile(r"(?:BSB\s*(?:Number)?\s*:?\s*)(\d{3}[\s-]?\d{3})", re.IGNORECASE)
+_BARE_ACCT_RE = re.compile(r"(?:Account|Acct)[\s#:]*(\d{6,20})", re.IGNORECASE)
+
+
+def _extract_bank_accounts(text: str, entities: list[dict]) -> None:
+    """Extract account numbers, routing numbers, and IBANs from bank_accounts column."""
+    if not text:
+        return
+
+    seen: set[str] = set()
+
+    # Routing numbers (US ABA — exactly 9 digits)
+    for m in _ROUTING_NUM_RE.finditer(text):
+        val = m.group(1).strip()
+        if val not in seen:
+            seen.add(val)
+            entities.append({"entity_type": "bank_account", "canonical_value": val, "confidence": 0.9})
+
+    # Account numbers (labeled)
+    for pattern in (_ACCOUNT_NUM_RE, _BARE_ACCT_RE):
+        for m in pattern.finditer(text):
+            val = re.sub(r"[\s\-]", "", m.group(1))
+            if val not in seen and len(val) >= 6:
+                seen.add(val)
+                entities.append({"entity_type": "bank_account", "canonical_value": val, "confidence": 0.9})
+
+    # IBAN
+    for m in _IBAN_RE.finditer(text):
+        val = re.sub(r"\s", "", m.group(1))
+        if len(val) >= 15 and val not in seen:
+            seen.add(val)
+            entities.append({"entity_type": "bank_account", "canonical_value": val, "confidence": 0.9})
+
+    # SWIFT/BIC codes (only when labeled as SWIFT/BIC to avoid false positives)
+    for m in _SWIFT_RE.finditer(text):
+        val = m.group(1).upper()
+        if val not in seen and len(val) >= 8:
+            seen.add(val)
+            entities.append({"entity_type": "bank_account", "canonical_value": val, "confidence": 0.8})
+
+    # BSB numbers (Australian)
+    for m in _BSB_RE.finditer(text):
+        val = re.sub(r"\s", "", m.group(1))
+        if val not in seen:
+            seen.add(val)
+            entities.append({"entity_type": "bank_account", "canonical_value": val, "confidence": 0.85})
+
+
+# Payment handle extraction patterns
+_CASHAPP_RE = re.compile(r"\$([A-Za-z]\w{2,})")
+_VENMO_PAYPAL_HANDLE_RE = re.compile(r"@([A-Za-z]\w{2,})")
+
+
+def _extract_payment_handles(text: str, entities: list[dict]) -> None:
+    """Extract CashApp $tags, emails, @handles, and wallet addresses from payment_handles column."""
+    if not text:
+        return
+
+    seen: set[str] = set()
+
+    # CashApp $tags
+    for m in _CASHAPP_RE.finditer(text):
+        tag = "$" + m.group(1)
+        key = tag.lower()
+        if key not in seen and not _is_junk_value(m.group(1)):
+            seen.add(key)
+            entities.append({"entity_type": "payment_handle", "canonical_value": tag, "confidence": 0.9})
+
+    # Emails (Zelle, PayPal, Venmo accounts often use email)
+    for m in _EMAIL_RE.finditer(text):
+        val = m.group().lower().strip().rstrip(".")
+        if val not in seen:
+            seen.add(val)
+            entities.append({"entity_type": "email_address", "canonical_value": val, "confidence": 0.85})
+
+    # @handles (Venmo, PayPal)
+    for m in _VENMO_PAYPAL_HANDLE_RE.finditer(text):
+        handle = "@" + m.group(1)
+        key = handle.lower()
+        # Skip if it's part of an email already captured
+        start = m.start()
+        if start > 0 and text[start - 1] not in (" ", "\n", "\t", ",", ";"):
+            continue
+        if key not in seen:
+            seen.add(key)
+            entities.append({"entity_type": "payment_handle", "canonical_value": handle, "confidence": 0.8})
+
+    # Wallet addresses that end up in the payment_handles column
+    for addr in _extract_wallet_addresses(text):
+        if addr not in seen:
+            seen.add(addr)
+            entities.append({"entity_type": "wallet_address", "canonical_value": addr, "confidence": 0.85})
+
+    # Phone numbers (Zelle uses phone numbers)
+    for m in _PHONE_RE.finditer(text):
+        raw_phone = m.group()
+        digits = re.sub(r"\D", "", raw_phone)
+        if len(digits) < _MIN_PHONE_DIGITS:
+            continue
+        start = max(0, m.start() - 1)
+        surrounding = text[start : m.end() + 1]
+        if "@" in surrounding:
+            continue
+        canonical = "+" + digits if raw_phone.strip().startswith("+") else digits
+        if canonical not in seen:
+            seen.add(canonical)
+            entities.append({"entity_type": "phone_number", "canonical_value": canonical, "confidence": 0.8})
+
+
+# Wallet address patterns (match actual crypto addresses, not dollar amounts or keywords)
+_ETH_RE = re.compile(r"\b0x[0-9a-fA-F]{40}\b")
+_BTC_BECH32_RE = re.compile(r"\bbc1[a-zA-HJ-NP-Z0-9]{25,87}\b")
+_BTC_LEGACY_RE = re.compile(r"\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b")
+_SOL_RE = re.compile(r"\b[1-9A-HJ-NP-Za-km-z]{32,44}\b")  # Base58, 32-44 chars
+
+
+def _extract_wallet_addresses(text: str) -> list[str]:
+    """Extract real crypto wallet addresses from free-text using regex."""
+    if not text:
+        return []
+    addresses: set[str] = set()
+    addresses.update(_ETH_RE.findall(text))
+    addresses.update(_BTC_BECH32_RE.findall(text))
+    addresses.update(_BTC_LEGACY_RE.findall(text))
+    # For Solana-style base58 addresses, only match if they look long enough
+    for m in _SOL_RE.findall(text):
+        if len(m) >= 32 and not _is_junk_value(m):
+            addresses.update([m])
+    return sorted(addresses)
+
+
+# Junk values commonly found in free-text indicator columns
+_JUNK_WORDS = frozenset(
+    w.lower()
+    for w in [
+        "N/A",
+        "NA",
+        "n/a",
+        "None",
+        "none",
+        "Bitcoin",
+        "bitcoin",
+        "BTC",
+        "ETH",
+        "Ethereum",
+        "USDT",
+        "Tether",
+        "unknown",
+        "Unknown",
+        "no",
+        "No",
+        "yes",
+        "Yes",
+        "Hash",
+    ]
+)
+
+_JUNK_RE = re.compile(
+    r"^[\$\d\.,\s/\-]+$"  # Only dollar amounts, digits, dates, slashes
+    r"|^\d{1,2}/\d{1,2}/\d{2,4}$"  # Date patterns
+)
+
+
+def _is_junk_value(val: str) -> bool:
+    """Check if a value is a known junk/placeholder."""
+    stripped = val.strip()
+    if not stripped or len(stripped) < 3:
+        return True
+    if stripped.lower() in _JUNK_WORDS:
+        return True
+    return bool(_JUNK_RE.match(stripped))
+
+
+def _looks_like_url(val: str) -> bool:
+    """Check if a value looks like a URL or domain."""
+    stripped = val.strip()
+    if not stripped:
+        return False
+    if stripped.startswith(("http://", "https://", "www.")):
+        return True
+    return "." in stripped and " " not in stripped and len(stripped) > 4
+
+
 def _split_multi(value: str) -> list[str]:
-    """Split a comma/newline delimited field into individual values."""
+    """Split a comma/newline/semicolon delimited field into individual values."""
     if not value:
         return []
-    parts = value.replace("\n", ",").split(",")
+    parts = re.split(r"[,;\n]", value)
     return [p.strip() for p in parts if p.strip()]
 
 

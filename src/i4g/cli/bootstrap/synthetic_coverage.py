@@ -298,8 +298,7 @@ def bank_mule_redirect(rng: random.Random, idx: int) -> dict[str, Any]:
         "summary": make_summary(text),
         "entities": {
             "banks": [{"value": bank}],
-            "routing_numbers": [{"value": str(routing)}],
-            "account_numbers": [{"value": str(account)}],
+            "bank_accounts": [{"value": str(routing)}, {"value": str(account)}],
             "phone_numbers": [{"value": contact}],
         },
         "structured_fields": {

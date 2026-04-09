@@ -22,9 +22,14 @@ from i4g.extraction.ner_rules import extract_entities as rule_extract_entities
 _ENTITY_KEYS = [
     "people",
     "organizations",
-    "crypto_assets",
     "wallet_addresses",
-    "contact_channels",
+    "bank_accounts",
+    "email_addresses",
+    "phone_numbers",
+    "urls",
+    "domains",
+    "social_handles",
+    "crypto_assets",
     "locations",
     "scam_indicators",
 ]
@@ -37,6 +42,26 @@ operational advice or anything that enables wrongdoing.
 
 Return ONLY a JSON object with the exact top-level keys listed in the examples.
 If a field has no values, return an empty list for that field. Do NOT add extra keys.
+
+Field definitions:
+- "people": ACTUAL person names only (first + last or full names)
+- "organizations": Company, exchange, or institution names
+- "wallet_addresses": Cryptocurrency wallet addresses (0x…, bc1…, etc.)
+- "bank_accounts": Bank account numbers, routing numbers, IBANs, SWIFT/BIC codes
+- "email_addresses": Email addresses
+- "phone_numbers": Phone numbers
+- "urls": Full URLs (https://…, http://…)
+- "domains": Domain names without protocol (example.com)
+- "social_handles": Social media usernames (@user, Telegram handles)
+- "crypto_assets": Cryptocurrency names/tickers (Bitcoin, USDT, ETH)
+- "locations": Geographic locations (cities, countries, addresses)
+- "scam_indicators": Short phrases describing suspicious tactics
+
+IMPORTANT — do NOT extract these as people:
+- Field labels: "Account Number", "Bank Name", "Routing Number", "Sort Code"
+- Scam type names: "Advance Fee", "Money Mule", "Romance Scam"
+- Financial terms: "Wire Transfer", "Gift Card", "Credit Card"
+- Generic titles: "Customer Service", "Tech Support"
 """
 
 # Few-shot examples for better entity grouping and consistency
@@ -48,7 +73,12 @@ _FEW_SHOT_EXAMPLES = [
             "organizations": ["TrustWallet"],
             "crypto_assets": ["USDT"],
             "wallet_addresses": ["0xAbC..."],
-            "contact_channels": [],
+            "bank_accounts": [],
+            "email_addresses": [],
+            "phone_numbers": [],
+            "urls": [],
+            "domains": [],
+            "social_handles": [],
             "locations": [],
             "scam_indicators": ["verification fee", "send to verify"],
         },
@@ -60,7 +90,12 @@ _FEW_SHOT_EXAMPLES = [
             "organizations": [],
             "crypto_assets": ["Bitcoin"],
             "wallet_addresses": ["1FzWL..."],
-            "contact_channels": [],
+            "bank_accounts": [],
+            "email_addresses": [],
+            "phone_numbers": [],
+            "urls": [],
+            "domains": [],
+            "social_handles": [],
             "locations": [],
             "scam_indicators": ["romance scam", "money request to meet"],
         },
@@ -72,9 +107,31 @@ _FEW_SHOT_EXAMPLES = [
             "organizations": ["The New Jersey Devils investment club"],
             "crypto_assets": [],
             "wallet_addresses": [],
-            "contact_channels": ["@devilsprofit", "Telegram"],
+            "bank_accounts": [],
+            "email_addresses": [],
+            "phone_numbers": [],
+            "urls": [],
+            "domains": [],
+            "social_handles": ["@devilsprofit"],
             "locations": ["New Jersey"],
             "scam_indicators": ["investment guarantee"],
+        },
+    },
+    {
+        "input": "Contact james@fraud.com or call +1-555-999-0000. Account number 12345678, routing 021000021.",  # noqa: E501
+        "output": {
+            "people": [],
+            "organizations": [],
+            "crypto_assets": [],
+            "wallet_addresses": [],
+            "bank_accounts": ["12345678", "021000021"],
+            "email_addresses": ["james@fraud.com"],
+            "phone_numbers": ["+1-555-999-0000"],
+            "urls": [],
+            "domains": ["fraud.com"],
+            "social_handles": [],
+            "locations": [],
+            "scam_indicators": [],
         },
     },
 ]
