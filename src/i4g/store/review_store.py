@@ -445,10 +445,27 @@ class ReviewStore:
         return normalized_review_id
 
     def ensure_placeholder_review(self, review_id: str, case_id: str) -> None:
-        """Ensure a placeholder review exists for audit logging purposes."""
+        """Ensure a placeholder review exists for audit logging purposes.
+
+        Also ensures the referenced case exists (required by the FK on review_queue).
+        """
         now = datetime.now(UTC)
         with self._session_factory() as session:
             try:
+                # Ensure the system case exists first (review_queue.case_id → cases.case_id)
+                session.execute(
+                    sa.dialects.postgresql.insert(sql_schema.cases)
+                    .values(
+                        case_id=case_id,
+                        dataset="system",
+                        source_type="system",
+                        raw_text_sha256=case_id,
+                        status="closed",
+                        created_at=now,
+                        updated_at=now,
+                    )
+                    .on_conflict_do_nothing()
+                )
                 session.execute(
                     sa.dialects.postgresql.insert(sql_schema.review_queue)
                     .values(
@@ -456,15 +473,14 @@ class ReviewStore:
                         case_id=case_id,
                         queued_at=now,
                         priority="medium",
-                        status="new",
+                        status="closed",
                         last_updated=now,
                     )
                     .on_conflict_do_nothing()
                 )
                 session.commit()
             except Exception:
-                # Ignore errors if it already exists or race condition
-                pass
+                session.rollback()
 
     def log_action(
         self,

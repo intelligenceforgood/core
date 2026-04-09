@@ -247,13 +247,16 @@ def search_cases_advanced(
         if saved_search_descriptor.get("tags"):
             log_payload["saved_search_tags"] = saved_search_descriptor["tags"]
 
-    store.ensure_placeholder_review(SEARCH_AUDIT_REVIEW_ID, case_id="system:search-audit")
-    store.log_action(
-        review_id=SEARCH_AUDIT_REVIEW_ID,
-        actor=user.get("username"),
-        action="search",
-        payload=log_payload,
-    )
+    try:
+        store.ensure_placeholder_review(SEARCH_AUDIT_REVIEW_ID, case_id="system:search-audit")
+        store.log_action(
+            review_id=SEARCH_AUDIT_REVIEW_ID,
+            actor=user.get("username"),
+            action="search",
+            payload=log_payload,
+        )
+    except Exception:
+        logger.warning("Failed to log search audit action", exc_info=True)
 
     return {**query_result, "search_id": search_id}
 
