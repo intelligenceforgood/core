@@ -169,8 +169,9 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
             )
         )
 
-    # Batch entity extraction — runs LLM-based NER on cases that lack
-    # entities.  Must run AFTER ingest so case text is available.
+    # Batch entity extraction — runs LLM-based NER on cases.  Must run
+    # AFTER ingest so case text is available.  Uses --backfill so the LLM
+    # re-extracts over any noisy rule-based entities created at ingest time.
     entity_extract_job = getattr(args, "entity_extract_job", None) or DEFAULT_JOBS.get("entity_extract", "")
     skip_entity_extract = getattr(args, "skip_entity_extract", False)
     if not skip_entity_extract and entity_extract_job:
@@ -179,7 +180,7 @@ def build_job_specs(args: argparse.Namespace) -> list[JobSpec]:
             JobSpec(
                 label="entity_extract",
                 job_name=entity_extract_job,
-                args=["jobs", "entity-extract"],
+                args=["jobs", "entity-extract", "--backfill"],
                 env=entity_extract_env,
             )
         )

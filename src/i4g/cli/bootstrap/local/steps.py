@@ -98,13 +98,18 @@ def _is_golden_mode() -> bool:
     return golden_path.exists()
 
 
-def ingest_golden_fast() -> bool:
+def ingest_golden_fast(*, skip_extraction: bool = False) -> bool:
     """Fast-path: insert golden JSONL directly into SQLite.
 
     Bypasses the heavyweight IngestPipeline (StructuredStore + SqlWriter +
     VectorStore) by doing raw sqlite3 inserts.  Populates the same tables the
     pipeline would: ``cases``, ``source_documents``, ``entities``, and
     ``scam_records``.
+
+    Args:
+        skip_extraction: If True, use pre-labeled entities from the JSONL
+            (original behavior). If False, run the extraction orchestrator
+            on each case's text and store the resulting entities.
 
     Returns True on success, False if the golden bundle is missing.
     """
@@ -163,18 +168,27 @@ def ingest_golden_fast() -> bool:
                 metadata["title"] = title
             # Normalize entities: ETL scripts produce [{entity_type, canonical_value, confidence}]
             # but the old code expected {type: [values]}.  Convert list→dict for storage.
-            raw_entities = record.get("entities")
-            entities_dict: dict[str, list[str]] = {}
-            if isinstance(raw_entities, list):
-                for ent in raw_entities:
-                    if not isinstance(ent, dict):
-                        continue
-                    etype = ent.get("entity_type", "unknown")
-                    val = ent.get("canonical_value", "")
-                    if val:
-                        entities_dict.setdefault(etype, []).append(val)
-            elif isinstance(raw_entities, dict):
-                entities_dict = raw_entities
+            if skip_extraction:
+                raw_entities = record.get("entities")
+                entities_dict: dict[str, list[str]] = {}
+                if isinstance(raw_entities, list):
+                    for ent in raw_entities:
+                        if not isinstance(ent, dict):
+                            continue
+                        etype = ent.get("entity_type", "unknown")
+                        val = ent.get("canonical_value", "")
+                        if val:
+                            entities_dict.setdefault(etype, []).append(val)
+                elif isinstance(raw_entities, dict):
+                    entities_dict = raw_entities
+            else:
+                # Run orchestrator on the case text for real extraction.
+                from i4g.extraction.orchestrator import extract_entities
+
+                result = extract_entities(text, modules=["regex", "heuristic"])
+                entities_dict = {}
+                for scored in result.entities:
+                    entities_dict.setdefault(scored.entity_type, []).append(scored.canonical_value)
 
             # -- cases table --
             cur.execute(
@@ -281,12 +295,12 @@ def ingest_golden_fast() -> bool:
     return True
 
 
-def ingest_bundles(skip_vector: bool, limit: int | None = None) -> None:
+def ingest_bundles(skip_vector: bool, limit: int | None = None, skip_extraction: bool = False) -> None:
     """Ingest JSONL bundles into the local SQLite store."""
 
     # Golden mode: use the fast direct-to-SQLite path
     if _is_golden_mode():
-        if ingest_golden_fast():
+        if ingest_golden_fast(skip_extraction=skip_extraction):
             return
         print("⚠️  Golden fast-path failed; falling back to standard ingestion.")
 

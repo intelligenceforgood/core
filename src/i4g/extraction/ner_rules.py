@@ -199,12 +199,22 @@ def extract_bank_accounts(text: str) -> list[str]:
 
 
 def extract_entities(text: str) -> dict[str, list[str]]:
-    """
-    Aggregate all extraction results into a single dictionary.
+    """Aggregate all extraction results into a single dictionary.
+
+    .. deprecated::
+        Use :func:`i4g.extraction.extract_entities` (the v2 orchestrator) instead.
+        This function exists only for backward compatibility and will be removed.
 
     Keys are aligned with ``_ENTITY_KEYS`` used by the entity extraction job
     so that merge works without a mapping layer.
     """
+    import warnings
+
+    warnings.warn(
+        "ner_rules.extract_entities is deprecated. Use i4g.extraction.extract_entities.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return {
         "wallet_addresses": extract_wallets(text),
         "urls": extract_urls(text),

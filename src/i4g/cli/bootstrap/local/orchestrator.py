@@ -55,6 +55,7 @@ def run_local(
     smoke_dossier_plan_id: str | None,
     force: bool,
     skip_ingest: bool = False,
+    skip_extraction: bool = False,
     limit: int | None = None,
 ) -> None:
     """Execute the local sandbox bootstrap flow."""
@@ -114,7 +115,7 @@ def run_local(
     seed_campaigns()
 
     if not skip_ingest:
-        ingest_bundles(skip_vector=skip_vector, limit=limit)
+        ingest_bundles(skip_vector=skip_vector, limit=limit, skip_extraction=skip_extraction)
     else:
         print("⚠️  Skipping bundle ingestion as requested.")
 

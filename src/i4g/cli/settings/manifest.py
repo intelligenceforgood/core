@@ -15,6 +15,17 @@ from pydantic.fields import FieldInfo, PydanticUndefined
 from pydantic_settings import BaseSettings
 
 from i4g.settings.config import Settings
+from i4g.settings.sections._paths import PROJECT_ROOT
+
+
+def _relativize_path(value: Path) -> str:
+    """Return a project-relative string for *value*, or the raw string if outside the tree."""
+
+    try:
+        return str(value.relative_to(PROJECT_ROOT))
+    except ValueError:
+        return str(value)
+
 
 SMOKE_COMMAND = (
     "```bash\n" "conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g jobs account\n" "```"
@@ -71,12 +82,16 @@ class SettingRecord:
 
 
 def _serialize_value(value: Any) -> Any:
-    """Convert arbitrary defaults into JSON-friendly primitives."""
+    """Convert arbitrary defaults into JSON-friendly primitives.
+
+    Path values are made project-relative so manifests never contain
+    developer-specific absolute paths like ``/Users/<name>/...``.
+    """
 
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
     if isinstance(value, Path):
-        return str(value)
+        return _relativize_path(value)
     if isinstance(value, dict):
         return {k: _serialize_value(v) for k, v in value.items()}
     if isinstance(value, (list, tuple, set)):

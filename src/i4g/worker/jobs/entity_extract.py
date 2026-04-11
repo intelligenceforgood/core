@@ -3,6 +3,9 @@
 Reads cases from the database that lack entities, runs NER (LLM + rule-based
 fallback), and writes extracted entities and indicators back to the DB.
 
+Supports configurable concurrency via ``extraction.batch_concurrency``.
+Tracks repeatedly failing cases in a dead-letter log.
+
 Run manually::
 
     i4g jobs entity-extract
@@ -13,19 +16,20 @@ Or as a Cloud Run job during bootstrap.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
-import re
 import sys
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 from uuid import uuid4
 
 import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
-from i4g.extraction.ner_rules import extract_entities as rule_extract_entities
+from i4g.extraction import ExtractionResult, extract_entities
 from i4g.llm.client import build_llm_client
 from i4g.settings import get_settings
 from i4g.store.sql import (
@@ -39,255 +43,220 @@ from i4g.store.sql import (
     source_documents,
 )
 from i4g.task_status import TaskStatusReporter
-from i4g.utils.entity_types import THREAT_ENTITY_TYPES, normalize_entity_type, normalize_entity_value
+from i4g.utils.entity_types import THREAT_ENTITY_TYPES
 from i4g.worker.logging import configure_job_logging
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Confidence scores by extraction source and entity type.
-#
-# Rule-based regex (wallets, emails, phones, URLs): high precision → 0.9
-# Rule-based heuristic (names, crypto keywords): noisy → 0.5
-# LLM extraction: 0.7 default (no per-entity confidence from LLM)
-# When both rule + LLM agree, keep the higher score.
-# ---------------------------------------------------------------------------
-
-_RULE_REGEX_TYPES = frozenset({"wallet_addresses", "urls", "phone_numbers", "email_addresses", "bank_accounts"})
-_RULE_HEURISTIC_TYPES = frozenset({"people", "crypto_assets", "organizations", "locations", "scam_indicators"})
-
-_LLM_DEFAULT_CONFIDENCE = 0.7
-_RULE_REGEX_CONFIDENCE = 0.9
-_RULE_HEURISTIC_CONFIDENCE = 0.5
-
-_ENTITY_KEYS = [
-    "people",
-    "organizations",
-    "wallet_addresses",
-    "bank_accounts",
-    "email_addresses",
-    "phone_numbers",
-    "urls",
-    "domains",
-    "social_handles",
-    "crypto_assets",
-    "locations",
-    "scam_indicators",
-]
-
-_EXTRACTION_PROMPT = """\
-You are an assistant whose only job is to extract structured entities from text for \
-the purpose of user support and law enforcement investigation. You must NOT provide \
-operational advice or anything that enables wrongdoing.
-
-Return ONLY a JSON object with these exact top-level keys:
-{keys}
-
-If a field has no values, return an empty list for that field. Do NOT add extra keys.
-
-Field definitions:
-- "people": ACTUAL person names only (first + last or full names)
-- "organizations": Company, exchange, or institution names
-- "wallet_addresses": Cryptocurrency wallet addresses (0x…, bc1…, etc.)
-- "bank_accounts": Bank account numbers, routing numbers, IBANs, SWIFT/BIC codes
-- "email_addresses": Email addresses
-- "phone_numbers": Phone numbers
-- "urls": Full URLs (https://…, http://…)
-- "domains": Domain names without protocol (example.com)
-- "social_handles": Social media usernames (@user, Telegram handles)
-- "crypto_assets": Cryptocurrency names/tickers (Bitcoin, USDT, ETH)
-- "locations": Geographic locations (cities, countries, addresses)
-- "scam_indicators": Short phrases describing suspicious tactics
-
-IMPORTANT — do NOT extract these as people:
-- Field labels: "Account Number", "Bank Name", "Routing Number", "Sort Code"
-- Scam type names: "Advance Fee", "Money Mule", "Romance Scam"
-- Financial terms: "Wire Transfer", "Gift Card", "Credit Card"
-- Generic titles: "Customer Service", "Tech Support"
-
-Example Input: "Hi, I'm Anna from TrustWallet. Send 0xAbC... to verify and pay 50 USDT."
-Example Output:
-{{"people": ["Anna"], "organizations": ["TrustWallet"], "crypto_assets": ["USDT"], \
-"wallet_addresses": ["0xAbC..."], "bank_accounts": [], \
-"email_addresses": [], "phone_numbers": [], "urls": [], \
-"domains": [], "social_handles": [], "locations": [], \
-"scam_indicators": ["verification fee", "send to verify"]}}
-
-Example Input: "Contact james@fraud.com or call +1-555-999-0000. Account number 12345678, routing 021000021."
-Example Output:
-{{"people": [], "organizations": [], "crypto_assets": [], \
-"wallet_addresses": [], "bank_accounts": ["12345678", "021000021"], \
-"email_addresses": ["james@fraud.com"], \
-"phone_numbers": ["+1-555-999-0000"], "urls": [], \
-"domains": ["fraud.com"], "social_handles": [], "locations": [], \
-"scam_indicators": []}}
-
-Now analyze the following text and return ONLY the JSON object:
-
-{text}
-"""
+# Maximum consecutive failures before a case is dead-lettered.
+_MAX_FAILURES = 3
 
 
-def _parse_entity_response(response_text: str) -> dict[str, list[str]]:
-    """Parse LLM response into entity dict."""
-    cleaned = response_text.strip()
+def _dead_letter_path() -> Path:
+    """Return the path to the dead-letter log file."""
+    from i4g.settings import get_settings
 
-    # Try direct parse
-    try:
-        data = json.loads(cleaned)
-        if isinstance(data, dict):
-            return {k: v for k, v in data.items() if isinstance(v, list)}
-    except json.JSONDecodeError:
-        pass
+    settings = get_settings()
+    return Path(settings.app.project_root) / "data" / "entity-qa" / "dead_letters.json"
 
-    # Extract JSON from markdown blocks
-    if "```json" in cleaned:
-        start = cleaned.find("```json") + 7
-        end = cleaned.find("```", start)
-        if end != -1:
-            try:
-                data = json.loads(cleaned[start:end].strip())
-                if isinstance(data, dict):
-                    return {k: v for k, v in data.items() if isinstance(v, list)}
-            except json.JSONDecodeError:
-                pass
 
-    # Regex fallback for JSON object
-    m = re.search(r"\{(?:[^{}]|\{[^{}]*\})*\}", cleaned, re.DOTALL)
-    if m:
+def _load_dead_letters() -> dict[str, dict]:
+    """Load the dead-letter log, returning ``{case_id: {count, last_error, last_attempt}}``."""
+    path = _dead_letter_path()
+    if path.exists():
         try:
-            data = json.loads(m.group(0))
-            if isinstance(data, dict):
-                return {k: v for k, v in data.items() if isinstance(v, list)}
-        except json.JSONDecodeError:
-            pass
-
+            return json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return {}
     return {}
 
 
-def _extract_entities_for_text(llm_client: object, text: str) -> dict[str, list[dict]]:
-    """Run LLM + rule-based NER on a text and merge results.
+def _save_dead_letters(dead_letters: dict[str, dict]) -> None:
+    """Persist the dead-letter log."""
+    path = _dead_letter_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(dead_letters, indent=2, default=str) + "\n")
 
-    Returns ``{entity_key: [{"value": str, "confidence": float}, ...]}`` with
-    calibrated confidence scores per extraction source.
-    """
-    llm_result: dict[str, list[str]] = {}
 
-    # LLM extraction
-    prompt = _EXTRACTION_PROMPT.format(keys=", ".join(_ENTITY_KEYS), text=text[:8000])
-    try:
-        response = llm_client.generate(prompt)  # type: ignore[attr-defined]
-        llm_result = _parse_entity_response(response)
-    except Exception:
-        logger.warning("LLM entity extraction failed; falling back to rules only", exc_info=True)
+def _record_failure(dead_letters: dict[str, dict], case_id: str, error: str) -> None:
+    """Increment failure count for a case, or add a new entry."""
+    now = datetime.now(UTC).isoformat()
+    if case_id in dead_letters:
+        dead_letters[case_id]["count"] += 1
+        dead_letters[case_id]["last_error"] = error
+        dead_letters[case_id]["last_attempt"] = now
+    else:
+        dead_letters[case_id] = {"count": 1, "last_error": error, "last_attempt": now}
 
-    # Rule-based extraction (always runs as supplement/fallback)
-    rule_result = rule_extract_entities(text)
 
-    # Merge: union of LLM + rules, deduped, with calibrated confidence
-    merged: dict[str, list[dict]] = {}
-    all_keys = set(llm_result.keys()) | set(rule_result.keys())
-    for key in all_keys:
-        llm_raw = llm_result.get(key, [])
-        rule_raw = rule_result.get(key, [])
-        # Flatten to strings
-        llm_items = {str(v) for v in llm_raw if v and not isinstance(v, dict)} if isinstance(llm_raw, list) else set()
-        rule_items = (
-            {str(v) for v in rule_raw if v and not isinstance(v, dict)} if isinstance(rule_raw, list) else set()
-        )
-        # Assign confidence based on source
-        rule_conf = _RULE_REGEX_CONFIDENCE if key in _RULE_REGEX_TYPES else _RULE_HEURISTIC_CONFIDENCE
-        scored: dict[str, float] = {}
-        for v in rule_items:
-            scored[v] = rule_conf
-        for v in llm_items:
-            # If also found by rules, keep the higher confidence
-            scored[v] = max(scored.get(v, 0.0), _LLM_DEFAULT_CONFIDENCE)
-
-        if scored:
-            merged[key] = [{"value": val, "confidence": conf} for val, conf in sorted(scored.items())]
-
-    return merged
+def _is_dead_lettered(dead_letters: dict[str, dict], case_id: str) -> bool:
+    """Return True if the case has exceeded the max failure threshold."""
+    entry = dead_letters.get(case_id)
+    return entry is not None and entry["count"] >= _MAX_FAILURES
 
 
 def _persist_extracted_entities(
     session: Session,
     case_id: str,
-    entity_map: dict[str, list[dict]],
+    result: ExtractionResult,
     dataset: str,
 ) -> tuple[int, int]:
-    """Write entities and indicators to the DB. Returns (entity_count, indicator_count).
-
-    Each value in entity_map is ``[{"value": str, "confidence": float}, ...]``.
-    """
+    """Write entities and indicators to the DB. Returns (entity_count, indicator_count)."""
     now = datetime.now(UTC)
     entity_count = 0
     indicator_count = 0
 
-    for raw_type, values in entity_map.items():
-        if not isinstance(values, list):
+    for ent in result.entities:
+        canonical = ent.canonical_value.strip()
+        if not canonical:
             continue
-        entity_type = normalize_entity_type(raw_type)
-        for item in values:
-            if isinstance(item, dict):
-                canonical = str(item.get("value", "")).strip()
-                confidence = float(item.get("confidence", _LLM_DEFAULT_CONFIDENCE))
-            else:
-                canonical = str(item).strip()
-                confidence = _LLM_DEFAULT_CONFIDENCE
-            if not canonical:
-                continue
+        confidence = ent.confidence
 
-            # Apply value normalization for dedup consistency
-            canonical = normalize_entity_value(entity_type, canonical)
+        # Upsert entity
+        eid = str(uuid4())
+        ins = dialect_insert(session, entities)
+        ins_stmt = ins.on_conflict_do_nothing(
+            index_elements=["case_id", "entity_type", "canonical_value"],
+        )
+        session.execute(
+            ins_stmt.values(
+                entity_id=eid,
+                case_id=case_id,
+                entity_type=ent.entity_type,
+                canonical_value=canonical,
+                raw_value=ent.value,
+                confidence=confidence,
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        entity_count += 1
 
-            # Upsert entity
-            eid = str(uuid4())
-            ins = dialect_insert(session, entities)
-            ins_stmt = ins.on_conflict_do_nothing(
-                index_elements=["case_id", "entity_type", "canonical_value"],
+        # Upsert indicator (IoC mirror) — only for threat infrastructure types
+        if ent.entity_type not in THREAT_ENTITY_TYPES:
+            continue
+        iid = str(uuid4())
+        ind_ins = dialect_insert(session, indicators)
+        ind_ins_stmt = ind_ins.on_conflict_do_nothing(
+            index_elements=["dataset", "category", "number"],
+        )
+        session.execute(
+            ind_ins_stmt.values(
+                indicator_id=iid,
+                case_id=case_id,
+                category=ent.entity_type,
+                type=ent.entity_type,
+                number=canonical,
+                dataset=dataset,
+                status="active",
+                confidence=confidence,
+                first_seen_at=now,
+                last_seen_at=now,
+                created_at=now,
+                updated_at=now,
             )
-            session.execute(
-                ins_stmt.values(
-                    entity_id=eid,
-                    case_id=case_id,
-                    entity_type=entity_type,
-                    canonical_value=canonical,
-                    raw_value=canonical,
-                    confidence=confidence,
-                    created_at=now,
-                    updated_at=now,
-                )
-            )
-            entity_count += 1
-
-            # Upsert indicator (IoC mirror) — only for threat infrastructure types
-            if entity_type not in THREAT_ENTITY_TYPES:
-                continue
-            iid = str(uuid4())
-            ind_ins = dialect_insert(session, indicators)
-            ind_ins_stmt = ind_ins.on_conflict_do_nothing(
-                index_elements=["dataset", "category", "number"],
-            )
-            session.execute(
-                ind_ins_stmt.values(
-                    indicator_id=iid,
-                    case_id=case_id,
-                    category=entity_type,
-                    type=entity_type,
-                    number=canonical,
-                    dataset=dataset,
-                    status="active",
-                    confidence=confidence,
-                    first_seen_at=now,
-                    last_seen_at=now,
-                    created_at=now,
-                    updated_at=now,
-                )
-            )
-            indicator_count += 1
+        )
+        indicator_count += 1
 
     return entity_count, indicator_count
+
+
+def _run_concurrent(
+    *,
+    unique_rows: list[tuple[str, str, str]],
+    llm_client: object,
+    llm_delay: float,
+    concurrency: int,
+    session: Session,
+    reporter: TaskStatusReporter,
+    dead_letters: dict[str, dict] | None = None,
+) -> tuple[int, int, int, int]:
+    """Run extraction concurrently using asyncio with a semaphore.
+
+    The LLM calls run in a thread pool with bounded concurrency.
+    DB writes remain sequential on the main thread to avoid session issues.
+
+    Returns:
+        (successes, failures, total_entities, total_indicators)
+    """
+
+    async def _extract_one(
+        sem: asyncio.Semaphore,
+        case_id: str,
+        text: str,
+    ) -> tuple[str, ExtractionResult | None, str | None]:
+        """Extract entities for one case, respecting the semaphore."""
+        async with sem:
+            if llm_delay > 0:
+                await asyncio.sleep(llm_delay)
+            try:
+                result = await asyncio.to_thread(extract_entities, text, llm_client=llm_client)
+                return (case_id, result, None)
+            except Exception as exc:
+                logger.exception("entity-extract: extraction failed for case %s", case_id)
+                return (case_id, None, str(exc))
+
+    async def _run_all() -> list[tuple[str, ExtractionResult | None, str | None]]:
+        sem = asyncio.Semaphore(concurrency)
+        tasks = []
+        for case_id, _dataset, text in unique_rows:
+            if not text or not text.strip():
+                continue
+            tasks.append(_extract_one(sem, case_id, text))
+        return await asyncio.gather(*tasks)
+
+    # Run the async extraction loop.
+    extraction_results = asyncio.run(_run_all())
+
+    # Build a lookup for dataset by case_id.
+    dataset_map = {case_id: dataset for case_id, dataset, _ in unique_rows}
+
+    successes = 0
+    failures = 0
+    total_entities = 0
+    total_indicators = 0
+    total = len(unique_rows)
+
+    for i, (case_id, result, error) in enumerate(extraction_results):
+        if error is not None:
+            failures += 1
+            if dead_letters is not None:
+                _record_failure(dead_letters, case_id, error)
+            continue
+
+        dataset = dataset_map.get(case_id, "unknown")
+        try:
+            if result and result.entities:
+                ent_count, ind_count = _persist_extracted_entities(session, case_id, result, dataset or "unknown")
+                total_entities += ent_count
+                total_indicators += ind_count
+                session.commit()
+                successes += 1
+            else:
+                successes += 1
+        except Exception as exc:
+            session.rollback()
+            failures += 1
+            if dead_letters is not None:
+                _record_failure(dead_letters, case_id, str(exc))
+            logger.exception("entity-extract: persist failed for case %s", case_id)
+
+        if (i + 1) % 25 == 0:
+            logger.info(
+                "entity-extract: progress %d/%d (entities=%d, indicators=%d)",
+                i + 1,
+                total,
+                total_entities,
+                total_indicators,
+            )
+            if reporter.is_enabled():
+                reporter.update(
+                    status="processing",
+                    message=f"Processed {i + 1}/{total} cases",
+                    processed=i + 1,
+                )
+
+    return successes, failures, total_entities, total_indicators
 
 
 def main(*, backfill: bool = False, limit: int = 0) -> int:
@@ -311,7 +280,7 @@ def main(*, backfill: bool = False, limit: int = 0) -> int:
     sf = build_sql_session_factory()
     session: Session = sf()
     llm_client = build_llm_client()
-    llm_delay = float(os.environ.get("ENTITY_EXTRACT_LLM_DELAY_SECONDS", "0.5"))
+    llm_delay = float(os.environ.get("ENTITY_EXTRACT_LLM_DELAY_SECONDS", str(settings.extraction.llm_delay_seconds)))
 
     try:
         # Build query: cases joined with their primary document text
@@ -353,52 +322,92 @@ def main(*, backfill: bool = False, limit: int = 0) -> int:
             logger.info("entity-extract: no cases need entity extraction")
             return 0
 
+        # Load dead-letter log to skip persistently failing cases.
+        dead_letters = _load_dead_letters()
+        skipped_dead = 0
+        processable: list[tuple[str, str, str]] = []
+        for case_id, dataset, text in unique_rows:
+            if _is_dead_lettered(dead_letters, case_id):
+                skipped_dead += 1
+                continue
+            processable.append((case_id, dataset, text))
+
+        if skipped_dead:
+            logger.info("entity-extract: skipping %d dead-lettered cases", skipped_dead)
+
         successes = 0
         failures = 0
         total_entities = 0
         total_indicators = 0
 
-        for i, (case_id, dataset, text) in enumerate(unique_rows):
-            if not text or not text.strip():
-                logger.debug("entity-extract: skipping case %s (no text)", case_id)
-                continue
+        concurrency = settings.extraction.batch_concurrency
 
-            try:
-                entity_map = _extract_entities_for_text(llm_client, text)
-                if entity_map:
-                    ent_count, ind_count = _persist_extracted_entities(
-                        session, case_id, entity_map, dataset or "unknown"
+        if concurrency > 1:
+            # Concurrent extraction — DB writes are still sequential.
+            successes, failures, total_entities, total_indicators = _run_concurrent(
+                unique_rows=processable,
+                llm_client=llm_client,
+                llm_delay=llm_delay,
+                concurrency=concurrency,
+                session=session,
+                reporter=reporter,
+                dead_letters=dead_letters,
+            )
+        else:
+            # Sequential extraction (default).
+            for i, (case_id, dataset, text) in enumerate(processable):
+                if not text or not text.strip():
+                    logger.debug("entity-extract: skipping case %s (no text)", case_id)
+                    continue
+
+                try:
+                    result = extract_entities(text, llm_client=llm_client)
+                    if result.entities:
+                        ent_count, ind_count = _persist_extracted_entities(
+                            session, case_id, result, dataset or "unknown"
+                        )
+                        total_entities += ent_count
+                        total_indicators += ind_count
+                        session.commit()
+                        successes += 1
+                    else:
+                        logger.debug("entity-extract: no entities found for case %s", case_id)
+                        successes += 1
+                except Exception as exc:
+                    session.rollback()
+                    failures += 1
+                    _record_failure(dead_letters, case_id, str(exc))
+                    logger.exception("entity-extract: failed for case %s", case_id)
+
+                # Throttle to avoid LLM quota contention with classification sweeper
+                if llm_delay > 0:
+                    time.sleep(llm_delay)
+
+                if (i + 1) % 25 == 0:
+                    logger.info(
+                        "entity-extract: progress %d/%d (entities=%d, indicators=%d)",
+                        i + 1,
+                        total,
+                        total_entities,
+                        total_indicators,
                     )
-                    total_entities += ent_count
-                    total_indicators += ind_count
-                    session.commit()
-                    successes += 1
-                else:
-                    logger.debug("entity-extract: no entities found for case %s", case_id)
-                    successes += 1
-            except Exception:
-                session.rollback()
-                failures += 1
-                logger.exception("entity-extract: failed for case %s", case_id)
+                    if reporter.is_enabled():
+                        reporter.update(
+                            status="processing",
+                            message=f"Processed {i + 1}/{total} cases",
+                            processed=i + 1,
+                        )
 
-            # Throttle to avoid LLM quota contention with classification sweeper
-            if llm_delay > 0:
-                time.sleep(llm_delay)
-
-            if (i + 1) % 25 == 0:
-                logger.info(
-                    "entity-extract: progress %d/%d (entities=%d, indicators=%d)",
-                    i + 1,
-                    total,
-                    total_entities,
-                    total_indicators,
+        # Persist dead-letter log if any failures occurred.
+        if failures > 0:
+            _save_dead_letters(dead_letters)
+            dead_count = sum(1 for v in dead_letters.values() if v["count"] >= _MAX_FAILURES)
+            if dead_count:
+                logger.warning(
+                    "entity-extract: %d cases now dead-lettered (>=%d failures)",
+                    dead_count,
+                    _MAX_FAILURES,
                 )
-                if reporter.is_enabled():
-                    reporter.update(
-                        status="processing",
-                        message=f"Processed {i + 1}/{total} cases",
-                        processed=i + 1,
-                    )
 
         status = "finished" if failures == 0 else "partial"
         logger.info(

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 from i4g.extraction.ner_rules import (
     extract_crypto_keywords,
     extract_entities,
@@ -154,8 +156,14 @@ class TestExtractCryptoKeywords:
 
 
 class TestExtractEntities:
+    @staticmethod
+    def _extract(text: str) -> dict:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            return extract_entities(text)
+
     def test_returns_all_keys(self):
-        result = extract_entities("Nothing here")
+        result = self._extract("Nothing here")
         expected_keys = {
             "wallet_addresses",
             "urls",
@@ -176,7 +184,7 @@ class TestExtractEntities:
             "John Doe sent bitcoin to 0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B. "
             "Contact via https://scam.site or call +1 555-888-9999."
         )
-        result = extract_entities(text)
+        result = self._extract(text)
         assert len(result["wallet_addresses"]) >= 1
         assert len(result["urls"]) >= 1
         assert len(result["phone_numbers"]) >= 1
@@ -185,7 +193,7 @@ class TestExtractEntities:
 
     def test_urls_and_phones_in_separate_keys(self):
         text = "Visit https://example.com or call +1 555-000-1111"
-        result = extract_entities(text)
+        result = self._extract(text)
         assert any("example.com" in u for u in result["urls"])
         assert len(result["phone_numbers"]) >= 1
         # The old contact_channels key should not exist
@@ -193,10 +201,10 @@ class TestExtractEntities:
 
     def test_emails_in_own_key(self):
         text = "Email alice@example.com for details"
-        result = extract_entities(text)
+        result = self._extract(text)
         assert any("alice@example.com" in e for e in result["email_addresses"])
 
     def test_bank_accounts_in_own_key(self):
         text = "Account number 12345678"
-        result = extract_entities(text)
+        result = self._extract(text)
         assert "12345678" in result["bank_accounts"]

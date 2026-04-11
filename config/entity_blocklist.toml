@@ -1,0 +1,21 @@
+# Entity extraction blocklist — known false positives.
+#
+# Edit this file directly or use: i4g entity-qa blocklist add <type> <value>
+#
+# Format: each section is an entity type, with a "values" list of strings
+# that should be filtered out during extraction. Entries here merge with
+# the built-in blocklist (src/i4g/extraction/modules/blocklist.py).
+
+[person]
+values = [
+  "Wells Fargo",
+  "Chase Bank",
+  "On Behalf",
+  "Revenue Service",
+  "United States",
+  "Online Fraud",
+  "Original Message",
+  "Customer Service",
+  "Henderson Internal",
+  "Contact Needed",
+]

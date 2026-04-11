@@ -12,8 +12,7 @@ from tqdm import tqdm
 from i4g.api import reports as reports_api
 from i4g.api.app import create_app
 from i4g.cli.utils import iter_jsonl, write_jsonl
-from i4g.extraction.ner_rules import extract_entities
-from i4g.extraction.semantic_ner import build_llm, extract_semantic_entities
+from i4g.extraction import extract_entities as orchestrator_extract
 from i4g.ocr.tesseract import batch_extract_text
 from i4g.reports.bundle_builder import DossierCandidate, DossierPlan
 from i4g.store.dossier_queue_store import DossierQueueStore
@@ -43,7 +42,10 @@ def extraction(*, input_path: str | Path, output_path: str | Path) -> int:
     structured: list[dict[str, object]] = []
     for item in tqdm(ocr_results, desc="Extracting entities"):
         text = item.get("text", "")
-        entities = extract_entities(text)
+        result = orchestrator_extract(text, modules=["regex"])
+        entities = {}
+        for ent in result.entities:
+            entities.setdefault(ent.entity_type, []).append(ent.value)
         structured.append({"file": item.get("file"), "entities": entities})
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -60,7 +62,6 @@ def semantic(*, input_path: str | Path, output_path: str | Path, model: str = "l
         print("❌ OCR output not found. Run i4g extract ocr first.")
         return 1
 
-    llm = build_llm(model=model)
     ocr_results = list(iter_jsonl(input_path))
 
     output: list[dict[str, object]] = []
@@ -70,7 +71,10 @@ def semantic(*, input_path: str | Path, output_path: str | Path, model: str = "l
             output.append({"file": item.get("file"), "semantic_entities": {}})
             continue
 
-        entities = extract_semantic_entities(text, llm)
+        result = orchestrator_extract(text)
+        entities: dict[str, list[dict[str, object]]] = {}
+        for ent in result.entities:
+            entities.setdefault(ent.entity_type, []).append({"value": ent.value, "confidence": ent.confidence})
         output.append({"file": item.get("file"), "semantic_entities": entities})
 
     output_path.parent.mkdir(parents=True, exist_ok=True)

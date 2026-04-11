@@ -11,6 +11,7 @@ Run::
 from __future__ import annotations
 
 import json
+import warnings
 from collections import defaultdict
 from pathlib import Path
 
@@ -105,7 +106,9 @@ def golden_results() -> tuple[_Metrics, list[dict]]:
     details: list[dict] = []
 
     for case in cases:
-        raw = extract_entities(case["text"])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            raw = extract_entities(case["text"])
         predicted = _flatten_extracted(raw)
         expected = _flatten_expected(case.get("expected", {}))
 

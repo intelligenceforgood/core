@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-17T20:35:39.373594+00:00",
+  "generated_at": "2026-04-10T23:27:47.639945+00:00",
   "source": "src/i4g/settings/config.py",
   "env_prefix": "I4G_",
   "fields": [
@@ -32,6 +32,22 @@
         "ANALYTICS__INFRASTRUCTURE_CLUSTERING_INTERVAL_HOURS"
       ],
       "description": "Hours between infrastructure clustering runs."
+    },
+    {
+      "path": "analytics.leaderboard_weights",
+      "section": "analytics",
+      "type": "dict[str, float]",
+      "default": {
+        "accuracy": 0.4,
+        "throughput": 0.35,
+        "quality": 0.25
+      },
+      "env_vars": [
+        "I4G_ANALYTICS__LEADERBOARD_WEIGHTS",
+        "ANALYTICS_LEADERBOARD_WEIGHTS",
+        "ANALYTICS__LEADERBOARD_WEIGHTS"
+      ],
+      "description": "Weight factors for engagement leaderboard composite score."
     },
     {
       "path": "analytics.loss_linkage_confidence_threshold",
@@ -192,6 +208,86 @@
       "description": "Scans older than this many days are considered stale and eligible for re-scan."
     },
     {
+      "path": "backfill.cycle_interval_seconds",
+      "section": "backfill",
+      "type": "int",
+      "default": 300,
+      "env_vars": [
+        "I4G_BACKFILL__CYCLE_INTERVAL_SECONDS",
+        "BACKFILL_CYCLE_INTERVAL",
+        "BACKFILL__CYCLE_INTERVAL_SECONDS"
+      ],
+      "description": "Seconds between daemon cycles."
+    },
+    {
+      "path": "backfill.default_lock_ttl_seconds",
+      "section": "backfill",
+      "type": "int",
+      "default": 3600,
+      "env_vars": [
+        "I4G_BACKFILL__DEFAULT_LOCK_TTL_SECONDS",
+        "BACKFILL_LOCK_TTL",
+        "BACKFILL__DEFAULT_LOCK_TTL_SECONDS"
+      ],
+      "description": "Default TTL for advisory locks."
+    },
+    {
+      "path": "backfill.enabled_tasks",
+      "section": "backfill",
+      "type": "list[str]",
+      "default": [
+        "classify",
+        "ssi",
+        "analytics",
+        "linkage",
+        "dossier",
+        "evidence",
+        "ingest-retry"
+      ],
+      "env_vars": [
+        "I4G_BACKFILL__ENABLED_TASKS",
+        "BACKFILL_ENABLED_TASKS",
+        "BACKFILL__ENABLED_TASKS"
+      ],
+      "description": "Task names to run in daemon mode."
+    },
+    {
+      "path": "bq_export.dataset_id",
+      "section": "bq_export",
+      "type": "str",
+      "default": "i4g_analytics",
+      "env_vars": [
+        "I4G_BQ_EXPORT__DATASET_ID",
+        "BQ_EXPORT_DATASET_ID",
+        "BQ_EXPORT__DATASET_ID"
+      ],
+      "description": "BigQuery dataset for exported analytics tables."
+    },
+    {
+      "path": "bq_export.enabled",
+      "section": "bq_export",
+      "type": "bool",
+      "default": false,
+      "env_vars": [
+        "I4G_BQ_EXPORT__ENABLED",
+        "BQ_EXPORT_ENABLED",
+        "BQ_EXPORT__ENABLED"
+      ],
+      "description": "Enable BigQuery export. Disabled by default for local/test environments."
+    },
+    {
+      "path": "bq_export.project_id",
+      "section": "bq_export",
+      "type": "str",
+      "default": "i4g-dev",
+      "env_vars": [
+        "I4G_BQ_EXPORT__PROJECT_ID",
+        "BQ_EXPORT_PROJECT_ID",
+        "BQ_EXPORT__PROJECT_ID"
+      ],
+      "description": "GCP project containing the target BigQuery dataset."
+    },
+    {
       "path": "crypto.pii_key",
       "section": "crypto",
       "type": "str | NoneType",
@@ -201,13 +297,13 @@
         "CRYPTO_PII_KEY",
         "CRYPTO__PII_KEY"
       ],
-      "description": "Fernet key for encrypting victim contact fields in intake records."
+      "description": "Application-level cryptographic material used by vault/tokenization flows."
     },
     {
       "path": "data_dir",
       "section": "data_dir",
       "type": "Path",
-      "default": "/Users/jerry/Work/project/i4g/core/data",
+      "default": "data",
       "env_vars": [
         "I4G_DATA_DIR"
       ],
@@ -417,6 +513,189 @@
       "description": "Top-level configuration model with nested sections for each subsystem."
     },
     {
+      "path": "extraction.batch_concurrency",
+      "section": "extraction",
+      "type": "int",
+      "default": 1,
+      "env_vars": [
+        "I4G_EXTRACTION__BATCH_CONCURRENCY",
+        "EXTRACTION_BATCH_CONCURRENCY",
+        "EXTRACTION__BATCH_CONCURRENCY"
+      ],
+      "description": "Configuration for the entity extraction pipeline.\n\n    Controls which modules are enabled, confidence gating thresholds,\n    authority weight overrides, and batch job throttling."
+    },
+    {
+      "path": "extraction.enabled_modules",
+      "section": "extraction",
+      "type": "list[str]",
+      "default": [
+        "regex",
+        "llm"
+      ],
+      "env_vars": [
+        "I4G_EXTRACTION__ENABLED_MODULES",
+        "EXTRACTION_ENABLED_MODULES",
+        "EXTRACTION__ENABLED_MODULES"
+      ],
+      "description": "Configuration for the entity extraction pipeline.\n\n    Controls which modules are enabled, confidence gating thresholds,\n    authority weight overrides, and batch job throttling."
+    },
+    {
+      "path": "extraction.gate_bank_account",
+      "section": "extraction",
+      "type": "float",
+      "default": 0.5,
+      "env_vars": [
+        "I4G_EXTRACTION__GATE_BANK_ACCOUNT",
+        "EXTRACTION_GATE_BANK_ACCOUNT",
+        "EXTRACTION__GATE_BANK_ACCOUNT"
+      ],
+      "description": "Configuration for the entity extraction pipeline.\n\n    Controls which modules are enabled, confidence gating thresholds,\n    authority weight overrides, and batch job throttling."
+    },
+    {
+      "path": "extraction.gate_crypto_token",
+      "section": "extraction",
+      "type": "float",
+      "default": 0.4,
+      "env_vars": [
+        "I4G_EXTRACTION__GATE_CRYPTO_TOKEN",
+        "EXTRACTION_GATE_CRYPTO_TOKEN",
+        "EXTRACTION__GATE_CRYPTO_TOKEN"
+      ],
+      "description": "Configuration for the entity extraction pipeline.\n\n    Controls which modules are enabled, confidence gating thresholds,\n    authority weight overrides, and batch job throttling."
+    },
+    {
+      "path": "extraction.gate_domain",
+      "section": "extraction",
+      "type": "float",
+      "default": 0.5,
+      "env_vars": [
+        "I4G_EXTRACTION__GATE_DOMAIN",
+        "EXTRACTION_GATE_DOMAIN",
+        "EXTRACTION__GATE_DOMAIN"
+      ],
+      "description": "Configuration for the entity extraction pipeline.\n\n    Controls which modules are enabled, confidence gating thresholds,\n    authority weight overrides, and batch job throttling."
+    },
+    {
+      "path": "extraction.gate_email_address",
+      "section": "extraction",
+      "type": "float",
+      "default": 0.5,
+      "env_vars": [
+        "I4G_EXTRACTION__GATE_EMAIL_ADDRESS",
+        "EXTRACTION_GATE_EMAIL_ADDRESS",
+        "EXTRACTION__GATE_EMAIL_ADDRESS"
+      ],
+      "description": "Configuration for the entity extraction pipeline.\n\n    Controls which modules are enabled, confidence gating thresholds,\n    authority weight overrides, and batch job throttling."
+    },
+    {
+      "path": "extraction.gate_location",
+      "section": "extraction",
+      "type": "float",
+      "default": 0.5,
+      "env_vars": [
+        "I4G_EXTRACTION__GATE_LOCATION",
+        "EXTRACTION_GATE_LOCATION",
+        "EXTRACTION__GATE_LOCATION"
+      ],
+      "description": "Configuration for the entity extraction pipeline.\n\n    Controls which modules are enabled, confidence gating thresholds,\n    authority weight overrides, and batch job throttling."
+    },
+    {
+      "path": "extraction.gate_organization",
+      "section": "extraction",
+      "type": "float",
+      "default": 0.6,
+      "env_vars": [
+        "I4G_EXTRACTION__GATE_ORGANIZATION",
+        "EXTRACTION_GATE_ORGANIZATION",
+        "EXTRACTION__GATE_ORGANIZATION"
+      ],
+      "description": "Configuration for the entity extraction pipeline.\n\n    Controls which modules are enabled, confidence gating thresholds,\n    authority weight overrides, and batch job throttling."
+    },
+    {
+      "path": "extraction.gate_person",
+      "section": "extraction",
+      "type": "float",
+      "default": 0.6,
+      "env_vars": [
+        "I4G_EXTRACTION__GATE_PERSON",
+        "EXTRACTION_GATE_PERSON",
+        "EXTRACTION__GATE_PERSON"
+      ],
+      "description": "Configuration for the entity extraction pipeline.\n\n    Controls which modules are enabled, confidence gating thresholds,\n    authority weight overrides, and batch job throttling."
+    },
+    {
+      "path": "extraction.gate_phone_number",
+      "section": "extraction",
+      "type": "float",
+      "default": 0.5,
+      "env_vars": [
+        "I4G_EXTRACTION__GATE_PHONE_NUMBER",
+        "EXTRACTION_GATE_PHONE_NUMBER",
+        "EXTRACTION__GATE_PHONE_NUMBER"
+      ],
+      "description": "Configuration for the entity extraction pipeline.\n\n    Controls which modules are enabled, confidence gating thresholds,\n    authority weight overrides, and batch job throttling."
+    },
+    {
+      "path": "extraction.gate_scam_indicator",
+      "section": "extraction",
+      "type": "float",
+      "default": 0.5,
+      "env_vars": [
+        "I4G_EXTRACTION__GATE_SCAM_INDICATOR",
+        "EXTRACTION_GATE_SCAM_INDICATOR",
+        "EXTRACTION__GATE_SCAM_INDICATOR"
+      ],
+      "description": "Configuration for the entity extraction pipeline.\n\n    Controls which modules are enabled, confidence gating thresholds,\n    authority weight overrides, and batch job throttling."
+    },
+    {
+      "path": "extraction.gate_social_handle",
+      "section": "extraction",
+      "type": "float",
+      "default": 0.5,
+      "env_vars": [
+        "I4G_EXTRACTION__GATE_SOCIAL_HANDLE",
+        "EXTRACTION_GATE_SOCIAL_HANDLE",
+        "EXTRACTION__GATE_SOCIAL_HANDLE"
+      ],
+      "description": "Configuration for the entity extraction pipeline.\n\n    Controls which modules are enabled, confidence gating thresholds,\n    authority weight overrides, and batch job throttling."
+    },
+    {
+      "path": "extraction.gate_url",
+      "section": "extraction",
+      "type": "float",
+      "default": 0.5,
+      "env_vars": [
+        "I4G_EXTRACTION__GATE_URL",
+        "EXTRACTION_GATE_URL",
+        "EXTRACTION__GATE_URL"
+      ],
+      "description": "Configuration for the entity extraction pipeline.\n\n    Controls which modules are enabled, confidence gating thresholds,\n    authority weight overrides, and batch job throttling."
+    },
+    {
+      "path": "extraction.gate_wallet_address",
+      "section": "extraction",
+      "type": "float",
+      "default": 0.5,
+      "env_vars": [
+        "I4G_EXTRACTION__GATE_WALLET_ADDRESS",
+        "EXTRACTION_GATE_WALLET_ADDRESS",
+        "EXTRACTION__GATE_WALLET_ADDRESS"
+      ],
+      "description": "Configuration for the entity extraction pipeline.\n\n    Controls which modules are enabled, confidence gating thresholds,\n    authority weight overrides, and batch job throttling."
+    },
+    {
+      "path": "extraction.llm_delay_seconds",
+      "section": "extraction",
+      "type": "float",
+      "default": 0.5,
+      "env_vars": [
+        "I4G_EXTRACTION__LLM_DELAY_SECONDS",
+        "EXTRACTION_LLM_DELAY_SECONDS",
+        "EXTRACTION__LLM_DELAY_SECONDS"
+      ],
+      "description": "Configuration for the entity extraction pipeline.\n\n    Controls which modules are enabled, confidence gating thresholds,\n    authority weight overrides, and batch job throttling."
+    },
+    {
       "path": "feedback.enabled",
       "section": "feedback",
       "type": "bool",
@@ -554,7 +833,7 @@
       "path": "ingestion.dataset_path",
       "section": "ingestion",
       "type": "str | Path",
-      "default": "/Users/jerry/Work/project/i4g/core/data/retrieval_poc/cases.jsonl",
+      "default": "data/retrieval_poc/cases.jsonl",
       "env_vars": [
         "I4G_INGESTION__DATASET_PATH",
         "INGEST_JSONL_PATH",
@@ -670,6 +949,20 @@
         "INGESTION__ENABLE_VERTEX"
       ],
       "description": "Scheduler + job configuration for ingestion workflows."
+    },
+    {
+      "path": "ingestion.engagement_id",
+      "section": "ingestion",
+      "type": "str | NoneType",
+      "default": null,
+      "env_vars": [
+        "I4G_INGESTION__ENGAGEMENT_ID",
+        "INGEST_ENGAGEMENT_ID",
+        "INGEST__ENGAGEMENT_ID",
+        "INGESTION_ENGAGEMENT_ID",
+        "INGESTION__ENGAGEMENT_ID"
+      ],
+      "description": "When set, assign all ingested cases to this engagement."
     },
     {
       "path": "ingestion.fanout_timeout_seconds",
@@ -888,16 +1181,88 @@
       "description": "Large language model provider settings."
     },
     {
-      "path": "observability.contact_decrypt_alert_threshold",
-      "section": "observability",
-      "type": "int",
-      "default": 10,
+      "path": "ml.entity_extraction_backend",
+      "section": "ml",
+      "type": "Literal['llm', 'ml_platform']",
+      "default": "llm",
       "env_vars": [
-        "I4G_OBSERVABILITY__CONTACT_DECRYPT_ALERT_THRESHOLD",
-        "OBS_CONTACT_DECRYPT_ALERT_THRESHOLD",
-        "OBSERVABILITY__CONTACT_DECRYPT_ALERT_THRESHOLD"
+        "I4G_ML__ENTITY_EXTRACTION_BACKEND",
+        "ML_ENTITY_EXTRACTION_BACKEND",
+        "ML__ENTITY_EXTRACTION_BACKEND"
       ],
-      "description": "Max contact decryption calls per user per hour before alerting."
+      "description": "Which backend to use for entity extraction: 'llm' (existing LLM NER) or 'ml_platform' (dedicated ML NER model)."
+    },
+    {
+      "path": "ml.fallback_to_llm",
+      "section": "ml",
+      "type": "bool",
+      "default": true,
+      "env_vars": [
+        "I4G_ML__FALLBACK_TO_LLM",
+        "ML_FALLBACK_TO_LLM",
+        "ML__FALLBACK_TO_LLM"
+      ],
+      "description": "ML Platform inference routing settings."
+    },
+    {
+      "path": "ml.inference_backend",
+      "section": "ml",
+      "type": "Literal['llm', 'ml_platform']",
+      "default": "llm",
+      "env_vars": [
+        "I4G_ML__INFERENCE_BACKEND",
+        "ML_INFERENCE_BACKEND",
+        "ML__INFERENCE_BACKEND"
+      ],
+      "description": "Which inference backend to use: 'llm' (existing LLM classifier) or 'ml_platform' (dedicated ML service)."
+    },
+    {
+      "path": "ml.platform_auth_method",
+      "section": "ml",
+      "type": "Literal['iam', 'api_key', 'none']",
+      "default": "iam",
+      "env_vars": [
+        "I4G_ML__PLATFORM_AUTH_METHOD",
+        "ML_PLATFORM_AUTH_METHOD",
+        "ML__PLATFORM_AUTH_METHOD"
+      ],
+      "description": "ML Platform inference routing settings."
+    },
+    {
+      "path": "ml.platform_base_url",
+      "section": "ml",
+      "type": "str",
+      "default": "",
+      "env_vars": [
+        "I4G_ML__PLATFORM_BASE_URL",
+        "ML_PLATFORM_BASE_URL",
+        "ML__PLATFORM_BASE_URL"
+      ],
+      "description": "ML Platform inference routing settings."
+    },
+    {
+      "path": "ml.risk_scoring_backend",
+      "section": "ml",
+      "type": "Literal['llm', 'ml_platform']",
+      "default": "llm",
+      "env_vars": [
+        "I4G_ML__RISK_SCORING_BACKEND",
+        "ML_RISK_SCORING_BACKEND",
+        "ML__RISK_SCORING_BACKEND"
+      ],
+      "description": "Which backend to use for risk scoring: 'llm' (existing LLM) or 'ml_platform' (dedicated ML risk model)."
+    },
+    {
+      "path": "ml.similarity_backend",
+      "section": "ml",
+      "type": "Literal['llm', 'ml_platform']",
+      "default": "llm",
+      "env_vars": [
+        "I4G_ML__SIMILARITY_BACKEND",
+        "ML_SIMILARITY_BACKEND",
+        "ML__SIMILARITY_BACKEND"
+      ],
+      "description": "Which backend to use for document similarity: 'llm' (existing LLM) or 'ml_platform' (FAISS-based embedding search)."
     },
     {
       "path": "observability.dossier_stuck_timeout_minutes",
@@ -1059,7 +1424,7 @@
       "path": "project_root",
       "section": "project_root",
       "type": "Path",
-      "default": "/Users/jerry/Work/project/i4g/core",
+      "default": ".",
       "env_vars": [
         "I4G_PROJECT_ROOT",
         "PROJECT_ROOT",
@@ -1596,7 +1961,7 @@
       "path": "storage.evidence_local_dir",
       "section": "storage",
       "type": "Path",
-      "default": "/Users/jerry/Work/project/i4g/core/data/evidence",
+      "default": "data/evidence",
       "env_vars": [
         "I4G_STORAGE__EVIDENCE_LOCAL_DIR",
         "STORAGE_EVIDENCE_LOCAL_DIR",
@@ -1656,7 +2021,7 @@
       "path": "storage.sqlite_path",
       "section": "storage",
       "type": "Path",
-      "default": "/Users/jerry/Work/project/i4g/core/data/i4g_store.db",
+      "default": "data/i4g_store.db",
       "env_vars": [
         "I4G_STORAGE__SQLITE_PATH"
       ],
@@ -1712,6 +2077,18 @@
       "description": "Number of cases to classify per loop iteration."
     },
     {
+      "path": "sweep.llm_delay_seconds",
+      "section": "sweep",
+      "type": "float",
+      "default": 0.5,
+      "env_vars": [
+        "I4G_SWEEP__LLM_DELAY_SECONDS",
+        "SWEEP_LLM_DELAY_SECONDS",
+        "SWEEP__LLM_DELAY_SECONDS"
+      ],
+      "description": "Delay in seconds between LLM batch calls to avoid quota contention with other jobs."
+    },
+    {
       "path": "sweep.max_runtime_seconds",
       "section": "sweep",
       "type": "int",
@@ -1740,7 +2117,7 @@
       "path": "vector.chroma_dir",
       "section": "vector",
       "type": "Path",
-      "default": "/Users/jerry/Work/project/i4g/core/data/chroma_store",
+      "default": "data/chroma_store",
       "env_vars": [
         "I4G_VECTOR__CHROMA_DIR"
       ],
@@ -1774,7 +2151,7 @@
       "path": "vector.faiss_dir",
       "section": "vector",
       "type": "Path",
-      "default": "/Users/jerry/Work/project/i4g/core/data/faiss_store",
+      "default": "data/faiss_store",
       "env_vars": [
         "I4G_VECTOR__FAISS_DIR",
         "VECTOR_FAISS_DIR",

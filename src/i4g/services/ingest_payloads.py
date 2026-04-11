@@ -6,8 +6,7 @@ import logging
 from collections.abc import Iterable
 from typing import Any
 
-from i4g.extraction.ner_rules import extract_entities as rule_extract_entities
-from i4g.utils.entity_types import normalize_entity_type
+from i4g.extraction import extract_entities as orchestrator_extract
 
 logger = logging.getLogger(__name__)
 
@@ -319,22 +318,22 @@ def prepare_ingest_payload(
             entities_source = f"{entities_source}+network" if entities_source else "network"
 
     # Rule-based extraction fallback: when no pre-structured entities exist and
-    # we have text, run regex/rule extraction to provide baseline entity coverage
-    # without waiting for the batch LLM entity extraction job.
+    # we have text, run regex-only extraction via the orchestrator to provide
+    # baseline entity coverage without waiting for the batch LLM job.
+    # The orchestrator handles normalization, gating, and the audit trail —
+    # same path as full extraction, just limited to the regex module.
     if entities_source in ("none", "network") and text and len(text) >= 50:
-        rule_result = rule_extract_entities(text)
-        for key, values in rule_result.items():
-            if not values:
-                continue
-            canon_type = normalize_entity_type(key)
+        result = orchestrator_extract(text, modules=["regex"])
+        for ent in result.entities:
+            canon_type = ent.entity_type
+            canon_value = ent.canonical_value
             if canon_type not in entities:
-                entities[canon_type] = values
+                entities[canon_type] = [canon_value]
             else:
-                existing = set(str(v) for v in entities[canon_type])
-                for v in values:
-                    if str(v) not in existing:
-                        entities[canon_type].append(v)
-        if any(v for v in rule_result.values()):
+                existing = {str(v).lower() for v in entities[canon_type]}
+                if canon_value.lower() not in existing:
+                    entities[canon_type].append(canon_value)
+        if result.entities:
             entities_source = f"{entities_source}+rules" if entities_source != "none" else "rules"
 
     channel = record.get("channel") or metadata.get("channel")

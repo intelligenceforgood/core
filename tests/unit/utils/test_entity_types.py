@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 from i4g.extraction.ner_rules import extract_entities as rule_extract_entities
 from i4g.utils.entity_types import (
     _ENTITY_TYPE_MAP,
@@ -15,7 +17,9 @@ class TestNormalizationMapCompleteness:
     """Every key returned by rule_extract_entities() must normalize to a canonical type."""
 
     def test_all_rule_extract_keys_normalize_to_canonical(self):
-        result = rule_extract_entities("dummy text")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            result = rule_extract_entities("dummy text")
         for key in result:
             canonical = normalize_entity_type(key)
             assert canonical in CANONICAL_ENTITY_TYPES, (

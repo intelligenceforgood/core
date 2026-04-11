@@ -56,7 +56,7 @@
 
 [storage]
 # sqlite_path = "data/i4g_store.db"
-# reports_bucket = "i4g-reports-dev"
+# report_bucket = "i4g-reports-dev"
 # evidence_bucket = "i4g-evidence-dev"
 # evidence_local_dir = "data/evidence"
 # structured_backend = "sqlite"
@@ -167,3 +167,21 @@ platform_auth_method = "iam" # "iam" | "api_key" | "none"
 platform_base_url = "" # Set via I4G_ML__PLATFORM_BASE_URL per environment
 risk_scoring_backend = "llm" # "llm" | "ml_platform"
 similarity_backend = "llm" # "llm" | "ml_platform"
+
+[extraction]
+batch_concurrency = 1
+enabled_modules = ["regex", "llm"]
+llm_delay_seconds = 0.5
+# Per-type confidence gates (entities below threshold are dropped)
+gate_bank_account = 0.5
+gate_crypto_token = 0.4
+gate_domain = 0.5
+gate_email_address = 0.5
+gate_location = 0.5
+gate_organization = 0.6
+gate_person = 0.6
+gate_phone_number = 0.5
+gate_scam_indicator = 0.5
+gate_social_handle = 0.5
+gate_url = 0.5
+gate_wallet_address = 0.5

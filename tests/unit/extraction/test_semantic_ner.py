@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from unittest.mock import MagicMock
 
 from i4g.extraction.semantic_ner import (
@@ -46,12 +47,16 @@ class TestMergeResults:
     def test_merges_and_deduplicates(self):
         llm = {"people": ["Alice", "Bob"], "organizations": ["Acme"]}
         rule = {"people": ["Bob", "Charlie"], "wallet_addresses": ["0xABC"]}
-        merged = _merge_results(llm, rule)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            merged = _merge_results(llm, rule)
         assert sorted(merged["people"]) == ["Alice", "Bob", "Charlie"]
         assert merged["organizations"] == ["Acme"]
 
     def test_empty_inputs(self):
-        merged = _merge_results({}, {})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            merged = _merge_results({}, {})
         # Should still have all entity keys from _ENTITY_KEYS
         assert "people" in merged
         assert merged["people"] == []
@@ -59,7 +64,9 @@ class TestMergeResults:
     def test_non_list_values_treated_as_empty(self):
         llm = {"people": "not_a_list"}
         rule = {"people": ["Alice"]}
-        merged = _merge_results(llm, rule)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            merged = _merge_results(llm, rule)
         assert "Alice" in merged["people"]
 
 
@@ -71,19 +78,25 @@ class TestMergeResults:
 class TestAddConfidenceScores:
     def test_adds_scores_to_list_values(self):
         result = {"people": ["Alice", "Bob"]}
-        scored = _add_confidence_scores(result, base_score=0.8)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            scored = _add_confidence_scores(result, base_score=0.8)
         assert len(scored["people"]) == 2
         assert scored["people"][0] == {"value": "Alice", "confidence": 0.8}
         assert scored["people"][1] == {"value": "Bob", "confidence": 0.8}
 
     def test_non_list_values_passed_through(self):
         result = {"raw_output": "some text"}
-        scored = _add_confidence_scores(result)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            scored = _add_confidence_scores(result)
         assert scored["raw_output"] == "some text"
 
     def test_default_base_score(self):
         result = {"people": ["X"]}
-        scored = _add_confidence_scores(result)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            scored = _add_confidence_scores(result)
         assert scored["people"][0]["confidence"] == 0.7
 
 

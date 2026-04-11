@@ -23,6 +23,7 @@ from i4g.settings.sections import (
     DossierJobSettings,
     EmailSettings,
     EnrichmentSettings,
+    ExtractionSettings,
     FeedbackSettings,
     IdentitySettings,
     IngestionSettings,
@@ -218,6 +219,7 @@ class Settings(BaseSettings):
     analytics: AnalyticsSettings = Field(default_factory=AnalyticsSettings)
     bq_export: BigQueryExportSettings = Field(default_factory=BigQueryExportSettings)
     enrichment: EnrichmentSettings = Field(default_factory=EnrichmentSettings)
+    extraction: ExtractionSettings = Field(default_factory=ExtractionSettings)
     email: EmailSettings = Field(default_factory=EmailSettings)
     partner_feed: PartnerFeedSettings = Field(default_factory=PartnerFeedSettings)
     db_admin: DbAdminSettings = Field(default_factory=DbAdminSettings)

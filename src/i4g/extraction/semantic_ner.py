@@ -240,19 +240,19 @@ def _safe_parse_json(resp_text: str) -> dict[str, Any]:
 
 
 def _merge_results(llm_result: dict[str, Any], rule_result: dict[str, Any]) -> dict[str, Any]:
+    """Merge entities from LLM and rule-based results.
+
+    .. deprecated::
+        Use :func:`i4g.extraction.extract_entities` instead. This function
+        exists only for backward compatibility and will be removed.
     """
-    Merge entities from LLM and rule-based results.
+    import warnings
 
-    Combines lists of entities for each key, ensuring no duplicates.
-    The final list for each entity type is sorted.
-
-    Args:
-        llm_result: The dictionary of entities extracted by the LLM.
-        rule_result: The dictionary of entities extracted by rule-based methods.
-
-    Returns:
-        A new dictionary with the merged and deduplicated entities.
-    """
+    warnings.warn(
+        "semantic_ner._merge_results is deprecated. Use i4g.extraction.extract_entities.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     merged = {}
     for key in _ENTITY_KEYS:
         llm_items = set(llm_result.get(key, [])) if isinstance(llm_result.get(key), list) else set()
@@ -262,20 +262,19 @@ def _merge_results(llm_result: dict[str, Any], rule_result: dict[str, Any]) -> d
 
 
 def _add_confidence_scores(result: dict[str, Any], base_score: float = 0.7) -> dict[str, Any]:
+    """Transform a dictionary of entity lists into a list of scored objects.
+
+    .. deprecated::
+        Use :func:`i4g.extraction.extract_entities` instead. This function
+        exists only for backward compatibility and will be removed.
     """
-    Transform a dictionary of entity lists into a list of scored objects.
+    import warnings
 
-    This is useful for downstream tasks that require confidence scores for
-    each extracted entity.
-
-    Args:
-        result: A dictionary where keys are entity types and values are lists of strings.
-        base_score: The default confidence score to assign to each entity.
-
-    Returns:
-        A dictionary with the same keys, but where values are lists of
-        `{"value": str, "confidence": float}` dictionaries.
-    """
+    warnings.warn(
+        "semantic_ner._add_confidence_scores is deprecated. Use i4g.extraction.extract_entities.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     scored = {}
     for key, vals in result.items():
         if isinstance(vals, list):

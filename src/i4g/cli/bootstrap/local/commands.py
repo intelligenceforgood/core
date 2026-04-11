@@ -55,6 +55,11 @@ def bootstrap_local_reset(
         None, "--smoke-dossier-plan-id", help="Specific dossier plan_id to verify during smoke."
     ),
     skip_ingest: bool = typer.Option(False, "--skip-ingest", help="Skip the potentially long bundle ingestion phase."),
+    skip_extraction: bool = typer.Option(
+        False,
+        "--skip-extraction",
+        help="Skip running extraction orchestrator during ingestion (use pre-labeled entities).",
+    ),
     limit: int | None = typer.Option(None, "--limit", help="Limit number of records ingested per bundle."),
     force: bool = typer.Option(False, "--force", help="Allow running when I4G_ENV is not local."),
 ) -> None:
@@ -83,6 +88,7 @@ def bootstrap_local_reset(
             smoke_dossier_plan_id=smoke_dossier_plan_id,
             force=force,
             skip_ingest=skip_ingest,
+            skip_extraction=skip_extraction,
             limit=limit,
         )
     )

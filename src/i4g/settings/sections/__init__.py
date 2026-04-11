@@ -1,6 +1,7 @@
 """Pydantic settings section models split from i4g.settings.config."""
 
 from i4g.settings.sections.basic import APISettings, DbAdminSettings, IdentitySettings, RuntimeSettings, StorageSettings
+from i4g.settings.sections.extraction import ExtractionSettings
 from i4g.settings.sections.jobs import (
     AnalyticsSettings,
     AutoInvestigateSettings,
@@ -33,6 +34,7 @@ __all__ = [
     "BigQueryExportSettings",
     "DbAdminSettings",
     "EmailSettings",
+    "ExtractionSettings",
     "IdentitySettings",
     "RuntimeSettings",
     "StorageSettings",
