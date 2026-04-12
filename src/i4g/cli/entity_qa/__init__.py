@@ -25,6 +25,91 @@ logger = logging.getLogger(__name__)
 
 entity_qa_app = typer.Typer(help="Entity extraction quality assurance tools.")
 
+# All entity types that have confidence gates — used to build zero-gate dicts
+# for single-module testing.
+_ALL_GATE_TYPES = (
+    "wallet_address",
+    "email_address",
+    "phone_number",
+    "url",
+    "bank_account",
+    "social_handle",
+    "person",
+    "organization",
+    "location",
+    "crypto_token",
+    "scam_indicator",
+    "domain",
+)
+
+
+def _build_extraction_deps(
+    modules: list[str] | None = None,
+) -> dict:
+    """Build ``llm_client`` and ``ml_predict_fn`` kwargs for :func:`extract_entities`.
+
+    Only builds dependencies that are actually needed based on the
+    requested *modules* list (or on ``enabled_modules`` from settings
+    when *modules* is ``None``).
+
+    Returns a dict suitable for ``**kwargs`` expansion into
+    ``extract_entities()``.
+    """
+    from i4g.settings import get_settings
+
+    settings = get_settings()
+    module_names = modules if modules is not None else list(settings.extraction.enabled_modules)
+
+    kwargs: dict = {}
+
+    if "llm" in module_names:
+        try:
+            from i4g.llm.client import build_llm_client
+
+            kwargs["llm_client"] = build_llm_client()
+        except Exception as exc:
+            logger.warning("Could not build LLM client: %s", exc)
+
+    if "ml_ner" in module_names:
+        base_url = settings.ml.platform_base_url
+        if base_url:
+            try:
+                import httpx
+
+                def _sync_ml_predict(text: str) -> list[dict]:
+                    """Synchronous wrapper around the ML NER endpoint.
+
+                    Translates the ML serving response format
+                    (``label``/``text``) to the keys ``MLNERModule``
+                    expects (``entity_type``/``value``).
+                    """
+                    resp = httpx.post(
+                        f"{base_url}/predict/extract-entities",
+                        json={"text": text, "case_id": "entity-qa"},
+                        timeout=30.0,
+                    )
+                    resp.raise_for_status()
+                    raw = resp.json().get("entities", [])
+                    return [
+                        {
+                            "entity_type": e.get("label", ""),
+                            "value": e.get("text", ""),
+                            "confidence": e.get("confidence", 0.5),
+                            "start": e.get("start"),
+                            "end": e.get("end"),
+                        }
+                        for e in raw
+                    ]
+
+                kwargs["ml_predict_fn"] = _sync_ml_predict
+            except Exception as exc:
+                logger.warning("Could not build ML predict function: %s", exc)
+        else:
+            logger.info("ML platform base URL not configured; ml_ner module will be skipped")
+
+    return kwargs
+
+
 # ---------------------------------------------------------------------------
 # bundle subcommand group
 # ---------------------------------------------------------------------------
@@ -157,16 +242,24 @@ def test_module(
     output_format: str = typer.Option("text", "--format", "-f", help="Output format: text or json."),
     bundles_dir: Path | None = typer.Option(None, "--dir", help="Override bundles directory."),
 ) -> None:
-    """Run a single extraction module on a bundle."""
+    """Run a single extraction module on a bundle.
+
+    Confidence gates are disabled so you see the module's raw output
+    without merge-engine filtering.  Use ``test orchestrator`` to see
+    post-merge results.
+    """
     from i4g.extraction.orchestrator import extract_entities
     from i4g.extraction.quality.bundle import load_bundle
     from i4g.extraction.quality.scorer import score_case
 
+    deps = _build_extraction_deps(modules=[module_name])
+    # Disable confidence gates — single-module testing should show raw output.
+    no_gates = {k: 0.0 for k in _ALL_GATE_TYPES}
     b = load_bundle(bundle, bundles_dir=bundles_dir)
     results = []
 
     for case in b.cases:
-        result = extract_entities(case.text, modules=[module_name])
+        result = extract_entities(case.text, modules=[module_name], confidence_gates=no_gates, **deps)
 
         case_data: dict = {
             "case_id": case.id,
@@ -215,6 +308,7 @@ def test_orchestrator(
     from i4g.extraction.quality.report import format_module_breakdown
 
     module_list = modules.split(",") if modules else None
+    deps = _build_extraction_deps(modules=module_list)
     b = load_bundle(bundle, bundles_dir=bundles_dir)
 
     all_results = []
@@ -224,6 +318,7 @@ def test_orchestrator(
             case.text,
             modules=module_list,
             include_merge_log=True,
+            **deps,
         )
 
         # Group entities by source module.
@@ -324,10 +419,17 @@ def compare(
         typer.echo(f"Error: bundle '{bundle}' has no golden labels", err=True)
         raise typer.Exit(1)
 
+    module_list = [m.strip() for m in modules.split(",") if m.strip()]
+
+    # Build deps for orchestrator (default modules) + each individual module.
+    all_module_names = list(set(module_list))
+    deps = _build_extraction_deps()
+    module_deps = _build_extraction_deps(modules=all_module_names)
+
     # Run orchestrator on all cases.
     orch_results: dict[str, object] = {}
     for case in b.cases:
-        orch_results[case.id] = extract_entities(case.text)
+        orch_results[case.id] = extract_entities(case.text, **deps)
 
     orch_score = score_bundle(b, orch_results)
 
@@ -338,7 +440,7 @@ def compare(
     for mod_name in module_list:
         mod_results = {}
         for case in b.cases:
-            mod_results[case.id] = extract_entities(case.text, modules=[mod_name])
+            mod_results[case.id] = extract_entities(case.text, modules=[mod_name], **module_deps)
 
         mod_score = score_bundle(b, mod_results)
         module_comparisons.append(
@@ -379,10 +481,12 @@ def score(
         typer.echo(f"Error: bundle '{bundle}' has no golden labels", err=True)
         raise typer.Exit(1)
 
+    deps = _build_extraction_deps()
+
     # Run orchestrator on all cases.
     results = {}
     for case in b.cases:
-        results[case.id] = extract_entities(case.text)
+        results[case.id] = extract_entities(case.text, **deps)
 
     bundle_score = score_bundle(b, results)
 
@@ -446,10 +550,12 @@ def report(
         typer.echo(f"Error: bundle '{bundle}' has no golden labels", err=True)
         raise typer.Exit(1)
 
+    deps = _build_extraction_deps()
+
     # Run orchestrator.
     orch_results = {}
     for case in b.cases:
-        orch_results[case.id] = extract_entities(case.text)
+        orch_results[case.id] = extract_entities(case.text, **deps)
 
     bundle_score = score_bundle(b, orch_results)
     previous = load_previous_score(bundle)
@@ -460,9 +566,10 @@ def report(
         # Add module comparison.
         module_sections = {}
         for mod_name in ["regex", "heuristic"]:
+            mod_deps = _build_extraction_deps(modules=[mod_name])
             mod_results = {}
             for case in b.cases:
-                mod_results[case.id] = extract_entities(case.text, modules=[mod_name])
+                mod_results[case.id] = extract_entities(case.text, modules=[mod_name], **mod_deps)
             mod_score = score_bundle(b, mod_results)
             module_sections[mod_name] = {
                 etype: {"f1": round(m.f1, 4), "precision": round(m.precision, 4), "recall": round(m.recall, 4)}
@@ -484,9 +591,10 @@ def report(
         typer.echo("=" * 60)
         module_comparisons: list[ModuleComparison] = []
         for mod_name in ["regex", "heuristic"]:
+            mod_deps = _build_extraction_deps(modules=[mod_name])
             mod_results = {}
             for case in b.cases:
-                mod_results[case.id] = extract_entities(case.text, modules=[mod_name])
+                mod_results[case.id] = extract_entities(case.text, modules=[mod_name], **mod_deps)
             mod_score = score_bundle(b, mod_results)
             module_comparisons.append(ModuleComparison(module_name=mod_name, per_type=mod_score.aggregate_type_metrics))
 
@@ -528,11 +636,13 @@ def analyze_fps(
 
     b = load_bundle(bundle, bundles_dir=bundles_dir)
 
+    deps = _build_extraction_deps()
+
     # Track (type, value) → list of (case_id, confidence).
     entity_occurrences: dict[tuple[str, str], list[tuple[str, float]]] = defaultdict(list)
 
     for case in b.cases:
-        result = extract_entities(case.text)
+        result = extract_entities(case.text, **deps)
         for e in result.entities:
             key = (e.entity_type, e.canonical_value.lower())
             entity_occurrences[key].append((case.id, e.confidence))
