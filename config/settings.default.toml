@@ -41,6 +41,7 @@
 # provider = "mock"
 # chat_model = "llama3"          # local default; use "gemini-3-flash-preview" for vertex_ai/gemini provider
 # temperature = 0.1
+# gemini_api_key = ""              # Gemini API key; when set, uses API-key auth instead of Vertex AI
 # ollama_base_url = "http://127.0.0.1:11434"
 # vertex_ai_project = ""
 # vertex_ai_location = "us-central1"

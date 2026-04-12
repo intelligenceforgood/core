@@ -46,9 +46,16 @@ class OllamaClient:
 
 
 class VertexAIClient:
-    """Client for Google Vertex AI via the ``google-genai`` unified SDK."""
+    """Client for Google Gemini via the ``google-genai`` unified SDK.
 
-    def __init__(self, project: str, location: str, model_name: str) -> None:
+    Supports two auth modes:
+    - **API key** (preferred): uses the Gemini API (``generativelanguage.googleapis.com``)
+      — billing goes to the GCP project that owns the key.
+    - **Vertex AI** (fallback): uses ADC / service-account auth via
+      ``aiplatform.googleapis.com``.
+    """
+
+    def __init__(self, project: str, location: str, model_name: str, *, api_key: str | None = None) -> None:
         try:
             from google import genai
         except ImportError as exc:
@@ -56,7 +63,10 @@ class VertexAIClient:
                 "Vertex AI requires 'google-genai'. " "Install with: pip install 'google-genai>=1.0.0,<2.0'"
             ) from exc
         self._model_name = model_name
-        self._client = genai.Client(vertexai=True, project=project, location=location)
+        if api_key:
+            self._client = genai.Client(api_key=api_key)
+        else:
+            self._client = genai.Client(vertexai=True, project=project, location=location)
 
     def generate(self, prompt: str) -> str:
         """Generate text from a prompt using the Gemini model.

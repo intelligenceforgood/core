@@ -904,6 +904,15 @@ fields:
   - LLM__CHAT_MODEL
   description: Primary model identifier (e.g. 'llama3', 'gemini-3-flash-preview').
     Used for all providers.
+- path: llm.gemini_api_key
+  section: llm
+  type: str | NoneType
+  default: null
+  env_vars:
+  - I4G_LLM__GEMINI_API_KEY
+  - LLM_GEMINI_API_KEY
+  - LLM__GEMINI_API_KEY
+  description: Gemini API key. When set, uses API-key auth instead of Vertex AI.
 - path: llm.ollama_base_url
   section: llm
   type: str

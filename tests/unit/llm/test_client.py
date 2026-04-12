@@ -18,6 +18,7 @@ def _make_settings(
     vertex_ai_location: str | None = "us-central1",
     ollama_base_url: str = "http://127.0.0.1:11434",
     temperature: float = 0.1,
+    gemini_api_key: str | None = None,
 ):
     """Build a minimal Settings-like namespace for LLM tests."""
     llm = SimpleNamespace(
@@ -27,6 +28,7 @@ def _make_settings(
         vertex_ai_location=vertex_ai_location,
         ollama_base_url=ollama_base_url,
         temperature=temperature,
+        gemini_api_key=gemini_api_key,
     )
     secrets = SimpleNamespace(project="test-project")
     return SimpleNamespace(llm=llm, secrets=secrets)
@@ -65,7 +67,7 @@ class TestBuildLlmClient:
 
     def test_vertex_ai_missing_project_raises(self) -> None:
         s = _make_settings(provider="vertex_ai", vertex_ai_project=None)
-        with pytest.raises(ValueError, match="Vertex AI project not configured"):
+        with pytest.raises(ValueError, match="Gemini requires either an API key"):
             build_llm_client(settings=s)
 
     def test_unknown_provider_falls_back_to_mock(self) -> None:

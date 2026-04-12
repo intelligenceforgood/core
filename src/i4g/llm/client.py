@@ -57,13 +57,17 @@ def build_llm_client(*, settings: Settings | None = None) -> LLMClient:
         )
 
     if provider in ("vertex_ai", "gemini"):
-        if not s.llm.vertex_ai_project:
-            raise ValueError("Vertex AI project not configured (settings.llm.vertex_ai_project).")
+        if not s.llm.gemini_api_key and not s.llm.vertex_ai_project:
+            raise ValueError(
+                "Gemini requires either an API key (settings.llm.gemini_api_key) "
+                "or a Vertex AI project (settings.llm.vertex_ai_project)."
+            )
         model_name = s.llm.chat_model
         return VertexAIClient(
-            project=s.llm.vertex_ai_project,
+            project=s.llm.vertex_ai_project or "",
             location=s.llm.vertex_ai_location or "us-central1",
             model_name=model_name,
+            api_key=s.llm.gemini_api_key,
         )
 
     LOGGER.warning("Unknown LLM provider '%s'; falling back to mock.", provider)
@@ -144,9 +148,11 @@ class MockLangChainLLM:
 
 
 def _build_vertex_langchain(settings: Settings) -> Any:
-    """Build a Vertex AI adapter matching the LangChain Runnable ``.invoke()`` interface.
+    """Build a Gemini adapter matching the LangChain Runnable ``.invoke()`` interface.
 
-    Uses the ``google-genai`` unified SDK (``genai.Client(vertexai=True)``).
+    Uses the ``google-genai`` unified SDK.  Prefers API-key auth
+    (``generativelanguage.googleapis.com``) when ``gemini_api_key`` is set;
+    falls back to Vertex AI (ADC) otherwise.
     """
     try:
         from google import genai
@@ -156,12 +162,17 @@ def _build_vertex_langchain(settings: Settings) -> Any:
             "Vertex AI requires 'google-genai'. " "Install with: pip install 'google-genai>=1.0.0,<2.0'"
         ) from exc
 
+    api_key = settings.llm.gemini_api_key
     project = settings.llm.vertex_ai_project or settings.secrets.project
     location = settings.llm.vertex_ai_location or "us-central1"
     model_name = settings.llm.chat_model
 
-    client = genai.Client(vertexai=True, project=project, location=location)
-    LOGGER.info("Initialized Vertex AI LangChain adapter", extra={"project": project, "model": model_name})
+    if api_key:
+        client = genai.Client(api_key=api_key)
+        LOGGER.info("Initialized Gemini LangChain adapter (API key)", extra={"model": model_name})
+    else:
+        client = genai.Client(vertexai=True, project=project, location=location)
+        LOGGER.info("Initialized Gemini LangChain adapter (Vertex AI)", extra={"project": project, "model": model_name})
 
     class _VertexLangChainAdapter:
         """Wraps ``genai.Client`` to satisfy the LangChain Runnable interface."""

@@ -107,6 +107,11 @@ class LLMSettings(BaseSettings):
         default="http://127.0.0.1:11434",
         validation_alias=AliasChoices("OLLAMA_BASE_URL", "LLM__OLLAMA_BASE_URL"),
     )
+    gemini_api_key: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LLM_GEMINI_API_KEY", "LLM__GEMINI_API_KEY"),
+        description="Gemini API key. When set, uses API-key auth instead of Vertex AI.",
+    )
     vertex_ai_project: str | None = Field(
         default=None,
         validation_alias=AliasChoices("LLM_VERTEX_AI_PROJECT", "LLM__VERTEX_AI__PROJECT"),
