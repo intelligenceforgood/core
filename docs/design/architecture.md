@@ -176,8 +176,8 @@ flowchart LR
   IAP --> NextJS
 
   NextJS -->|Authenticated API| CoreSvc
-  NextJS -->|eCX Direct (OIDC)| SSISvc
-  CoreSvc -->|Enrich Request (OIDC)| SSISvc
+  NextJS -->|eCX Direct, OIDC| SSISvc
+  CoreSvc -->|Enrich Request, OIDC| SSISvc
   SSISvc -->|Callbacks/Events| CoreSvc
   SSISvc -->|Direct SQL| CloudSQL
   CoreSvc -->|REST| CloudSQL
