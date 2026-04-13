@@ -1,7 +1,7 @@
 # Technical Design: Fraud Taxonomy & Classification System
 
 **Status:** Active (v1.1)
-**Last Verified:** March 2026
+**Last Updated:** April 2026
 **Owner:** IntelligenceForGood
 **Related PRD:** [planning/fraud_taxonomy_prd.md](../../../../planning/fraud_taxonomy_prd.md)
 
@@ -174,3 +174,34 @@ Analyst overrides in the UI are captured via the API and used to improve the sys
   1. Updates the specific case in the store.
   2. Logs the feedback event for offline analysis.
   3. Flags the example for potential inclusion in the **Golden Dataset**.
+
+## 8. Campaign–Taxonomy Bridge (Dual-Speed Model)
+
+The platform adopts a dual-speed architecture to handle the tension between rapid fraud-tactic evolution and stable organizational reporting:
+
+| Layer                   | Speed         | Owner          | Purpose                                    |
+| ----------------------- | ------------- | -------------- | ------------------------------------------ |
+| **Governance Taxonomy** | Slow (annual) | Policy / Execs | Strategic reporting, regulatory compliance |
+| **Active Campaigns**    | Fast (weekly) | Analysts / Ops | Tactical detection, immediate response     |
+
+Campaigns act as **strategic classifiers** — each campaign carries an `associated_taxonomy_ids` field that explicitly maps a tactical threat pattern to its governing taxonomy category. This mapping is the translation layer between "what is happening now" and "what it means for the organization."
+
+**Data flow:**
+
+1. The system observes a case with raw signals (e.g., pig-butchering script text).
+2. The `CampaignService` matches it to an active campaign.
+3. The campaign's taxonomy association rolls up the tactical detection into a strategic category.
+4. Operational teams work the campaign queue; executive dashboards reflect the strategic risk.
+
+**Coexistence with TIFAP threat campaigns:** The governance campaign (`campaigns` + `campaign_classifications` tables) and the TIFAP threat campaign (`threat_campaigns` + `campaign_stats`) are complementary. The `campaign_stats.campaign_id` foreign key links to the governance table, preserving the bridge between tactical detection and strategic reporting. See [threat_intelligence_analytics_tdd.md](threat_intelligence_analytics_tdd.md) for the TIFAP campaign model.
+
+## 9. Batch Classification Strategy
+
+For bulk classification of large case volumes (10K+), the system uses a cost-optimized pipeline:
+
+- **Batching:** 10–25 cases per LLM request to minimize per-call overhead.
+- **Input normalization:** Strip signatures, HTML, and truncate to reduce token usage.
+- **Caching:** Hash normalized text and cache results to avoid re-classifying duplicates.
+- **Rule-based short-circuit:** High-confidence signal combinations (e.g., `IRS` + `gift card` → Government Imposter) bypass LLM entirely.
+- **Confidence bands:** Results are binned into action tiers (≥0.90 auto-accept, 0.60–0.89 accept with optional review, <0.60 queue for secondary handling).
+- **Drift monitoring:** Track mean confidence per category and ambiguous-case rate over time; alert on sudden drops.

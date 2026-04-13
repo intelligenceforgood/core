@@ -1,7 +1,7 @@
 # Storage Architecture
 
-> **Status**: Active (v1.1)
-> **Last Updated**: February 8, 2026
+> **Status**: Active (v1.2)
+> **Last Updated**: April 2026
 
 This document details the storage backends used by the i4g platform across different environments (Local Sandbox vs. Cloud Dev/Prod). The system employs a **polyglot persistence** strategy, using the best tool for each data type (relational, document, vector, blob).
 
@@ -13,8 +13,11 @@ This document details the storage backends used by the i4g platform across diffe
 | **Vector**      | `VectorStore` (Embeddings)                                        | **Chroma** (`data/chroma_store`) | **Vertex AI Search**     |
 | **Blob/File**   | `EvidenceStorage` (PDFs, Images)                                  | **Local FS** (`data/evidence`)   | **Cloud Storage** (GCS)  |
 | **Queue/State** | `ReviewStore` (Analyst Queue)                                     | **SQLite** (`data/i4g_store.db`) | **Cloud SQL** (Postgres) |
+| **Engagement**  | `EngagementStore` (Engagements, Analyst Stats)                    | **SQLite** (`data/i4g_store.db`) | **Cloud SQL** (Postgres) |
 | **Agent Queue** | `DossierQueueStore` (Dossier Plans)                               | **SQLite** (`data/i4g_store.db`) | **Cloud SQL** (Postgres) |
 | **Analytics**   | `ThreatCampaignStore`, `AnalyticsStore` (Pre-computed aggregates) | **SQLite** (`data/i4g_store.db`) | **Cloud SQL** (Postgres) |
+| **Annotation**  | `AnnotationStore`, `WatchlistStore` (User annotations, alerts)    | **SQLite** (`data/i4g_store.db`) | **Cloud SQL** (Postgres) |
+| **SSI**         | `SsiStore`, `SsiEventsStore` (Site investigations)                | **SQLite** (`data/i4g_store.db`) | **Cloud SQL** (Postgres) |
 
 > (\*) **Note on Review Queue**: The `ReviewStore` now uses the shared Cloud SQL instance in cloud environments, ensuring persistent queue state across container restarts.
 
@@ -25,26 +28,19 @@ This document details the storage backends used by the i4g platform across diffe
 **Purpose**: The "source of truth" for high-volume structured data generated during ingestion and analyst queue state.
 
 - **Schema**: Defined in `src/i4g/store/sql.py`.
-- **Tables** (17 tables in `METADATA`, 1 in `VAULT_METADATA`):
-  - `ingestion_runs`: Audit log of batch processing jobs.
-  - `campaigns`: Investigation campaign groupings with taxonomy rollups.
-  - `cases`: Core case metadata (deduplicated by dataset + hash).
-  - `source_documents`: Chunked text from evidence files.
-  - `entities`: Extracted entities (person, phone, email, etc.) linked to cases.
-  - `entity_mentions`: Join table linking entities to document text spans.
-  - `indicators`: Fraud indicators (crypto addresses, emails, phones) with status and confidence.
-  - `indicator_sources`: Join table linking indicators to source evidence.
-  - `review_queue`: Analyst review work queue (priority, status, assignment).
-  - `review_actions`: Audit log of analyst actions on reviews.
-  - `saved_searches`: Persisted search queries with owner, params, favorites.
-  - `dossier_queue`: Report generation task queue.
-  - `intake_records`: Victim-submitted incident reports.
-  - `intake_attachments`: Files attached to intake records.
-  - `intake_jobs`: Async processing jobs for intake records.
-  - `scam_records`: Legacy flat view used by RAG pipeline.
-  - `ingestion_retry_queue`: Failed writes queued for retry.
-  - `pii_tokens` — **deprecated** (no longer used; see intake encryption in `pii_vault.md`).
-- **Access**: Accessed via `EntityStore`, `ReviewStore`, `IntakeStore`, and SQLAlchemy sessions.
+- **Tables** (~45 tables in `METADATA`):
+  - **Ingestion & Cases**: `ingestion_runs`, `campaigns`, `cases`, `source_documents`, `scam_records`, `ingestion_retry_queue`.
+  - **Entities & Indicators**: `entities`, `entity_mentions`, `indicators`, `indicator_sources`.
+  - **Review & Queue**: `review_queue`, `review_actions`, `saved_searches`, `dossier_queue`.
+  - **Intake**: `intake_records`, `intake_attachments`, `intake_jobs`.
+  - **Engagements**: `engagements`, `engagement_analyst_stats`.
+  - **Accounts**: `accounts`, `account_actions`.
+  - **Annotations & Watchlists**: `annotations`, `watchlist_items`, `watchlist_alerts`.
+  - **SSI (Site Investigation)**: `site_scans`, `case_investigations`, `harvested_wallets`, `agent_sessions`, `pii_exposures`, `ssi_events`, `ssi_guidance_commands`.
+  - **Analytics (pre-computed)**: `entity_stats`, `indicator_stats`, `campaign_stats`, `platform_kpis`, `threat_campaigns`, `threat_campaign_cases`, `intake_indicator_links`.
+  - **Infrastructure**: `infrastructure_edges`, `scheduled_reports`, `chart_share_tokens`, `partner_api_keys`, `partner_feed_audit`, `audit_log`, `backfill_locks`.
+  - `pii_tokens` — **removed** (superseded by intake Fernet encryption; see [pii_protection.md](pii_protection.md)).
+- **Access**: Accessed via `EntityStore`, `ReviewStore`, `IntakeStore`, `EngagementStore`, `AnnotationStore`, `WatchlistStore`, and SQLAlchemy sessions.
 - **Full schema reference**: See [data_model.md](data_model.md) for the complete table inventory.
 - **Infrastructure**:
   - **Instance**: `i4g-dev-db` (Cloud SQL Postgres 15)
@@ -74,7 +70,15 @@ This document details the storage backends used by the i4g platform across diffe
   - `reports`: Generated Markdown/JSON dossiers and investigation reports.
 - **Access**: Accessed via `EvidenceStorage` (which abstracts `pathlib` vs `google-cloud-storage`).
 
-### 4. Agent Queue (Dossier)
+### 4. Engagement Store
+
+**Purpose**: Manages engagement lifecycle — grouping cases into analyst-led investigations with tracked progress and analyst statistics.
+
+- **Tables**: `engagements`, `engagement_analyst_stats`.
+- **Access**: Accessed via `EngagementStore`, built through `services/factories.py`.
+- **Infrastructure**: Shares the same SQLite/Cloud SQL instance.
+
+### 5. Agent Queue (Dossier)
 
 **Purpose**: Persists "Dossier Plans" for the agentic workflow. This queue decouples the API (which requests a dossier) from the background worker (which executes the LangChain agents).
 
@@ -83,10 +87,27 @@ This document details the storage backends used by the i4g platform across diffe
   - `plan_id`: Unique identifier for the dossier generation task.
   - `status`: `pending`, `leased`, `completed`, `failed`.
   - `payload`: JSON blob containing the initial case context and instructions.
+  - `priority`, `queued_at`, `updated_at`, `error`, `warnings`: Scheduling and diagnostics.
 - **Access**: Accessed via `DossierQueueStore`.
 - **Infrastructure**: Shares the same SQLite/Cloud SQL instance as the Entity and Review stores.
 
-### 5. Analytics Store (Pre-Computed Aggregates)
+### 6. Annotation & Watchlist Stores
+
+**Purpose**: User-created annotations on entities/cases and watchlist alerts for monitored indicators.
+
+- **Tables**: `annotations`, `watchlist_items`, `watchlist_alerts`.
+- **Access**: Accessed via `AnnotationStore` and `WatchlistStore`, built through `services/factories.py`.
+- **Infrastructure**: Shares the same SQLite/Cloud SQL instance.
+
+### 7. SSI Stores (Site Investigation)
+
+**Purpose**: Persists Scam Site Investigator results — site scans, harvested wallets, PII exposures, and agent session state. Managed by the `ssi` repo but stored in the shared database.
+
+- **Tables**: `site_scans`, `case_investigations`, `harvested_wallets`, `agent_sessions`, `pii_exposures`, `ssi_events`, `ssi_guidance_commands`.
+- **Access**: Accessed via `SsiStore` and `SsiEventsStore`, built through `services/factories.py`.
+- **Infrastructure**: Shares the same SQLite/Cloud SQL instance.
+
+### 8. Analytics Store (Pre-Computed Aggregates)
 
 **Purpose**: Serves pre-computed statistics for dashboard queries and campaign management.
 
@@ -110,4 +131,4 @@ This document details the storage backends used by the i4g platform across diffe
 
 1.  **Search**: The `HybridRetriever` queries both the **Vector Store** (for semantic matches) and **Entity Store** (for exact indicator matches).
 2.  **Merge**: Results are ranked and merged.
-3.  **Review**: When an analyst claims a case, the state is tracked in the `ReviewStore` (currently SQLite).
+3.  **Review**: When an analyst claims a case, the state is tracked in the `ReviewStore` (SQLite locally, Cloud SQL in cloud environments).

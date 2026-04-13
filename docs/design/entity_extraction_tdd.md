@@ -1,7 +1,7 @@
-# Entity Extraction v2 — Architecture
+# Technical Design: Entity Extraction Pipeline
 
-> **Document Version**: 1.0
-> **Last Updated**: 2026-04-10
+> **Status**: Active (v1.0)
+> **Last Updated**: April 2026
 > **Audience**: Engineers, technical stakeholders
 > **PRD**: `planning/prd_entity_extraction_v2.md`
 
@@ -9,7 +9,7 @@
 
 ## Overview
 
-Entity Extraction v2 replaces the scattered extraction logic (inline LLM calls, duplicated merge
+The entity extraction pipeline replaces scattered extraction logic (inline LLM calls, duplicated merge
 heuristics, hard-coded blocklists) with a modular, authority-ranked pipeline. Every entity in the
 system flows through a single function: `extract_entities()`.
 
@@ -162,8 +162,8 @@ deduplicated, quality-gated result with full provenance.
 
 ### Why This Algorithm Works
 
-The authority-ranked merge solves the core problem of the v1 system: regex finding "Wells Fargo"
-as a person name and no logic to override it. In v2:
+The authority-ranked merge solves the core problem of earlier extraction: regex finding "Wells Fargo"
+as a person name and no logic to override it. Now:
 
 - Regex has **0.0 authority for person** (it doesn't produce person entities at all).
 - LLM has **0.8 authority for person** — it correctly identifies "Wells Fargo" as an organization.
@@ -255,6 +255,23 @@ The `i4g entity-qa` CLI provides a test harness for measuring extraction quality
 CI enforces a quality gate: PRs that degrade F1 below threshold on `regression-v1` bundle are
 blocked.
 
+### Test Bundles
+
+| Bundle            | Cases | Labels | Purpose                                                            |
+| ----------------- | ----- | ------ | ------------------------------------------------------------------ |
+| `regression-v1`   | 20    | 20     | CI regression gate — all major scam types                          |
+| `bad-examples-v1` | 14    | 14     | Known false positives (Wells Fargo, On Behalf, etc.)               |
+| `expanded-v1`     | 51    | 51     | Non-English, obfuscated, email threads, short texts, zero entities |
+
+### Running QA
+
+```bash
+conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=local I4G_LLM__PROVIDER=mock \
+    i4g entity-qa score --bundle regression-v1 --save
+```
+
+The `regression-v1` bundle with `--threshold 0.8` is the CI quality gate.
+
 ---
 
 ## Module Layout
@@ -283,11 +300,113 @@ src/i4g/extraction/
 
 ---
 
+## Operational Runbook
+
+### Daily Operations
+
+The extraction system runs automatically:
+
+- **At ingest time**: regex-only extraction via `ingest_payloads.py` (fast, immediate)
+- **In batch**: full orchestrator via `entity-extract` Cloud Run job (scheduled/manual)
+
+No daily manual intervention is needed.
+
+### Monitoring
+
+After each batch run, check:
+
+1. **Entity counts per type** — sudden drops indicate a module failure
+2. **Module reports** — check for FAILED or PARTIAL status
+3. **Dead letters** — cases that fail 3+ times are dead-lettered to `data/entity-qa/dead_letters.json`
+
+### Adding a Blocklist Entry
+
+When an analyst reports a false positive:
+
+```bash
+conda run -n i4g i4g entity-qa blocklist add person "False Positive Name"
+```
+
+This edits `config/entity_blocklist.toml`. Deploy the updated config to take effect.
+
+### Tuning Confidence Gates
+
+If a type produces too many false positives, raise its gate:
+
+```toml
+# config/settings.default.toml
+[extraction]
+gate_person = 0.7  # was 0.6
+```
+
+Or per-environment via env var: `I4G_EXTRACTION__GATE_PERSON=0.7`.
+
+### Adding a New Module
+
+See `copilot/docs/entity-extraction-dev-guide.md` — "Adding a New Extraction Module".
+
+### Backfill Procedure
+
+To re-extract all cases using the full pipeline:
+
+```bash
+conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev \
+    I4G_LLM__PROVIDER=vertex_ai \
+    i4g jobs entity-extract --backfill --limit 0
+```
+
+`--backfill` re-extracts all cases. Existing entities are preserved via `ON CONFLICT DO NOTHING` —
+new entity types and improved extractions are added alongside.
+
+After backfill, re-score to validate:
+
+```bash
+conda run -n i4g i4g entity-qa score --bundle regression-v1 --save --format text
+```
+
+---
+
+## Known Limitations
+
+1. **LLM dependency for semantic types.** Person, organization, and scam_indicator extraction
+   requires an LLM. The heuristic module provides low-confidence person extraction as a fallback,
+   but it is noisy and cannot identify organizations or scam indicators.
+
+2. **ML NER module requires serving endpoint.** The ML NER module is only active when an ML
+   platform endpoint is configured.
+
+3. **Non-English precision.** Regex patterns are language-agnostic (only technical patterns).
+   Person/org extraction in non-English scripts depends entirely on LLM quality.
+
+4. **Obfuscation coverage.** The normalizer handles common patterns but scammers constantly invent
+   new techniques. The keyword allowlist must be manually updated.
+
+5. **Entity relationship extraction.** The system extracts individual entities but does not detect
+   relationships between them. The intelligence graph infers connections via co-occurrence.
+
+6. **Confidence calibration.** Module confidence scores are heuristic, not calibrated against
+   actual precision. Future work could use golden bundles for per-module calibration.
+
+7. **IBAN/SWIFT parsing.** Bank account extraction via regex catches numeric sequences but IBAN
+   validation is limited.
+
+---
+
+## Future Improvements
+
+1. **Entity relationship extraction** — detect directed relationships between entities
+2. **Confidence calibration** — use golden bundles to calibrate per-module scores
+3. **Active learning loop** — analyst corrections feed back into training data
+4. **Module-level caching** — cache regex results for duplicate text submissions
+5. **Streaming extraction** — real-time extraction during intake (WebSocket)
+
+---
+
 ## Decision Log
 
 | Decision                                     | Rationale                                                                                    |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Single `extract_entities()` entry point      | Prevents the v1 problem of scattered extraction logic with inconsistent merge rules          |
+| Single `extract_entities()` entry point      | Prevents scattered extraction logic with inconsistent merge rules                            |
 | Authority-weighted merge instead of voting   | Simple majority voting would let three noisy modules outvote one precise regex match         |
 | Contradiction penalty (high-auth silence)    | If regex (authority 1.0) doesn't find a wallet, an LLM-only wallet claim should be penalized |
 | Blocklist as merge filter, not separate pass | Integrating blocklist into merge ensures the audit trail captures why entities were dropped  |

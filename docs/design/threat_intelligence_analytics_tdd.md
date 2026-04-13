@@ -1,9 +1,7 @@
 # Threat Intelligence & Fraud Analytics — Technical Design Document
 
 > **Status**: Active (v1.3)
-> **Sprint**: S1–S6 — Data Foundation through Final Hardening
-> **Last Updated**: March 2026
-> **Last Verified**: March 2026
+> **Last Updated**: April 2026
 
 ---
 
@@ -153,7 +151,7 @@ anonymization check runs as the final step of each aggregation cycle.
 
 ---
 
-## 6. Graph Service (Sprint 2)
+## 6. Graph Service
 
 The `GraphService` (`src/i4g/services/graph_service.py`) implements in-memory
 co-occurrence analysis using NetworkX. It accepts entity → case adjacency data
@@ -177,7 +175,7 @@ callers. The existing `EntityGraphTool` in `dossier_tools.py` delegates to
 
 ---
 
-## 7. Intelligence API (Sprint 2)
+## 7. Intelligence API
 
 ### 7.1 Endpoints
 
@@ -231,7 +229,7 @@ Key models: `EntityListResponse`, `IndicatorListResponse`,
 
 ---
 
-## 9. Impact Analytics API (Sprint 3)
+## 9. Impact Analytics API
 
 The Impact Dashboard provides KPI cards, loss treemap, detection velocity,
 pipeline funnel, and cumulative indicator charts. All endpoints live in
@@ -255,7 +253,7 @@ period of equal length. `_calculate_trend()` returns a direction (`up`, `down`,
 
 ---
 
-## 10. Campaign Intelligence API (Sprint 3)
+## 10. Campaign Intelligence API
 
 Extends `src/i4g/api/intelligence.py` with campaign browsing, management, and
 timeline endpoints.
@@ -281,7 +279,7 @@ Intelligence Dashboard.
 
 ---
 
-## 11. Report Generation & Templates (Sprint 3)
+## 11. Report Generation & Templates
 
 ### 11.1 Report API
 
@@ -330,7 +328,7 @@ reports.
 
 ---
 
-## 12. Export Adapters (Sprint 3)
+## 12. Export Adapters
 
 `src/i4g/services/export_adapters.py` implements a protocol-based adapter pattern:
 
@@ -343,7 +341,7 @@ reports.
 
 ---
 
-## 13. Key Files (Sprint 3)
+## 13. Key Files
 
 | File                                        | Purpose                              |
 | ------------------------------------------- | ------------------------------------ |
@@ -355,7 +353,7 @@ reports.
 
 ---
 
-## 14. Network Graph (Sprint 4)
+## 14. Network Graph
 
 ### 14.1 Graph API
 
@@ -384,7 +382,7 @@ hop selector, zoom, and export button.
 
 ---
 
-## 15. Taxonomy Explorer (Sprint 4)
+## 15. Taxonomy Explorer
 
 ### 15.1 Sankey Endpoint
 
@@ -410,7 +408,7 @@ The `subcategory` is derived at query time by splitting on `" - "` separator.
 
 ---
 
-## 16. Geographic Aggregation (Sprint 4)
+## 16. Geographic Aggregation
 
 ### 16.1 Summary Endpoint
 
@@ -426,7 +424,7 @@ and loss amount. Supports `limit` and `period` parameters.
 
 ---
 
-## 17. Timeline (Sprint 4)
+## 17. Timeline
 
 ### 17.1 Timeline API
 
@@ -444,7 +442,7 @@ controls. Tracks are color-coded (blue=cases, green=indicators, amber=campaigns)
 
 ---
 
-## 18. Entity Annotations & Status (Sprint 4)
+## 18. Entity Annotations & Status
 
 ### 18.1 Annotation Store
 
@@ -464,7 +462,7 @@ tag, status_update) on entity lists. Returns per-entity success/failure results.
 
 ---
 
-## 19. Key Files (Sprint 4)
+## 19. Key Files
 
 | File                                                   | Purpose                             |
 | ------------------------------------------------------ | ----------------------------------- |
@@ -479,7 +477,7 @@ tag, status_update) on entity lists. Returns per-entity success/failure results.
 
 ---
 
-## 20. Louvain Community Detection (Sprint 5)
+## 20. Louvain Community Detection
 
 ### 20.1 Algorithm
 
@@ -511,7 +509,7 @@ returns the full graph plus a `clusters` array.
 
 ---
 
-## 21. Infrastructure Edge Construction (Sprint 5)
+## 21. Infrastructure Edge Construction
 
 ### 21.1 Clustering Job
 
@@ -543,7 +541,7 @@ them to the NetworkX graph with `relationship="infrastructure"` metadata.
 
 ---
 
-## 22. Watchlist & Alert Architecture (Sprint 5)
+## 22. Watchlist & Alert Architecture
 
 ### 22.1 WatchlistStore
 
@@ -575,7 +573,7 @@ Requires `analyst` role for mutations, `user` role for reads.
 
 ---
 
-## 23. Scheduled Report Pipeline (Sprint 5)
+## 23. Scheduled Report Pipeline
 
 ### 23.1 Schedule Model
 
@@ -596,7 +594,7 @@ are co-located in the job module.
 
 ---
 
-## 24. External Enrichment Integration (Sprint 5)
+## 24. External Enrichment Integration
 
 ### 24.1 Passive DNS (SecurityTrails)
 
@@ -623,7 +621,7 @@ connection errors indicate a takedown. Sets `taken_down_at` on
 
 ---
 
-## 25. Researcher Anonymization Pipeline (Sprint 5)
+## 25. Researcher Anonymization Pipeline
 
 ### 25.1 Anonymization Layer
 
@@ -657,7 +655,7 @@ retrieves the chart config if the token is valid and not expired.
 
 ---
 
-## 26. Key Files (Sprint 5)
+## 26. Key Files
 
 | File                                                    | Purpose                                  |
 | ------------------------------------------------------- | ---------------------------------------- |

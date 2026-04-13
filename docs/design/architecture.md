@@ -22,7 +22,7 @@ The **Next.js analyst console** on Cloud Run serves victims, volunteer analysts,
 
 ## Guiding Objectives
 
-- **Extend and differentiate**: Extend the platform with capabilities differentiated from the Azure starting point — deeper privacy controls (PII vault), richer analytics (TIFAP, fraud taxonomy), and automated investigation (SSI).
+- **Extend and differentiate**: Extend the platform with capabilities differentiated from the Azure starting point — deeper privacy controls (PII protection), richer analytics (TIFAP, fraud taxonomy), and automated investigation (SSI).
 - **Open-first**: Prefer open protocols/OSS-aligned services and keep clean swap points (Vertex ↔ pgvector, Gemini ↔ Ollama).
 - **Operate light**: Favor repeatable runbooks and Workload Identity over long-lived keys so small teams can maintain it.
 - **Privacy by design**: Victim intake encryption, victim-contact redaction in case text, and audit-logged decryption.
@@ -103,11 +103,11 @@ flowchart TB
   CoreSvc -- Signed URLs --> Storage
   CoreSvc -- Invoke Chains --> RAG
 
-  NextJS -- API Calls --> CoreSvc
-  NextJS -- eCX Direct (OIDC) --> SSISvc
-  CoreSvc -- Enrich Request (OIDC) --> SSISvc
-  SSISvc -- Callbacks/Events --> CoreSvc
-  SSISvc -- Direct SQL --> CloudSQL
+  NextJS -->|API Calls| CoreSvc
+  NextJS -->|eCX Direct, OIDC| SSISvc
+  CoreSvc -->|Enrich Request, OIDC| SSISvc
+  SSISvc -->|Callbacks/Events| CoreSvc
+  SSISvc -->|Direct SQL| CloudSQL
 
   IngestionPipelines -- Structured Writes --> CloudSQL
   IngestionPipelines -- Artifact Uploads --> Storage
@@ -466,9 +466,9 @@ TIFAP is **not a separate service** — it is a subsystem within `core-svc` that
 
 ---
 
-### 5. **PII Vault — Cross-Cutting Privacy Layer**
+### 5. **PII Protection — Cross-Cutting Privacy Layer**
 
-The PII vault is an application-layer encryption facility that protects victim contact data across all flows.
+The PII protection layer is an application-layer encryption facility that protects victim contact data across all flows.
 
 **Principle**: Investigation entities (wallet addresses, email addresses extracted from case narratives) remain in cleartext for analysis. Victim contact information (reporter name, email, phone, handle) is Fernet-encrypted before any database write.
 
@@ -482,7 +482,7 @@ The PII vault is an application-layer encryption facility that protects victim c
 | Key storage    | `I4G_CRYPTO__PII_KEY` in Secret Manager; scheduled rotation via Cloud Scheduler |
 | Ingestion      | Victim contact info is redacted from case text before vector embedding       |
 
-See [PII Vault Design](pii_vault.md) for the complete specification including key rotation and the dual-key re-encryption procedure.
+See [PII Protection](pii_protection.md) for the complete specification including key rotation.
 
 ---
 
@@ -541,7 +541,7 @@ Provider selection and model construction are handled by `build_fraud_classifier
 
 ### Victim Contact Encryption (developer reference)
 
-See `docs/design/pii_vault.md` for the full design. Victim contact fields (reporter name, email, phone, handle) are
+See `docs/design/pii_protection.md` for the full design. Victim contact fields (reporter name, email, phone, handle) are
 Fernet-encrypted on intake write and decrypted on authorized read. Investigation entities (wallets, emails from case
 narratives) remain in cleartext. Victim contact info is redacted from case text during ingestion.
 
@@ -616,7 +616,7 @@ truth.
 
 ### Identity & Access Control
 
-- Primary option: Google Cloud Identity Platform (OIDC) with role claims for `victim`, `analyst`, `admin`, and `leo`.
+- Primary option: Google Cloud Identity Platform (OIDC) with role claims for `victim`, `analyst`, `manager`, `admin`, and `leo`.
 - Fallback / future option: authentik or Keycloak on Cloud Run or GKE if self-hosted control becomes necessary.
 - The Next.js console and FastAPI share a lightweight auth service for token verification and role enforcement; all user entry
   points are fronted by Identity-Aware Proxy.
@@ -666,6 +666,7 @@ truth.
 | ------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
 | Victim                          | FastAPI intake endpoints via Google Identity | Own submissions (Cloud SQL rows scoped to UID), upload bucket objects via signed URL                                | Create/update intake records, upload evidence, read status of submitted cases           | Read-only access enforced through database RBAC; no direct Storage listing |
 | Analyst                         | Next.js analyst console (Cloud Run)          | Case queues, evidence metadata, vector query results; victim contact info available via authorized decrypt endpoint | Claim/release cases, run chat/RAG searches, trigger report generation, annotate cases   | Contact decryption requires explicit action and logs actor/justification   |
+| Manager                         | Next.js console (engagement views)           | All analyst data plus engagement analytics, team performance, leaderboards                                          | All analyst actions plus create/manage engagements, assign cases, export analytics      | Engagement management scoped to `manager` role via `require_role()`        |
 | Admin                           | Next.js admin views + FastAPI admin APIs     | All case data, configuration collections, audit logs                                                                | Manage users/roles, adjust configuration, approve report publishing, initiate rotations | Access gated by admin-only OAuth claim and Cloud Run IAM                   |
 | Law Enforcement (LEO)           | Next.js read-only report portal              | Published reports, supporting evidence with signed URLs                                                             | View/download reports, acknowledge receipt                                              | Accounts provisioned manually; multi-factor auth enforced                  |
 | Automation (ingest/report jobs) | Cloud Run jobs / Scheduler                   | Cloud SQL ingestion tables, Storage evidence buckets, vector store                                                  | Normalize raw feeds, enqueue cases, seed vector index, emit alerts                      | Operate under dedicated service accounts with least privilege              |
@@ -887,35 +888,16 @@ gcloud run services update i4g-api --traffic
 
 ---
 
-## Future Architecture Improvements
+## Desired Architecture Improvements
 
-### Completed (formerly Phase 2)
+The following are known areas where the architecture can be strengthened:
 
-- [x] Background task execution via `TASK_STATUS` dict + `asyncio` threads (interim until Redis)
-- [x] Cloud Run Jobs for async work (ingestion, report generation, dossier assembly)
-- [x] Multi-provider LLM support (Vertex AI, Ollama, Mock)
-
-### Phase 2 (In Progress)
-
-- [ ] Replace in-memory `TASK_STATUS` with Redis for multi-instance consistency
-- [ ] CDN for static assets (Cloud CDN)
-- [ ] Multi-region deployment (us-central1 + europe-west1)
-
-### Completed (formerly Phase 2b — TIFAP Sprint 6)
-
-- [x] Threat Intelligence & Fraud Analytics Platform (TIFAP) — aggregation pipeline, graph service, campaign intelligence
-- [x] Partner indicator feed API with dedicated auth, rate limiting, and STIX/CSV export
-- [x] Blockchain analytics enrichment (wallet labels, risk scores, cluster edges)
-- [x] LEA referral tracking on case records
-- [x] Mobile-responsive Impact Dashboard with KPI sparklines
-- [x] Database index optimization for analytics queries (9 indexes added)
-- [x] External enrichment services (passive DNS, ASN lookup, takedown verification)
-
-### Phase 3 (Scale)
-
-- [ ] Event-driven architecture (Pub/Sub)
-- [ ] Real-time analytics dashboard (BigQuery + Data Studio)
-- [ ] Mobile app (React Native)
+- **Redis-backed task state** — Replace the in-memory `TASK_STATUS` dictionary with Redis to support multi-instance consistency across Cloud Run revisions.
+- **CDN for static assets** — Introduce Cloud CDN in front of the Next.js console to reduce latency and Cloud Run egress.
+- **Multi-region deployment** — Expand from `us-central1` to `europe-west1` for geographic redundancy and lower latency for international partners.
+- **Event-driven pipelines** — Adopt Pub/Sub for decoupling ingestion, classification, and analytics aggregation steps.
+- **Real-time analytics** — Export aggregate data to BigQuery for advanced historical analysis and Looker dashboards.
+- **Mobile application** — Extend the platform to native mobile (React Native) for field analysts and victim intake.
 
 ---
 

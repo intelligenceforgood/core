@@ -1,61 +1,64 @@
-# RAG Pipeline Architecture
+# RAG & Hybrid Search Architecture
 
-> **Status**: Active (v1.1)
-> **Last Updated**: February 8, 2026
+> **Status**: Active (v1.2)
+> **Last Updated**: April 2026
 
-This document describes the Retrieval-Augmented Generation (RAG) pipeline used for scam detection and analysis within the I4G platform.
+This document describes the retrieval and search architecture within the I4G platform. The system provides two complementary search paths: **Hybrid Search** (primary, used by the analyst console) and a **RAG Pipeline** (used for CLI-driven scam assessment).
 
-## Overview
+## Hybrid Search (Primary — Discovery Page)
 
-The RAG pipeline is designed to assist analysts by automatically evaluating case context against a knowledge base of known scam patterns. It uses a modular architecture based on **LangChain** (v0.2+) and **LangChain Expression Language (LCEL)**.
-
-## Architecture
+The analyst console's Discovery page uses `HybridSearchService`, which combines structured database queries with semantic similarity search. This is the primary search path for analysts.
 
 ```mermaid
 flowchart LR
-    Query[User Query/Context] --> Retriever[Hybrid Retriever]
-    Retriever -->|Retrieve Docs| VectorStore[Vector Store]
-    VectorStore -->|Relevant Chunks| Context[Context Window]
-    Query --> Prompt[Prompt Template]
-    Context --> Prompt
-    Prompt --> LLM[LLM (Gemini/Ollama)]
-    LLM --> Output[Scam Assessment]
+    Query[Analyst Query] --> HybridSvc[HybridSearchService]
+    HybridSvc --> Structured[StructuredStore]
+    HybridSvc --> Vector[VectorStore]
+    Structured -->|Exact matches| Merge[Result Merger]
+    Vector -->|Semantic matches| Merge
+    Merge --> Results[Ranked Results]
 ```
 
 ### Components
 
-1.  **Retriever**:
-    *   Uses the `HybridRetriever` (or direct Vector Store access) to fetch relevant documents.
-    *   **Search Strategy**: Similarity search (k=4 default).
-    *   **Source**: `source_documents` chunks stored in Vertex AI Search (Cloud) or Chroma (Local).
+1. **HybridRetriever** (`src/i4g/store/retriever.py`):
+   - Combines structured + vector + entity stores
+   - Merges results using `max_weighted` strategy with tie-breaker
+   - Falls back to structured-only search if vector store is unavailable
 
-2.  **LLM (Reasoning Engine)**:
-    *   **Cloud**: Vertex AI Gemini 2.5 Flash (also used by `classification_sweeper`).
-    *   **Local**: Ollama (running `llama3.1` or similar).
-    *   **Configuration**: Controlled via `settings.llm.provider`. Note: `pipeline.py` currently hardcodes Ollama (`ChatOllama`). The multi-provider switch is fully implemented in `classifier.py` (Vertex AI, Ollama, mock) but not yet wired into the RAG pipeline.
+2. **HybridSearchService** (`src/i4g/services/hybrid_search.py`):
+   - Coordinates the retriever and merges results
+   - Used by `/discovery` API endpoint
+   - Falls back to local retriever if GCP Discovery backend fails
 
-3.  **Prompt Engineering**:
-    *   The system uses a focused prompt template designed to detect crypto and romance scams targeting seniors.
-    *   **Template**:
-        ```text
-        You are a scam detection assistant.
-        Given the following chat or message context, decide if it shows signs of a scam.
-        Focus on crypto and romance scams targeting seniors.
+3. **Vector Store**:
+   - **Cloud**: Vertex AI Search (`retrieval-poc` data store)
+   - **Local**: Chroma (`data/chroma_store`)
+   - Content: embeddings generated from `source_documents` chunks
 
-        Context: {context}
+## RAG Pipeline (CLI — Scam Assessment)
 
-        Question: {question}
+The RAG pipeline (`src/i4g/rag/pipeline.py`) is a LangChain LCEL chain used for local scam detection testing via the `i4g search query` CLI command. It is not used by the analyst console API.
 
-        Answer clearly and concisely:
-        ```
+```mermaid
+flowchart LR
+    Query[User Query] --> Retriever[Vector Retriever]
+    Retriever -->|Relevant Chunks| Context[Context Window]
+    Query --> Prompt[Prompt Template]
+    Context --> Prompt
+    Prompt --> LLM["LLM (Gemini/Ollama)"]
+    LLM --> Output[RagAssessment]
+```
 
-4.  **Pipeline Construction (LCEL)**:
-    *   The pipeline is built using `RunnablePassthrough` for parallel context retrieval and question passing.
-    *   Source: `src/i4g/rag/pipeline.py`.
+### Design
 
-## Usage
+- **Provider-agnostic**: uses `build_langchain_llm()` respecting `settings.llm.provider` (Vertex AI, Ollama, mock)
+- **Structured output**: validates LLM response against `RagAssessment` Pydantic schema with retry on parse failure
+- **Few-shot examples**: golden examples from `src/i4g/rag/golden_examples.json` injected into prompts
+- **Citation-aware**: numbered document chunks enable the LLM to reference specific evidence
+- **External templates**: prompt templates loaded from disk (`{{ placeholder }}` syntax)
 
-The pipeline is exposed via the `build_scam_detection_chain` factory function.
+### Usage
 
 ```python
 from i4g.rag.pipeline import build_scam_detection_chain
@@ -70,6 +73,5 @@ print(result)
 
 ## Future Improvements
 
-*   **Guardrails**: Implement output parsers to enforce structured JSON responses (e.g., `{"is_scam": boolean, "confidence": float, "reasoning": str}`).
-*   **Few-Shot Learning**: Inject examples of known scams into the prompt context.
-*   **Citation**: Require the LLM to cite specific evidence chunks used in the assessment.
+- **API integration**: Expose RAG assessment as an API endpoint for analyst-assisted analysis
+- **Active retrieval**: Let the LLM request additional context when initial retrieval is insufficient

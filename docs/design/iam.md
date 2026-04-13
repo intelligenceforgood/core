@@ -1,6 +1,6 @@
 # Identity & Access Management Strategy
 
-**Status:** Active (v2.0) — February 14, 2026
+**Status:** Active (v2.1) — April 2026
 **Audience:** Engineering, security reviewers, product stakeholders across `core`, `planning`, and `ui`
 
 This document is the single source of truth for how we authenticate users, authorize workloads, and evolve IAM across the i4g platform. It consolidates IAM content from `architecture.md`, planning artifacts, and the UI books so every repository references one canonical strategy. Updates to IAM MUST originate here.
@@ -20,12 +20,13 @@ This document is the single source of truth for how we authenticate users, autho
 
 ## 2. Personas & Role Expectations
 
-| Persona               | Capabilities                                   | Entry Requirements                                       | Near-term Controls                                                               | Future Controls                                                       |
-| --------------------- | ---------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Victim / End User     | Submit cases, upload evidence, check status    | Google account (temporary), future passkey/email options | Cloud Run IAM via Google tokens, signed URLs for uploads                         | Dedicated intake endpoint with anti-abuse, CAPTCHA, fraud throttling  |
-| Analyst               | Review cases, run RAG search, generate reports | Google account in Analyst group, future VPN cert         | Cloud Run IAM + Google Group membership, Terraform-managed bindings              | Analyst-only endpoint behind VPN / BeyondCorp + device posture checks |
-| Law Enforcement (LEO) | Search approved cases, download reports        | Provisioned Google account, MFA                          | Google Identity + role claim, signed report URLs                                 | Dedicated LEO portal with read-only scope + case export formats       |
-| Automation (jobs)     | Ingest feeds, generate reports, rotate secrets | Service accounts only                                    | Terraform service accounts (`sa-ingest`, `sa-report`, etc.) with least privilege | Same accounts, plus workload-identity federation to CI/CD             |
+| Persona               | Capabilities                                                | Entry Requirements                                       | Near-term Controls                                                               | Future Controls                                                       |
+| --------------------- | ----------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Victim / End User     | Submit cases, upload evidence, check status                 | Google account (temporary), future passkey/email options | Cloud Run IAM via Google tokens, signed URLs for uploads                         | Dedicated intake endpoint with anti-abuse, CAPTCHA, fraud throttling  |
+| Analyst               | Review cases, run RAG search, generate reports              | Google account in Analyst group, future VPN cert         | Cloud Run IAM + Google Group membership, Terraform-managed bindings              | Analyst-only endpoint behind VPN / BeyondCorp + device posture checks |
+| Manager               | Engagement management, team oversight, analytics dashboards | Google account + promoted by admin                       | Cloud Run IAM + Google Group membership, `require_role("manager")`               | Manager dashboard with delegation and audit views                     |
+| Law Enforcement (LEO) | Search approved cases, download reports                     | Provisioned Google account, MFA                          | Google Identity + role claim, signed report URLs                                 | Dedicated LEO portal with read-only scope + case export formats       |
+| Automation (jobs)     | Ingest feeds, generate reports, rotate secrets              | Service accounts only                                    | Terraform service accounts (`sa-ingest`, `sa-report`, etc.) with least privilege | Same accounts, plus workload-identity federation to CI/CD             |
 
 ---
 
@@ -96,16 +97,17 @@ The platform enforces role-based access control at the application layer via the
 **Role hierarchy** (defined in `src/i4g/api/roles.py`):
 
 ```
-researcher  <  user  <  analyst  <  leo  ≤  admin
+researcher  <  user  <  analyst  <  manager  <  leo  ≤  admin
 ```
 
-| Role         | Capabilities                                               | Default for                                      |
-| ------------ | ---------------------------------------------------------- | ------------------------------------------------ |
-| `researcher` | Anonymized aggregate access; no PII or raw entity values   | Manually assigned for external research partners |
-| `user`       | Read-only access to public case summaries                  | First-time login (auto-provisioned)              |
-| `analyst`    | Full case review, annotation, search, report generation    | Promoted by admin                                |
-| `leo`        | All analyst capabilities plus LEO-specific reports         | Promoted by admin                                |
-| `admin`      | All capabilities plus user management, campaigns, bulk ops | Manually assigned                                |
+| Role         | Capabilities                                                | Default for                                      |
+| ------------ | ----------------------------------------------------------- | ------------------------------------------------ |
+| `researcher` | Anonymized aggregate access; no PII or raw entity values    | Manually assigned for external research partners |
+| `user`       | Read-only access to public case summaries                   | First-time login (auto-provisioned)              |
+| `analyst`    | Full case review, annotation, search, report generation     | Promoted by admin                                |
+| `manager`    | Engagement management, team oversight, analytics dashboards | Promoted by admin                                |
+| `leo`        | All manager capabilities plus LEO-specific reports          | Promoted by admin                                |
+| `admin`      | All capabilities plus user management, campaigns, bulk ops  | Manually assigned                                |
 
 **Researcher restrictions (D16):** The `researcher` role (Sprint 2) is the lowest-privilege tier. Intelligence API endpoints anonymize entity/indicator values (masked to `***` + last 4 chars). Entity and indicator detail endpoints return HTTP 403. Export endpoints mask bank indicators by default; `?unmask=true` requires `analyst` or higher.
 
@@ -218,12 +220,12 @@ Terraform is the source of truth, but if we need an emergency change before a pl
 
 ## 7. IAM Roadmap
 
-| Phase       | Status                 | Deliverables                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ----------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Phase 0** | ✅ Complete (Dec 2025) | IAM strategy published, Quick Auth helper removed, every Cloud Run service gated behind Terraform-managed IAP.                                                                                                                                                                                                                                                                                                                                                               |
-| **Phase 1** | ✅ Complete (Feb 2026) | IAP JWT verification in FastAPI (`_verify_iap_jwt` with IAP certs). Forwarded-user identity bridge (`X-I4G-Forwarded-User`). DB-backed RBAC with `accounts` table, 5-role hierarchy (`researcher < user < analyst < leo ≤ admin`), `require_role()` dependency. Admin UI for user/role management (`/admin/users`). Audit logging for role changes and deactivation. Role-aware navigation in the analyst console. Researcher anonymization on intelligence endpoints (D16). |
-| **Phase 2** | Planned (Q2 2026)      | Introduce role-specific endpoints or Cloud Run services (victim intake, LEO portal). Add device-posture checks via BeyondCorp / Context-Aware Access. Expand audit trail to cover case-level access.                                                                                                                                                                                                                                                                         |
-| **Phase 3** | Planned (Q3 2026)      | Evaluate non-Google identity options (passkeys, Auth0 for Nonprofits). Automate IAM drift detection. Implement signed report attestations for legal workflows.                                                                                                                                                                                                                                                                                                               |
+| Phase       | Status                 | Deliverables                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Phase 0** | ✅ Complete (Dec 2025) | IAM strategy published, Quick Auth helper removed, every Cloud Run service gated behind Terraform-managed IAP.                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| **Phase 1** | ✅ Complete (Feb 2026) | IAP JWT verification in FastAPI (`_verify_iap_jwt` with IAP certs). Forwarded-user identity bridge (`X-I4G-Forwarded-User`). DB-backed RBAC with `accounts` table, 6-role hierarchy (`researcher < user < analyst < manager < leo ≤ admin`), `require_role()` dependency. Admin UI for user/role management (`/admin/users`). Audit logging for role changes and deactivation. Role-aware navigation in the analyst console. Researcher anonymization on intelligence endpoints (D16). Engagement management scoped to `manager` role. |
+| **Phase 2** | Planned (Q2 2026)      | Introduce role-specific endpoints or Cloud Run services (victim intake, LEO portal). Add device-posture checks via BeyondCorp / Context-Aware Access. Expand audit trail to cover case-level access.                                                                                                                                                                                                                                                                                                                                   |
+| **Phase 3** | Planned (Q3 2026)      | Evaluate non-Google identity options (passkeys, Auth0 for Nonprofits). Automate IAM drift detection. Implement signed report attestations for legal workflows.                                                                                                                                                                                                                                                                                                                                                                         |
 
 Open questions:
 

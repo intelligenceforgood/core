@@ -1,6 +1,8 @@
 # PII Protection: Victim Intake Encryption
 
-**Audience:** Engineers and architects. End-user guidance lives in the `docs/` repo; this file is technical.
+> **Status**: Active (v1.0)
+> **Last Updated**: April 2026
+> **Audience:** Engineers and architects. End-user guidance lives in the `docs/` repo; this file is technical.
 
 ## Overview
 
