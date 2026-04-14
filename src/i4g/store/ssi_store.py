@@ -22,6 +22,7 @@ from sqlalchemy.orm import sessionmaker
 from i4g.store import sql as sql_schema
 from i4g.store.sql import METADATA, dialect_insert
 from i4g.store.sql import session_factory as default_session_factory
+from i4g.utils.url_normalization import normalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +155,7 @@ class SsiStore:
                     scan_id=scan_id,
                     case_id=case_id,
                     url=url,
+                    normalized_url=normalize_url(url),
                     domain=domain,
                     scan_type=scan_type,
                     status="running",

@@ -140,6 +140,29 @@ def _pending_ingest_retry(session: Session) -> int:
     return result.scalar() or 0
 
 
+def _pending_entity_extraction(session: Session) -> int:
+    """Count cases without extracted entities."""
+    has_entities = (
+        sa.select(sql_schema.entities.c.entity_id)
+        .where(sql_schema.entities.c.case_id == sql_schema.cases.c.case_id)
+        .exists()
+    )
+    result = session.execute(
+        sa.select(sa.func.count())
+        .select_from(
+            sql_schema.cases.join(
+                sql_schema.source_documents,
+                sql_schema.cases.c.case_id == sql_schema.source_documents.c.case_id,
+            )
+        )
+        .where(
+            sql_schema.cases.c.is_deleted.is_(False),
+            ~has_entities,
+        )
+    )
+    return result.scalar() or 0
+
+
 # ---------------------------------------------------------------------------
 # Registration (lazy — called on first access)
 # ---------------------------------------------------------------------------
@@ -258,6 +281,26 @@ def _ensure_registered() -> None:
             pending_count_fn=_pending_evidence_integrity,
             lock_ttl_seconds=1800,
             default_kwargs={"backfill": True},
+        )
+    )
+
+    # Entity extraction
+    def _run_entity_extract(**kwargs: Any) -> int:
+        from i4g.worker.jobs import entity_extract
+
+        return entity_extract.main(
+            backfill=kwargs.get("backfill", False),
+            limit=kwargs.get("limit", 0),
+        )
+
+    register(
+        BackfillTask(
+            name="entity-extract",
+            description="Extract entities and indicators from cases via LLM + rule-based NER",
+            run_fn=_run_entity_extract,
+            pending_count_fn=_pending_entity_extraction,
+            lock_ttl_seconds=3600,
+            default_kwargs={"backfill": False},
         )
     )
 

@@ -156,7 +156,7 @@ class TestRegistry:
 
     def test_all_tasks_are_registered(self):
         tasks = all_tasks()
-        expected = {"classify", "ssi", "analytics", "linkage", "dossier", "evidence", "ingest-retry"}
+        expected = {"classify", "ssi", "analytics", "linkage", "dossier", "evidence", "entity-extract", "ingest-retry"}
         assert expected == set(tasks.keys())
 
     def test_tasks_have_required_fields(self):

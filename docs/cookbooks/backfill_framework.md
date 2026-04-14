@@ -16,6 +16,21 @@ i4g backfill daemon --cycle 60  # fire-and-forget continuous processing
 
 Bootstrap does automatically run **analytics aggregation** at the end, so intelligence pages (campaigns, graph, watchlist) are populated with seed data immediately. Running the full backfill enriches them with LLM-derived classifications and entity extractions.
 
+### Quick Start: Entity Extraction After Bootstrap
+
+After a local bootstrap, cases may have only rule-based entities from ingestion. Run entity extraction to process them through the full modular extraction pipeline (regex + heuristic + LLM + ML NER, with merge, chunking, and blocklist filtering):
+
+```bash
+# Extract entities for cases that have none
+i4g backfill run entity-extract
+
+# Re-extract all cases through the full extraction pipeline (replaces ingest-time results)
+i4g backfill run entity-extract --backfill
+
+# Or include it in the daemon
+i4g backfill daemon --tasks entity-extract --tasks classify --tasks analytics --cycle 60
+```
+
 ## Concepts
 
 | Term              | Meaning                                                                                                                            |
@@ -27,15 +42,16 @@ Bootstrap does automatically run **analytics aggregation** at the end, so intell
 
 ## Registered Tasks
 
-| Name           | Worker Job               | What it Does                                                                                  |
-| :------------- | :----------------------- | :-------------------------------------------------------------------------------------------- |
-| `classify`     | `classification_sweeper` | Batch classify cases with `classification_status='pending'` (includes risk score computation) |
-| `ssi`          | `auto_investigate`       | Trigger SSI investigations for uninvestigated URL indicators                                  |
-| `analytics`    | `analytics_aggregation`  | Refresh pre-computed analytics, campaign risk scores, and KPIs                                |
-| `linkage`      | `linkage_extract`        | Extract indicator links from intake narratives via LLM                                        |
-| `dossier`      | `dossier_queue`          | Process queued dossier generation jobs                                                        |
-| `evidence`     | `evidence_integrity`     | Verify and backfill evidence file SHA-256 checksums                                           |
-| `ingest-retry` | `ingest_retry`           | Retry failed ingestion records                                                                |
+| Name             | Worker Job               | What it Does                                                                                  |
+| :--------------- | :----------------------- | :-------------------------------------------------------------------------------------------- |
+| `classify`       | `classification_sweeper` | Batch classify cases with `classification_status='pending'` (includes risk score computation) |
+| `ssi`            | `auto_investigate`       | Trigger SSI investigations for uninvestigated URL indicators                                  |
+| `analytics`      | `analytics_aggregation`  | Refresh pre-computed analytics, campaign risk scores, and KPIs                                |
+| `linkage`        | `linkage_extract`        | Extract indicator links from intake narratives via LLM                                        |
+| `dossier`        | `dossier_queue`          | Process queued dossier generation jobs                                                        |
+| `evidence`       | `evidence_integrity`     | Verify and backfill evidence file SHA-256 checksums                                           |
+| `entity-extract` | `entity_extract`         | Extract entities and indicators from cases via LLM + rule-based NER                           |
+| `ingest-retry`   | `ingest_retry`           | Retry failed ingestion records                                                                |
 
 ## CLI Reference
 
@@ -89,7 +105,7 @@ I4G_ENV=local nohup i4g backfill daemon > data/logs/backfill.log 2>&1 &
 i4g backfill daemon --cycle 120
 
 # Only specific tasks
-i4g backfill daemon --tasks classify ssi analytics
+i4g backfill daemon --tasks classify --tasks ssi --tasks analytics
 
 # Dry run mode
 i4g backfill daemon --dry-run
@@ -253,15 +269,16 @@ Each task acquires a named lock before executing. If another instance is already
 
 Locks expire automatically after their TTL:
 
-| Task           | TTL   | Rationale                                       |
-| :------------- | :---- | :---------------------------------------------- |
-| `classify`     | 3600s | Classification can process thousands of cases   |
-| `ssi`          | 1800s | SSI triggers are fast; investigations run async |
-| `analytics`    | 1800s | Aggregation is bounded by table sizes           |
-| `linkage`      | 3600s | LLM extraction is slow                          |
-| `dossier`      | 1800s | Bounded by queue size                           |
-| `evidence`     | 1800s | I/O bound, predictable time                     |
-| `ingest-retry` | 1800s | Small batch sizes                               |
+| Task             | TTL   | Rationale                                       |
+| :--------------- | :---- | :---------------------------------------------- |
+| `classify`       | 3600s | Classification can process thousands of cases   |
+| `ssi`            | 1800s | SSI triggers are fast; investigations run async |
+| `analytics`      | 1800s | Aggregation is bounded by table sizes           |
+| `linkage`        | 3600s | LLM extraction is slow                          |
+| `dossier`        | 1800s | Bounded by queue size                           |
+| `evidence`       | 1800s | I/O bound, predictable time                     |
+| `entity-extract` | 3600s | LLM extraction is slow; many cases to process   |
+| `ingest-retry`   | 1800s | Small batch sizes                               |
 
 ### SSI Deduplication
 

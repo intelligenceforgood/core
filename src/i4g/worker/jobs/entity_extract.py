@@ -57,7 +57,7 @@ def _dead_letter_path() -> Path:
     from i4g.settings import get_settings
 
     settings = get_settings()
-    return Path(settings.app.project_root) / "data" / "entity-qa" / "dead_letters.json"
+    return Path(settings.project_root) / "data" / "entity-qa" / "dead_letters.json"
 
 
 def _load_dead_letters() -> dict[str, dict]:

@@ -6,7 +6,7 @@ Usage::
     i4g backfill run classify              # Run a single task
     i4g backfill run all                   # Run all tasks once
     i4g backfill daemon                    # Continuous loop (local dev)
-    i4g backfill daemon --tasks classify ssi --cycle 120
+    i4g backfill daemon --tasks classify --tasks ssi --cycle 120
 """
 
 from __future__ import annotations
