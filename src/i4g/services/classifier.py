@@ -30,15 +30,27 @@ class LLMClient(Protocol):
 class OllamaClient:
     """Client for Ollama local LLM."""
 
+    # Per-request timeout in seconds (connect, read).
+    _TIMEOUT: tuple[float, float] = (10, 120)
+
+    # Maximum tokens Ollama should generate per request.
+    _MAX_PREDICT_TOKENS: int = 1024
+
     def __init__(self, base_url: str, model: str):
         self.base_url = base_url
         self.model = model
 
     def generate(self, prompt: str) -> str:
         url = f"{self.base_url}/api/generate"
-        payload = {"model": self.model, "prompt": prompt, "stream": False, "format": "json"}
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "stream": False,
+            "format": "json",
+            "options": {"num_predict": self._MAX_PREDICT_TOKENS},
+        }
         try:
-            response = requests.post(url, json=payload)
+            response = requests.post(url, json=payload, timeout=self._TIMEOUT)
             response.raise_for_status()
             return response.json().get("response", "")
         except requests.RequestException as e:

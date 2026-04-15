@@ -360,8 +360,18 @@ def main(*, backfill: bool = False, limit: int = 0) -> int:
                     logger.debug("entity-extract: skipping case %s (no text)", case_id)
                     continue
 
+                text_len = len(text) if text else 0
+                logger.info(
+                    "entity-extract: [%d/%d] starting case %s (text_len=%d)",
+                    i + 1,
+                    len(processable),
+                    case_id,
+                    text_len,
+                )
+                case_start = time.monotonic()
                 try:
                     result = extract_entities(text, llm_client=llm_client)
+                    case_elapsed = time.monotonic() - case_start
                     if result.entities:
                         ent_count, ind_count = _persist_extracted_entities(
                             session, case_id, result, dataset or "unknown"
@@ -373,6 +383,13 @@ def main(*, backfill: bool = False, limit: int = 0) -> int:
                     else:
                         logger.debug("entity-extract: no entities found for case %s", case_id)
                         successes += 1
+                    if case_elapsed > 30:
+                        logger.warning(
+                            "entity-extract: slow case %s took %.1fs (text_len=%d)",
+                            case_id,
+                            case_elapsed,
+                            len(text),
+                        )
                 except Exception as exc:
                     session.rollback()
                     failures += 1

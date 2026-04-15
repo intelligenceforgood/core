@@ -140,6 +140,8 @@ def normalize_obfuscated_text(text: str) -> str:
     Returns:
         Text with obfuscation patterns replaced.
     """
+    if not text:
+        return text or ""
     result = text
 
     # Phase 1: Collapse spaced characters first (before separator subs).
