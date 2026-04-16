@@ -6,7 +6,8 @@
         build-dossier-dev deploy-dossier-dev build-dossier-prod deploy-dossier-prod \
         build-backup-dev deploy-backup-dev build-backup-prod deploy-backup-prod \
         deploy-analytics-dev deploy-analytics-prod \
-        deploy-all-jobs-dev deploy-all-jobs-prod rehydrate
+        deploy-all-jobs-dev deploy-all-jobs-prod \
+        build-local publish-local rehydrate
 
 # ---------- Setup ----------
 # Full first-time setup: install Python deps in editable mode.
@@ -181,6 +182,24 @@ deploy-all-jobs-prod: deploy-ingest-prod deploy-intake-prod deploy-report-prod d
 clean:
 	rm -rf build/ dist/ *.egg-info .pytest_cache .mypy_cache htmlcov
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+
+# ---------- Local AIO Image ----------
+GDRIVE_FOLDER_ID := 0AMtQF72E2PBAUk9PVA
+LOCAL_IMAGE      := i4g-local
+LOCAL_TARBALL    := i4g-local.tar.gz
+
+build-local:
+	cd .. && docker build -f core/docker/local-aio/Dockerfile -t $(LOCAL_IMAGE) .
+	@echo "✅ Image $(LOCAL_IMAGE) built. Run 'make publish-local' to upload to Google Drive."
+
+publish-local:
+	@command -v rclone >/dev/null 2>&1 || { echo "❌ rclone not found. Install: brew install rclone && rclone config (add a remote named 'gdrive')"; exit 1; }
+	@echo "📦 Saving image to $(LOCAL_TARBALL) (this takes a few minutes)..."
+	docker save $(LOCAL_IMAGE) | gzip > $(LOCAL_TARBALL)
+	@echo "📤 Uploading to Google Drive..."
+	rclone copyto $(LOCAL_TARBALL) gdrive:$(LOCAL_TARBALL) --drive-root-folder-id=$(GDRIVE_FOLDER_ID) --progress
+	@ls -lh $(LOCAL_TARBALL)
+	@echo "✅ Upload complete. Share the Google Drive link with your coworker."
 
 # ---------- Rehydrate (Copilot session bootstrap) ----------
 rehydrate:
