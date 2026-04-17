@@ -7,7 +7,7 @@
         build-backup-dev deploy-backup-dev build-backup-prod deploy-backup-prod \
         deploy-analytics-dev deploy-analytics-prod \
         deploy-all-jobs-dev deploy-all-jobs-prod \
-        build-local publish-local rehydrate
+        build-local publish-local build-local-gpu publish-local-gpu rehydrate
 
 # ---------- Setup ----------
 # Full first-time setup: install Python deps in editable mode.
@@ -199,6 +199,23 @@ publish-local:
 	@echo "📤 Uploading to Google Drive..."
 	rclone copyto $(LOCAL_TARBALL) gdrive:$(LOCAL_TARBALL) --drive-root-folder-id=$(GDRIVE_FOLDER_ID) --progress
 	@ls -lh $(LOCAL_TARBALL)
+	@echo "✅ Upload complete. Share the Google Drive link with your coworker."
+
+# ---------- Local AIO Image (GPU — Linux x86_64 + NVIDIA) ----------
+LOCAL_GPU_IMAGE   := i4g-local-gpu
+LOCAL_GPU_TARBALL := i4g-local-gpu.tar.gz
+
+build-local-gpu:
+	cd .. && docker build --platform linux/amd64 -f core/docker/local-aio-gpu/Dockerfile -t $(LOCAL_GPU_IMAGE) .
+	@echo "✅ Image $(LOCAL_GPU_IMAGE) built. Run 'make publish-local-gpu' to upload to Google Drive."
+
+publish-local-gpu:
+	@command -v rclone >/dev/null 2>&1 || { echo "❌ rclone not found. Install: brew install rclone && rclone config (add a remote named 'gdrive')"; exit 1; }
+	@echo "📦 Saving image to $(LOCAL_GPU_TARBALL) (this will be LARGE — expect 15-25 GB)..."
+	docker save $(LOCAL_GPU_IMAGE) | gzip > $(LOCAL_GPU_TARBALL)
+	@echo "📤 Uploading to Google Drive (this will take a while)..."
+	rclone copyto $(LOCAL_GPU_TARBALL) gdrive:$(LOCAL_GPU_TARBALL) --drive-root-folder-id=$(GDRIVE_FOLDER_ID) --progress
+	@ls -lh $(LOCAL_GPU_TARBALL)
 	@echo "✅ Upload complete. Share the Google Drive link with your coworker."
 
 # ---------- Rehydrate (Copilot session bootstrap) ----------
