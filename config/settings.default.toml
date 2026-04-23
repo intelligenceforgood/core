@@ -142,6 +142,26 @@ vertex_ai_data_store = "retrieval-poc"
 # takedown_check_interval_hours = 12
 # takedown_max_urls_per_run = 200
 
+# ── PhishDestroy-integration providers (Sprint 0 gating) ──────────────────────
+# See copilot/.github/shared/phishdestroy-provider-gating.instructions.md
+# Each provider is disabled by default. Flip `enabled = true` after populating
+# the key in settings.local.toml or via Secret Manager (I4G_PROVIDERS__*).
+
+[providers.merklemap]
+# enabled = false
+# api_key = ""                              # paste in settings.local.toml for dev
+# base_url = "https://api.merklemap.com"
+# rate_limit_per_sec = 0                    # 0 = no client-side cap
+
+[providers.whoxy]
+# enabled = false
+# api_key = ""
+# monthly_query_cap = 0                     # 0 = no cap; set budget guardrail when funded
+
+[providers.ghunt]
+# enabled = false
+# cookie_blob_path = ""                     # path to JSON cookie dump (Secret Manager in cloud)
+
 [search.saved_search]
 # migration_tag = "hybrid-v1"
 # schema_version = ""
