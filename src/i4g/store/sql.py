@@ -625,6 +625,117 @@ threat_campaign_cases = sa.Table(
 sa.Index("idx_tcc_campaign_id", threat_campaign_cases.c.campaign_id)
 sa.Index("idx_tcc_case_id", threat_campaign_cases.c.case_id)
 
+# ---------------------------------------------------------------------------
+# PhishDestroy Sprint 1: Threat Actors, Actor Graph, Blocklist, Domain Discovery
+# ---------------------------------------------------------------------------
+
+threat_actors = sa.Table(
+    "threat_actors",
+    METADATA,
+    sa.Column("actor_id", UUID_TYPE, primary_key=True),
+    sa.Column("display_name", sa.Text(), nullable=False),
+    sa.Column("role", sa.Text(), nullable=True),
+    sa.Column("campaign_id", UUID_TYPE, sa.ForeignKey("campaigns.campaign_id", ondelete="SET NULL"), nullable=True),
+    sa.Column("real_name", sa.Text(), nullable=True, info={"sensitive": True}),
+    sa.Column("confidence", sa.Numeric(5, 4), nullable=True),
+    sa.Column("first_seen_at", TIMESTAMP, nullable=True),
+    sa.Column("last_seen_at", TIMESTAMP, nullable=True),
+    sa.Column("metadata", JSON_TYPE, nullable=True),
+    sa.Column("source_provenance", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_threat_actors_campaign_id", threat_actors.c.campaign_id)
+
+actor_identities = sa.Table(
+    "actor_identities",
+    METADATA,
+    sa.Column("identity_id", UUID_TYPE, primary_key=True),
+    sa.Column("actor_id", UUID_TYPE, sa.ForeignKey("threat_actors.actor_id", ondelete="CASCADE"), nullable=False),
+    sa.Column("platform", sa.Text(), nullable=False),
+    sa.Column("handle", sa.Text(), nullable=False),
+    sa.Column("platform_user_id", sa.Text(), nullable=True),
+    sa.Column("username_history", JSON_TYPE, nullable=True),
+    sa.Column("display_name_history", JSON_TYPE, nullable=True),
+    sa.Column("first_seen_at", TIMESTAMP, nullable=True),
+    sa.Column("last_seen_at", TIMESTAMP, nullable=True),
+    sa.Column("metadata", JSON_TYPE, nullable=True),
+    sa.Column("source_provenance", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.UniqueConstraint("platform", "handle", name="uq_actor_identities_platform_handle"),
+)
+sa.Index("idx_actor_identities_actor_id", actor_identities.c.actor_id)
+
+actor_identity_edges = sa.Table(
+    "actor_identity_edges",
+    METADATA,
+    sa.Column("edge_id", UUID_TYPE, primary_key=True),
+    sa.Column(
+        "source_identity_id",
+        UUID_TYPE,
+        sa.ForeignKey("actor_identities.identity_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column(
+        "target_identity_id",
+        UUID_TYPE,
+        sa.ForeignKey("actor_identities.identity_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("edge_type", sa.Text(), nullable=False),
+    sa.Column("weight", sa.Numeric(), nullable=True),
+    sa.Column("evidence", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.UniqueConstraint(
+        "source_identity_id",
+        "target_identity_id",
+        "edge_type",
+        name="uq_actor_identity_edges_triple",
+    ),
+)
+
+blocklist_hits = sa.Table(
+    "blocklist_hits",
+    METADATA,
+    sa.Column("hit_id", UUID_TYPE, primary_key=True),
+    sa.Column(
+        "indicator_id",
+        UUID_TYPE,
+        sa.ForeignKey("indicators.indicator_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("source", sa.Text(), nullable=False),
+    sa.Column("first_seen_at", TIMESTAMP, nullable=True),
+    sa.Column("last_seen_at", TIMESTAMP, nullable=True),
+    sa.Column("metadata", JSON_TYPE, nullable=True),
+    sa.Column("source_provenance", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.UniqueConstraint("indicator_id", "source", name="uq_blocklist_hits_indicator_source"),
+)
+
+domain_discoveries = sa.Table(
+    "domain_discoveries",
+    METADATA,
+    sa.Column("discovery_id", UUID_TYPE, primary_key=True),
+    sa.Column("domain", sa.Text(), nullable=False),
+    sa.Column("subject_common_name", sa.Text(), nullable=True),
+    sa.Column("not_before", TIMESTAMP, nullable=True),
+    sa.Column("source", sa.Text(), nullable=False),
+    sa.Column("seen_at", TIMESTAMP, nullable=False),
+    sa.Column("filter_match", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+    sa.Column("filter_reason", sa.Text(), nullable=True),
+    sa.Column("enqueued_scan_id", UUID_TYPE, nullable=True),
+    sa.Column("raw", JSON_TYPE, nullable=True),
+    sa.Column("source_provenance", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_domain_discoveries_seen_at", domain_discoveries.c.seen_at)
+sa.Index("idx_domain_discoveries_filter_match", domain_discoveries.c.filter_match)
+
 intake_indicator_links = sa.Table(
     "intake_indicator_links",
     METADATA,

@@ -20,8 +20,12 @@ from i4g.services.retention import RetentionService
 from i4g.services.vertex_writer import VertexDocumentWriter
 from i4g.settings import Settings, get_settings
 from i4g.storage import EvidenceStorage
+from i4g.store.actor_identity_edge_store import ActorIdentityEdgeStore
+from i4g.store.actor_identity_store import ActorIdentityStore
 from i4g.store.analytics_store import AnalyticsStore
 from i4g.store.annotation_store import AnnotationStore
+from i4g.store.blocklist_hit_store import BlocklistHitStore
+from i4g.store.domain_discovery_store import DomainDiscoveryStore
 from i4g.store.dossier_queue_store import DossierQueueStore
 from i4g.store.engagement_store import EngagementStore
 from i4g.store.entity_store import EntityStore
@@ -35,6 +39,7 @@ from i4g.store.sql_writer import SqlWriter
 from i4g.store.ssi_events_store import SsiEventsStore
 from i4g.store.ssi_store import SsiStore
 from i4g.store.structured import StructuredStore
+from i4g.store.threat_actor_store import ThreatActorStore
 from i4g.store.threat_campaign_store import ThreatCampaignStore
 from i4g.store.vector import VectorStore
 from i4g.store.watchlist_store import WatchlistStore
@@ -317,6 +322,51 @@ def build_watchlist_store(db_path: str | Path | None = None) -> WatchlistStore:
     return WatchlistStore(db_path=db_path)
 
 
+def build_threat_actor_store(db_path: str | Path | None = None) -> ThreatActorStore:
+    """Return a :class:`ThreatActorStore` aligned with the structured backend."""
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return ThreatActorStore(session_factory=build_sql_session_factory())
+    return ThreatActorStore(db_path=db_path)
+
+
+def build_actor_identity_store(db_path: str | Path | None = None) -> ActorIdentityStore:
+    """Return an :class:`ActorIdentityStore` aligned with the structured backend."""
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return ActorIdentityStore(session_factory=build_sql_session_factory())
+    return ActorIdentityStore(db_path=db_path)
+
+
+def build_actor_identity_edge_store(db_path: str | Path | None = None) -> ActorIdentityEdgeStore:
+    """Return an :class:`ActorIdentityEdgeStore` aligned with the structured backend."""
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return ActorIdentityEdgeStore(session_factory=build_sql_session_factory())
+    return ActorIdentityEdgeStore(db_path=db_path)
+
+
+def build_blocklist_hit_store(db_path: str | Path | None = None) -> BlocklistHitStore:
+    """Return a :class:`BlocklistHitStore` aligned with the structured backend."""
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return BlocklistHitStore(session_factory=build_sql_session_factory())
+    return BlocklistHitStore(db_path=db_path)
+
+
+def build_domain_discovery_store(db_path: str | Path | None = None) -> DomainDiscoveryStore:
+    """Return a :class:`DomainDiscoveryStore` aligned with the structured backend."""
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return DomainDiscoveryStore(session_factory=build_sql_session_factory())
+    return DomainDiscoveryStore(db_path=db_path)
+
+
 def build_bundle_builder(
     *,
     queue_store: DossierQueueStore | None = None,
@@ -488,6 +538,11 @@ __all__ = [
     "build_dossier_context_loader",
     "build_retention_service",
     "build_threat_campaign_store",
+    "build_threat_actor_store",
+    "build_actor_identity_store",
+    "build_actor_identity_edge_store",
+    "build_blocklist_hit_store",
+    "build_domain_discovery_store",
     "build_analytics_store",
     "build_annotation_store",
     "build_inference_client",
