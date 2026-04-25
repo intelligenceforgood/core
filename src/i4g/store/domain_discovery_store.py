@@ -79,19 +79,28 @@ class DomainDiscoveryStore:
             session.commit()
         return row
 
-    def list_recent_matches(self, *, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
-        """Return domain discoveries where filter_match is True, ordered newest first."""
+    def list_recent_matches(
+        self, *, limit: int = 100, offset: int = 0, since: datetime | None = None
+    ) -> list[dict[str, Any]]:
+        """Return domain discoveries where filter_match is True and not dismissed, newest first."""
         tbl = sql_schema.domain_discoveries
-        stmt = (
-            sa.select(tbl)
-            .where(tbl.c.filter_match == sa.true())
-            .order_by(tbl.c.seen_at.desc())
-            .limit(limit)
-            .offset(offset)
-        )
+        predicate = sa.and_(tbl.c.filter_match == sa.true(), tbl.c.dismissed_at.is_(None))
+        if since is not None:
+            predicate = sa.and_(predicate, tbl.c.seen_at >= since)
+        stmt = sa.select(tbl).where(predicate).order_by(tbl.c.seen_at.desc()).limit(limit).offset(offset)
         with self._session_factory() as session:
             rows = session.execute(stmt).fetchall()
             return [dict(r._mapping) for r in rows]
+
+    def count_recent_matches(self, *, since: datetime | None = None) -> int:
+        """Return total count of filter-matched, non-dismissed discoveries."""
+        tbl = sql_schema.domain_discoveries
+        predicate = sa.and_(tbl.c.filter_match == sa.true(), tbl.c.dismissed_at.is_(None))
+        if since is not None:
+            predicate = sa.and_(predicate, tbl.c.seen_at >= since)
+        stmt = sa.select(sa.func.count()).select_from(tbl).where(predicate)
+        with self._session_factory() as session:
+            return session.execute(stmt).scalar() or 0
 
     def mark_enqueued(self, discovery_id: str, scan_id: str) -> dict[str, Any] | None:
         """Set enqueued_scan_id on a discovery record. Returns updated row or None."""
@@ -105,6 +114,23 @@ class DomainDiscoveryStore:
                 sa.update(tbl)
                 .where(tbl.c.discovery_id == discovery_id)
                 .values(enqueued_scan_id=scan_id, updated_at=now)
+            )
+            session.commit()
+            updated = session.execute(sa.select(tbl).where(tbl.c.discovery_id == discovery_id)).first()
+            return dict(updated._mapping)
+
+    def dismiss(self, discovery_id: str, reason: str | None) -> dict[str, Any] | None:
+        """Soft-dismiss a discovery. Returns updated row dict or None if not found."""
+        tbl = sql_schema.domain_discoveries
+        now = datetime.now(UTC)
+        with self._session_factory() as session:
+            result = session.execute(sa.select(tbl).where(tbl.c.discovery_id == discovery_id)).first()
+            if result is None:
+                return None
+            session.execute(
+                sa.update(tbl)
+                .where(tbl.c.discovery_id == discovery_id)
+                .values(dismissed_at=now, dismiss_reason=reason, updated_at=now)
             )
             session.commit()
             updated = session.execute(sa.select(tbl).where(tbl.c.discovery_id == discovery_id)).first()

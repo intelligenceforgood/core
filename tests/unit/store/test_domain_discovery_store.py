@@ -79,3 +79,50 @@ class TestDomainDiscoveryMarkEnqueued:
     def test_mark_enqueued_returns_none_for_missing(self, tmp_path):
         store = _make_store(tmp_path)
         assert store.mark_enqueued("no-such-id", "scan-abc") is None
+
+
+class TestDomainDiscoveryDismiss:
+    def test_dismiss_marks_row_and_excludes_from_list(self, tmp_path):
+        store = _make_store(tmp_path)
+        t = datetime(2026, 4, 10, tzinfo=UTC)
+        record = store.insert(domain="dismiss-me.com", source="merklemap", seen_at=t, filter_match=True)
+        discovery_id = record["discovery_id"]
+
+        before_count = store.count_recent_matches()
+        assert before_count == 1
+
+        updated = store.dismiss(discovery_id, reason="not relevant")
+        assert updated is not None
+        assert updated["dismissed_at"] is not None
+        assert updated["dismiss_reason"] == "not relevant"
+
+        # Should no longer appear in list_recent_matches
+        matches = store.list_recent_matches()
+        assert all(r["discovery_id"] != discovery_id for r in matches)
+
+        # count should decrease
+        after_count = store.count_recent_matches()
+        assert after_count == before_count - 1
+
+    def test_dismiss_unknown_returns_none(self, tmp_path):
+        store = _make_store(tmp_path)
+        assert store.dismiss("nonexistent-id", reason="x") is None
+
+    def test_list_recent_matches_since_filter(self, tmp_path):
+        store = _make_store(tmp_path)
+        t_old = datetime(2026, 3, 1, tzinfo=UTC)
+        t_new = datetime(2026, 4, 20, tzinfo=UTC)
+        store.insert(domain="old.com", source="merklemap", seen_at=t_old, filter_match=True)
+        record_new = store.insert(domain="new.com", source="merklemap", seen_at=t_new, filter_match=True)
+
+        # Without since: both rows returned
+        all_matches = store.list_recent_matches()
+        assert len(all_matches) == 2
+
+        # With since=t_new: only the newer row
+        filtered = store.list_recent_matches(since=t_new)
+        assert len(filtered) == 1
+        assert filtered[0]["discovery_id"] == record_new["discovery_id"]
+
+        # count_recent_matches honours since too
+        assert store.count_recent_matches(since=t_new) == 1

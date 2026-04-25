@@ -728,6 +728,8 @@ domain_discoveries = sa.Table(
     sa.Column("filter_match", sa.Boolean(), nullable=False, server_default=sa.text("false")),
     sa.Column("filter_reason", sa.Text(), nullable=True),
     sa.Column("enqueued_scan_id", UUID_TYPE, nullable=True),
+    sa.Column("dismissed_at", TIMESTAMP, nullable=True),
+    sa.Column("dismiss_reason", sa.Text(), nullable=True),
     sa.Column("raw", JSON_TYPE, nullable=True),
     sa.Column("source_provenance", JSON_TYPE, nullable=True),
     sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
