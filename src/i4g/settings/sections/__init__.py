@@ -16,6 +16,8 @@ from i4g.settings.sections.jobs import (
     IntakeJobSettings,
     ObservabilitySettings,
     PartnerFeedSettings,
+    PhishDestroyDestroylistSettings,
+    PhishDestroySettings,
     RedisSettings,
     ReportSettings,
     SavedSearchSettings,
@@ -58,4 +60,6 @@ __all__ = [
     "EnrichmentSettings",
     "MlPlatformSettings",
     "PartnerFeedSettings",
+    "PhishDestroyDestroylistSettings",
+    "PhishDestroySettings",
 ]

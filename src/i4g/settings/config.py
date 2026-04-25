@@ -33,6 +33,7 @@ from i4g.settings.sections import (
     MlPlatformSettings,
     ObservabilitySettings,
     PartnerFeedSettings,
+    PhishDestroySettings,
     RedisSettings,
     ReportSettings,
     RuntimeSettings,
@@ -222,6 +223,7 @@ class Settings(BaseSettings):
     extraction: ExtractionSettings = Field(default_factory=ExtractionSettings)
     email: EmailSettings = Field(default_factory=EmailSettings)
     partner_feed: PartnerFeedSettings = Field(default_factory=PartnerFeedSettings)
+    phishdestroy: PhishDestroySettings = Field(default_factory=PhishDestroySettings)
     db_admin: DbAdminSettings = Field(default_factory=DbAdminSettings)
     auto_investigate: AutoInvestigateSettings = Field(default_factory=AutoInvestigateSettings)
     backfill: BackfillSettings = Field(default_factory=BackfillSettings)

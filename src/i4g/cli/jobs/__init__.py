@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import typer
 
@@ -96,6 +97,19 @@ def jobs_analytics() -> None:
     from i4g.worker.jobs import analytics_aggregation
 
     _exit_from_return(analytics_aggregation.main())
+
+
+@jobs_app.command("ingest-destroylist", help="Ingest the PhishDestroy destroylist (domain blocklist).")
+def jobs_ingest_destroylist(
+    data_path: Path | None = typer.Option(
+        None,
+        "--data-path",
+        help="Override path to DestroyScammers/data/data.json (defaults to settings).",
+    ),
+) -> None:
+    from i4g.worker.jobs import phishdestroy_destroylist
+
+    _exit_from_return(phishdestroy_destroylist.main(data_path=data_path))
 
 
 @jobs_app.command("bq-export", help="Export analytics aggregate tables to BigQuery.")

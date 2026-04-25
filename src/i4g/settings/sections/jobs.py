@@ -851,3 +851,30 @@ class EmailSettings(BaseSettings):
         default=True,
         validation_alias=AliasChoices("EMAIL_USE_TLS", "EMAIL__USE_TLS"),
     )
+
+
+class PhishDestroyDestroylistSettings(BaseSettings):
+    """Settings for the PhishDestroy destroylist ingestion job (Sprint 1 §1.4)."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("PHISHDESTROY_DESTROYLIST_ENABLED", "PHISHDESTROY__DESTROYLIST__ENABLED"),
+    )
+    commit_sha: str = Field(
+        default="",
+        validation_alias=AliasChoices("PHISHDESTROY_DESTROYLIST_COMMIT_SHA", "PHISHDESTROY__DESTROYLIST__COMMIT_SHA"),
+    )
+    data_path: Path = Field(
+        default=Path("phishdestroy/DestroyScammers/data/data.json"),
+        validation_alias=AliasChoices("PHISHDESTROY_DESTROYLIST_DATA_PATH", "PHISHDESTROY__DESTROYLIST__DATA_PATH"),
+    )
+
+
+class PhishDestroySettings(BaseSettings):
+    """Top-level PhishDestroy integration settings."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    destroylist: PhishDestroyDestroylistSettings = Field(default_factory=PhishDestroyDestroylistSettings)

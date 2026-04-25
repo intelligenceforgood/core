@@ -1,0 +1,19 @@
+{
+  "emails": [
+    {
+      "email": "scammer1@evil.com",
+      "domains": ["fakecrypto.com", "scamwallet.io", "notabank.net", "foo.com"],
+      "total_domains": 4
+    },
+    {
+      "email": "scammer2@evil.com",
+      "domains": ["fakecrypto.com", "  Foo.COM ", "ponzizone.com", "cryptofake.org"],
+      "total_domains": 4
+    },
+    {
+      "email": "scammer3@evil.com",
+      "domains": ["scamwallet.io", "maliciousdapp.com", "   ", "cryptofake.org"],
+      "total_domains": 4
+    }
+  ]
+}

@@ -162,6 +162,15 @@ vertex_ai_data_store = "retrieval-poc"
 # enabled = false
 # cookie_blob_path = ""                     # path to JSON cookie dump (Secret Manager in cloud)
 
+# ── PhishDestroy ingestion (Sprint 1 §1.4) ────────────────────────────────────
+# Source pin: DestroyScammers @ c40cbbf527dd9e5e232090346e1a8ceab32d1683 (2025-11-30).
+# See copilot/.github/shared/phishdestroy-provenance.instructions.md §4.
+
+[phishdestroy.destroylist]
+enabled = false
+commit_sha = "c40cbbf527dd9e5e232090346e1a8ceab32d1683"
+data_path = "phishdestroy/DestroyScammers/data/data.json"
+
 [search.saved_search]
 # migration_tag = "hybrid-v1"
 # schema_version = ""

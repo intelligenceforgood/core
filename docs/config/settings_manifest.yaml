@@ -1143,6 +1143,33 @@ fields:
   - PARTNER_FEED_RATE_LIMIT_PER_MINUTE
   - PARTNER_FEED__RATE_LIMIT_PER_MINUTE
   description: Max requests per minute per API key.
+- path: phishdestroy.destroylist.commit_sha
+  section: phishdestroy
+  type: str
+  default: c40cbbf527dd9e5e232090346e1a8ceab32d1683
+  env_vars:
+  - I4G_PHISHDESTROY__DESTROYLIST__COMMIT_SHA
+  - PHISHDESTROY_DESTROYLIST_COMMIT_SHA
+  - PHISHDESTROY__DESTROYLIST__COMMIT_SHA
+  description: Pinned SHA of the DestroyScammers repo used for destroylist ingestion (Sprint 1 §1.4).
+- path: phishdestroy.destroylist.data_path
+  section: phishdestroy
+  type: Path
+  default: phishdestroy/DestroyScammers/data/data.json
+  env_vars:
+  - I4G_PHISHDESTROY__DESTROYLIST__DATA_PATH
+  - PHISHDESTROY_DESTROYLIST_DATA_PATH
+  - PHISHDESTROY__DESTROYLIST__DATA_PATH
+  description: Path to the DestroyScammers data.json file (relative to project_root).
+- path: phishdestroy.destroylist.enabled
+  section: phishdestroy
+  type: bool
+  default: 'false'
+  env_vars:
+  - I4G_PHISHDESTROY__DESTROYLIST__ENABLED
+  - PHISHDESTROY_DESTROYLIST_ENABLED
+  - PHISHDESTROY__DESTROYLIST__ENABLED
+  description: Enable the destroylist ingestion job.
 - path: project_root
   section: project_root
   type: Path
