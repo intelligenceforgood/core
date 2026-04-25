@@ -124,11 +124,11 @@ def test_filter_match_inserts_and_enqueues(monkeypatch: pytest.MonkeyPatch, tmp_
 
     trigger_calls: list[dict[str, Any]] = []
 
-    def _fake_trigger(*, url: str, discovery_id: str, settings: Any, store: Any) -> str | None:
+    def _fake_trigger(*, url: str, discovery_id: str, store: Any) -> str | None:
         trigger_calls.append({"url": url, "discovery_id": discovery_id})
         return "scan-uuid-1"
 
-    monkeypatch.setattr(merklemap_tail, "_trigger_ssi_scan", _fake_trigger)
+    monkeypatch.setattr(merklemap_tail, "enqueue_passive_scan_for_domain", _fake_trigger)
 
     mark_calls: list[tuple[str, str]] = []
     orig_mark = store.mark_enqueued
@@ -156,9 +156,9 @@ def test_filter_no_match_inserts_only(monkeypatch: pytest.MonkeyPatch, tmp_path:
     _install_async_iter(monkeypatch, [_make_event("random-unrelated.example")])
 
     def _fail_trigger(**_kwargs: Any) -> str | None:
-        raise AssertionError("_trigger_ssi_scan must not be called for non-matches")
+        raise AssertionError("enqueue_passive_scan_for_domain must not be called for non-matches")
 
-    monkeypatch.setattr(merklemap_tail, "_trigger_ssi_scan", _fail_trigger)
+    monkeypatch.setattr(merklemap_tail, "enqueue_passive_scan_for_domain", _fail_trigger)
 
     mark_calls: list[Any] = []
     monkeypatch.setattr(store, "mark_enqueued", lambda *a, **k: mark_calls.append((a, k)))
@@ -189,7 +189,7 @@ def test_scan_trigger_failure_does_not_crash_loop(
 
     monkeypatch.setattr(
         merklemap_tail,
-        "_trigger_ssi_scan",
+        "enqueue_passive_scan_for_domain",
         lambda **kwargs: None,
     )
 
@@ -223,7 +223,7 @@ def test_max_events_terminates_loop(monkeypatch: pytest.MonkeyPatch, tmp_path: P
         monkeypatch,
         [_make_event(f"d{i}.example", first_seen_unix=1717000000 + i) for i in range(5)],
     )
-    monkeypatch.setattr(merklemap_tail, "_trigger_ssi_scan", lambda **kwargs: None)
+    monkeypatch.setattr(merklemap_tail, "enqueue_passive_scan_for_domain", lambda **kwargs: None)
 
     code = merklemap_tail.main(max_events=2)
     assert code == 0

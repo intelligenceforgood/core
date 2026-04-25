@@ -11,8 +11,8 @@ from pydantic import Field
 from i4g.api.auth import require_token
 from i4g.api.camel import CamelModel
 from i4g.services.factories import build_domain_discovery_store
-from i4g.settings import get_settings
-from i4g.worker.jobs.merklemap_tail import _trigger_ssi_scan
+from i4g.store.domain_discovery_store import DomainDiscoveryStore
+from i4g.worker.jobs.merklemap_tail import enqueue_passive_scan_for_domain
 
 router = APIRouter(
     prefix="/discoveries",
@@ -49,18 +49,12 @@ class EnqueueResponse(CamelModel):
     enqueued_scan_id: str
 
 
-def _get_row_or_404(discovery_id: str, store: Any) -> dict[str, Any]:
+def _get_row_or_404(discovery_id: str, store: DomainDiscoveryStore) -> dict[str, Any]:
     """Fetch a discovery row by id or raise 404."""
-    import sqlalchemy as sa
-
-    from i4g.store import sql as sql_schema
-
-    tbl = sql_schema.domain_discoveries
-    with store._session_factory() as session:
-        row = session.execute(sa.select(tbl).where(tbl.c.discovery_id == discovery_id)).first()
+    row = store.get(discovery_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Discovery not found")
-    return dict(row._mapping)
+    return row
 
 
 @router.get("", response_model=DiscoveryList)
@@ -92,11 +86,9 @@ def enqueue_discovery(discovery_id: str) -> EnqueueResponse:
     if row.get("enqueued_scan_id") is not None:
         raise HTTPException(status_code=409, detail="Discovery already enqueued")
 
-    settings = get_settings()
-    scan_id = _trigger_ssi_scan(
+    scan_id = enqueue_passive_scan_for_domain(
         url=row["domain"],
         discovery_id=discovery_id,
-        settings=settings,
         store=store,
     )
     if scan_id is None:

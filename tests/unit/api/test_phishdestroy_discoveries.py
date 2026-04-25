@@ -124,7 +124,7 @@ class TestEnqueueDiscovery:
         row = _insert_match(store)
 
         with patch(
-            "i4g.api.phishdestroy_discoveries._trigger_ssi_scan",
+            "i4g.api.phishdestroy_discoveries.enqueue_passive_scan_for_domain",
             return_value="scan-abc-123",
         ):
             resp = c.post(f"/discoveries/{row['discovery_id']}/enqueue")

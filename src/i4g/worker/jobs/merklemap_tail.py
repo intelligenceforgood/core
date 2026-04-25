@@ -24,7 +24,6 @@ import sys
 import time
 import uuid
 from datetime import UTC, datetime
-from typing import Any
 
 from i4g.clients.merklemap import DomainDiscovery, tail
 from i4g.services.factories import build_domain_discovery_store, build_ssi_store
@@ -37,23 +36,22 @@ LOGGER = logging.getLogger("i4g.worker.jobs.merklemap_tail")
 _INGEST_JOB = "i4g.worker.jobs.merklemap_tail"
 
 
-def _trigger_ssi_scan(
+def enqueue_passive_scan_for_domain(
     *,
     url: str,
     discovery_id: str,
-    settings: Any,
     store: DomainDiscoveryStore,
 ) -> str | None:
     """Trigger a passive SSI investigation for a tail-discovered domain.
 
     Mirrors ``auto_investigate._trigger_investigation`` but with
     ``scan_type="passive"`` and no ``case_investigations`` linkage — tail
-    discoveries have no originating case.
+    discoveries have no originating case. Settings are resolved internally
+    via ``get_settings()`` so callers (router, worker) need not thread them.
 
     Args:
         url: Domain (or URL) discovered by the tail stream.
         discovery_id: ``domain_discoveries.discovery_id`` for log correlation.
-        settings: Application settings (for ``settings.ssi.service_url``).
         store: DomainDiscoveryStore (unused here — retained for symmetry and
             future audit hooks; caller invokes ``mark_enqueued`` on success).
 
@@ -64,6 +62,7 @@ def _trigger_ssi_scan(
 
     import httpx
 
+    settings = get_settings()
     scan_id = str(uuid.uuid4())
     ssi_cfg = settings.ssi
     service_url = ssi_cfg.service_url
@@ -209,7 +208,6 @@ async def _run(
                 event=event,
                 brand_patterns=brand_patterns,
                 discovery_store=discovery_store,
-                settings=settings,
             )
             events_total += 1
             if is_match:
@@ -241,7 +239,6 @@ def _handle_event(
     event: DomainDiscovery,
     brand_patterns: list[re.Pattern[str]],
     discovery_store: DomainDiscoveryStore,
-    settings: Any,
 ) -> tuple[bool, bool]:
     """Insert one discovery row and, on brand match, trigger a passive SSI scan.
 
@@ -269,10 +266,9 @@ def _handle_event(
     if not is_match:
         return False, False
 
-    scan_id = _trigger_ssi_scan(
+    scan_id = enqueue_passive_scan_for_domain(
         url=event.domain,
         discovery_id=discovery_id,
-        settings=settings,
         store=discovery_store,
     )
     if scan_id is None:

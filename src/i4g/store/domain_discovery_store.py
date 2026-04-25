@@ -102,6 +102,13 @@ class DomainDiscoveryStore:
         with self._session_factory() as session:
             return session.execute(stmt).scalar() or 0
 
+    def get(self, discovery_id: str) -> dict[str, Any] | None:
+        """Return the discovery row dict by id, or None if missing."""
+        tbl = sql_schema.domain_discoveries
+        with self._session_factory() as session:
+            row = session.execute(sa.select(tbl).where(tbl.c.discovery_id == discovery_id)).first()
+            return dict(row._mapping) if row is not None else None
+
     def mark_enqueued(self, discovery_id: str, scan_id: str) -> dict[str, Any] | None:
         """Set enqueued_scan_id on a discovery record. Returns updated row or None."""
         tbl = sql_schema.domain_discoveries
