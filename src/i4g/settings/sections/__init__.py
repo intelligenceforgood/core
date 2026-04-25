@@ -14,6 +14,7 @@ from i4g.settings.sections.jobs import (
     IngestionSettings,
     IngestRetryJobSettings,
     IntakeJobSettings,
+    MerklemapTailSettings,
     ObservabilitySettings,
     PartnerFeedSettings,
     PhishDestroyDestroylistSettings,
@@ -62,4 +63,5 @@ __all__ = [
     "PartnerFeedSettings",
     "PhishDestroyDestroylistSettings",
     "PhishDestroySettings",
+    "MerklemapTailSettings",
 ]

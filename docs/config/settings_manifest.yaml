@@ -1170,6 +1170,59 @@ fields:
   - PHISHDESTROY_DESTROYLIST_ENABLED
   - PHISHDESTROY__DESTROYLIST__ENABLED
   description: Enable the destroylist ingestion job.
+- path: phishdestroy.merklemap_tail.api_key
+  section: phishdestroy
+  type: str
+  default: ''
+  env_vars:
+  - I4G_PHISHDESTROY__MERKLEMAP_TAIL__API_KEY
+  - PHISHDESTROY_MERKLEMAP_TAIL_API_KEY
+  - PHISHDESTROY__MERKLEMAP_TAIL__API_KEY
+  description: Merklemap API key for the SSE tail worker (Sprint 1 §1.5). Supply via Secret Manager.
+- path: phishdestroy.merklemap_tail.batch_size
+  section: phishdestroy
+  type: int
+  default: 100
+  env_vars:
+  - I4G_PHISHDESTROY__MERKLEMAP_TAIL__BATCH_SIZE
+  - PHISHDESTROY_MERKLEMAP_TAIL_BATCH_SIZE
+  - PHISHDESTROY__MERKLEMAP_TAIL__BATCH_SIZE
+  description: Merklemap tail worker batch size (events per flush).
+- path: phishdestroy.merklemap_tail.brand_regexes
+  section: phishdestroy
+  type: list[str]
+  default:
+  - trust.?wallet
+  - coinbase
+  - ledger
+  - metamask
+  - phantom
+  - uniswap
+  - kraken
+  - binance
+  env_vars:
+  - I4G_PHISHDESTROY__MERKLEMAP_TAIL__BRAND_REGEXES
+  - PHISHDESTROY_MERKLEMAP_TAIL_BRAND_REGEXES
+  - PHISHDESTROY__MERKLEMAP_TAIL__BRAND_REGEXES
+  description: Case-insensitive regex patterns that trigger a passive SSI scan on match.
+- path: phishdestroy.merklemap_tail.enabled
+  section: phishdestroy
+  type: bool
+  default: 'false'
+  env_vars:
+  - I4G_PHISHDESTROY__MERKLEMAP_TAIL__ENABLED
+  - PHISHDESTROY_MERKLEMAP_TAIL_ENABLED
+  - PHISHDESTROY__MERKLEMAP_TAIL__ENABLED
+  description: Enable the merklemap SSE tail worker (Sprint 1 §1.5).
+- path: phishdestroy.merklemap_tail.flush_interval_seconds
+  section: phishdestroy
+  type: int
+  default: 5
+  env_vars:
+  - I4G_PHISHDESTROY__MERKLEMAP_TAIL__FLUSH_INTERVAL_SECONDS
+  - PHISHDESTROY_MERKLEMAP_TAIL_FLUSH_INTERVAL_SECONDS
+  - PHISHDESTROY__MERKLEMAP_TAIL__FLUSH_INTERVAL_SECONDS
+  description: Seconds between counter flush log lines.
 - path: project_root
   section: project_root
   type: Path

@@ -112,6 +112,29 @@ def jobs_ingest_destroylist(
     _exit_from_return(phishdestroy_destroylist.main(data_path=data_path))
 
 
+@jobs_app.command("merklemap-tail", help="Run the PhishDestroy merklemap SSE tail worker.")
+def jobs_merklemap_tail(
+    max_runtime_seconds: int | None = typer.Option(
+        None,
+        "--max-runtime-seconds",
+        help="Stop after N seconds (default: run until SIGTERM).",
+    ),
+    max_events: int | None = typer.Option(
+        None,
+        "--max-events",
+        help="Stop after N events (default: unbounded).",
+    ),
+) -> None:
+    from i4g.worker.jobs import merklemap_tail
+
+    _exit_from_return(
+        merklemap_tail.main(
+            max_runtime_seconds=max_runtime_seconds,
+            max_events=max_events,
+        )
+    )
+
+
 @jobs_app.command("bq-export", help="Export analytics aggregate tables to BigQuery.")
 def jobs_bq_export(
     dry_run: bool = typer.Option(False, "--dry-run", help="Simulate export (print row counts without writing to BQ)."),

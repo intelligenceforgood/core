@@ -872,9 +872,61 @@ class PhishDestroyDestroylistSettings(BaseSettings):
     )
 
 
+class MerklemapTailSettings(BaseSettings):
+    """Settings for the PhishDestroy merklemap tail worker (Sprint 1 §1.5)."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "PHISHDESTROY_MERKLEMAP_TAIL_ENABLED",
+            "PHISHDESTROY__MERKLEMAP_TAIL__ENABLED",
+        ),
+    )
+    api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "PHISHDESTROY_MERKLEMAP_TAIL_API_KEY",
+            "PHISHDESTROY__MERKLEMAP_TAIL__API_KEY",
+        ),
+    )
+    brand_regexes: list[str] = Field(
+        default_factory=lambda: [
+            r"trust.?wallet",
+            r"coinbase",
+            r"ledger",
+            r"metamask",
+            r"phantom",
+            r"uniswap",
+            r"kraken",
+            r"binance",
+        ],
+        validation_alias=AliasChoices(
+            "PHISHDESTROY_MERKLEMAP_TAIL_BRAND_REGEXES",
+            "PHISHDESTROY__MERKLEMAP_TAIL__BRAND_REGEXES",
+        ),
+    )
+    batch_size: int = Field(
+        default=100,
+        validation_alias=AliasChoices(
+            "PHISHDESTROY_MERKLEMAP_TAIL_BATCH_SIZE",
+            "PHISHDESTROY__MERKLEMAP_TAIL__BATCH_SIZE",
+        ),
+    )
+    flush_interval_seconds: int = Field(
+        default=5,
+        validation_alias=AliasChoices(
+            "PHISHDESTROY_MERKLEMAP_TAIL_FLUSH_INTERVAL_SECONDS",
+            "PHISHDESTROY__MERKLEMAP_TAIL__FLUSH_INTERVAL_SECONDS",
+        ),
+    )
+
+
 class PhishDestroySettings(BaseSettings):
     """Top-level PhishDestroy integration settings."""
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
     destroylist: PhishDestroyDestroylistSettings = Field(default_factory=PhishDestroyDestroylistSettings)
+    merklemap_tail: MerklemapTailSettings = Field(default_factory=MerklemapTailSettings)

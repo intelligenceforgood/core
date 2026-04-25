@@ -171,6 +171,28 @@ enabled = false
 commit_sha = "c40cbbf527dd9e5e232090346e1a8ceab32d1683"
 data_path = "phishdestroy/DestroyScammers/data/data.json"
 
+# ── PhishDestroy merklemap tail (Sprint 1 §1.5) ──────────────────────────────
+# SSE live-domain stream from merklemap; brand-regex filter triggers passive SSI scan.
+# api_key MUST be supplied via env (PHISHDESTROY__MERKLEMAP_TAIL__API_KEY) or
+# Secret Manager — never committed. See provenance §4 (commit pin
+# 550cb04aa633c000724c339ada085c59444d5b78) and PRD §5 risks.
+
+[phishdestroy.merklemap_tail]
+enabled = false
+api_key = ""
+brand_regexes = [
+    "trust.?wallet",
+    "coinbase",
+    "ledger",
+    "metamask",
+    "phantom",
+    "uniswap",
+    "kraken",
+    "binance",
+]
+batch_size = 100
+flush_interval_seconds = 5
+
 [search.saved_search]
 # migration_tag = "hybrid-v1"
 # schema_version = ""
