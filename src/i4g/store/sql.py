@@ -1179,6 +1179,123 @@ def build_engine(
     return engine
 
 
+# ---------------------------------------------------------------------------
+# PhishDestroy Sprint 2: Chat sessions, damage claims, infra profiles, brand impersonations
+# ---------------------------------------------------------------------------
+
+chat_sessions = sa.Table(
+    "chat_sessions",
+    METADATA,
+    sa.Column("session_id", UUID_TYPE, primary_key=True),
+    sa.Column("case_id", sa.Text(), sa.ForeignKey("cases.case_id", ondelete="SET NULL"), nullable=True),
+    sa.Column(
+        "campaign_id",
+        UUID_TYPE,
+        sa.ForeignKey("threat_campaigns.campaign_id", ondelete="SET NULL"),
+        nullable=True,
+    ),
+    sa.Column(
+        "actor_id",
+        UUID_TYPE,
+        sa.ForeignKey("threat_actors.actor_id", ondelete="SET NULL"),
+        nullable=True,
+    ),
+    sa.Column("chat_ref", sa.Text(), nullable=False),
+    sa.Column("message_count", sa.Integer(), nullable=False, server_default=sa.text("0")),
+    sa.Column("language", sa.Text(), nullable=True),
+    sa.Column("deposit_demand", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+    sa.Column("victim_confirmed_send", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+    sa.Column("started_at", TIMESTAMP, nullable=True),
+    sa.Column("last_message_at", TIMESTAMP, nullable=True),
+    sa.Column("evidence_blob_sha256", sa.Text(), nullable=True),
+    sa.Column("metadata_json", JSON_TYPE, nullable=True),
+    sa.Column("source_provenance", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_chat_sessions_campaign_id", chat_sessions.c.campaign_id)
+sa.Index("idx_chat_sessions_actor_id", chat_sessions.c.actor_id)
+sa.Index("idx_chat_sessions_case_id", chat_sessions.c.case_id)
+
+financial_damage_claims = sa.Table(
+    "financial_damage_claims",
+    METADATA,
+    sa.Column("claim_id", UUID_TYPE, primary_key=True),
+    sa.Column("case_id", sa.Text(), sa.ForeignKey("cases.case_id", ondelete="SET NULL"), nullable=True),
+    sa.Column(
+        "campaign_id",
+        UUID_TYPE,
+        sa.ForeignKey("threat_campaigns.campaign_id", ondelete="SET NULL"),
+        nullable=True,
+    ),
+    sa.Column(
+        "session_id",
+        UUID_TYPE,
+        sa.ForeignKey("chat_sessions.session_id", ondelete="SET NULL"),
+        nullable=True,
+    ),
+    sa.Column("currency", sa.Text(), nullable=False),
+    sa.Column("chain", sa.Text(), nullable=True),
+    sa.Column("amount_claimed", sa.Numeric(36, 18), nullable=False),
+    sa.Column("amount_confirmed", sa.Numeric(36, 18), nullable=True),
+    sa.Column("tx_hash", sa.Text(), nullable=True),
+    sa.Column("wallet_address", sa.Text(), nullable=True),
+    sa.Column("verification_status", sa.Text(), nullable=False, server_default=sa.text("'unverified'")),
+    sa.Column("metadata_json", JSON_TYPE, nullable=True),
+    sa.Column("source_provenance", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_fdc_campaign_currency", financial_damage_claims.c.campaign_id, financial_damage_claims.c.currency)
+sa.Index("idx_fdc_session_id", financial_damage_claims.c.session_id)
+sa.Index("idx_fdc_case_id", financial_damage_claims.c.case_id)
+
+infrastructure_profiles = sa.Table(
+    "infrastructure_profiles",
+    METADATA,
+    sa.Column("profile_id", UUID_TYPE, primary_key=True),
+    sa.Column(
+        "campaign_id",
+        UUID_TYPE,
+        sa.ForeignKey("threat_campaigns.campaign_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("primary_domain", sa.Text(), nullable=False),
+    sa.Column("subdomain_roles", JSON_TYPE, nullable=True),
+    sa.Column("tech_stack", JSON_TYPE, nullable=True),
+    sa.Column("source_maps_exposed", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+    sa.Column("auth_model", sa.Text(), nullable=True),
+    sa.Column("cors_config", sa.Text(), nullable=True),
+    sa.Column("metadata_json", JSON_TYPE, nullable=True),
+    sa.Column("source_provenance", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.UniqueConstraint("campaign_id", "primary_domain", name="uq_infrastructure_profiles_campaign_domain"),
+)
+
+brand_impersonations = sa.Table(
+    "brand_impersonations",
+    METADATA,
+    sa.Column("impersonation_id", UUID_TYPE, primary_key=True),
+    sa.Column(
+        "indicator_id",
+        UUID_TYPE,
+        sa.ForeignKey("indicators.indicator_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("brand", sa.Text(), nullable=False),
+    sa.Column("confidence", sa.Numeric(4, 3), nullable=True),
+    sa.Column("detected_by", sa.Text(), nullable=True),
+    sa.Column("metadata_json", JSON_TYPE, nullable=True),
+    sa.Column("source_provenance", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.UniqueConstraint("indicator_id", "brand", name="uq_brand_impersonations_indicator_brand"),
+)
+sa.Index("idx_brand_impersonations_brand", brand_impersonations.c.brand)
+sa.Index("idx_brand_impersonations_indicator_id", brand_impersonations.c.indicator_id)
+
+
 def session_factory(
     *,
     settings: Settings | None = None,

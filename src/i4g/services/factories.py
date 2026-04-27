@@ -25,10 +25,14 @@ from i4g.store.actor_identity_store import ActorIdentityStore
 from i4g.store.analytics_store import AnalyticsStore
 from i4g.store.annotation_store import AnnotationStore
 from i4g.store.blocklist_hit_store import BlocklistHitStore
+from i4g.store.brand_impersonation_store import BrandImpersonationStore
+from i4g.store.chat_session_store import ChatSessionStore
 from i4g.store.domain_discovery_store import DomainDiscoveryStore
 from i4g.store.dossier_queue_store import DossierQueueStore
 from i4g.store.engagement_store import EngagementStore
 from i4g.store.entity_store import EntityStore
+from i4g.store.financial_damage_store import FinancialDamageStore
+from i4g.store.infrastructure_profile_store import InfrastructureProfileStore
 from i4g.store.ingestion_retry_store import IngestionRetryStore
 from i4g.store.ingestion_run_tracker import IngestionRunTracker
 from i4g.store.intake_store import IntakeStore
@@ -365,6 +369,42 @@ def build_domain_discovery_store(db_path: str | Path | None = None) -> DomainDis
     if backend == "cloudsql":
         return DomainDiscoveryStore(session_factory=build_sql_session_factory())
     return DomainDiscoveryStore(db_path=db_path)
+
+
+def build_chat_session_store(db_path: str | Path | None = None) -> ChatSessionStore:
+    """Return a :class:`ChatSessionStore` aligned with the structured backend."""
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return ChatSessionStore(session_factory=build_sql_session_factory())
+    return ChatSessionStore(db_path=db_path)
+
+
+def build_financial_damage_store(db_path: str | Path | None = None) -> FinancialDamageStore:
+    """Return a :class:`FinancialDamageStore` aligned with the structured backend."""
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return FinancialDamageStore(session_factory=build_sql_session_factory())
+    return FinancialDamageStore(db_path=db_path)
+
+
+def build_infrastructure_profile_store(db_path: str | Path | None = None) -> InfrastructureProfileStore:
+    """Return an :class:`InfrastructureProfileStore` aligned with the structured backend."""
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return InfrastructureProfileStore(session_factory=build_sql_session_factory())
+    return InfrastructureProfileStore(db_path=db_path)
+
+
+def build_brand_impersonation_store(db_path: str | Path | None = None) -> BrandImpersonationStore:
+    """Return a :class:`BrandImpersonationStore` aligned with the structured backend."""
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return BrandImpersonationStore(session_factory=build_sql_session_factory())
+    return BrandImpersonationStore(db_path=db_path)
 
 
 def build_bundle_builder(
