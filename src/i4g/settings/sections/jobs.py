@@ -952,6 +952,25 @@ class PhishDestroyArchiveSettings(BaseSettings):
             "PHISHDESTROY__ARCHIVE__REPORT_DIR",
         ),
     )
+    evidence_enabled: bool = Field(
+        # Master toggle for Phase C evidence-blob persistence (chat exports, photos,
+        # panel captures). When False, the archive adapter behaves exactly as Phase B
+        # (no blob writes, NULL evidence_blob_sha256).
+        default=True,
+        validation_alias=AliasChoices(
+            "PHISHDESTROY_ARCHIVE_EVIDENCE_ENABLED",
+            "PHISHDESTROY__ARCHIVE__EVIDENCE_ENABLED",
+        ),
+    )
+    evidence_local_dir_override: str = Field(
+        # Optional override for the per-team blob root in local-disk mode.
+        # Empty string defers to the global storage.evidence_local_dir.
+        default="",
+        validation_alias=AliasChoices(
+            "PHISHDESTROY_ARCHIVE_EVIDENCE_LOCAL_DIR_OVERRIDE",
+            "PHISHDESTROY__ARCHIVE__EVIDENCE_LOCAL_DIR_OVERRIDE",
+        ),
+    )
 
 
 class PhishDestroySettings(BaseSettings):

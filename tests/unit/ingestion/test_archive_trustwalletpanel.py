@@ -253,3 +253,131 @@ class TestTrustWalletPanelReportFile:
         assert report["counts"]["chat_sessions_inserted"] == 3
         assert report["counts"]["infrastructure_profiles_inserted"] == 1
         assert report["commit_sha"] == _PINNED_SHA
+
+
+# ── Phase C: evidence-blob coverage ────────────────────────────────────────────
+
+
+import hashlib  # noqa: E402
+
+from i4g.storage.evidence import EvidenceStorage  # noqa: E402
+
+
+def _make_ctx_with_evidence(tmp_path: Path) -> tuple[ArchiveContext, EvidenceStorage]:
+    """Build an ArchiveContext with a real local EvidenceStorage rooted at tmp_path/evidence."""
+    db = tmp_path / "test.db"
+    storage = EvidenceStorage(local_dir=tmp_path / "evidence")
+    ctx = ArchiveContext(
+        commit_sha=_PINNED_SHA,
+        ingest_job=_INGEST_JOB,
+        ingest_job_run_id=None,
+        now=_NOW,
+        campaign_store=ThreatCampaignStore(db_path=str(db)),
+        chat_session_store=ChatSessionStore(db_path=str(db)),
+        infrastructure_profile_store=InfrastructureProfileStore(db_path=str(db)),
+        financial_damage_store=FinancialDamageStore(db_path=str(db)),
+        brand_impersonation_store=BrandImpersonationStore(db_path=str(db)),
+        evidence_storage=storage,
+    )
+    return ctx, storage
+
+
+def _normalise_metadata(raw):
+    if isinstance(raw, str):
+        return json.loads(raw)
+    return raw or {}
+
+
+class TestTrustWalletPanelEvidenceBlobs:
+    """Phase C — chat-export blob + photo/panel-capture metadata blobs."""
+
+    def test_chat_export_populates_evidence_blob_sha256(self, tmp_path: Path) -> None:
+        ctx, _ = _make_ctx_with_evidence(tmp_path)
+        ingest_team_archive(FIXTURE_DIR, ctx)
+
+        campaigns = ctx.campaign_store.list_campaigns(limit=10)
+        sessions = ctx.chat_session_store.list_by_campaign(campaigns[0]["campaign_id"], limit=100)
+
+        assert len(sessions) == 3
+        shas = {s.get("evidence_blob_sha256") for s in sessions}
+        assert None not in shas
+        assert len(shas) == 1, "All chat rows from the same export must share one SHA"
+
+    def test_recorded_sha_matches_actual_file_bytes(self, tmp_path: Path) -> None:
+        ctx, _ = _make_ctx_with_evidence(tmp_path)
+        ingest_team_archive(FIXTURE_DIR, ctx)
+
+        expected = hashlib.sha256((FIXTURE_DIR / "chats_translated.json").read_bytes()).hexdigest()
+
+        campaigns = ctx.campaign_store.list_campaigns(limit=10)
+        sessions = ctx.chat_session_store.list_by_campaign(campaigns[0]["campaign_id"], limit=100)
+        assert sessions[0]["evidence_blob_sha256"] == expected
+
+    def test_infra_metadata_contains_evidence_blobs(self, tmp_path: Path) -> None:
+        ctx, _ = _make_ctx_with_evidence(tmp_path)
+        ingest_team_archive(FIXTURE_DIR, ctx)
+
+        campaigns = ctx.campaign_store.list_campaigns(limit=10)
+        profiles = ctx.infrastructure_profile_store.get_by_campaign(campaigns[0]["campaign_id"])
+        assert len(profiles) == 1
+        meta = _normalise_metadata(profiles[0]["metadata_json"])
+        blobs = meta["evidence_blobs"]
+        assert len(blobs) == 3
+
+        # Deterministic sort: (kind, file_name).
+        assert blobs == sorted(blobs, key=lambda b: (b["kind"], b["file_name"]))
+        assert [(b["kind"], b["file_name"]) for b in blobs] == [
+            ("panel_capture", "chats.html"),
+            ("panel_capture", "wallets_full.html"),
+            ("photo", "TrustWalletPanel.png"),
+        ]
+        for entry in blobs:
+            disk = (FIXTURE_DIR / entry["file_name"]).read_bytes()
+            assert entry["sha256"] == hashlib.sha256(disk).hexdigest()
+            assert entry["size_bytes"] == len(disk)
+            assert isinstance(entry["storage_uri"], str) and entry["storage_uri"]
+
+        # Phase B keys preserved.
+        assert "team_type" in meta
+        assert "first_seen" in meta
+        assert "last_activity" in meta
+
+    def test_phase_b_compat_when_evidence_storage_none(self, tmp_path: Path) -> None:
+        ctx = _make_ctx(tmp_path)
+        ingest_team_archive(FIXTURE_DIR, ctx)
+
+        campaigns = ctx.campaign_store.list_campaigns(limit=10)
+        sessions = ctx.chat_session_store.list_by_campaign(campaigns[0]["campaign_id"], limit=100)
+        for s in sessions:
+            assert s.get("evidence_blob_sha256") is None
+
+        profiles = ctx.infrastructure_profile_store.get_by_campaign(campaigns[0]["campaign_id"])
+        meta = _normalise_metadata(profiles[0]["metadata_json"])
+        assert "evidence_blobs" not in meta
+
+    def test_idempotent_blob_persistence(self, tmp_path: Path) -> None:
+        ctx, _ = _make_ctx_with_evidence(tmp_path)
+        ingest_team_archive(FIXTURE_DIR, ctx)
+
+        campaigns = ctx.campaign_store.list_campaigns(limit=10)
+        sessions_first = ctx.chat_session_store.list_by_campaign(campaigns[0]["campaign_id"], limit=100)
+        first_chat_sha = sessions_first[0]["evidence_blob_sha256"]
+        profiles_first = ctx.infrastructure_profile_store.get_by_campaign(campaigns[0]["campaign_id"])
+        first_blobs = _normalise_metadata(profiles_first[0]["metadata_json"])["evidence_blobs"]
+
+        # Count files under the storage root after first run.
+        storage_root = tmp_path / "evidence"
+        first_count = sum(1 for p in storage_root.rglob("*") if p.is_file())
+
+        ingest_team_archive(FIXTURE_DIR, ctx)
+
+        sessions_second = ctx.chat_session_store.list_by_campaign(campaigns[0]["campaign_id"], limit=100)
+        assert sessions_second[0]["evidence_blob_sha256"] == first_chat_sha
+        assert len(sessions_second) == len(sessions_first)
+
+        profiles_second = ctx.infrastructure_profile_store.get_by_campaign(campaigns[0]["campaign_id"])
+        second_blobs = _normalise_metadata(profiles_second[0]["metadata_json"])["evidence_blobs"]
+        assert second_blobs == first_blobs
+
+        second_count = sum(1 for p in storage_root.rglob("*") if p.is_file())
+        assert second_count == first_count, "Re-ingestion must not create duplicate blobs"

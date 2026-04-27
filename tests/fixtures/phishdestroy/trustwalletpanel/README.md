@@ -22,3 +22,17 @@ These are hand-trimmed, minimal fixture files for the TrustWalletPanel golden co
 These files are derived from confidential scam-intelligence research. Do not copy, publish, or
 distribute them outside the `core/tests/fixtures/` directory. Full upstream data must not be
 committed to this repository.
+
+## Phase C evidence-blob coverage
+
+Three additional fixtures were added in Sprint 2 §2.4 / Phase C to exercise the evidence-blob
+pipeline (`storage/evidence.py`):
+
+- `TrustWalletPanel.png` — minimal 1×1 transparent PNG (~68 bytes), exercises the **photo**
+  blob category.
+- `chats.html` — short HTML stub, exercises the **panel_capture** blob category.
+- `wallets_full.html` — short HTML stub, exercises the **panel_capture** blob category.
+
+All three fixtures are committed as on-disk binary/text files (≤ 200 bytes each) and remain
+pinned to upstream commit `83d0307420fcc865fcb8a34b8c454acbc6d56f1f` for provenance purposes.
+The actual file bytes are local stubs, not upstream copies.

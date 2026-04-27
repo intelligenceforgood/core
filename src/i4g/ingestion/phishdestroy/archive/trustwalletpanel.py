@@ -2,8 +2,12 @@
 
 Implements the §"Adapter behaviour" contract from the Phase B manifest verbatim.
 
-Deferred writes (Phase C / Phase D):
-  - evidence_blob_sha256: left NULL on every chat row (Phase C populates this).
+Phase C additions:
+  - evidence_blob_sha256: populated in Phase C from chats_translated.json export blob.
+  - infrastructure_profiles.metadata_json["evidence_blobs"]: list of photo / panel-capture /
+    source-map evidence blobs persisted via ``storage/evidence.py``.
+
+Deferred writes (Phase D):
   - financial_damage_claims: TrustWalletPanel has no successful_thefts/ directory
     in Sprint 2 scope; Phase D owns the damage parser.
   - brand_impersonations: requires an entities.entity_id FK that is not guaranteed to
@@ -21,6 +25,7 @@ from typing import Any
 
 from i4g.ingestion.phishdestroy import ALLOWED_PHISHDESTROY_SOURCES
 from i4g.ingestion.phishdestroy.archive.base import ArchiveContext, build_chat_provenance, build_infra_provenance
+from i4g.ingestion.phishdestroy.archive.evidence import persist_chat_export, persist_team_blobs
 
 LOGGER = logging.getLogger("i4g.ingestion.phishdestroy.archive.trustwalletpanel")
 
@@ -98,6 +103,10 @@ def _ingest_infrastructure(
         "first_seen": iocs.get("first_seen"),
         "last_activity": iocs.get("last_activity"),
     }
+
+    if ctx.evidence_storage is not None:
+        blob_refs = persist_team_blobs(ctx.evidence_storage, _TEAM_NAME, team_dir)
+        metadata_json["evidence_blobs"] = [ref.to_metadata_dict() for ref in blob_refs]
 
     record_id = f"{_TEAM_NAME}/iocs.json#/panel_url"
     provenance = build_infra_provenance(team=_TEAM_NAME, record_id=record_id, ctx=ctx)
@@ -184,6 +193,12 @@ def _ingest_chats(
     chat_updated = 0
     chat_unchanged = 0
 
+    chat_blob_sha: str | None = None
+    if ctx.evidence_storage is not None:
+        result = persist_chat_export(ctx.evidence_storage, _TEAM_NAME, chats_path)
+        if result is not None:
+            chat_blob_sha, _ = result
+
     for idx, entry in enumerate(entries):
         entry_id = entry.get("id")
         if entry_id is None:
@@ -224,7 +239,7 @@ def _ingest_chats(
             victim_confirmed_send=False,  # Phase D
             started_at=started_at,
             last_message_at=last_message_at,
-            evidence_blob_sha256=None,  # Phase C
+            evidence_blob_sha256=chat_blob_sha,
             case_id=None,  # Sprint 3
             actor_id=None,  # Sprint 3
         )

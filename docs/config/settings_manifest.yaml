@@ -1880,3 +1880,21 @@ fields:
   - PHISHDESTROY_ARCHIVE_REPORT_DIR
   - PHISHDESTROY__ARCHIVE__REPORT_DIR
   description: Directory for per-team parse-failure and ingestion summary reports.
+- path: phishdestroy.archive.evidence_enabled
+  section: phishdestroy
+  type: bool
+  default: true
+  env_vars:
+  - I4G_PHISHDESTROY__ARCHIVE__EVIDENCE_ENABLED
+  - PHISHDESTROY_ARCHIVE_EVIDENCE_ENABLED
+  - PHISHDESTROY__ARCHIVE__EVIDENCE_ENABLED
+  description: When true, the archive adapter persists chat exports, photos, and panel captures via storage/evidence.py (Sprint 2 §2.4 / Phase C).
+- path: phishdestroy.archive.evidence_local_dir_override
+  section: phishdestroy
+  type: str
+  default: ''
+  env_vars:
+  - I4G_PHISHDESTROY__ARCHIVE__EVIDENCE_LOCAL_DIR_OVERRIDE
+  - PHISHDESTROY_ARCHIVE_EVIDENCE_LOCAL_DIR_OVERRIDE
+  - PHISHDESTROY__ARCHIVE__EVIDENCE_LOCAL_DIR_OVERRIDE
+  description: Optional override for the local-disk evidence blob root. Empty defers to storage.evidence_local_dir.

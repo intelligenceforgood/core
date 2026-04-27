@@ -203,6 +203,12 @@ flush_interval_seconds = 5
 commit_sha = "83d0307420fcc865fcb8a34b8c454acbc6d56f1f"
 archive_root = ""
 report_dir = "data/reports/phishdestroy"
+# evidence_enabled: when true, the archive adapter persists chat exports, photos, and panel
+# captures via storage/evidence.py and stamps SHA-256 pointers onto chat_sessions rows.
+evidence_enabled = true
+# evidence_local_dir_override: optional override for the local-disk blob root. Empty defers to
+# storage.evidence_local_dir.
+evidence_local_dir_override = ""
 
 [search.saved_search]
 # migration_tag = "hybrid-v1"

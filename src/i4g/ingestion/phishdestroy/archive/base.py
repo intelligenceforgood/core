@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 
+from i4g.storage.evidence import EvidenceStorage
 from i4g.store.brand_impersonation_store import BrandImpersonationStore
 from i4g.store.chat_session_store import ChatSessionStore
 from i4g.store.financial_damage_store import FinancialDamageStore
@@ -38,6 +39,9 @@ class ArchiveContext:
     infrastructure_profile_store: InfrastructureProfileStore
     financial_damage_store: FinancialDamageStore
     brand_impersonation_store: BrandImpersonationStore
+
+    evidence_storage: EvidenceStorage | None = None
+    """Phase C evidence-blob backend, or ``None`` to preserve Phase B behaviour."""
 
 
 def build_chat_provenance(

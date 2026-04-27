@@ -32,6 +32,7 @@ def main(*, team: str, archive_root: Path | None = None) -> int:
     from i4g.services.factories import (
         build_brand_impersonation_store,
         build_chat_session_store,
+        build_evidence_storage,
         build_financial_damage_store,
         build_infrastructure_profile_store,
         build_threat_campaign_store,
@@ -91,6 +92,21 @@ def main(*, team: str, archive_root: Path | None = None) -> int:
         LOGGER.exception("Failed to initialise stores")
         return 1
 
+    evidence_storage = None
+    if archive_settings.evidence_enabled:
+        override = archive_settings.evidence_local_dir_override
+        local_dir: Path | None = None
+        if override:
+            override_path = Path(override)
+            local_dir = override_path if override_path.is_absolute() else settings.project_root / override_path
+        try:
+            evidence_storage = build_evidence_storage(local_dir=local_dir)
+        except Exception:
+            LOGGER.exception("Failed to initialise evidence storage; continuing without blob persistence")
+            evidence_storage = None
+
+    backend_label = "disabled" if evidence_storage is None else getattr(evidence_storage, "_backend", "unknown")
+    LOGGER.info("evidence_storage_backend=%s", backend_label)
     ctx = ArchiveContext(
         commit_sha=commit_sha,
         ingest_job=_INGEST_JOB,
@@ -101,6 +117,7 @@ def main(*, team: str, archive_root: Path | None = None) -> int:
         infrastructure_profile_store=infrastructure_profile_store,
         financial_damage_store=financial_damage_store,
         brand_impersonation_store=brand_impersonation_store,
+        evidence_storage=evidence_storage,
     )
 
     try:
