@@ -209,6 +209,9 @@ evidence_enabled = true
 # evidence_local_dir_override: optional override for the local-disk blob root. Empty defers to
 # storage.evidence_local_dir.
 evidence_local_dir_override = ""
+# parse_failure_rate_threshold: §7 acceptance gate. The ingest-archive-all worker exits 3 when
+# the fraction of teams that resolve to unknown_format exceeds this value. Range [0.0, 1.0].
+parse_failure_rate_threshold = 0.01
 
 [search.saved_search]
 # migration_tag = "hybrid-v1"

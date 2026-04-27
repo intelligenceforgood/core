@@ -18,8 +18,12 @@ import mimetypes
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from i4g.storage.evidence import EvidenceStorage
+
+if TYPE_CHECKING:
+    from i4g.ingestion.phishdestroy.archive.team_config import TeamBlobConfig
 
 LOGGER = logging.getLogger("i4g.ingestion.phishdestroy.archive.evidence")
 
@@ -33,17 +37,6 @@ class BlobKind(StrEnum):
     SOURCE_MAP = "source_map"
 
 
-# TWP-specific Phase C defaults. Phase D will generalise these into a per-team
-# registry (or settings list) so additional teams can register their own file
-# categorisation without editing this module.
-_PHOTO_SUFFIXES: frozenset[str] = frozenset({".png", ".jpg", ".jpeg"})
-_SOURCE_MAP_SUFFIXES: frozenset[str] = frozenset({".map"})
-_PANEL_CAPTURE_NAMES: tuple[str, ...] = (
-    "chats.html",
-    "wallets_full.html",
-    "analytics.html",
-    "index.html",
-)
 _CHAT_EXPORT_FILENAME = "chats_translated.json"
 
 
@@ -174,17 +167,17 @@ def persist_chat_export(
     return sha, uri
 
 
-def _classify(file_path: Path) -> BlobKind | None:
-    """Categorise *file_path* under one of the recognised PhaseC blob kinds, or ``None``."""
+def _classify(file_path: Path, blob_config: TeamBlobConfig) -> BlobKind | None:
+    """Categorise *file_path* under one of the recognised Phase C blob kinds, or ``None``."""
     if file_path.name == _CHAT_EXPORT_FILENAME:
         # Handled separately by ``persist_chat_export``.
         return None
     suffix = file_path.suffix.lower()
-    if suffix in _PHOTO_SUFFIXES:
+    if suffix in blob_config.photo_suffixes:
         return BlobKind.PHOTO
-    if file_path.name in _PANEL_CAPTURE_NAMES:
+    if file_path.name in blob_config.panel_capture_names:
         return BlobKind.PANEL_CAPTURE
-    if suffix in _SOURCE_MAP_SUFFIXES:
+    if suffix in blob_config.source_map_suffixes:
         return BlobKind.SOURCE_MAP
     return None
 
@@ -193,6 +186,8 @@ def persist_team_blobs(
     evidence_storage: EvidenceStorage | None,
     team: str,
     team_dir: Path,
+    *,
+    blob_config: TeamBlobConfig | None = None,
 ) -> list[EvidenceBlobRef]:
     """Persist photo / panel-capture / source-map blobs for *team*.
 
@@ -205,12 +200,20 @@ def persist_team_blobs(
             persistence (returns ``[]`` for Phase B compatibility).
         team: Team directory name.
         team_dir: Absolute path to the team directory.
+        blob_config: Per-team blob-classification config. When ``None``, falls back to
+            :data:`~i4g.ingestion.phishdestroy.archive.team_config.DEFAULT_TEAM_BLOB_CONFIG`
+            to preserve the Phase C call-signature for any external caller.
 
     Returns:
         List of :class:`EvidenceBlobRef` sorted deterministically by ``(kind, file_name)``.
     """
     if evidence_storage is None:
         return []
+
+    if blob_config is None:
+        from i4g.ingestion.phishdestroy.archive.team_config import DEFAULT_TEAM_BLOB_CONFIG
+
+        blob_config = DEFAULT_TEAM_BLOB_CONFIG
 
     intake_id = f"phishdestroy-archive/{team}"
     seen_names: set[str] = set()
@@ -221,7 +224,7 @@ def persist_team_blobs(
             continue
         if entry.name in seen_names:
             continue
-        kind = _classify(entry)
+        kind = _classify(entry, blob_config)
         if kind is None:
             continue
         seen_names.add(entry.name)

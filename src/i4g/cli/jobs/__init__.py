@@ -126,6 +126,35 @@ def jobs_ingest_archive(
     _exit_from_return(phishdestroy_archive.main(team=team, archive_root=archive_root))
 
 
+@jobs_app.command(
+    "ingest-archive-all",
+    help="Ingest all PhishDestroy ScamIntelLogs team directories (backfill driver).",
+)
+def jobs_ingest_archive_all(
+    archive_root: Path | None = typer.Option(
+        None,
+        "--path",
+        help="Override settings.phishdestroy.archive.archive_root.",
+    ),
+    parse_failure_threshold: float | None = typer.Option(
+        None,
+        "--parse-failure-threshold",
+        help=(
+            "Exit 3 when the fraction of unknown-format teams exceeds this value. "
+            "Defaults to settings.phishdestroy.archive.parse_failure_rate_threshold (0.01)."
+        ),
+    ),
+) -> None:
+    from i4g.worker.jobs import phishdestroy_archive_all
+
+    _exit_from_return(
+        phishdestroy_archive_all.main(
+            archive_root=archive_root,
+            parse_failure_threshold=parse_failure_threshold,
+        )
+    )
+
+
 @jobs_app.command("merklemap-tail", help="Run the PhishDestroy merklemap SSE tail worker.")
 def jobs_merklemap_tail(
     max_runtime_seconds: int | None = typer.Option(

@@ -7,13 +7,91 @@ import logging
 import os
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from i4g.settings import get_settings
 from i4g.worker.logging import configure_job_logging
 
+if TYPE_CHECKING:
+    from i4g.ingestion.phishdestroy.archive.base import ArchiveContext
+    from i4g.settings.sections.jobs import PhishDestroyArchiveSettings
+
 LOGGER = logging.getLogger("i4g.worker.jobs.phishdestroy_archive")
 
 _INGEST_JOB = "i4g-jobs-ingest-archive"
+
+
+def _build_archive_context(
+    settings: object,
+    archive_settings: PhishDestroyArchiveSettings,
+    ingest_job: str,
+) -> ArchiveContext:
+    """Build and return an :class:`ArchiveContext` from settings.
+
+    Extracted so both the single-team runner and the backfill driver can share
+    exactly the same context-construction path without duplication.
+
+    Args:
+        settings: The resolved ``I4GSettings`` instance.
+        archive_settings: The ``settings.phishdestroy.archive`` sub-section.
+        ingest_job: Job identifier string embedded in provenance (e.g.
+            ``"i4g-jobs-ingest-archive"`` or ``"i4g-jobs-ingest-archive-all"``).
+
+    Returns:
+        A fully initialised ``ArchiveContext``.
+
+    Raises:
+        RuntimeError: When store initialisation fails.
+    """
+    from i4g.ingestion.phishdestroy.archive.base import ArchiveContext
+    from i4g.services.factories import (
+        build_brand_impersonation_store,
+        build_chat_session_store,
+        build_evidence_storage,
+        build_financial_damage_store,
+        build_infrastructure_profile_store,
+        build_threat_campaign_store,
+    )
+
+    ingest_job_run_id: str | None = os.getenv("CLOUD_RUN_EXECUTION") or None
+
+    try:
+        campaign_store = build_threat_campaign_store()
+        chat_session_store = build_chat_session_store()
+        infrastructure_profile_store = build_infrastructure_profile_store()
+        financial_damage_store = build_financial_damage_store()
+        brand_impersonation_store = build_brand_impersonation_store()
+    except Exception as exc:
+        raise RuntimeError("Failed to initialise stores") from exc
+
+    evidence_storage = None
+    if archive_settings.evidence_enabled:
+        override = archive_settings.evidence_local_dir_override
+        local_dir: Path | None = None
+        if override:
+            override_path = Path(override)
+            local_dir = override_path if override_path.is_absolute() else settings.project_root / override_path
+        try:
+            evidence_storage = build_evidence_storage(local_dir=local_dir)
+        except Exception:
+            LOGGER.exception("Failed to initialise evidence storage; continuing without blob persistence")
+            evidence_storage = None
+
+    backend_label = "disabled" if evidence_storage is None else getattr(evidence_storage, "_backend", "unknown")
+    LOGGER.info("evidence_storage_backend=%s", backend_label)
+
+    return ArchiveContext(
+        commit_sha=archive_settings.commit_sha,
+        ingest_job=ingest_job,
+        ingest_job_run_id=ingest_job_run_id,
+        now=datetime.now(UTC),
+        campaign_store=campaign_store,
+        chat_session_store=chat_session_store,
+        infrastructure_profile_store=infrastructure_profile_store,
+        financial_damage_store=financial_damage_store,
+        brand_impersonation_store=brand_impersonation_store,
+        evidence_storage=evidence_storage,
+    )
 
 
 def main(*, team: str, archive_root: Path | None = None) -> int:
@@ -28,20 +106,9 @@ def main(*, team: str, archive_root: Path | None = None) -> int:
         0 on success; 1 on unhandled error; 2 on misconfiguration.
     """
     from i4g.ingestion.phishdestroy.archive import ARCHIVE_ADAPTER_REGISTRY, ingest_team_archive
-    from i4g.ingestion.phishdestroy.archive.base import ArchiveContext
-    from i4g.services.factories import (
-        build_brand_impersonation_store,
-        build_chat_session_store,
-        build_evidence_storage,
-        build_financial_damage_store,
-        build_infrastructure_profile_store,
-        build_threat_campaign_store,
-    )
 
     settings = get_settings()
     configure_job_logging(settings)
-
-    ingest_job_run_id: str | None = os.getenv("CLOUD_RUN_EXECUTION") or None
 
     # Resolve archive_root from settings if not provided via CLI override.
     archive_settings = settings.phishdestroy.archive
@@ -83,42 +150,10 @@ def main(*, team: str, archive_root: Path | None = None) -> int:
     )
 
     try:
-        campaign_store = build_threat_campaign_store()
-        chat_session_store = build_chat_session_store()
-        infrastructure_profile_store = build_infrastructure_profile_store()
-        financial_damage_store = build_financial_damage_store()
-        brand_impersonation_store = build_brand_impersonation_store()
-    except Exception:
+        ctx = _build_archive_context(settings, archive_settings, _INGEST_JOB)
+    except RuntimeError:
         LOGGER.exception("Failed to initialise stores")
         return 1
-
-    evidence_storage = None
-    if archive_settings.evidence_enabled:
-        override = archive_settings.evidence_local_dir_override
-        local_dir: Path | None = None
-        if override:
-            override_path = Path(override)
-            local_dir = override_path if override_path.is_absolute() else settings.project_root / override_path
-        try:
-            evidence_storage = build_evidence_storage(local_dir=local_dir)
-        except Exception:
-            LOGGER.exception("Failed to initialise evidence storage; continuing without blob persistence")
-            evidence_storage = None
-
-    backend_label = "disabled" if evidence_storage is None else getattr(evidence_storage, "_backend", "unknown")
-    LOGGER.info("evidence_storage_backend=%s", backend_label)
-    ctx = ArchiveContext(
-        commit_sha=commit_sha,
-        ingest_job=_INGEST_JOB,
-        ingest_job_run_id=ingest_job_run_id,
-        now=datetime.now(UTC),
-        campaign_store=campaign_store,
-        chat_session_store=chat_session_store,
-        infrastructure_profile_store=infrastructure_profile_store,
-        financial_damage_store=financial_damage_store,
-        brand_impersonation_store=brand_impersonation_store,
-        evidence_storage=evidence_storage,
-    )
 
     try:
         summary = ingest_team_archive(

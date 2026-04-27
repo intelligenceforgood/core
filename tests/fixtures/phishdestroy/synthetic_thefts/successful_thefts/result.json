@@ -1,0 +1,37 @@
+{
+  "messages": [
+    {
+      "id": 101,
+      "type": "message",
+      "date": "2026-01-15T10:23:45",
+      "text": "📥 Зачислен новый депозит!\n🎰 Проект: TrustWallet\n🀄️ Сеть: BSC\n👤 Воркер: Скрыт\n💵 Сумма в USD: $500.00\n📈 Процент: 10%\n📂 К зачислению: $50.00\n"
+    },
+    {
+      "id": 102,
+      "type": "message",
+      "date": "2026-01-16T09:11:00",
+      "text": "",
+      "text_entities": [
+        {"type": "plain", "text": "📥 Зачислен новый депозит!\n🎰 Проект: MetaMask\n🀄️ Сеть: ETH\n👤 Воркер: Скрыт\n💵 Сумма в USD: $1200.50\n📈 Процент: 15%\n📂 К зачислению: $180.07\n"}
+      ]
+    },
+    {
+      "id": 103,
+      "type": "message",
+      "date": "2026-01-17T14:30:00",
+      "text": "📥 New deposit received!\n🎰 Project: PhantomWallet\n🀄️ Network: SOL\n👤 Worker: Hidden\n💵 Amount in USD: $750.00\n📈 Percentage: 12%\n📂 To be credited: $90.00\n"
+    },
+    {
+      "id": 104,
+      "type": "service",
+      "date": "2026-01-18T08:00:00",
+      "text": "Chat created"
+    },
+    {
+      "id": 105,
+      "type": "message",
+      "date": "2026-01-18T10:00:00",
+      "text": "User joined the group"
+    }
+  ]
+}

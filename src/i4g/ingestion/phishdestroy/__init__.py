@@ -10,6 +10,7 @@ ALLOWED_PHISHDESTROY_SOURCES: frozenset[str] = frozenset(
         "phishdestroy.archive.iocs",
         "phishdestroy.archive.chat",
         "phishdestroy.archive.damage",
+        "phishdestroy.archive.financial_damage",
         "phishdestroy.archive.infrastructure",
         "phishdestroy.archive.brands",
         "phishdestroy.actors",

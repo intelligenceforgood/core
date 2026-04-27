@@ -1898,3 +1898,12 @@ fields:
   - PHISHDESTROY_ARCHIVE_EVIDENCE_LOCAL_DIR_OVERRIDE
   - PHISHDESTROY__ARCHIVE__EVIDENCE_LOCAL_DIR_OVERRIDE
   description: Optional override for the local-disk evidence blob root. Empty defers to storage.evidence_local_dir.
+- path: phishdestroy.archive.parse_failure_rate_threshold
+  section: phishdestroy
+  type: float
+  default: 0.01
+  env_vars:
+  - I4G_PHISHDESTROY__ARCHIVE__PARSE_FAILURE_RATE_THRESHOLD
+  - PHISHDESTROY_ARCHIVE_PARSE_FAILURE_RATE_THRESHOLD
+  - PHISHDESTROY__ARCHIVE__PARSE_FAILURE_RATE_THRESHOLD
+  description: Sprint 2 §7 acceptance gate. The ingest-archive-all worker exits 3 when unknown_format_teams / total_teams exceeds this value. Range [0.0, 1.0].

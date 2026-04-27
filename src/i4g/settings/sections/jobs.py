@@ -971,6 +971,17 @@ class PhishDestroyArchiveSettings(BaseSettings):
             "PHISHDESTROY__ARCHIVE__EVIDENCE_LOCAL_DIR_OVERRIDE",
         ),
     )
+    # parse_failure_rate_threshold: §7 acceptance gate. The ingest-archive-all worker exits 3 when
+    # the fraction of teams that resolve to unknown_format exceeds this value. Range [0.0, 1.0].
+    parse_failure_rate_threshold: float = Field(
+        default=0.01,
+        ge=0.0,
+        le=1.0,
+        validation_alias=AliasChoices(
+            "PHISHDESTROY_ARCHIVE_PARSE_FAILURE_RATE_THRESHOLD",
+            "PHISHDESTROY__ARCHIVE__PARSE_FAILURE_RATE_THRESHOLD",
+        ),
+    )
 
 
 class PhishDestroySettings(BaseSettings):

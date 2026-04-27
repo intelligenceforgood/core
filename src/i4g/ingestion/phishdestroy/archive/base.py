@@ -100,6 +100,34 @@ def build_infra_provenance(
     return prov
 
 
+def build_financial_damage_provenance(
+    team: str,
+    record_id: str,
+    ctx: ArchiveContext,
+) -> dict[str, Any]:
+    """Return a source_provenance dict for a financial_damage_claims row.
+
+    Args:
+        team: Team directory name (e.g. ``"SyntheticThefts"``).
+        record_id: Per-provenance §2: ``<team>/successful_thefts/result.json#<message_id>``.
+        ctx: Shared ingestion context.
+
+    Returns:
+        Provenance dict ready to be stored in ``source_provenance``.
+    """
+    prov: dict[str, Any] = {
+        "source": "phishdestroy.archive.financial_damage",
+        "team": team,
+        "commit_sha": ctx.commit_sha,
+        "record_id": record_id,
+        "ingested_at": ctx.now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "ingest_job": ctx.ingest_job,
+    }
+    if ctx.ingest_job_run_id is not None:
+        prov["ingest_job_run_id"] = ctx.ingest_job_run_id
+    return prov
+
+
 @runtime_checkable
 class TeamAdapter(Protocol):
     """Protocol that every concrete team adapter must satisfy."""

@@ -126,3 +126,37 @@ class TestEvidenceBlobRefMetadataDict:
             "storage_uri",
             "content_type",
         ]
+
+
+class TestPersistTeamBlobsWithCustomConfig:
+    """Phase D: persist_team_blobs respects a custom TeamBlobConfig passed via blob_config kwarg."""
+
+    def _write(self, dir_path: Path, name: str, content: bytes = b"x") -> Path:
+        p = dir_path / name
+        p.write_bytes(content)
+        return p
+
+    def test_custom_config_drops_png_from_photo_suffixes(self, tmp_path: Path) -> None:
+        """A TeamBlobConfig without .png in photo_suffixes must not pick up PNG fixtures."""
+        from i4g.ingestion.phishdestroy.archive.team_config import DEFAULT_TEAM_BLOB_CONFIG, TeamBlobConfig
+
+        # Drop .png from photo_suffixes.
+        custom_config = TeamBlobConfig(
+            photo_suffixes=frozenset({".jpg", ".jpeg"}),
+            panel_capture_names=DEFAULT_TEAM_BLOB_CONFIG.panel_capture_names,
+            source_map_suffixes=DEFAULT_TEAM_BLOB_CONFIG.source_map_suffixes,
+        )
+
+        team_dir = tmp_path / "team"
+        team_dir.mkdir()
+        self._write(team_dir, "photo.png", b"\x89PNG_stub")
+        self._write(team_dir, "photo.jpg", b"\xff\xd8JPEG_stub")
+        self._write(team_dir, "bundle.js.map", b"{}")
+
+        storage = _make_storage(tmp_path)
+        refs = persist_team_blobs(storage, _TEAM, team_dir, blob_config=custom_config)
+
+        file_names = [r.file_name for r in refs]
+        assert "photo.png" not in file_names, "PNG must be excluded by custom config"
+        assert "photo.jpg" in file_names
+        assert "bundle.js.map" in file_names
