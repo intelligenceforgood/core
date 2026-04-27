@@ -1,0 +1,19 @@
+{
+  "team": "TrustWalletPanel",
+  "type": "Fake Trust Wallet Support Panel — Social Engineering & Crypto Theft",
+  "first_seen": "2025-01-07",
+  "last_activity": "2026-03-01",
+  "panel_url": "tttadmin.com",
+  "tech_stack": {
+    "frontend": "React (Create React App)",
+    "admin_frontend": "React (Create React App) with source maps exposed — main.3924229a.js (778KB), main.3924229a.js.map (3.4MB)",
+    "backend": "Node.js / Express",
+    "database": "MongoDB",
+    "auth": "JWT Bearer token — login via POST /admin/sign-in with {login, password}, token stored in sessionStorage",
+    "cors": "Reflects any Origin with Access-Control-Allow-Credentials: true",
+    "web_server": "nginx/1.18.0",
+    "dns": "Cloudflare"
+  },
+  "operator_identities": {},
+  "telegram_actors": {}
+}

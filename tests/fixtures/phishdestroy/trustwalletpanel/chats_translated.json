@@ -1,0 +1,77 @@
+[
+  {
+    "id": 7,
+    "title": "Victim chat 7 — wallet recovery claim",
+    "desc": "Victim claims to have lost access to Trust Wallet",
+    "messages": [
+      {
+        "text": "Hi, I am Trust Wallet Support. How can I help you?",
+        "admin": true,
+        "date": "2025-01-07T16:33:54.440047",
+        "translation": null
+      },
+      {
+        "text": "I cannot access my wallet. I need to recover 2.3 ETH.",
+        "admin": false,
+        "date": "2025-01-07T16:35:12.000000",
+        "translation": "I cannot access my wallet. I need to recover 2.3 ETH."
+      },
+      {
+        "text": "We need a deposit of 0.1 ETH to verify your identity and begin recovery.",
+        "admin": true,
+        "date": "2025-01-07T16:36:00.000000",
+        "translation": null
+      }
+    ]
+  },
+  {
+    "id": 92,
+    "title": "Victim chat 92 — OFAC compliance block",
+    "desc": "Victim account flagged under OFAC screening",
+    "messages": [
+      {
+        "text": "Your account has been flagged under OFAC compliance review. You must submit a replacement verification fee.",
+        "admin": true,
+        "date": "2025-02-14T10:00:00.000000",
+        "translation": null
+      },
+      {
+        "text": "What does OFAC mean? I have never done anything wrong.",
+        "admin": false,
+        "date": "2025-02-14T10:05:00.000000",
+        "translation": "What does OFAC mean? I have never done anything wrong."
+      },
+      {
+        "text": "Please comply or your funds will remain frozen.",
+        "admin": true,
+        "date": "2025-02-14T10:07:00.000000",
+        "translation": null
+      },
+      {
+        "text": "OK, what do I do?",
+        "admin": false,
+        "date": "2025-02-14T10:08:30.000000",
+        "translation": "OK, what do I do?"
+      }
+    ]
+  },
+  {
+    "id": 446,
+    "title": "Victim chat 446 — general support inquiry",
+    "desc": "Victim asking about swap fees, no fraud keywords",
+    "messages": [
+      {
+        "text": "Hello, I have a question about swap fees.",
+        "admin": false,
+        "date": "2025-03-20T09:00:00.000000",
+        "translation": "Hello, I have a question about swap fees."
+      },
+      {
+        "text": "Of course! Swap fees vary by network. Please provide your wallet address.",
+        "admin": true,
+        "date": "2025-03-20T09:01:30.000000",
+        "translation": null
+      }
+    ]
+  }
+]

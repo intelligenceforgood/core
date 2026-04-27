@@ -112,6 +112,20 @@ def jobs_ingest_destroylist(
     _exit_from_return(phishdestroy_destroylist.main(data_path=data_path))
 
 
+@jobs_app.command("ingest-archive", help="Ingest a single PhishDestroy ScamIntelLogs team directory.")
+def jobs_ingest_archive(
+    team: str = typer.Option(..., "--team", help="Team directory name, e.g. TrustWalletPanel."),
+    archive_root: Path | None = typer.Option(
+        None,
+        "--path",
+        help="Override settings.phishdestroy.archive.archive_root.",
+    ),
+) -> None:
+    from i4g.worker.jobs import phishdestroy_archive
+
+    _exit_from_return(phishdestroy_archive.main(team=team, archive_root=archive_root))
+
+
 @jobs_app.command("merklemap-tail", help="Run the PhishDestroy merklemap SSE tail worker.")
 def jobs_merklemap_tail(
     max_runtime_seconds: int | None = typer.Option(

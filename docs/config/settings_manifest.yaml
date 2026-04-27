@@ -1853,3 +1853,30 @@ fields:
   - VECTOR__VERTEX_AI__SERVING_CONFIG
   - I4G_VERTEX_SEARCH_SERVING_CONFIG
   description: Vertex AI Search serving config ID.
+- path: phishdestroy.archive.commit_sha
+  section: phishdestroy
+  type: str
+  default: 83d0307420fcc865fcb8a34b8c454acbc6d56f1f
+  env_vars:
+  - I4G_PHISHDESTROY__ARCHIVE__COMMIT_SHA
+  - PHISHDESTROY_ARCHIVE_COMMIT_SHA
+  - PHISHDESTROY__ARCHIVE__COMMIT_SHA
+  description: Pinned SHA of the ScamIntelLogs repo used for archive ingestion (Sprint 2 §2.3).
+- path: phishdestroy.archive.archive_root
+  section: phishdestroy
+  type: str
+  default: ''
+  env_vars:
+  - I4G_PHISHDESTROY__ARCHIVE__ARCHIVE_ROOT
+  - PHISHDESTROY_ARCHIVE_ARCHIVE_ROOT
+  - PHISHDESTROY__ARCHIVE__ARCHIVE_ROOT
+  description: "Path to a checkout of phishdestroy/ScamIntelLogs. Local dev: set in settings.local.toml."
+- path: phishdestroy.archive.report_dir
+  section: phishdestroy
+  type: str
+  default: data/reports/phishdestroy
+  env_vars:
+  - I4G_PHISHDESTROY__ARCHIVE__REPORT_DIR
+  - PHISHDESTROY_ARCHIVE_REPORT_DIR
+  - PHISHDESTROY__ARCHIVE__REPORT_DIR
+  description: Directory for per-team parse-failure and ingestion summary reports.

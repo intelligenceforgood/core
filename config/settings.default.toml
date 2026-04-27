@@ -193,6 +193,17 @@ brand_regexes = [
 batch_size = 100
 flush_interval_seconds = 5
 
+# ── PhishDestroy ScamIntelLogs archive ingestion (Sprint 2 §2.3) ──────────────
+# Source pin: ScamIntelLogs @ 83d0307420fcc865fcb8a34b8c454acbc6d56f1f.
+# See copilot/.github/shared/phishdestroy-provenance.instructions.md §4.
+# archive_root: Path to a checkout of phishdestroy/ScamIntelLogs.
+# Local dev: set in settings.local.toml (do not commit).
+
+[phishdestroy.archive]
+commit_sha = "83d0307420fcc865fcb8a34b8c454acbc6d56f1f"
+archive_root = ""
+report_dir = "data/reports/phishdestroy"
+
 [search.saved_search]
 # migration_tag = "hybrid-v1"
 # schema_version = ""

@@ -923,6 +923,37 @@ class MerklemapTailSettings(BaseSettings):
     )
 
 
+class PhishDestroyArchiveSettings(BaseSettings):
+    """Settings for the PhishDestroy ScamIntelLogs archive ingestion (Sprint 2 §2.3)."""
+
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
+
+    commit_sha: str = Field(
+        # Pinned ScamIntelLogs SHA per provenance §4.
+        default="83d0307420fcc865fcb8a34b8c454acbc6d56f1f",
+        validation_alias=AliasChoices(
+            "PHISHDESTROY_ARCHIVE_COMMIT_SHA",
+            "PHISHDESTROY__ARCHIVE__COMMIT_SHA",
+        ),
+    )
+    archive_root: str = Field(
+        # Path to a checkout of phishdestroy/ScamIntelLogs.
+        # Local dev: set in settings.local.toml or I4G_PHISHDESTROY__ARCHIVE__ARCHIVE_ROOT.
+        default="",
+        validation_alias=AliasChoices(
+            "PHISHDESTROY_ARCHIVE_ARCHIVE_ROOT",
+            "PHISHDESTROY__ARCHIVE__ARCHIVE_ROOT",
+        ),
+    )
+    report_dir: str = Field(
+        default="data/reports/phishdestroy",
+        validation_alias=AliasChoices(
+            "PHISHDESTROY_ARCHIVE_REPORT_DIR",
+            "PHISHDESTROY__ARCHIVE__REPORT_DIR",
+        ),
+    )
+
+
 class PhishDestroySettings(BaseSettings):
     """Top-level PhishDestroy integration settings."""
 
@@ -930,3 +961,4 @@ class PhishDestroySettings(BaseSettings):
 
     destroylist: PhishDestroyDestroylistSettings = Field(default_factory=PhishDestroyDestroylistSettings)
     merklemap_tail: MerklemapTailSettings = Field(default_factory=MerklemapTailSettings)
+    archive: PhishDestroyArchiveSettings = Field(default_factory=PhishDestroyArchiveSettings)
