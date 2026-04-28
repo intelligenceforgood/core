@@ -166,6 +166,18 @@ def _ingest_infrastructure(
             )
             indicator_ids = []
 
+        if not indicator_ids:
+            # Phase D contract: when brand + panel_url are set but no indicator matches,
+            # emit one skipped count and an INFO log. Brand linkage requires entity
+            # resolution which lands in Sprint 3 (PRD §5.5).
+            brand_impersonations_skipped = 1
+            LOGGER.info(
+                "brand_impersonation_skipped reason=no_matching_indicator team=%s domain=%s brand=%s",
+                _TEAM_NAME,
+                panel_url,
+                _TEAM_CONFIG.brand,
+            )
+
         for indicator_id in indicator_ids:
             bi_record_id = f"{_TEAM_NAME}/iocs.json#brand/{indicator_id}"
             bi_provenance = build_infra_provenance(team=_TEAM_NAME, record_id=bi_record_id, ctx=ctx)
@@ -175,6 +187,7 @@ def _ingest_infrastructure(
                 ctx.brand_impersonation_store.upsert_by_indicator_brand(
                     indicator_id=indicator_id,
                     brand=_TEAM_CONFIG.brand,
+                    detected_by="phishdestroy.archive.team_config",
                     source_provenance=bi_provenance,
                 )
                 if already_exists:

@@ -55,15 +55,20 @@ class TestTrustWalletPanelPhaseDCounts:
         assert summary.counts["financial_damage_claims_unchanged"] == 0
         assert summary.counts["financial_damage_claims_skipped"] == 0
 
-    def test_brand_impersonations_zero_when_no_matching_indicators(self, tmp_path: Path) -> None:
-        """No indicators in DB for panel_url → all brand_impersonations_* must be 0."""
+    def test_brand_impersonations_skipped_when_no_matching_indicators(self, tmp_path: Path) -> None:
+        """No indicators in DB for panel_url → skipped == 1, inserted/updated == 0 (Phase D contract).
+
+        Brand linkage requires entity resolution (Sprint 3, PRD §5.5); when no indicator
+        currently exists for the panel domain the adapter MUST surface this as a skip rather
+        than a parse failure.
+        """
         ctx = _make_ctx(tmp_path)
         summary = ingest_team_archive(FIXTURE_DIR, ctx)
 
         assert summary.status == "ok"
         assert summary.counts["brand_impersonations_inserted"] == 0
         assert summary.counts["brand_impersonations_updated"] == 0
-        assert summary.counts["brand_impersonations_skipped"] == 0
+        assert summary.counts["brand_impersonations_skipped"] == 1
 
     def test_all_phase_d_keys_present(self, tmp_path: Path) -> None:
         """All seven Phase D count keys must exist in the summary counts dict."""
