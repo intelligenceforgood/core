@@ -13,7 +13,7 @@
 |-------|-------|
 | Subject | {{ subject | default("N/A") }} |
 | Case Reference(s) | {{ case_references | join(", ") if case_references else "N/A" }} |
-| Period of Activity | {{ period_start }} – {{ period_end }} |
+| Period of Activity | {{ period_start }} â€“ {{ period_end }} |
 | Total Estimated Loss | ${{ "{:,.2f}".format(total_loss) if total_loss else "0.00" }} |
 | Jurisdiction(s) | {{ jurisdictions | join(", ") if jurisdictions else "N/A" }} |
 
@@ -52,6 +52,60 @@ _No entities identified._
 {% endif %}
 
 ---
+
+{% if enable_sprint2_features %}
+## Threat Infrastructure
+
+{% if infrastructure %}
+{% for infra in infrastructure %}
+### {{ infra.domain }}
+- **Tech Stack:** {{ infra.tech_stack | join(", ") }}
+- **Auth Model:** {{ infra.auth_model }}
+{% endfor %}
+{% else %}
+_No infrastructure profile data available._
+{% endif %}
+
+---
+
+## Brand Impersonation
+
+{% if brands %}
+{% for brand in brands %}
+- **{{ brand.name }}** (Confidence: {{ brand.confidence }})
+{% endfor %}
+{% else %}
+_No brand impersonation detected._
+{% endif %}
+
+---
+
+## Financial Damage Ledger
+
+{% if damage_ledger %}
+{% for entry in damage_ledger %}
+- **{{ entry.currency }}**: Claimed {{ entry.claimed }}, Confirmed {{ entry.confirmed }}
+{% endfor %}
+{% else %}
+_No damage ledger data available._
+{% endif %}
+
+---
+
+## Chat Session Logs
+
+{% if chat_sessions %}
+{% for chat in chat_sessions %}
+### Session {{ chat.session_id }}
+- **Participants:** {{ chat.participants | join(", ") }}
+- **Transcript:** {{ chat.transcript_snippet }}...
+{% endfor %}
+{% else %}
+_No chat session logs available._
+{% endif %}
+
+---
+{% endif %}
 
 ## Evidence Exhibits
 
@@ -117,4 +171,4 @@ each artifact is verifiable via the SHA-256 hashes listed in the Integrity Manif
 
 ---
 
-_{{ tlp | default("TLP:RED") }} — Distribution restricted to law enforcement and authorized judicial entities only._
+_{{ tlp | default("TLP:RED") }} â€” Distribution restricted to law enforcement and authorized judicial entities only._
