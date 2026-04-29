@@ -124,6 +124,8 @@ def ingest_team_archive(
         iocs_team = team
 
     adapter_cls = registry.get(iocs_team)
+    if adapter_cls is None and fmt == TeamFormat.FLAT_FILES:
+        adapter_cls = registry.get(TeamFormat.FLAT_FILES)
     if adapter_cls is None:
         # Known format but no adapter registered for this team.
         error_msg = f"No adapter registered for team={iocs_team!r} (format={fmt.value})"

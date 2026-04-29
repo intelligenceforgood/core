@@ -31,6 +31,7 @@ from i4g.ingestion.phishdestroy.archive.trustwalletpanel import TrustWalletPanel
 # Default registry exposed for use by the worker and CLI.
 ARCHIVE_ADAPTER_REGISTRY: dict[str, type[TeamAdapter]] = {
     TrustWalletPanelAdapter.team_name: TrustWalletPanelAdapter,
+    "SyntheticThefts": TrustWalletPanelAdapter,
     TeamFormat.FLAT_FILES: FlatFilesAdapter,
 }
 

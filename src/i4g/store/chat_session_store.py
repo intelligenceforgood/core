@@ -162,6 +162,16 @@ class ChatSessionStore:
                     "updated_at": now,
                 }
                 session.execute(sa.insert(tbl).values(row))
+                session.execute(
+                    sa.insert(sql_schema.audit_log).values(
+                        audit_id=str(uuid.uuid4()),
+                        actor="system",
+                        action="ingest_pii",
+                        resource_type="chat_session",
+                        resource_id=sid,
+                        created_at=now,
+                    )
+                )
             else:
                 sid = existing._mapping["session_id"]
                 session.execute(
@@ -182,6 +192,16 @@ class ChatSessionStore:
                         metadata_json=metadata_json,
                         source_provenance=source_provenance,
                         updated_at=now,
+                    )
+                )
+                session.execute(
+                    sa.insert(sql_schema.audit_log).values(
+                        audit_id=str(uuid.uuid4()),
+                        actor="system",
+                        action="ingest_pii",
+                        resource_type="chat_session",
+                        resource_id=sid,
+                        created_at=now,
                     )
                 )
             session.commit()
