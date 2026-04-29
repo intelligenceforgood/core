@@ -18,6 +18,9 @@ class TeamFormat(StrEnum):
     SCAMINTELLOGS_V1 = "scamintellogs_v1"
     """iocs.json present at directory root, parses as valid JSON with a top-level 'team' key."""
 
+    FLAT_FILES = "flat_files"
+    """iocs.json is missing, but domains.txt or scammers_login.txt or chat/ is present."""
+
     UNKNOWN = "unknown"
     """iocs.json is missing, unparseable, or lacks the required 'team' key."""
 
@@ -53,6 +56,12 @@ def detect_team_format(team_dir: Path) -> TeamFormat:
     """
     iocs_path = team_dir / "iocs.json"
     if not iocs_path.exists():
+        if (
+            (team_dir / "domains.txt").exists()
+            or (team_dir / "scammers_login.txt").exists()
+            or (team_dir / "chat").is_dir()
+        ):
+            return TeamFormat.FLAT_FILES
         return TeamFormat.UNKNOWN
 
     try:

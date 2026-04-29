@@ -17,6 +17,7 @@ from i4g.ingestion.phishdestroy.archive.evidence import (
     persist_team_blobs,
     predict_storage_uri,
 )
+from i4g.ingestion.phishdestroy.archive.flat_files_adapter import FlatFilesAdapter
 from i4g.ingestion.phishdestroy.archive.runner import IngestArchiveSummary, ingest_team_archive
 from i4g.ingestion.phishdestroy.archive.team_config import (
     DEFAULT_TEAM_BLOB_CONFIG,
@@ -30,6 +31,7 @@ from i4g.ingestion.phishdestroy.archive.trustwalletpanel import TrustWalletPanel
 # Default registry exposed for use by the worker and CLI.
 ARCHIVE_ADAPTER_REGISTRY: dict[str, type[TeamAdapter]] = {
     TrustWalletPanelAdapter.team_name: TrustWalletPanelAdapter,
+    TeamFormat.FLAT_FILES: FlatFilesAdapter,
 }
 
 __all__ = [
@@ -39,6 +41,7 @@ __all__ = [
     "TeamAdapter",
     "TeamFormat",
     "TrustWalletPanelAdapter",
+    "FlatFilesAdapter",
     "UnknownFormatError",
     "build_financial_damage_provenance",
     "detect_team_format",
