@@ -36,6 +36,8 @@ from i4g.store.infrastructure_profile_store import InfrastructureProfileStore
 from i4g.store.ingestion_retry_store import IngestionRetryStore
 from i4g.store.ingestion_run_tracker import IngestionRunTracker
 from i4g.store.intake_store import IntakeStore
+from i4g.store.leak_record_store import LeakRecordStore
+from i4g.store.registrant_pivot_store import RegistrantPivotStore
 from i4g.store.review_store import ReviewStore
 from i4g.store.sql import METADATA
 from i4g.store.sql import session_factory as build_sql_session_factory
@@ -556,6 +558,24 @@ def build_similarity_client():
     return build_llm_client()
 
 
+def build_leak_record_store(db_path: str | Path | None = None) -> LeakRecordStore:
+    """Return a :class: aligned with the structured backend."""
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return LeakRecordStore(session_factory=build_sql_session_factory())
+    return LeakRecordStore(db_path=db_path)
+
+
+def build_registrant_pivot_store(db_path: str | Path | None = None) -> RegistrantPivotStore:
+    """Return a :class: aligned with the structured backend."""
+    settings = get_settings()
+    backend = settings.storage.structured_backend
+    if backend == "cloudsql":
+        return RegistrantPivotStore(session_factory=build_sql_session_factory())
+    return RegistrantPivotStore(db_path=db_path)
+
+
 __all__ = [
     "build_fraud_classifier",
     "build_llm_client",
@@ -583,6 +603,8 @@ __all__ = [
     "build_actor_identity_edge_store",
     "build_blocklist_hit_store",
     "build_domain_discovery_store",
+    "build_leak_record_store",
+    "build_registrant_pivot_store",
     "build_analytics_store",
     "build_annotation_store",
     "build_inference_client",

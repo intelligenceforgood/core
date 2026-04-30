@@ -1296,6 +1296,57 @@ sa.Index("idx_brand_impersonations_brand", brand_impersonations.c.brand)
 sa.Index("idx_brand_impersonations_indicator_id", brand_impersonations.c.indicator_id)
 
 
+# ---------------------------------------------------------------------------
+# PhishDestroy Sprint 3: Actor Graph & Enrichment
+# ---------------------------------------------------------------------------
+
+leak_records = sa.Table(
+    "leak_records",
+    METADATA,
+    sa.Column("leak_id", UUID_TYPE, primary_key=True),
+    sa.Column(
+        "actor_id",
+        UUID_TYPE,
+        sa.ForeignKey("threat_actors.actor_id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column("breach_name", sa.Text(), nullable=False),
+    sa.Column("email", sa.Text(), nullable=True),
+    sa.Column("password_cleartext", sa.Text(), nullable=True),
+    sa.Column("password_hash", sa.Text(), nullable=True),
+    sa.Column("ip_address", sa.Text(), nullable=True),
+    sa.Column("leak_date", TIMESTAMP, nullable=True),
+    sa.Column("metadata_json", JSON_TYPE, nullable=True),
+    sa.Column("source_provenance", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+)
+sa.Index("idx_leak_records_actor_id", leak_records.c.actor_id)
+sa.Index("idx_leak_records_breach", leak_records.c.breach_name)
+
+registrant_pivots = sa.Table(
+    "registrant_pivots",
+    METADATA,
+    sa.Column("pivot_id", UUID_TYPE, primary_key=True),
+    sa.Column("pivot_type", sa.Text(), nullable=False),
+    sa.Column("pivot_value", sa.Text(), nullable=False),
+    sa.Column(
+        "actor_id",
+        UUID_TYPE,
+        sa.ForeignKey("threat_actors.actor_id", ondelete="CASCADE"),
+        nullable=True,
+    ),
+    sa.Column("first_seen_at", TIMESTAMP, nullable=True),
+    sa.Column("last_seen_at", TIMESTAMP, nullable=True),
+    sa.Column("metadata_json", JSON_TYPE, nullable=True),
+    sa.Column("source_provenance", JSON_TYPE, nullable=True),
+    sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.Column("updated_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.UniqueConstraint("pivot_type", "pivot_value", name="uq_registrant_pivots_type_value"),
+)
+sa.Index("idx_registrant_pivots_actor_id", registrant_pivots.c.actor_id)
+
+
 def session_factory(
     *,
     settings: Settings | None = None,
