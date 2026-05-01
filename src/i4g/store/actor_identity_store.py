@@ -107,6 +107,17 @@ class ActorIdentityStore:
             result = session.execute(sa.select(tbl).where(tbl.c.identity_id == identity_id)).first()
             return dict(result._mapping)
 
+    def find_by_handle(self, platform: str, handle: str) -> dict[str, Any] | None:
+        """Find an actor identity by platform and handle."""
+        tbl = sql_schema.actor_identities
+        with self._session_factory() as session:
+            row = session.execute(
+                sa.select(tbl).where(sa.and_(tbl.c.platform == platform, tbl.c.handle == handle))
+            ).first()
+            if row is None:
+                return None
+            return dict(row._mapping)
+
     def list_by_actor(self, actor_id: str, *, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
         """List all identities for a given actor."""
         tbl = sql_schema.actor_identities

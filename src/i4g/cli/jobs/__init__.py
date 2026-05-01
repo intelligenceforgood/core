@@ -250,3 +250,16 @@ def jobs_backup_db() -> None:
     from i4g.worker.jobs import backup_db
 
     _exit_from_return(backup_db.main())
+
+
+@jobs_app.command("ingest-phishdestroy-actors", help="Ingest PhishDestroy actors from data.json and registrants.json.")
+def jobs_ingest_phishdestroy_actors(
+    data_path: Path | None = typer.Option(
+        None,
+        "--path",
+        help="Override path to DestroyScammers/data/data.json.",
+    ),
+) -> None:
+    from i4g.worker.jobs import phishdestroy_actors
+
+    _exit_from_return(phishdestroy_actors.main(data_path=data_path))

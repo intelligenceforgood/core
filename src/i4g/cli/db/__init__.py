@@ -336,6 +336,8 @@ _WIPE_TABLE_ORDER: list[str] = [
     "financial_damage_claims",
     "infrastructure_profiles",
     "chat_sessions",
+    "leak_records",
+    "registrant_pivots",
     "actor_identity_edges",
     "actor_identities",
     "threat_actors",
