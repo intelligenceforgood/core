@@ -907,6 +907,20 @@ class MerklemapTailSettings(BaseSettings):
             "PHISHDESTROY__MERKLEMAP_TAIL__BRAND_REGEXES",
         ),
     )
+
+    protected_brands: list[str] = Field(
+        default_factory=lambda: [
+            "trustwallet",
+            "coinbase",
+            "ledger",
+            "metamask",
+            "phantom",
+            "uniswap",
+            "kraken",
+            "binance",
+        ],
+    )
+    typosquat_threshold: int = Field(default=2)
     batch_size: int = Field(
         default=100,
         validation_alias=AliasChoices(

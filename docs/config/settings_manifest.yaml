@@ -1907,3 +1907,23 @@ fields:
   - PHISHDESTROY_ARCHIVE_PARSE_FAILURE_RATE_THRESHOLD
   - PHISHDESTROY__ARCHIVE__PARSE_FAILURE_RATE_THRESHOLD
   description: Sprint 2 §7 acceptance gate. The ingest-archive-all worker exits 3 when unknown_format_teams / total_teams exceeds this value. Range [0.0, 1.0].
+- path: phishdestroy.merklemap_tail.protected_brands
+  section: phishdestroy
+  type: list[str]
+  default:
+  - trustwallet
+  - coinbase
+  - ledger
+  - metamask
+  - phantom
+  - uniswap
+  - kraken
+  - binance
+  env_vars: []
+  description: List of protected brands for typosquat checks
+- path: phishdestroy.merklemap_tail.typosquat_threshold
+  section: phishdestroy
+  type: int
+  default: 2
+  env_vars: []
+  description: Maximum Levenshtein distance for typosquat matches

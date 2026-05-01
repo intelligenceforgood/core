@@ -26,10 +26,29 @@ import uuid
 from datetime import UTC, datetime
 
 from i4g.clients.merklemap import DomainDiscovery, tail
-from i4g.services.factories import build_domain_discovery_store, build_ssi_store
+from i4g.services.factories import build_blocklist_hit_store, build_domain_discovery_store, build_ssi_store
 from i4g.settings import get_settings
+from i4g.store.blocklist_hit_store import BlocklistHitStore
 from i4g.store.domain_discovery_store import DomainDiscoveryStore
 from i4g.worker.logging import configure_job_logging
+
+
+def levenshtein(s1: str, s2: str) -> int:
+    if len(s1) < len(s2):
+        return levenshtein(s2, s1)
+    if len(s2) == 0:
+        return len(s1)
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+    return previous_row[-1]
+
 
 LOGGER = logging.getLogger("i4g.worker.jobs.merklemap_tail")
 
@@ -159,6 +178,9 @@ async def _run(
     brand_patterns = [re.compile(p, re.IGNORECASE) for p in cfg.brand_regexes]
 
     discovery_store = build_domain_discovery_store()
+    blocklist_store = build_blocklist_hit_store()
+    protected_brands = getattr(cfg, "protected_brands", [])
+    typosquat_threshold = getattr(cfg, "typosquat_threshold", 2)
 
     events_total = 0
     matches_total = 0
@@ -179,13 +201,19 @@ async def _run(
     last_flush = start_time
 
     def _log_counters(reason: str) -> None:
+        elapsed_hours = max((time.monotonic() - start_time) / 3600.0, 0.0001)
+        scans_per_hour = scans_enqueued_total / elapsed_hours
+        fpr = (scan_failures_total / matches_total) if matches_total > 0 else 0.0
         LOGGER.info(
-            "merklemap-tail counters (%s): events=%d matches=%d scans_enqueued=%d scan_failures=%d",
+            "merklemap-tail counters (%s): events=%d matches=%d scans_enqueued=%d scan_failures=%d "
+            "fpr=%.3f scans/hr=%.1f",
             reason,
             events_total,
             matches_total,
             scans_enqueued_total,
             scan_failures_total,
+            fpr,
+            scans_per_hour,
         )
 
     LOGGER.info(
@@ -207,7 +235,10 @@ async def _run(
             is_match, enqueued_ok = _handle_event(
                 event=event,
                 brand_patterns=brand_patterns,
+                protected_brands=protected_brands,
+                typosquat_threshold=typosquat_threshold,
                 discovery_store=discovery_store,
+                blocklist_store=blocklist_store,
             )
             events_total += 1
             if is_match:
@@ -238,7 +269,10 @@ def _handle_event(
     *,
     event: DomainDiscovery,
     brand_patterns: list[re.Pattern[str]],
+    protected_brands: list[str],
+    typosquat_threshold: int,
     discovery_store: DomainDiscoveryStore,
+    blocklist_store: BlocklistHitStore,
 ) -> tuple[bool, bool]:
     """Insert one discovery row and, on brand match, trigger a passive SSI scan.
 
@@ -246,9 +280,36 @@ def _handle_event(
         Tuple of ``(is_match, enqueued_ok)``. ``enqueued_ok`` is ``False`` for
         non-matches and for matches whose trigger call returned ``None``.
     """
-    matched = [p for p in brand_patterns if p.search(event.domain)]
-    is_match = bool(matched)
-    filter_reason = "|".join(p.pattern for p in matched)[:200] if is_match else None
+    domain = event.domain.lower()
+
+    matched = [p for p in brand_patterns if p.search(domain)]
+
+    # 1. Typosquat
+    domain_parts = domain.split(".")
+    base_name = domain_parts[0] if len(domain_parts) > 1 else domain
+    if domain.startswith("www.") and len(domain_parts) > 2:
+        base_name = domain_parts[1]
+
+    is_typosquat = False
+    for brand in protected_brands:
+        if levenshtein(base_name, brand.lower()) <= typosquat_threshold:
+            is_typosquat = True
+            break
+
+    # 2. Blocklist
+    hits = blocklist_store.list_by_indicator(domain, limit=1)
+    has_blocklist_hit = len(hits) > 0
+
+    reasons = []
+    if matched:
+        reasons.append("brand-regex")
+    if is_typosquat:
+        reasons.append("typosquat")
+    if has_blocklist_hit:
+        reasons.append("blocklist")
+
+    is_match = len(reasons) > 0
+    filter_reason = "|".join(reasons)[:200] if is_match else None
 
     seen_at = datetime.fromtimestamp(event.first_seen_unix, tz=UTC)
     row = discovery_store.insert(
