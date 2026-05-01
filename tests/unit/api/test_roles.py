@@ -29,7 +29,14 @@ class TestRoleEnum:
             Role("superuser")
 
     def test_role_hierarchy_admin_has_all(self):
-        assert ROLE_HIERARCHY[Role.ADMIN] == {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.MANAGER, Role.LEO}
+        assert ROLE_HIERARCHY[Role.ADMIN] == {
+            Role.RESEARCHER,
+            Role.USER,
+            Role.ANALYST,
+            Role.SENIOR_ANALYST,
+            Role.MANAGER,
+            Role.LEO,
+        }
 
     def test_role_hierarchy_analyst_has_user(self):
         assert ROLE_HIERARCHY[Role.ANALYST] == {Role.RESEARCHER, Role.USER}

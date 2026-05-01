@@ -115,8 +115,6 @@ class TestGetActorRBAC:
                 data = resp.json()
                 assert data["actor"]["realName"] == "John Doe"
 
-                mock_audit.assert_called_once_with(
-                    "user1", "threat_actor_detail", actor_row["actor_id"], "HeaderReason"
-                )
+                mock_audit.assert_called_once_with("user1", "threat_actor", actor_row["actor_id"], "HeaderReason")
         finally:
             app.dependency_overrides.pop(require_token, None)

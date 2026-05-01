@@ -207,34 +207,35 @@ def get_actor(
     is_senior = has_role(user.get("role", ""), Role.SENIOR_ANALYST.value)
     final_reason = reason or x_reason
 
-    pii_accessed = False
+    logs_to_emit = []
 
     if actor_row.get("real_name"):
         if is_senior:
-            pii_accessed = True
+            logs_to_emit.append(("threat_actor", actor_id))
         else:
             actor_row["real_name"] = None
 
     for leak in leaks:
         if leak.get("password_cleartext"):
             if is_senior:
-                pii_accessed = True
+                logs_to_emit.append(("leak_record", leak["leak_id"]))
             else:
                 leak["password_cleartext"] = None
 
     for chat in chats:
         if chat.get("transcript") or chat.get("messages"):
             if is_senior:
-                pii_accessed = True
+                logs_to_emit.append(("chat_session", chat["session_id"]))
             else:
                 chat["transcript"] = None
                 if "messages" in chat:
                     chat["messages"] = None
 
-    if pii_accessed:
+    if logs_to_emit:
         if not final_reason:
             raise HTTPException(status_code=400, detail="Reason code required for PII access")
-        _log_pii_access(user["username"], "threat_actor_detail", actor_id, final_reason)
+        for r_type, r_id in logs_to_emit:
+            _log_pii_access(user["username"], r_type, r_id, final_reason)
 
     return ActorDetailResponse(
         actor=ThreatActorRow(**actor_row),
