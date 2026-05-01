@@ -27,6 +27,7 @@ from i4g.api.intelligence import router as intelligence_router
 from i4g.api.investigations import router as investigations_router
 from i4g.api.middleware.engagement import EngagementScopeMiddleware
 from i4g.api.partner_feed import router as partner_feed_router
+from i4g.api.phishdestroy_actors import router as phishdestroy_actors_router
 from i4g.api.phishdestroy_discoveries import router as phishdestroy_discoveries_router
 from i4g.api.reports import router as reports_router
 from i4g.api.response_models import TaskStatusResponse, TaskUpdateResponse
@@ -256,6 +257,7 @@ def create_app() -> FastAPI:
     app.include_router(taxonomy_router)
     app.include_router(partner_feed_router)
     app.include_router(phishdestroy_discoveries_router)
+    app.include_router(phishdestroy_actors_router)
     app.include_router(task_router)
 
     # Serve artifacts

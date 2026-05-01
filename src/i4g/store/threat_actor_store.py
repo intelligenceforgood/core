@@ -98,6 +98,38 @@ class ThreatActorStore:
                 return None
             return dict(result._mapping)
 
+    def list_actors(
+        self,
+        *,
+        role: str | None = None,
+        campaign_id: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        min_confidence: float | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[dict[str, Any]]:
+        """List threat actors with optional filtering."""
+        tbl = sql_schema.threat_actors
+        stmt = sa.select(tbl)
+
+        if role:
+            stmt = stmt.where(tbl.c.role == role)
+        if campaign_id:
+            stmt = stmt.where(tbl.c.campaign_id == campaign_id)
+        if since:
+            stmt = stmt.where(tbl.c.last_seen_at >= since)
+        if until:
+            stmt = stmt.where(tbl.c.last_seen_at <= until)
+        if min_confidence is not None:
+            stmt = stmt.where(tbl.c.confidence >= min_confidence)
+
+        stmt = stmt.order_by(tbl.c.created_at.desc()).limit(limit).offset(offset)
+
+        with self._session_factory() as session:
+            rows = session.execute(stmt).fetchall()
+            return [dict(r._mapping) for r in rows]
+
     def list_by_campaign(self, campaign_id: str, *, limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:
         """List threat actors associated with a campaign."""
         tbl = sql_schema.threat_actors

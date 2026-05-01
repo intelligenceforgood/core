@@ -25,6 +25,7 @@ class Role(StrEnum):
     RESEARCHER = "researcher"
     USER = "user"
     ANALYST = "analyst"
+    SENIOR_ANALYST = "senior_analyst"
     MANAGER = "manager"
     ADMIN = "admin"
     LEO = "leo"
@@ -40,9 +41,10 @@ ROLE_HIERARCHY: dict[Role, set[Role]] = {
     Role.RESEARCHER: set(),
     Role.USER: {Role.RESEARCHER},
     Role.ANALYST: {Role.RESEARCHER, Role.USER},
-    Role.MANAGER: {Role.RESEARCHER, Role.USER, Role.ANALYST},
-    Role.LEO: {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.MANAGER},
-    Role.ADMIN: {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.MANAGER, Role.LEO},
+    Role.SENIOR_ANALYST: {Role.RESEARCHER, Role.USER, Role.ANALYST},
+    Role.MANAGER: {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.SENIOR_ANALYST},
+    Role.LEO: {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.SENIOR_ANALYST, Role.MANAGER},
+    Role.ADMIN: {Role.RESEARCHER, Role.USER, Role.ANALYST, Role.SENIOR_ANALYST, Role.MANAGER, Role.LEO},
 }
 
 
