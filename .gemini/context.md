@@ -1,6 +1,12 @@
-# Copilot Instructions for i4g/core
+# Gemini Code Assist Context for i4g/core
 
-**Unified Workspace Context:** This repository is part of the `i4g` multi-root workspace. Shared coding standards, routines, and platform context live in the `copilot/` repo. These instructions contain only repo-specific context.
+**Unified Workspace Context:** This repository is part of the `i4g` multi-root workspace. Shared coding standards, routines, and platform context live in the `gemini` repo's styles directory. These instructions contain only repo-specific context.
+
+## GCA Framework & Workflows
+
+- **Agent Mode Management:** Keep Agent Mode **OFF** for standard queries, isolated code reviews, and planning to conserve quota. Toggle **ON** strictly for autonomous multi-file execution or terminal tasks.
+- **Standardized Prompts:** Use the standard VSCode snippets (`gca-plan`, `gca-prd`, `gca-impl`, `gca-work`) to trigger routine workflows.
+- **Global Standards:** Broad coding conventions are referenced from `.gemini/styles/` (symlinked to the `gemini` repository).
 
 ## Environment
 
@@ -26,7 +32,7 @@ Use `--skip-*` flags on bootstrap for partial rebuilds. Call out if tests are sk
 - **Background jobs:** `src/i4g/worker/jobs/*` and `src/i4g/worker/tasks.py` (e.g., `generate_report_for_case`)
 - **Settings:** `i4g.settings.get_settings()` — nested sections via `I4G_*` env vars (double underscores for nesting); never hard-code paths
 - **Store builders:** `src/i4g/services/factories.py` — use for structured/review/vector/intake/evidence stores
-- **Read `copilot/.github/shared/architecture-cheatsheet.instructions.md`** at session start — covers UI↔API proxy routing, auth model per environment, SSI↔Core integration, storage flows, and common pitfalls.
+- **Read global styles** in `.gemini/styles/` at session start — covers UI↔API proxy routing, auth model per environment, SSI↔Core integration, storage flows, and common pitfalls.
 
 ## Environment Profiles
 
@@ -60,7 +66,7 @@ conda run -n i4g pre-commit run --all-files   # Pass 2 — must exit clean
 
 - Python: full type hints, Google-style docstrings, Black/isort at 120-char lines
 - Pydantic: `snake_case` internally, `alias_generator = to_camel` for JSON — never write manual translation functions
-- Follow `copilot/.github/shared/general-coding.instructions.md` for complete language standards
+- Follow the rules in `.gemini/styles/` for complete language and project standards.
 
 ## External Integrations
 
@@ -75,6 +81,7 @@ When adding/changing settings or job envs: (a) add coverage under `tests/unit/se
 ## Post-Sprint Deliverables
 
 After each sprint, deliver:
+
 - **Task checkboxes:** Check off (`- [x]`) every completed task in the plan file immediately
 - **Manual steps:** Exact commands (e.g., `i4g db migrate dev` / `i4g db migrate prod` for Alembic migrations, Cloud Run deploys)
 - **Risk assessment:** Breaking-change risks + validation tests to run locally and on dev
