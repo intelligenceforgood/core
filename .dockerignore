@@ -1,27 +1,35 @@
-__pycache__
-*.pyc
-*.pyo
-*.pyd
-*.sqlite
-*.db
-*.log
-*.pem
-*.key
-*.crt
+# Exclude everything first, then whitelist
+**
 
-.git
-.gitignore
-.env*
-.idea
-.vscode
-.mypy_cache
-.pytest_cache
-
-# Local data and model artifacts
-/data/
-!data/retrieval_poc
+# Whitelist what the Dockerfile needs
+!pyproject.toml
+!README.md
+!VERSION.txt
+!LICENSE
+!src/
+!config/
+!templates/
+!alembic.ini
+!data/backups/backup_local_20260409T233135Z.tar.gz
+!data/retrieval_poc/
 !data/retrieval_poc/**
-/notebooks/
-/chroma_store/
-/faiss_store/
+!docker/
+
+# Re-exclude caches and local artifacts inside whitelisted dirs
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/*.sqlite
+**/*.db
+**/*.log
+**/*.pem
+**/*.key
+**/*.crt
+**/.env*
 config/settings.local.toml
+.git/
+.idea/
+.vscode/
