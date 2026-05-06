@@ -421,7 +421,12 @@ site_scans = sa.Table(
     sa.Column("domain", sa.Text(), nullable=True),
     sa.Column("scan_type", sa.Text(), nullable=False, server_default="passive"),  # passive | active | full
     sa.Column("status", sa.Text(), nullable=False, server_default="pending"),
-    sa.Column("passive_result", JSON_TYPE, nullable=True),
+    sa.Column(
+        "passive_result",
+        JSON_TYPE,
+        nullable=True,
+        comment="Includes WHOIS, DNS, SSL, and google_osint (Gaia IDs, probable locations, activated services)",
+    ),
     sa.Column("active_result", JSON_TYPE, nullable=True),
     sa.Column("classification_result", JSON_TYPE, nullable=True),
     sa.Column("risk_score", sa.Numeric(5, 1), nullable=True),

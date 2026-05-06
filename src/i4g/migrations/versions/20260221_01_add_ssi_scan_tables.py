@@ -46,7 +46,12 @@ def upgrade() -> None:
             sa.Column("domain", sa.Text(), nullable=True),
             sa.Column("scan_type", sa.Text(), nullable=False, server_default="passive"),
             sa.Column("status", sa.Text(), nullable=False, server_default="pending"),
-            sa.Column("passive_result", sa.JSON(), nullable=True),
+            sa.Column(
+                "passive_result",
+                sa.JSON(),
+                nullable=True,
+                comment="Includes WHOIS, DNS, SSL, and google_osint (Gaia IDs, probable locations, activated services)",
+            ),
             sa.Column("active_result", sa.JSON(), nullable=True),
             sa.Column("classification_result", sa.JSON(), nullable=True),
             sa.Column("risk_score", sa.Numeric(5, 1), nullable=True),
