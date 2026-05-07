@@ -98,13 +98,6 @@ class ThreatActorStore:
                 return None
             return dict(result._mapping)
 
-    def count_actors(self) -> int:
-        """Return the total number of threat actors."""
-        tbl = sql_schema.threat_actors
-        with self._session_factory() as session:
-            result = session.execute(sa.select(sa.func.count(tbl.c.actor_id))).scalar()
-            return result or 0
-
     def list_actors(
         self,
         *,

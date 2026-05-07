@@ -132,14 +132,6 @@ class ActorIdentityStore:
             rows = session.execute(stmt).fetchall()
             return [dict(r._mapping) for r in rows]
 
-    def list_all_identities(self, *, limit: int = 1000, offset: int = 0) -> list[dict[str, Any]]:
-        """List all actor identities."""
-        tbl = sql_schema.actor_identities
-        stmt = sa.select(tbl).order_by(tbl.c.created_at.asc()).limit(limit).offset(offset)
-        with self._session_factory() as session:
-            rows = session.execute(stmt).fetchall()
-            return [dict(r._mapping) for r in rows]
-
     def append_username_history(self, identity_id: str, username: str) -> dict[str, Any] | None:
         """Append a username to the username_history list for an identity.
 
