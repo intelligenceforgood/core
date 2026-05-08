@@ -122,31 +122,84 @@ def _get_recent_activity(session: Session) -> list[dict[str, str]]:
     return activities
 
 
-def _get_alerts(session: Session, engagement_id: str | None = None) -> list[dict[str, str]]:
-    """Get alerts based on high priority cases created recently."""
-    from i4g.store.sql import cases
+def _get_engagement_completion(session: Session, engagement_id: str | None = None) -> dict[str, str]:
+    """Calculate engagement completion percentage."""
+    if not engagement_id:
+        return {"label": "Engagement completion", "value": "N/A", "change": "No engagement selected"}
 
-    base = select(cases.c.case_id, cases.c.classification, cases.c.created_at).where(
-        cases.c.classification.in_(["scam", "fraud", "phishing"])
+    total = session.scalar(select(func.count(cases.c.case_id)).where(cases.c.engagement_id == engagement_id)) or 0
+    if total == 0:
+        return {"label": "Engagement completion", "value": "0%", "change": "0 cases"}
+
+    closed = (
+        session.scalar(
+            select(func.count(cases.c.case_id))
+            .where(cases.c.engagement_id == engagement_id)
+            .where(cases.c.status.in_(["closed", "resolved", "accepted", "rejected"]))
+        )
+        or 0
     )
+    pct = int((closed / total) * 100)
+    return {"label": "Engagement completion", "value": f"{pct}%", "change": f"{closed} of {total} cases closed"}
+
+
+def _get_loss_linkages(session: Session, engagement_id: str | None = None) -> dict[str, str]:
+    """Calculate loss linkages."""
+    from i4g.store.sql import cases, financial_damage_claims
+
+    base = select(func.count(financial_damage_claims.c.claim_id))
     if engagement_id:
-        base = base.where(cases.c.engagement_id == engagement_id)
-    rows = session.execute(base.order_by(desc(cases.c.created_at)).limit(3)).all()
+        base = base.join(cases, cases.c.case_id == financial_damage_claims.c.case_id).where(
+            cases.c.engagement_id == engagement_id
+        )
+
+    count = session.scalar(base) or 0
+    return {"label": "Loss linkages", "value": str(count), "change": "Identified from claims"}
+
+
+def _get_campaign_risk_scores(session: Session, engagement_id: str | None = None) -> dict[str, str]:
+    """Calculate average campaign risk score."""
+    from i4g.store.sql import campaign_stats, cases, threat_campaign_cases
+
+    base = select(func.avg(campaign_stats.c.risk_score))
+    if engagement_id:
+        base = (
+            base.join(threat_campaign_cases, threat_campaign_cases.c.campaign_id == campaign_stats.c.campaign_id)
+            .join(cases, cases.c.case_id == threat_campaign_cases.c.case_id)
+            .where(cases.c.engagement_id == engagement_id)
+        )
+
+    avg_score = session.scalar(base)
+    val = f"{avg_score:.1f}" if avg_score is not None else "0.0"
+    return {"label": "Avg Campaign Risk", "value": val, "change": "Aggregate across active threats"}
+
+
+def _get_alerts(session: Session, engagement_id: str | None = None) -> list[dict[str, str]]:
+    """Get alerts based on high priority cases created recently and active campaigns."""
+    from i4g.store.sql import cases, threat_campaign_cases, threat_campaigns
 
     alerts = []
     now = datetime.now(UTC)
 
-    for row in rows:
+    # 1. High priority cases
+    case_base = select(cases.c.case_id, cases.c.classification, cases.c.created_at).where(
+        cases.c.classification.in_(["scam", "fraud", "phishing"])
+    )
+    if engagement_id:
+        case_base = case_base.where(cases.c.engagement_id == engagement_id)
+    case_rows = session.execute(case_base.order_by(desc(cases.c.created_at)).limit(3)).all()
+
+    for row in case_rows:
         dt = row.created_at
-        if dt.tzinfo is None:
+        if dt and dt.tzinfo is None:
             dt = dt.replace(tzinfo=UTC)
-        diff = now - dt
+        diff = now - dt if dt else timedelta(minutes=5)
         minutes = int(diff.total_seconds() / 60)
         time_str = f"{minutes}m ago"
 
         alerts.append(
             {
-                "id": f"alert-{row.case_id}",
+                "id": f"alert-case-{row.case_id}",
                 "title": f"High confidence {row.classification}",
                 "detail": f"Case {row.case_id} detected recently",
                 "time": time_str,
@@ -154,9 +207,37 @@ def _get_alerts(session: Session, engagement_id: str | None = None) -> list[dict
             }
         )
 
-    if not alerts:
-        # Empty state or generic
-        return []
+    # 2. Campaign alerts
+    campaign_base = select(
+        threat_campaigns.c.campaign_id, threat_campaigns.c.name, threat_campaigns.c.created_at
+    ).where(threat_campaigns.c.status == "active")
+    if engagement_id:
+        campaign_base = (
+            campaign_base.join(
+                threat_campaign_cases, threat_campaign_cases.c.campaign_id == threat_campaigns.c.campaign_id
+            )
+            .join(cases, cases.c.case_id == threat_campaign_cases.c.case_id)
+            .where(cases.c.engagement_id == engagement_id)
+        )
+    campaign_rows = session.execute(campaign_base.order_by(desc(threat_campaigns.c.created_at)).limit(3)).all()
+
+    for row in campaign_rows:
+        dt = row.created_at
+        if dt and dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        diff = now - dt if dt else timedelta(minutes=5)
+        minutes = int(diff.total_seconds() / 60)
+        time_str = f"{minutes}m ago" if minutes < 60 else f"{minutes // 60}h ago"
+
+        alerts.append(
+            {
+                "id": f"alert-campaign-{row.campaign_id}",
+                "title": f"Active Campaign: {row.name}",
+                "detail": f"Campaign {row.campaign_id[:8]} requires attention",
+                "time": time_str,
+                "variant": "warning",
+            }
+        )
 
     return alerts
 
@@ -169,6 +250,9 @@ def get_dashboard_overview(request: Request, session: Session = Depends(get_db_s
         _get_active_investigations(session, engagement_id=engagement_id),
         _get_new_leads(session, engagement_id=engagement_id),
         _get_cases_at_risk(session, engagement_id=engagement_id),
+        _get_engagement_completion(session, engagement_id=engagement_id),
+        _get_loss_linkages(session, engagement_id=engagement_id),
+        _get_campaign_risk_scores(session, engagement_id=engagement_id),
     ]
 
     activity = _get_recent_activity(session)
