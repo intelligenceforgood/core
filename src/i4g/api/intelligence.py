@@ -2381,7 +2381,7 @@ class ChartShareResponse(CamelModel):
 @router.post("/charts/share", response_model=ChartShareResponse, status_code=201)
 def create_chart_share_token(
     body: ChartShareRequest,
-    user: str = Depends(require_token),
+    user: dict[str, str] = Depends(require_token),
 ) -> ChartShareResponse:
     """Create a time-limited shareable token for a chart configuration.
 
@@ -2405,12 +2405,14 @@ def create_chart_share_token(
         now = datetime.now(UTC)
         expires_at = now + timedelta(hours=body.expires_in_hours)
 
+        username = user.get("username", "unknown")
+
         session.execute(
             chart_share_tokens.insert().values(
                 token_id=token_id,
                 chart_type=body.chart_type,
                 chart_config=body.chart_config,
-                created_by=user,
+                created_by=username,
                 expires_at=expires_at,
                 created_at=now,
             )
