@@ -21,7 +21,7 @@ The PhishDestroy upstream repositories (ScamIntelLogs, DestroyScammers) are peri
 
 API keys for external OSINT providers must be rotated according to organizational policy.
 
-**Providers:** merklemap, whoxy, virustotal, urlscan, GHunt
+**Providers:** merklemap, whoxy, virustotal, urlscan
 
 1. **Generate New Keys**: Obtain new API keys from the respective provider consoles.
 2. **Update Configuration**: Update the secret values. For local development, update `core/config/settings.local.toml` and `ssi/config/settings.local.toml`. For production, update the corresponding Secret Manager bindings.
@@ -41,15 +41,23 @@ A weekly review of PII access must be conducted to ensure compliance.
 2. **Review Justifications**: Ensure that every access event has a valid `reason_code` and was performed by an authorized user (`role=senior_analyst`).
 3. **Report Anomalies**: Report any unauthorized or unjustified access to the security team immediately.
 
-## 4. GHunt Cookie-Expiry Recovery
+## 4. Google OSINT Session Management
 
-The GHunt cookie blob used for Google persona OSINT has a limited lifecycle. When it expires, the `ghunt` module will fail.
+Google persona OSINT (People API, Maps contributions) is now handled natively by SSI
+via browser session cookies extracted at runtime. There is no external GHunt dependency.
 
-1. **Detect Expiry**: Monitor the error rates for the `ghunt` OSINT module. Expiry will manifest as authentication failures.
-2. **Generate New Cookie Blob**:
-   - Run the upstream GHunt authentication script (e.g., `ghunt login`) in an isolated environment.
-   - Follow the prompts to generate a new base64-encoded cookie blob.
-3. **Deploy New Blob**:
-   - For local development, update the `cookie_blob_path` in `ssi/config/settings.local.toml`.
-   - For production, update the `GHUNT_COOKIE_BLOB` secret in Secret Manager.
-4. **Re-enable Module**: If the module was automatically disabled due to repeated failures, ensure it is re-enabled in the configuration.
+**How it works:** During an SSI investigation, the orchestrator extracts Google session
+cookies (`SID`, `HSID`, `SSID`, `APISID`, `SAPISID`) from the browser before it closes.
+If the browser profile is logged into a Google account, these cookies authenticate
+requests to Google internal APIs.
+
+1. **Ensure Browser Profile Is Logged In**: The SSI worker's Chromium profile must have
+   an active Google session. If the session expires, log in manually via the profile
+   or configure persistent login.
+2. **Monitor Failures**: If Google OSINT consistently returns empty results, check the
+   SSI logs for `"Google OSINT: skipping — no valid Google session cookies available"`.
+   This means the browser profile has no active Google session.
+3. **No Secrets Required**: Unlike the old GHunt flow, there is no `GHUNT_COOKIE_BLOB`
+   secret to rotate. Cookies are extracted live from the browser session.
+
+See: `ssi/src/ssi/osint/google/` for implementation details.

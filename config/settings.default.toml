@@ -158,9 +158,8 @@ vertex_ai_data_store = "retrieval-poc"
 # api_key = ""
 # monthly_query_cap = 0                     # 0 = no cap; set budget guardrail when funded
 
-[providers.ghunt]
-# enabled = false
-# cookie_blob_path = ""                     # path to JSON cookie dump (Secret Manager in cloud)
+# [providers.ghunt] — REMOVED: replaced by native Google OSINT scrapers in SSI.
+# Google OSINT now uses browser session cookies extracted at runtime (see ssi/src/ssi/osint/google/).
 
 # ── PhishDestroy ingestion (Sprint 1 §1.4) ────────────────────────────────────
 # Source pin: DestroyScammers @ c40cbbf527dd9e5e232090346e1a8ceab32d1683 (2025-11-30).

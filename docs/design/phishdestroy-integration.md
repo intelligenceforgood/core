@@ -87,8 +87,9 @@ Env-var overrides follow the `I4G_<SECTION>__<KEY>` pattern.
 
 ## Provider Gating
 
-External provider calls (Merklemap API, Whoxy, GHunt) are gated by per-provider
-`enabled` flags in `[providers.*]`. The merklemap-tail worker applies its own
+External provider calls (Merklemap API, Whoxy) are gated by per-provider
+`enabled` flags in `[providers.*]`. Google OSINT runs natively in SSI using
+browser session cookies (see `ssi/src/ssi/osint/google/`). The merklemap-tail worker applies its own
 early-exit check (`cfg.enabled` + `cfg.api_key`) rather than going through
 `ProviderGate` — appropriate for a long-running Cloud Run job whose lifecycle
 is binary ("job exists or it doesn't").
