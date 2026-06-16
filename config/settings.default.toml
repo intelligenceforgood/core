@@ -142,24 +142,6 @@ vertex_ai_data_store = "retrieval-poc"
 # takedown_check_interval_hours = 12
 # takedown_max_urls_per_run = 200
 
-# ── PhishDestroy-integration providers (Sprint 0 gating) ──────────────────────
-# See copilot/.github/shared/phishdestroy-provider-gating.instructions.md
-# Each provider is disabled by default. Flip `enabled = true` after populating
-# the key in settings.local.toml or via Secret Manager (I4G_PROVIDERS__*).
-
-[providers.merklemap]
-# enabled = false
-# api_key = ""                              # paste in settings.local.toml for dev
-# base_url = "https://api.merklemap.com"
-# rate_limit_per_sec = 0                    # 0 = no client-side cap
-
-[providers.whoxy]
-# enabled = false
-# api_key = ""
-# monthly_query_cap = 0                     # 0 = no cap; set budget guardrail when funded
-
-# [providers.ghunt] — REMOVED: replaced by native Google OSINT scrapers in SSI.
-# Google OSINT now uses browser session cookies extracted at runtime (see ssi/src/ssi/osint/google/).
 
 # ── PhishDestroy ingestion (Sprint 1 §1.4) ────────────────────────────────────
 # Source pin: DestroyScammers @ c40cbbf527dd9e5e232090346e1a8ceab32d1683 (2025-11-30).
