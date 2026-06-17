@@ -123,15 +123,20 @@ def enqueue_passive_scan_for_domain(
     }
 
     headers: dict[str, str] = {}
-    try:
-        import google.auth.transport.requests
-        import google.oauth2.id_token
+    is_local_service = any(
+        loc in service_url for loc in ("localhost", "127.0.0.1", "::1")
+    ) or not service_url.startswith("https://")
 
-        auth_request = google.auth.transport.requests.Request()
-        token = google.oauth2.id_token.fetch_id_token(auth_request, audience=service_url)
-        headers["Authorization"] = f"Bearer {token}"
-    except Exception as exc:
-        LOGGER.warning("Could not acquire OIDC token (will attempt without): %s", exc)
+    if not is_local_service:
+        try:
+            import google.auth.transport.requests
+            import google.oauth2.id_token
+
+            auth_request = google.auth.transport.requests.Request()
+            token = google.oauth2.id_token.fetch_id_token(auth_request, audience=service_url)
+            headers["Authorization"] = f"Bearer {token}"
+        except Exception as exc:
+            LOGGER.warning("Could not acquire OIDC token (will attempt without): %s", exc)
 
     try:
         with httpx.Client(timeout=30.0) as client:

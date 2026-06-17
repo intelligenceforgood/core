@@ -146,18 +146,22 @@ def _trigger_cloud_run_service(
     headers: dict[str, str] = {}
 
     # Acquire an OIDC identity token for service-to-service auth.
-    # In local/test environments the google.auth libraries may not be
-    # available — skip the token in that case (the service won't
-    # require it locally).
-    try:
-        import google.auth.transport.requests
-        import google.oauth2.id_token
+    # In local/test environments (e.g. using localhost or http) the service
+    # won't require it, so we skip fetching to avoid warnings.
+    is_local_service = any(
+        loc in service_url for loc in ("localhost", "127.0.0.1", "::1")
+    ) or not service_url.startswith("https://")
 
-        auth_request = google.auth.transport.requests.Request()
-        token = google.oauth2.id_token.fetch_id_token(auth_request, audience=service_url)
-        headers["Authorization"] = f"Bearer {token}"
-    except Exception as exc:
-        logger.warning("Could not acquire OIDC token for SSI service (will attempt without): %s", exc)
+    if not is_local_service:
+        try:
+            import google.auth.transport.requests
+            import google.oauth2.id_token
+
+            auth_request = google.auth.transport.requests.Request()
+            token = google.oauth2.id_token.fetch_id_token(auth_request, audience=service_url)
+            headers["Authorization"] = f"Bearer {token}"
+        except Exception as exc:
+            logger.warning("Could not acquire OIDC token for SSI service (will attempt without): %s", exc)
 
     logger.info("Triggering SSI service at %s for %s (scan_id=%s)", endpoint, url, scan_id)
 
