@@ -33,7 +33,7 @@ We welcome contributions from:
 
 **Prerequisites**:
 
-- Python 3.11+
+- Python 3.13+
 - Docker Desktop
 - Git
 - Ollama (for local LLM testing)

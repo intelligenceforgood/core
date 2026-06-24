@@ -315,7 +315,7 @@ flowchart LR
 
 **Technology Stack**:
 
-- Python 3.11
+- Python 3.13
 - FastAPI 0.104+ (async/await support)
 - LangChain 0.2+ (RAG pipeline)
 - google-cloud-storage (file uploads)
@@ -381,7 +381,7 @@ flowchart LR
 
 **Technology Stack**:
 
-- Python 3.11, FastAPI (port 8100), Playwright + zendriver for browser automation
+- Python 3.13, FastAPI (port 8100), Playwright + zendriver for browser automation
 - Gemini 2.5 Flash for on-page intelligence extraction
 - Cloud Run service, separate from `core-svc` to isolate Chromium resource use and sandbox browser risk
 
@@ -854,7 +854,7 @@ gcloud run services update i4g-api --traffic
 
 ### Backend
 
-- **Language**: Python 3.11
+- **Language**: Python 3.13
 - **Framework**: FastAPI 0.104+ (async, type hints)
 - **ORM**: SQLAlchemy 2.0 + Alembic (migrations)
 - **RAG Pipeline**: LangChain 0.2+ (LCEL composition)

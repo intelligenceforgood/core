@@ -11,7 +11,7 @@
 ## Environment
 
 - **Conda env:** `i4g`
-- **Language:** Python 3.11+ (FastAPI, Pydantic v2, SQLAlchemy)
+- **Language:** Python 3.13+ (FastAPI, Pydantic v2, SQLAlchemy)
 - **All commands prefix:** `conda run -n i4g ...`
 
 ## Build & Test

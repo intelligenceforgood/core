@@ -57,12 +57,12 @@ ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1 DEBIAN_FRONT
 
 WORKDIR /build
 
-# Install Python 3.11 from deadsnakes + build tools
+# Install Python 3.13 from deadsnakes + build tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     software-properties-common gpg-agent \
     && add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update && apt-get install -y --no-install-recommends \
-    python3.11 python3.11-venv python3.11-dev \
+    python3.13 python3.13-venv python3.13-dev \
     build-essential \
     libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 \
     tesseract-ocr libtesseract-dev \
@@ -71,11 +71,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-liberation fonts-noto-cjk libzbar0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Bootstrap pip and set python3.11 as default
-RUN python3.11 -m ensurepip --upgrade \
-    && python3.11 -m pip install --upgrade pip \
-    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
-    && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
+# Bootstrap pip and set python3.13 as default
+RUN python3.13 -m ensurepip --upgrade \
+    && python3.13 -m pip install --upgrade pip \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 1 \
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3.13 1
 
 # Pre-install heavy shared deps
 RUN python -m pip install --no-cache-dir \
@@ -117,14 +117,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     supervisor \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy Python 3.11 + all installed packages from the build stage.
-# deadsnakes installs to /usr/lib/python3.11 and /usr/local/lib/python3.11.
-COPY --from=python-deps /usr/bin/python3.11 /usr/bin/python3.11
-COPY --from=python-deps /usr/lib/python3.11 /usr/lib/python3.11
-COPY --from=python-deps /usr/local/lib/python3.11 /usr/local/lib/python3.11
+# Copy Python 3.13 + all installed packages from the build stage.
+# deadsnakes installs to /usr/lib/python3.13 and /usr/local/lib/python3.13.
+COPY --from=python-deps /usr/bin/python3.13 /usr/bin/python3.13
+COPY --from=python-deps /usr/lib/python3.13 /usr/lib/python3.13
+COPY --from=python-deps /usr/local/lib/python3.13 /usr/local/lib/python3.13
 COPY --from=python-deps /usr/local/bin /usr/local/bin
-RUN ln -sf /usr/bin/python3.11 /usr/bin/python3 \
-    && ln -sf /usr/bin/python3.11 /usr/bin/python \
+RUN ln -sf /usr/bin/python3.13 /usr/bin/python3 \
+    && ln -sf /usr/bin/python3.13 /usr/bin/python \
     && ldconfig
 
 # Install Node.js 20

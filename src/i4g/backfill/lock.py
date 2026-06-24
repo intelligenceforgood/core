@@ -107,7 +107,7 @@ def task_lock(
     sf: sessionmaker,
     *,
     ttl_seconds: int = 3600,
-) -> Generator[str | None, None, None]:
+) -> Generator[str | None]:
     """Context manager that acquires the lock on entry and releases on exit.
 
     Yields the holder_id if acquired, or ``None`` if the lock is already held.

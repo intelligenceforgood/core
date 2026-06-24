@@ -90,7 +90,7 @@ Then configure your local settings to point to `127.0.0.1:5432`.
 ### Prerequisites
 
 - macOS or Linux (Apple Silicon M3 tested)
-- Python ≥ 3.11
+- Python ≥ 3.13
 - Tesseract OCR installed (`brew install tesseract`)
 - Ollama running locally (`ollama serve`) OR use **Mock Mode** (see below) to bypass LLM requirements
 - FAISS (for vector store)

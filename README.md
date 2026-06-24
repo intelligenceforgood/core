@@ -1,7 +1,10 @@
 # i4g/core
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Docs](https://img.shields.io/badge/Docs-Docs%20Hub-green.svg)](docs/README.md)
 [![Tests](https://img.shields.io/badge/Tests-pytest-lightgrey.svg)](tests/README.md)
 
@@ -17,7 +20,7 @@ Backend services, jobs, and documentation for the Intelligence for Good platform
 - Tests: `tests/`
 
 ## Quickstart (local)
-- Prereqs: Conda env `i4g` (see docs), Python 3.11+, Node if running the UI. (Use `I4G_LLM__PROVIDER=mock` to skip local LLM setup).
+- Prereqs: Conda env `i4g` (see docs), Python 3.13+, Node if running the UI. (Use `I4G_LLM__PROVIDER=mock` to skip local LLM setup).
 - Install: `pip install -e .`
 - Seed local data: `conda run -n i4g i4g bootstrap local reset --report-dir data/reports/bootstrap_local`
 - Run API: `uvicorn i4g.api.app:app --reload`

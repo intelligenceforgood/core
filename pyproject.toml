@@ -48,7 +48,7 @@ dynamic = ["version"]
 license = {file = "LICENSE"}
 name = "i4g"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 
 [project.optional-dependencies]
 test = [
@@ -80,7 +80,7 @@ profile = "black"
 
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py313"
 
 [tool.ruff.lint]
 ignore = [

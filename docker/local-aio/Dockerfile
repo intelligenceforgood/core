@@ -42,7 +42,7 @@ ENV I4G_API_URL=http://127.0.0.1:8000 \
 RUN pnpm --filter web build
 
 # ── Stage 2: Python backend (core + ssi) ─────────────────────────────
-FROM python:3.11-slim AS python-deps
+FROM python:3.13-slim AS python-deps
 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PIP_NO_CACHE_DIR=1
 
@@ -77,7 +77,7 @@ COPY ssi/src /build/ssi/src
 RUN pip install --no-cache-dir /build/ssi
 
 # ── Stage 3: Final runtime ───────────────────────────────────────────
-FROM python:3.11-slim AS runtime
+FROM python:3.13-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 
@@ -117,7 +117,7 @@ RUN ollama serve & \
     kill %1 || true
 
 # Copy Python site-packages + binaries from build stage
-COPY --from=python-deps /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=python-deps /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=python-deps /usr/local/bin /usr/local/bin
 
 # Install Playwright Chromium (with system deps) for SSI browser capture
