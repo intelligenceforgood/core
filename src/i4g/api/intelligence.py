@@ -603,7 +603,7 @@ def get_entity_cases(
         case_q = (
             sa.select(
                 cases_t.c.case_id,
-                cases_t.c.title,
+                cases_t.c.description,
                 cases_t.c.status,
                 cases_t.c.classification,
                 cases_t.c.risk_score,
