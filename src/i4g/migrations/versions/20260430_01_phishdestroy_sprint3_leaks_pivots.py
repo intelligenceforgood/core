@@ -1,6 +1,6 @@
 """phishdestroy_sprint3_leaks_pivots
 
-Revision ID: 8e2eaf1a25e9
+Revision ID: 20260430_01
 Revises: 20260427_01
 Create Date: 2026-04-30
 
@@ -16,7 +16,7 @@ from sqlalchemy import inspect
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = "8e2eaf1a25e9"
+revision: str = "20260430_01"
 down_revision: str | None = "20260427_01"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None

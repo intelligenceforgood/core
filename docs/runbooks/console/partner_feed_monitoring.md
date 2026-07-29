@@ -38,7 +38,7 @@ ORDER BY requests DESC;
 
 ### Partner Receives 401
 
-1. Verify key exists: `SELECT key_prefix, is_active, expires_at FROM partner_api_keys`
+1. Verify key exists: `SELECT key_prefix, is_active, expires_at FROM api_keys WHERE key_type = 'partner'`
 2. Check `is_active = true` and `expires_at` is in the future
 3. Confirm partner is using `X-Partner-API-Key` header (not `Authorization`)
 

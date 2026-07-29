@@ -28,7 +28,7 @@ def _isolate(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         monkeypatch.delenv(var, raising=False)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_classify_sends_correct_payload() -> None:
     """classify() sends text+case_id and returns the JSON body."""
     expected = {"prediction_id": "p-1", "labels": {"INTENT": "ROMANCE"}, "confidence": 0.92}
@@ -54,7 +54,7 @@ async def test_classify_sends_correct_payload() -> None:
     assert result == expected
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_classify_raises_on_server_error() -> None:
     """classify() raises HTTPStatusError on 500."""
 
@@ -68,7 +68,7 @@ async def test_classify_raises_on_server_error() -> None:
             resp.raise_for_status()
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_send_feedback_correct_payload() -> None:
     """send_feedback() sends the right fields to /feedback."""
     received: dict = {}
@@ -99,7 +99,7 @@ async def test_send_feedback_correct_payload() -> None:
     assert received["analyst_id"] == "analyst-7"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_classify_uses_configured_base_url() -> None:
     """MLPlatformClient picks up base_url from settings when not overridden."""
     settings = reload_settings(env="local")
@@ -108,7 +108,7 @@ async def test_classify_uses_configured_base_url() -> None:
     assert client._base_url == ""
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_build_inference_client_switches_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     """Factory returns MLPlatformClient when backend is ml_platform."""
     monkeypatch.setenv("I4G_ML__INFERENCE_BACKEND", "ml_platform")
@@ -121,7 +121,7 @@ async def test_build_inference_client_switches_backend(monkeypatch: pytest.Monke
     assert isinstance(client, MLPlatformClient)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_extract_entities_sends_correct_request() -> None:
     """extract_entities() sends text+case_id to /predict/extract-entities."""
     ner_response = {
@@ -158,7 +158,7 @@ async def test_extract_entities_sends_correct_request() -> None:
     assert len(result["entities"]) == 3
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_extract_entities_maps_labels_to_core_schema() -> None:
     """extract_entities() maps NER labels to core entity extraction schema."""
     from i4g.ml.client import _NER_LABEL_TO_ENTITY_KEY
@@ -172,7 +172,7 @@ async def test_extract_entities_maps_labels_to_core_schema() -> None:
     assert _NER_LABEL_TO_ENTITY_KEY["URL"] == "urls"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_extract_entities_deduplicates() -> None:
     """extract_entities() deduplicates entities by value within each key."""
     from i4g.ml.client import MLPlatformClient
@@ -213,7 +213,7 @@ async def test_extract_entities_deduplicates() -> None:
     assert deduped[0]["text"] == "John"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_score_risk_sends_correct_payload() -> None:
     """score_risk() sends text+case_id to /predict/risk-score."""
     expected = {"risk_score": 0.82, "prediction_id": "p-risk-1", "model_info": {"model_id": "risk-xgb"}}
@@ -240,7 +240,7 @@ async def test_score_risk_sends_correct_payload() -> None:
     assert result["prediction_id"] == "p-risk-1"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_find_similar_cases_sends_correct_payload() -> None:
     """find_similar_cases() sends text+case_id+top_k to /predict/similar-cases."""
     expected = {
@@ -274,7 +274,7 @@ async def test_find_similar_cases_sends_correct_payload() -> None:
     assert result["similar_cases"][0]["case_id"] == "case-10"
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_build_risk_scoring_client_switches_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     """Factory returns MLPlatformClient when risk_scoring_backend is ml_platform."""
     monkeypatch.setenv("I4G_ML__RISK_SCORING_BACKEND", "ml_platform")
@@ -287,7 +287,7 @@ async def test_build_risk_scoring_client_switches_backend(monkeypatch: pytest.Mo
     assert isinstance(client, MLPlatformClient)
 
 
-@pytest.mark.asyncio
+@pytest.mark.anyio
 async def test_build_similarity_client_switches_backend(monkeypatch: pytest.MonkeyPatch) -> None:
     """Factory returns MLPlatformClient when similarity_backend is ml_platform."""
     monkeypatch.setenv("I4G_ML__SIMILARITY_BACKEND", "ml_platform")

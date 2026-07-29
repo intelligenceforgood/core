@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from typing import Any
 
 from fastapi import Depends, Header, HTTPException, Request, status
 
@@ -29,6 +30,7 @@ _iap_verify = None
 
 # Lazy-loaded account store (avoids import-time DB initialization).
 _account_store = None
+_api_key_store = None
 
 # IAP assertions use a dedicated signing-key endpoint — separate from
 # the standard OIDC certs used for regular Google ID tokens.
@@ -44,6 +46,26 @@ def _get_account_store():
 
         _account_store = AccountStore(session_factory())
     return _account_store
+
+
+def _get_api_key_store():
+    """Return a lazily initialized ``ApiKeyStore``."""
+    global _api_key_store  # noqa: PLW0603
+    if _api_key_store is None:
+        from i4g.services.factories import build_api_key_store
+
+        _api_key_store = build_api_key_store()
+    return _api_key_store
+
+
+def _validate_db_api_key(raw_key: str) -> dict[str, Any] | None:
+    """Validate a DB-backed API key."""
+    try:
+        store = _get_api_key_store()
+        return store.validate_key(raw_key)
+    except Exception:
+        logger.warning("Failed DB-backed API key lookup", exc_info=True)
+        return None
 
 
 def _resolve_role(email: str) -> str:
@@ -187,6 +209,21 @@ def require_token(
             role = _resolve_role(forwarded)
             return {"username": forwarded, "role": role}
         return {"username": "service", "role": "admin"}
+
+    # ── 2.5. DB-backed API key (ApiKeyStore) ──────────────────────
+    if x_api_key:
+        api_key_record = _validate_db_api_key(x_api_key)
+        if api_key_record:
+            forwarded = request.headers.get("X-I4G-Forwarded-User")
+            owner = forwarded or api_key_record.get("owner_email") or api_key_record.get("created_by") or "api-key-user"
+            role = _resolve_role(owner)
+            return {
+                "username": owner,
+                "role": role,
+                "key_type": api_key_record.get("key_type", "user"),
+                "scopes": api_key_record.get("scopes") or [],
+                "key_id": api_key_record.get("key_id"),
+            }
 
     # ── 3. IAP JWT (load-balancer path) ───────────────────────────
     # The assertion may arrive directly from IAP (Cloud Run behind LB)

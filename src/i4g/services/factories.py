@@ -24,6 +24,7 @@ from i4g.store.actor_identity_edge_store import ActorIdentityEdgeStore
 from i4g.store.actor_identity_store import ActorIdentityStore
 from i4g.store.analytics_store import AnalyticsStore
 from i4g.store.annotation_store import AnnotationStore
+from i4g.store.api_key_store import ApiKeyStore
 from i4g.store.blocklist_hit_store import BlocklistHitStore
 from i4g.store.brand_impersonation_store import BrandImpersonationStore
 from i4g.store.chat_session_store import ChatSessionStore
@@ -292,6 +293,21 @@ def build_analytics_store(db_path: str | Path | None = None) -> AnalyticsStore:
     if backend == "cloudsql":
         return AnalyticsStore(session_factory=build_sql_session_factory())
     return AnalyticsStore(db_path=db_path)
+
+
+def build_api_key_store(db_path: str | Path | None = None) -> ApiKeyStore:
+    """Return an :class:`ApiKeyStore` aligned with the configured database backend.
+
+    Args:
+        db_path: Optional path override for local SQLite. Ignored when the
+            configured backend is Cloud SQL.
+
+    Returns:
+        Instantiated :class:`ApiKeyStore`.
+    """
+    if db_path is not None:
+        return ApiKeyStore(session_factory=build_sql_session_factory(connection_details={"database": str(db_path)}))
+    return ApiKeyStore(session_factory=build_sql_session_factory())
 
 
 def build_annotation_store(db_path: str | Path | None = None) -> AnnotationStore:

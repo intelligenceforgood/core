@@ -47,21 +47,21 @@ def test_feed_response_model() -> None:
 
 
 def test_hash_key_deterministic() -> None:
-    """_hash_key produces consistent SHA-256 digests."""
-    from i4g.api.partner_feed import _hash_key
+    """ApiKeyStore._hash_key produces consistent SHA-256 digests."""
+    from i4g.store.api_key_store import ApiKeyStore
 
-    h1 = _hash_key("test-api-key")
-    h2 = _hash_key("test-api-key")
+    h1 = ApiKeyStore._hash_key("test-api-key")
+    h2 = ApiKeyStore._hash_key("test-api-key")
     assert h1 == h2
     assert len(h1) == 64  # SHA-256 hex digest
 
 
 def test_hash_key_different_inputs() -> None:
     """Different inputs produce different hashes."""
-    from i4g.api.partner_feed import _hash_key
+    from i4g.store.api_key_store import ApiKeyStore
 
-    h1 = _hash_key("key-a")
-    h2 = _hash_key("key-b")
+    h1 = ApiKeyStore._hash_key("key-a")
+    h2 = ApiKeyStore._hash_key("key-b")
     assert h1 != h2
 
 

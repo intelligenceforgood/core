@@ -327,7 +327,7 @@ _WIPE_TABLE_ORDER: list[str] = [
     "watchlist_alerts",
     "watchlist_items",
     "partner_feed_audit",
-    "partner_api_keys",
+    "api_keys",
     "chart_share_tokens",
     "scheduled_reports",
     "annotations",

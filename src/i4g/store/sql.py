@@ -970,13 +970,16 @@ sa.Index("idx_chart_tokens_expires", chart_share_tokens.c.expires_at)
 # Partner indicator feed (S6-09, S6-10, S6-11)
 # ---------------------------------------------------------------------------
 
-partner_api_keys = sa.Table(
-    "partner_api_keys",
+api_keys = sa.Table(
+    "api_keys",
     METADATA,
     sa.Column("key_id", UUID_TYPE, primary_key=True),
-    sa.Column("partner_name", sa.Text(), nullable=False),
+    sa.Column("key_type", sa.Text(), nullable=False, server_default="partner"),
+    sa.Column("description", sa.Text(), nullable=True),
+    sa.Column("owner_email", sa.Text(), nullable=True),
+    sa.Column("partner_name", sa.Text(), nullable=True),
     sa.Column("key_hash", sa.Text(), nullable=False),
-    sa.Column("key_prefix", sa.String(length=8), nullable=False),
+    sa.Column("key_prefix", sa.String(length=64), nullable=False),
     sa.Column("scopes", JSON_TYPE, nullable=True),
     sa.Column("rate_limit_per_minute", sa.Integer(), nullable=False, server_default=sa.text("60")),
     sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.text("true")),
@@ -984,9 +987,15 @@ partner_api_keys = sa.Table(
     sa.Column("last_used_at", TIMESTAMP, nullable=True),
     sa.Column("expires_at", TIMESTAMP, nullable=True),
     sa.Column("created_at", TIMESTAMP, nullable=False, server_default=sa.text("CURRENT_TIMESTAMP")),
+    sa.UniqueConstraint("key_hash", name="uq_api_keys_key_hash"),
 )
-sa.Index("idx_partner_keys_prefix", partner_api_keys.c.key_prefix)
-sa.Index("idx_partner_keys_active", partner_api_keys.c.is_active)
+sa.Index("idx_api_keys_prefix", api_keys.c.key_prefix)
+sa.Index("idx_api_keys_active", api_keys.c.is_active)
+sa.Index("idx_api_keys_owner_email", api_keys.c.owner_email)
+sa.Index("idx_api_keys_key_type", api_keys.c.key_type)
+
+# Alias for backward compatibility
+partner_api_keys = api_keys
 
 partner_feed_audit = sa.Table(
     "partner_feed_audit",

@@ -59,10 +59,11 @@ def test_export_adapters_no_pii_in_partner_feed() -> None:
 
 
 def test_security_tables_exist() -> None:
-    """partner_feed_audit and partner_api_keys tables are defined."""
+    """partner_feed_audit and api_keys tables are defined."""
     from i4g.store import sql
 
     assert hasattr(sql, "partner_feed_audit")
+    assert hasattr(sql, "api_keys")
     assert hasattr(sql, "partner_api_keys")
 
 

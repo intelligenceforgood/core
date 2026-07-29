@@ -38,7 +38,7 @@ This document details the storage backends used by the i4g platform across diffe
   - **Annotations & Watchlists**: `annotations`, `watchlist_items`, `watchlist_alerts`.
   - **SSI (Site Investigation)**: `site_scans`, `case_investigations`, `harvested_wallets`, `agent_sessions`, `pii_exposures`, `ssi_events`, `ssi_guidance_commands`.
   - **Analytics (pre-computed)**: `entity_stats`, `indicator_stats`, `campaign_stats`, `platform_kpis`, `threat_campaigns`, `threat_campaign_cases`, `intake_indicator_links`.
-  - **Infrastructure**: `infrastructure_edges`, `scheduled_reports`, `chart_share_tokens`, `partner_api_keys`, `partner_feed_audit`, `audit_log`, `backfill_locks`.
+  - **Infrastructure**: `infrastructure_edges`, `scheduled_reports`, `chart_share_tokens`, `api_keys`, `partner_feed_audit`, `audit_log`, `backfill_locks`.
   - `pii_tokens` — **removed** (superseded by intake Fernet encryption; see [pii_protection.md](pii_protection.md)).
 - **Access**: Accessed via `EntityStore`, `ReviewStore`, `IntakeStore`, `EngagementStore`, `AnnotationStore`, `WatchlistStore`, and SQLAlchemy sessions.
 - **Full schema reference**: See [data_model.md](data_model.md) for the complete table inventory.

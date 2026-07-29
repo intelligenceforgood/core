@@ -9,7 +9,6 @@ Rate limiting and audit logging are applied per-key.
 
 from __future__ import annotations
 
-import hashlib
 import logging
 import time
 import uuid
@@ -17,14 +16,13 @@ from collections import defaultdict
 from datetime import UTC, datetime
 from typing import Any
 
-import sqlalchemy as sa
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 
 from i4g.api.camel import CamelModel
 from i4g.services.export_adapters import CsvAdapter, StixAdapter
-from i4g.services.factories import build_analytics_store
+from i4g.services.factories import build_analytics_store, build_api_key_store
 from i4g.settings import get_settings
-from i4g.store.sql import partner_api_keys, partner_feed_audit
+from i4g.store.sql import partner_feed_audit
 from i4g.store.sql import session_factory as build_sql_session_factory
 
 logger = logging.getLogger(__name__)
@@ -70,18 +68,6 @@ class FeedResponse(CamelModel):
 # ---------------------------------------------------------------------------
 
 
-def _hash_key(raw_key: str) -> str:
-    """Compute SHA-256 hash of an API key.
-
-    Args:
-        raw_key: The raw API key string.
-
-    Returns:
-        Hex-encoded SHA-256 digest.
-    """
-    return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
-
-
 def _authenticate_partner(request: Request, x_api_key: str = Header(..., alias="X-Partner-API-Key")) -> dict[str, Any]:
     """Validate partner API key and return key metadata.
 
@@ -93,40 +79,27 @@ def _authenticate_partner(request: Request, x_api_key: str = Header(..., alias="
         Key metadata dict from the database.
 
     Raises:
-        HTTPException: 401 if key is invalid, 403 if expired or inactive.
+        HTTPException: 401 if key is invalid, 403 if expired, inactive, or scope missing.
     """
     settings = get_settings()
     if not getattr(getattr(settings, "partner_feed", None), "enabled", False):
         raise HTTPException(status_code=403, detail="Partner feed API is disabled")
 
-    key_hash = _hash_key(x_api_key)
-    sf = build_sql_session_factory()
+    store = build_api_key_store()
+    key_record = store.validate_key(x_api_key)
+    if not key_record:
+        raise HTTPException(status_code=401, detail="Invalid, inactive, or expired API key")
 
-    with sf() as session:
-        row = session.execute(sa.select(partner_api_keys).where(partner_api_keys.c.key_hash == key_hash)).fetchone()
-
-        if not row:
-            raise HTTPException(status_code=401, detail="Invalid API key")
-
-        if not row.is_active:
-            raise HTTPException(status_code=403, detail="API key deactivated")
-
-        if row.expires_at and row.expires_at < datetime.now(UTC):
-            raise HTTPException(status_code=403, detail="API key expired")
-
-        # Update last_used_at
-        session.execute(
-            sa.update(partner_api_keys)
-            .where(partner_api_keys.c.key_id == row.key_id)
-            .values(last_used_at=datetime.now(UTC))
-        )
-        session.commit()
+    scopes = key_record.get("scopes") or []
+    key_type = key_record.get("key_type", "partner")
+    if key_type != "partner" and "partner:feed" not in scopes:
+        raise HTTPException(status_code=403, detail="API key lacks partner:feed scope")
 
     return {
-        "key_id": row.key_id,
-        "partner_name": row.partner_name,
-        "scopes": row.scopes,
-        "rate_limit_per_minute": row.rate_limit_per_minute,
+        "key_id": key_record["key_id"],
+        "partner_name": key_record.get("partner_name") or key_record.get("description") or "partner",
+        "scopes": scopes,
+        "rate_limit_per_minute": key_record.get("rate_limit_per_minute", 60),
     }
 
 
