@@ -302,6 +302,7 @@ def require_role(required_role: str) -> Callable:
 
 def reset_auth_state() -> None:
     """Reset cached auth state — used in tests to avoid cross-contamination."""
-    global _account_store, _iap_verify  # noqa: PLW0603
+    global _account_store, _api_key_store, _iap_verify  # noqa: PLW0603
     _account_store = None
+    _api_key_store = None
     _iap_verify = None

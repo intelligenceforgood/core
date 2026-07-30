@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from i4g.api.accounts import router as accounts_router
 from i4g.api.analytics import router as analytics_router
+from i4g.api.api_keys import router as api_keys_router
 from i4g.api.auth import require_token
 from i4g.api.campaigns import router as campaigns_router
 from i4g.api.cases import router as cases_router
@@ -228,6 +229,7 @@ def create_app() -> FastAPI:
 
     app.include_router(review_router, prefix="/reviews", tags=["reviews"])
     app.include_router(accounts_router)
+    app.include_router(api_keys_router)
     app.include_router(analytics_router)
     app.include_router(cases_router)
     app.include_router(campaigns_router)
