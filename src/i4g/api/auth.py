@@ -17,11 +17,16 @@ from collections.abc import Callable
 from typing import Any
 
 from fastapi import Depends, Header, HTTPException, Request, status
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 
 from i4g.api.roles import Role, has_role
 from i4g.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
+bearer_scheme = HTTPBearer(auto_error=False)
+
 
 _LOCAL_USER: dict[str, str] = {"username": "local-dev", "role": "admin"}
 
@@ -153,9 +158,10 @@ def is_valid_api_token(token: str | None) -> bool:
 
 def require_token(
     request: Request,
-    x_api_key: str | None = Header(None),
+    x_api_key: str | None = Depends(api_key_header),
+    bearer_token: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     authorization: str | None = Header(None),
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """Validate the request and return user info with DB-resolved role.
 
     Authentication strategy (checked in order):
@@ -238,9 +244,12 @@ def require_token(
         logger.warning("IAP JWT present but verification failed")
 
     # ── 4. Bearer token (service-to-service via Authorization) ────
-    if authorization and authorization.lower().startswith("bearer "):
-        bearer_token = authorization.split(" ", 1)[1]
-        user = _verify_iap_jwt(bearer_token)
+    effective_bearer = bearer_token.credentials if bearer_token else None
+    if not effective_bearer and authorization and authorization.lower().startswith("bearer "):
+        effective_bearer = authorization.split(" ", 1)[1]
+
+    if effective_bearer:
+        user = _verify_iap_jwt(effective_bearer)
         if user:
             return _maybe_resolve_forwarded_user(request, user)
 

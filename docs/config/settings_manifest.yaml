@@ -1,4 +1,4 @@
-generated_at: '2026-04-10T23:27:47.640938+00:00'
+generated_at: '2026-07-30T16:27:27.330244+00:00'
 source: src/i4g/settings/config.py
 env_prefix: I4G_
 fields:
@@ -112,6 +112,15 @@ fields:
   - API_KEY
   - API__KEY
   description: API endpoint configuration shared by CLI + dashboards.
+- path: api.partner_mode
+  section: api
+  type: bool
+  default: false
+  env_vars:
+  - I4G_API__PARTNER_MODE
+  - PARTNER_MODE
+  - API__PARTNER_MODE
+  description: Master switch to run API in partner mode (only exposing partner routes).
 - path: api.rate_limit_per_minute
   section: api
   type: int
@@ -278,10 +287,17 @@ fields:
   - I4G_EMAIL__FROM_ADDRESS
   - EMAIL_FROM_ADDRESS
   - EMAIL__FROM_ADDRESS
-  description: "Email delivery configuration for scheduled reports.\n\n    Set ``provider``\
-    \ to ``smtp`` and supply SMTP credentials to enable\n    real delivery.  The default\
-    \ ``log`` provider writes the email payload\n    to the application log only.\n\
-    \n    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc."
+  description: 'Email delivery configuration for scheduled reports.
+
+
+    Set ``provider`` to ``smtp`` and supply SMTP credentials to enable
+
+    real delivery.  The default ``log`` provider writes the email payload
+
+    to the application log only.
+
+
+    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc.'
 - path: email.provider
   section: email
   type: str
@@ -299,10 +315,17 @@ fields:
   - I4G_EMAIL__SMTP_HOST
   - EMAIL_SMTP_HOST
   - EMAIL__SMTP_HOST
-  description: "Email delivery configuration for scheduled reports.\n\n    Set ``provider``\
-    \ to ``smtp`` and supply SMTP credentials to enable\n    real delivery.  The default\
-    \ ``log`` provider writes the email payload\n    to the application log only.\n\
-    \n    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc."
+  description: 'Email delivery configuration for scheduled reports.
+
+
+    Set ``provider`` to ``smtp`` and supply SMTP credentials to enable
+
+    real delivery.  The default ``log`` provider writes the email payload
+
+    to the application log only.
+
+
+    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc.'
 - path: email.smtp_password
   section: email
   type: str
@@ -311,10 +334,17 @@ fields:
   - I4G_EMAIL__SMTP_PASSWORD
   - EMAIL_SMTP_PASSWORD
   - EMAIL__SMTP_PASSWORD
-  description: "Email delivery configuration for scheduled reports.\n\n    Set ``provider``\
-    \ to ``smtp`` and supply SMTP credentials to enable\n    real delivery.  The default\
-    \ ``log`` provider writes the email payload\n    to the application log only.\n\
-    \n    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc."
+  description: 'Email delivery configuration for scheduled reports.
+
+
+    Set ``provider`` to ``smtp`` and supply SMTP credentials to enable
+
+    real delivery.  The default ``log`` provider writes the email payload
+
+    to the application log only.
+
+
+    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc.'
 - path: email.smtp_port
   section: email
   type: int
@@ -323,10 +353,17 @@ fields:
   - I4G_EMAIL__SMTP_PORT
   - EMAIL_SMTP_PORT
   - EMAIL__SMTP_PORT
-  description: "Email delivery configuration for scheduled reports.\n\n    Set ``provider``\
-    \ to ``smtp`` and supply SMTP credentials to enable\n    real delivery.  The default\
-    \ ``log`` provider writes the email payload\n    to the application log only.\n\
-    \n    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc."
+  description: 'Email delivery configuration for scheduled reports.
+
+
+    Set ``provider`` to ``smtp`` and supply SMTP credentials to enable
+
+    real delivery.  The default ``log`` provider writes the email payload
+
+    to the application log only.
+
+
+    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc.'
 - path: email.smtp_user
   section: email
   type: str
@@ -335,10 +372,17 @@ fields:
   - I4G_EMAIL__SMTP_USER
   - EMAIL_SMTP_USER
   - EMAIL__SMTP_USER
-  description: "Email delivery configuration for scheduled reports.\n\n    Set ``provider``\
-    \ to ``smtp`` and supply SMTP credentials to enable\n    real delivery.  The default\
-    \ ``log`` provider writes the email payload\n    to the application log only.\n\
-    \n    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc."
+  description: 'Email delivery configuration for scheduled reports.
+
+
+    Set ``provider`` to ``smtp`` and supply SMTP credentials to enable
+
+    real delivery.  The default ``log`` provider writes the email payload
+
+    to the application log only.
+
+
+    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc.'
 - path: email.use_tls
   section: email
   type: bool
@@ -347,10 +391,17 @@ fields:
   - I4G_EMAIL__USE_TLS
   - EMAIL_USE_TLS
   - EMAIL__USE_TLS
-  description: "Email delivery configuration for scheduled reports.\n\n    Set ``provider``\
-    \ to ``smtp`` and supply SMTP credentials to enable\n    real delivery.  The default\
-    \ ``log`` provider writes the email payload\n    to the application log only.\n\
-    \n    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc."
+  description: 'Email delivery configuration for scheduled reports.
+
+
+    Set ``provider`` to ``smtp`` and supply SMTP credentials to enable
+
+    real delivery.  The default ``log`` provider writes the email payload
+
+    to the application log only.
+
+
+    Env vars: ``I4G_EMAIL__PROVIDER``, ``I4G_EMAIL__SMTP_HOST``, etc.'
 - path: enrichment.blockchain_api_key
   section: enrichment
   type: str
@@ -415,9 +466,12 @@ fields:
   - I4G_EXTRACTION__BATCH_CONCURRENCY
   - EXTRACTION_BATCH_CONCURRENCY
   - EXTRACTION__BATCH_CONCURRENCY
-  description: "Configuration for the entity extraction pipeline.\n\n    Controls\
-    \ which modules are enabled, confidence gating thresholds,\n    authority weight\
-    \ overrides, and batch job throttling."
+  description: 'Configuration for the entity extraction pipeline.
+
+
+    Controls which modules are enabled, confidence gating thresholds,
+
+    authority weight overrides, and batch job throttling.'
 - path: extraction.enabled_modules
   section: extraction
   type: list[str]
@@ -428,9 +482,12 @@ fields:
   - I4G_EXTRACTION__ENABLED_MODULES
   - EXTRACTION_ENABLED_MODULES
   - EXTRACTION__ENABLED_MODULES
-  description: "Configuration for the entity extraction pipeline.\n\n    Controls\
-    \ which modules are enabled, confidence gating thresholds,\n    authority weight\
-    \ overrides, and batch job throttling."
+  description: 'Configuration for the entity extraction pipeline.
+
+
+    Controls which modules are enabled, confidence gating thresholds,
+
+    authority weight overrides, and batch job throttling.'
 - path: extraction.gate_bank_account
   section: extraction
   type: float
@@ -439,9 +496,12 @@ fields:
   - I4G_EXTRACTION__GATE_BANK_ACCOUNT
   - EXTRACTION_GATE_BANK_ACCOUNT
   - EXTRACTION__GATE_BANK_ACCOUNT
-  description: "Configuration for the entity extraction pipeline.\n\n    Controls\
-    \ which modules are enabled, confidence gating thresholds,\n    authority weight\
-    \ overrides, and batch job throttling."
+  description: 'Configuration for the entity extraction pipeline.
+
+
+    Controls which modules are enabled, confidence gating thresholds,
+
+    authority weight overrides, and batch job throttling.'
 - path: extraction.gate_crypto_token
   section: extraction
   type: float
@@ -450,9 +510,12 @@ fields:
   - I4G_EXTRACTION__GATE_CRYPTO_TOKEN
   - EXTRACTION_GATE_CRYPTO_TOKEN
   - EXTRACTION__GATE_CRYPTO_TOKEN
-  description: "Configuration for the entity extraction pipeline.\n\n    Controls\
-    \ which modules are enabled, confidence gating thresholds,\n    authority weight\
-    \ overrides, and batch job throttling."
+  description: 'Configuration for the entity extraction pipeline.
+
+
+    Controls which modules are enabled, confidence gating thresholds,
+
+    authority weight overrides, and batch job throttling.'
 - path: extraction.gate_domain
   section: extraction
   type: float
@@ -461,9 +524,12 @@ fields:
   - I4G_EXTRACTION__GATE_DOMAIN
   - EXTRACTION_GATE_DOMAIN
   - EXTRACTION__GATE_DOMAIN
-  description: "Configuration for the entity extraction pipeline.\n\n    Controls\
-    \ which modules are enabled, confidence gating thresholds,\n    authority weight\
-    \ overrides, and batch job throttling."
+  description: 'Configuration for the entity extraction pipeline.
+
+
+    Controls which modules are enabled, confidence gating thresholds,
+
+    authority weight overrides, and batch job throttling.'
 - path: extraction.gate_email_address
   section: extraction
   type: float
@@ -472,9 +538,12 @@ fields:
   - I4G_EXTRACTION__GATE_EMAIL_ADDRESS
   - EXTRACTION_GATE_EMAIL_ADDRESS
   - EXTRACTION__GATE_EMAIL_ADDRESS
-  description: "Configuration for the entity extraction pipeline.\n\n    Controls\
-    \ which modules are enabled, confidence gating thresholds,\n    authority weight\
-    \ overrides, and batch job throttling."
+  description: 'Configuration for the entity extraction pipeline.
+
+
+    Controls which modules are enabled, confidence gating thresholds,
+
+    authority weight overrides, and batch job throttling.'
 - path: extraction.gate_location
   section: extraction
   type: float
@@ -483,9 +552,12 @@ fields:
   - I4G_EXTRACTION__GATE_LOCATION
   - EXTRACTION_GATE_LOCATION
   - EXTRACTION__GATE_LOCATION
-  description: "Configuration for the entity extraction pipeline.\n\n    Controls\
-    \ which modules are enabled, confidence gating thresholds,\n    authority weight\
-    \ overrides, and batch job throttling."
+  description: 'Configuration for the entity extraction pipeline.
+
+
+    Controls which modules are enabled, confidence gating thresholds,
+
+    authority weight overrides, and batch job throttling.'
 - path: extraction.gate_organization
   section: extraction
   type: float
@@ -494,9 +566,12 @@ fields:
   - I4G_EXTRACTION__GATE_ORGANIZATION
   - EXTRACTION_GATE_ORGANIZATION
   - EXTRACTION__GATE_ORGANIZATION
-  description: "Configuration for the entity extraction pipeline.\n\n    Controls\
-    \ which modules are enabled, confidence gating thresholds,\n    authority weight\
-    \ overrides, and batch job throttling."
+  description: 'Configuration for the entity extraction pipeline.
+
+
+    Controls which modules are enabled, confidence gating thresholds,
+
+    authority weight overrides, and batch job throttling.'
 - path: extraction.gate_person
   section: extraction
   type: float
@@ -505,9 +580,12 @@ fields:
   - I4G_EXTRACTION__GATE_PERSON
   - EXTRACTION_GATE_PERSON
   - EXTRACTION__GATE_PERSON
-  description: "Configuration for the entity extraction pipeline.\n\n    Controls\
-    \ which modules are enabled, confidence gating thresholds,\n    authority weight\
-    \ overrides, and batch job throttling."
+  description: 'Configuration for the entity extraction pipeline.
+
+
+    Controls which modules are enabled, confidence gating thresholds,
+
+    authority weight overrides, and batch job throttling.'
 - path: extraction.gate_phone_number
   section: extraction
   type: float
@@ -516,9 +594,12 @@ fields:
   - I4G_EXTRACTION__GATE_PHONE_NUMBER
   - EXTRACTION_GATE_PHONE_NUMBER
   - EXTRACTION__GATE_PHONE_NUMBER
-  description: "Configuration for the entity extraction pipeline.\n\n    Controls\
-    \ which modules are enabled, confidence gating thresholds,\n    authority weight\
-    \ overrides, and batch job throttling."
+  description: 'Configuration for the entity extraction pipeline.
+
+
+    Controls which modules are enabled, confidence gating thresholds,
+
+    authority weight overrides, and batch job throttling.'
 - path: extraction.gate_scam_indicator
   section: extraction
   type: float
@@ -527,9 +608,12 @@ fields:
   - I4G_EXTRACTION__GATE_SCAM_INDICATOR
   - EXTRACTION_GATE_SCAM_INDICATOR
   - EXTRACTION__GATE_SCAM_INDICATOR
-  description: "Configuration for the entity extraction pipeline.\n\n    Controls\
-    \ which modules are enabled, confidence gating thresholds,\n    authority weight\
-    \ overrides, and batch job throttling."
+  description: 'Configuration for the entity extraction pipeline.
+
+
+    Controls which modules are enabled, confidence gating thresholds,
+
+    authority weight overrides, and batch job throttling.'
 - path: extraction.gate_social_handle
   section: extraction
   type: float
@@ -538,9 +622,12 @@ fields:
   - I4G_EXTRACTION__GATE_SOCIAL_HANDLE
   - EXTRACTION_GATE_SOCIAL_HANDLE
   - EXTRACTION__GATE_SOCIAL_HANDLE
-  description: "Configuration for the entity extraction pipeline.\n\n    Controls\
-    \ which modules are enabled, confidence gating thresholds,\n    authority weight\
-    \ overrides, and batch job throttling."
+  description: 'Configuration for the entity extraction pipeline.
+
+
+    Controls which modules are enabled, confidence gating thresholds,
+
+    authority weight overrides, and batch job throttling.'
 - path: extraction.gate_url
   section: extraction
   type: float
@@ -549,9 +636,12 @@ fields:
   - I4G_EXTRACTION__GATE_URL
   - EXTRACTION_GATE_URL
   - EXTRACTION__GATE_URL
-  description: "Configuration for the entity extraction pipeline.\n\n    Controls\
-    \ which modules are enabled, confidence gating thresholds,\n    authority weight\
-    \ overrides, and batch job throttling."
+  description: 'Configuration for the entity extraction pipeline.
+
+
+    Controls which modules are enabled, confidence gating thresholds,
+
+    authority weight overrides, and batch job throttling.'
 - path: extraction.gate_wallet_address
   section: extraction
   type: float
@@ -560,9 +650,12 @@ fields:
   - I4G_EXTRACTION__GATE_WALLET_ADDRESS
   - EXTRACTION_GATE_WALLET_ADDRESS
   - EXTRACTION__GATE_WALLET_ADDRESS
-  description: "Configuration for the entity extraction pipeline.\n\n    Controls\
-    \ which modules are enabled, confidence gating thresholds,\n    authority weight\
-    \ overrides, and batch job throttling."
+  description: 'Configuration for the entity extraction pipeline.
+
+
+    Controls which modules are enabled, confidence gating thresholds,
+
+    authority weight overrides, and batch job throttling.'
 - path: extraction.llm_delay_seconds
   section: extraction
   type: float
@@ -571,9 +664,12 @@ fields:
   - I4G_EXTRACTION__LLM_DELAY_SECONDS
   - EXTRACTION_LLM_DELAY_SECONDS
   - EXTRACTION__LLM_DELAY_SECONDS
-  description: "Configuration for the entity extraction pipeline.\n\n    Controls\
-    \ which modules are enabled, confidence gating thresholds,\n    authority weight\
-    \ overrides, and batch job throttling."
+  description: 'Configuration for the entity extraction pipeline.
+
+
+    Controls which modules are enabled, confidence gating thresholds,
+
+    authority weight overrides, and batch job throttling.'
 - path: feedback.enabled
   section: feedback
   type: bool
@@ -1143,15 +1239,76 @@ fields:
   - PARTNER_FEED_RATE_LIMIT_PER_MINUTE
   - PARTNER_FEED__RATE_LIMIT_PER_MINUTE
   description: Max requests per minute per API key.
+- path: phishdestroy.archive.archive_root
+  section: phishdestroy
+  type: str
+  default: ''
+  env_vars:
+  - I4G_PHISHDESTROY__ARCHIVE__ARCHIVE_ROOT
+  - PHISHDESTROY_ARCHIVE_ARCHIVE_ROOT
+  - PHISHDESTROY__ARCHIVE__ARCHIVE_ROOT
+  description: "Settings for the PhishDestroy ScamIntelLogs archive ingestion (Sprint\
+    \ 2 \xA72.3)."
+- path: phishdestroy.archive.commit_sha
+  section: phishdestroy
+  type: str
+  default: 83d0307420fcc865fcb8a34b8c454acbc6d56f1f
+  env_vars:
+  - I4G_PHISHDESTROY__ARCHIVE__COMMIT_SHA
+  - PHISHDESTROY_ARCHIVE_COMMIT_SHA
+  - PHISHDESTROY__ARCHIVE__COMMIT_SHA
+  description: "Settings for the PhishDestroy ScamIntelLogs archive ingestion (Sprint\
+    \ 2 \xA72.3)."
+- path: phishdestroy.archive.evidence_enabled
+  section: phishdestroy
+  type: bool
+  default: true
+  env_vars:
+  - I4G_PHISHDESTROY__ARCHIVE__EVIDENCE_ENABLED
+  - PHISHDESTROY_ARCHIVE_EVIDENCE_ENABLED
+  - PHISHDESTROY__ARCHIVE__EVIDENCE_ENABLED
+  description: "Settings for the PhishDestroy ScamIntelLogs archive ingestion (Sprint\
+    \ 2 \xA72.3)."
+- path: phishdestroy.archive.evidence_local_dir_override
+  section: phishdestroy
+  type: str
+  default: ''
+  env_vars:
+  - I4G_PHISHDESTROY__ARCHIVE__EVIDENCE_LOCAL_DIR_OVERRIDE
+  - PHISHDESTROY_ARCHIVE_EVIDENCE_LOCAL_DIR_OVERRIDE
+  - PHISHDESTROY__ARCHIVE__EVIDENCE_LOCAL_DIR_OVERRIDE
+  description: "Settings for the PhishDestroy ScamIntelLogs archive ingestion (Sprint\
+    \ 2 \xA72.3)."
+- path: phishdestroy.archive.parse_failure_rate_threshold
+  section: phishdestroy
+  type: float
+  default: 0.01
+  env_vars:
+  - I4G_PHISHDESTROY__ARCHIVE__PARSE_FAILURE_RATE_THRESHOLD
+  - PHISHDESTROY_ARCHIVE_PARSE_FAILURE_RATE_THRESHOLD
+  - PHISHDESTROY__ARCHIVE__PARSE_FAILURE_RATE_THRESHOLD
+  description: "Settings for the PhishDestroy ScamIntelLogs archive ingestion (Sprint\
+    \ 2 \xA72.3)."
+- path: phishdestroy.archive.report_dir
+  section: phishdestroy
+  type: str
+  default: data/reports/phishdestroy
+  env_vars:
+  - I4G_PHISHDESTROY__ARCHIVE__REPORT_DIR
+  - PHISHDESTROY_ARCHIVE_REPORT_DIR
+  - PHISHDESTROY__ARCHIVE__REPORT_DIR
+  description: "Settings for the PhishDestroy ScamIntelLogs archive ingestion (Sprint\
+    \ 2 \xA72.3)."
 - path: phishdestroy.destroylist.commit_sha
   section: phishdestroy
   type: str
-  default: c40cbbf527dd9e5e232090346e1a8ceab32d1683
+  default: ''
   env_vars:
   - I4G_PHISHDESTROY__DESTROYLIST__COMMIT_SHA
   - PHISHDESTROY_DESTROYLIST_COMMIT_SHA
   - PHISHDESTROY__DESTROYLIST__COMMIT_SHA
-  description: Pinned SHA of the DestroyScammers repo used for destroylist ingestion (Sprint 1 §1.4).
+  description: "Settings for the PhishDestroy destroylist ingestion job (Sprint 1\
+    \ \xA71.4)."
 - path: phishdestroy.destroylist.data_path
   section: phishdestroy
   type: Path
@@ -1160,16 +1317,18 @@ fields:
   - I4G_PHISHDESTROY__DESTROYLIST__DATA_PATH
   - PHISHDESTROY_DESTROYLIST_DATA_PATH
   - PHISHDESTROY__DESTROYLIST__DATA_PATH
-  description: Path to the DestroyScammers data.json file (relative to project_root).
+  description: "Settings for the PhishDestroy destroylist ingestion job (Sprint 1\
+    \ \xA71.4)."
 - path: phishdestroy.destroylist.enabled
   section: phishdestroy
   type: bool
-  default: 'false'
+  default: false
   env_vars:
   - I4G_PHISHDESTROY__DESTROYLIST__ENABLED
   - PHISHDESTROY_DESTROYLIST_ENABLED
   - PHISHDESTROY__DESTROYLIST__ENABLED
-  description: Enable the destroylist ingestion job.
+  description: "Settings for the PhishDestroy destroylist ingestion job (Sprint 1\
+    \ \xA71.4)."
 - path: phishdestroy.merklemap_tail.api_key
   section: phishdestroy
   type: str
@@ -1178,7 +1337,8 @@ fields:
   - I4G_PHISHDESTROY__MERKLEMAP_TAIL__API_KEY
   - PHISHDESTROY_MERKLEMAP_TAIL_API_KEY
   - PHISHDESTROY__MERKLEMAP_TAIL__API_KEY
-  description: Merklemap API key for the SSE tail worker (Sprint 1 §1.5). Supply via Secret Manager.
+  description: "Settings for the PhishDestroy merklemap tail worker (Sprint 1 \xA7\
+    1.5)."
 - path: phishdestroy.merklemap_tail.batch_size
   section: phishdestroy
   type: int
@@ -1187,7 +1347,8 @@ fields:
   - I4G_PHISHDESTROY__MERKLEMAP_TAIL__BATCH_SIZE
   - PHISHDESTROY_MERKLEMAP_TAIL_BATCH_SIZE
   - PHISHDESTROY__MERKLEMAP_TAIL__BATCH_SIZE
-  description: Merklemap tail worker batch size (events per flush).
+  description: "Settings for the PhishDestroy merklemap tail worker (Sprint 1 \xA7\
+    1.5)."
 - path: phishdestroy.merklemap_tail.brand_regexes
   section: phishdestroy
   type: list[str]
@@ -1204,16 +1365,18 @@ fields:
   - I4G_PHISHDESTROY__MERKLEMAP_TAIL__BRAND_REGEXES
   - PHISHDESTROY_MERKLEMAP_TAIL_BRAND_REGEXES
   - PHISHDESTROY__MERKLEMAP_TAIL__BRAND_REGEXES
-  description: Case-insensitive regex patterns that trigger a passive SSI scan on match.
+  description: "Settings for the PhishDestroy merklemap tail worker (Sprint 1 \xA7\
+    1.5)."
 - path: phishdestroy.merklemap_tail.enabled
   section: phishdestroy
   type: bool
-  default: 'false'
+  default: false
   env_vars:
   - I4G_PHISHDESTROY__MERKLEMAP_TAIL__ENABLED
   - PHISHDESTROY_MERKLEMAP_TAIL_ENABLED
   - PHISHDESTROY__MERKLEMAP_TAIL__ENABLED
-  description: Enable the merklemap SSE tail worker (Sprint 1 §1.5).
+  description: "Settings for the PhishDestroy merklemap tail worker (Sprint 1 \xA7\
+    1.5)."
 - path: phishdestroy.merklemap_tail.flush_interval_seconds
   section: phishdestroy
   type: int
@@ -1222,7 +1385,32 @@ fields:
   - I4G_PHISHDESTROY__MERKLEMAP_TAIL__FLUSH_INTERVAL_SECONDS
   - PHISHDESTROY_MERKLEMAP_TAIL_FLUSH_INTERVAL_SECONDS
   - PHISHDESTROY__MERKLEMAP_TAIL__FLUSH_INTERVAL_SECONDS
-  description: Seconds between counter flush log lines.
+  description: "Settings for the PhishDestroy merklemap tail worker (Sprint 1 \xA7\
+    1.5)."
+- path: phishdestroy.merklemap_tail.protected_brands
+  section: phishdestroy
+  type: list[str]
+  default:
+  - trustwallet
+  - coinbase
+  - ledger
+  - metamask
+  - phantom
+  - uniswap
+  - kraken
+  - binance
+  env_vars:
+  - I4G_PHISHDESTROY__MERKLEMAP_TAIL__PROTECTED_BRANDS
+  description: "Settings for the PhishDestroy merklemap tail worker (Sprint 1 \xA7\
+    1.5)."
+- path: phishdestroy.merklemap_tail.typosquat_threshold
+  section: phishdestroy
+  type: int
+  default: 2
+  env_vars:
+  - I4G_PHISHDESTROY__MERKLEMAP_TAIL__TYPOSQUAT_THRESHOLD
+  description: "Settings for the PhishDestroy merklemap tail worker (Sprint 1 \xA7\
+    1.5)."
 - path: project_root
   section: project_root
   type: Path
@@ -1853,77 +2041,3 @@ fields:
   - VECTOR__VERTEX_AI__SERVING_CONFIG
   - I4G_VERTEX_SEARCH_SERVING_CONFIG
   description: Vertex AI Search serving config ID.
-- path: phishdestroy.archive.commit_sha
-  section: phishdestroy
-  type: str
-  default: 83d0307420fcc865fcb8a34b8c454acbc6d56f1f
-  env_vars:
-  - I4G_PHISHDESTROY__ARCHIVE__COMMIT_SHA
-  - PHISHDESTROY_ARCHIVE_COMMIT_SHA
-  - PHISHDESTROY__ARCHIVE__COMMIT_SHA
-  description: Pinned SHA of the ScamIntelLogs repo used for archive ingestion (Sprint 2 §2.3).
-- path: phishdestroy.archive.archive_root
-  section: phishdestroy
-  type: str
-  default: ''
-  env_vars:
-  - I4G_PHISHDESTROY__ARCHIVE__ARCHIVE_ROOT
-  - PHISHDESTROY_ARCHIVE_ARCHIVE_ROOT
-  - PHISHDESTROY__ARCHIVE__ARCHIVE_ROOT
-  description: "Path to a checkout of phishdestroy/ScamIntelLogs. Local dev: set in settings.local.toml."
-- path: phishdestroy.archive.report_dir
-  section: phishdestroy
-  type: str
-  default: data/reports/phishdestroy
-  env_vars:
-  - I4G_PHISHDESTROY__ARCHIVE__REPORT_DIR
-  - PHISHDESTROY_ARCHIVE_REPORT_DIR
-  - PHISHDESTROY__ARCHIVE__REPORT_DIR
-  description: Directory for per-team parse-failure and ingestion summary reports.
-- path: phishdestroy.archive.evidence_enabled
-  section: phishdestroy
-  type: bool
-  default: true
-  env_vars:
-  - I4G_PHISHDESTROY__ARCHIVE__EVIDENCE_ENABLED
-  - PHISHDESTROY_ARCHIVE_EVIDENCE_ENABLED
-  - PHISHDESTROY__ARCHIVE__EVIDENCE_ENABLED
-  description: When true, the archive adapter persists chat exports, photos, and panel captures via storage/evidence.py (Sprint 2 §2.4 / Phase C).
-- path: phishdestroy.archive.evidence_local_dir_override
-  section: phishdestroy
-  type: str
-  default: ''
-  env_vars:
-  - I4G_PHISHDESTROY__ARCHIVE__EVIDENCE_LOCAL_DIR_OVERRIDE
-  - PHISHDESTROY_ARCHIVE_EVIDENCE_LOCAL_DIR_OVERRIDE
-  - PHISHDESTROY__ARCHIVE__EVIDENCE_LOCAL_DIR_OVERRIDE
-  description: Optional override for the local-disk evidence blob root. Empty defers to storage.evidence_local_dir.
-- path: phishdestroy.archive.parse_failure_rate_threshold
-  section: phishdestroy
-  type: float
-  default: 0.01
-  env_vars:
-  - I4G_PHISHDESTROY__ARCHIVE__PARSE_FAILURE_RATE_THRESHOLD
-  - PHISHDESTROY_ARCHIVE_PARSE_FAILURE_RATE_THRESHOLD
-  - PHISHDESTROY__ARCHIVE__PARSE_FAILURE_RATE_THRESHOLD
-  description: Sprint 2 §7 acceptance gate. The ingest-archive-all worker exits 3 when unknown_format_teams / total_teams exceeds this value. Range [0.0, 1.0].
-- path: phishdestroy.merklemap_tail.protected_brands
-  section: phishdestroy
-  type: list[str]
-  default:
-  - trustwallet
-  - coinbase
-  - ledger
-  - metamask
-  - phantom
-  - uniswap
-  - kraken
-  - binance
-  env_vars: []
-  description: List of protected brands for typosquat checks
-- path: phishdestroy.merklemap_tail.typosquat_threshold
-  section: phishdestroy
-  type: int
-  default: 2
-  env_vars: []
-  description: Maximum Levenshtein distance for typosquat matches

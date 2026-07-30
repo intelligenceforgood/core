@@ -609,3 +609,34 @@ def test_ssi_service_url_env_override(monkeypatch: object) -> None:
 
     settings = reload_settings(env="dev")
     assert settings.ssi.service_url == "https://ssi-svc-abc123.run.app"
+
+
+def test_api_partner_mode_default(monkeypatch: object) -> None:
+    """api.partner_mode defaults to False."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_API__PARTNER_MODE",
+        "API__PARTNER_MODE",
+        "PARTNER_MODE",
+        "I4G_PARTNER_MODE",
+    )
+
+    settings = reload_settings(env="dev")
+    assert settings.api.partner_mode is False
+
+
+def test_api_partner_mode_env_override(monkeypatch: object) -> None:
+    """api.partner_mode can be set via env var."""
+
+    _clear_env(
+        monkeypatch,
+        "I4G_API__PARTNER_MODE",
+        "API__PARTNER_MODE",
+        "PARTNER_MODE",
+        "I4G_PARTNER_MODE",
+    )
+    _set_env(monkeypatch, "I4G_API__PARTNER_MODE", "true")
+
+    settings = reload_settings(env="dev")
+    assert settings.api.partner_mode is True
