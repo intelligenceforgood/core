@@ -194,3 +194,22 @@ class TestAdminApiKeyEndpoints:
         assert "rawKey" in data
         assert data["rawKey"].startswith("i4g_pk_")
         assert data["keyPrefix"].startswith("i4g_pk_")
+
+    def test_admin_list_api_keys_with_null_scopes_record(self, client, api_key_store):
+        app.dependency_overrides[require_role("admin")] = lambda: {"username": "admin@example.com", "role": "admin"}
+
+        # Simulate legacy DB row where scopes=None
+        _, rec = api_key_store.create_key(owner_email="legacy@example.com", key_type="partner", description="Legacy")
+        with api_key_store._session_factory() as session:
+            session.execute(
+                sql_schema.api_keys.update().where(sql_schema.api_keys.c.key_id == rec["key_id"]).values(scopes=None)
+            )
+            session.commit()
+
+        res = client.get("/admin/api-keys")
+        assert res.status_code == status.HTTP_200_OK
+
+        data = res.json()
+        target = next(k for k in data["keys"] if k["keyId"] == rec["key_id"])
+        assert target["scopes"] == []
+        assert target["keyType"] == "partner"

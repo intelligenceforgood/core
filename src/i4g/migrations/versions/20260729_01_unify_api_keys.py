@@ -72,6 +72,14 @@ def upgrade() -> None:
             batch_op.add_column(sa.Column("created_by", sa.Text(), nullable=False, server_default="system"))
         if "partner_name" in columns:
             batch_op.alter_column("partner_name", existing_type=sa.Text(), nullable=True)
+        else:
+            batch_op.add_column(sa.Column("partner_name", sa.Text(), nullable=True))
+        if "scopes" not in columns:
+            batch_op.add_column(sa.Column("scopes", sa.JSON(), nullable=True))
+        if "rate_limit_per_minute" not in columns:
+            batch_op.add_column(
+                sa.Column("rate_limit_per_minute", sa.Integer(), nullable=False, server_default=sa.text("60"))
+            )
         batch_op.alter_column(
             "key_prefix", existing_type=sa.String(length=12), type_=sa.String(length=64), nullable=False
         )

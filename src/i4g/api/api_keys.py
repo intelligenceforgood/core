@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from i4g.api.auth import require_role, require_token
 from i4g.api.camel import CamelModel
@@ -68,13 +68,37 @@ class ApiKeyInfo(CamelModel):
     key_prefix: str
     description: str | None = None
     owner_email: str | None = None
-    key_type: str
+    key_type: str = "partner"
     partner_name: str | None = None
     scopes: list[str] = Field(default_factory=list)
     is_active: bool = True
     expires_at: datetime | None = None
     last_used_at: datetime | None = None
     created_at: datetime
+
+    @field_validator("scopes", mode="before")
+    @classmethod
+    def _validate_scopes(cls, v: Any) -> list[str]:
+        if v is None:
+            return []
+        if isinstance(v, str):
+            import json
+
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return [str(item) for item in parsed]
+            except Exception:
+                pass
+            return [v]
+        return v
+
+    @field_validator("key_type", mode="before")
+    @classmethod
+    def _validate_key_type(cls, v: Any) -> str:
+        if not v:
+            return "partner"
+        return str(v)
 
 
 class ApiKeyListResponse(CamelModel):
@@ -197,8 +221,9 @@ def admin_create_partner_api_key(
 
     admin_email = current_user.get("username")
     store = build_api_key_store()
+    owner_email = req.owner_email or (req.partner_name if "@" in req.partner_name else None)
     raw_key, record = store.create_key(
-        owner_email=req.owner_email,
+        owner_email=owner_email,
         key_type="partner",
         partner_name=req.partner_name,
         description=req.description,
