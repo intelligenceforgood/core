@@ -28,7 +28,7 @@ api_key_header = APIKeyHeader(name="X-API-KEY", auto_error=False)
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-_LOCAL_USER: dict[str, str] = {"username": "local-dev", "role": "admin"}
+_LOCAL_USER: dict[str, str] = {"username": "local-dev", "role": "admin", "auth_source": "local"}
 
 # Cache for the Google public-key verifier (lazy-loaded).
 _iap_verify = None
@@ -213,8 +213,8 @@ def require_token(
         forwarded = request.headers.get("X-I4G-Forwarded-User")
         if forwarded:
             role = _resolve_role(forwarded)
-            return {"username": forwarded, "role": role}
-        return {"username": "service", "role": "admin"}
+            return {"username": forwarded, "role": role, "auth_source": "static_key"}
+        return {"username": "service", "role": "admin", "auth_source": "static_key"}
 
     # ── 2.5. DB-backed API key (ApiKeyStore) ──────────────────────
     if x_api_key:
@@ -229,6 +229,7 @@ def require_token(
                 "key_type": api_key_record.get("key_type", "user"),
                 "scopes": api_key_record.get("scopes") or [],
                 "key_id": api_key_record.get("key_id"),
+                "auth_source": "db_api_key",
             }
 
     # ── 3. IAP JWT (load-balancer path) ───────────────────────────
@@ -238,6 +239,7 @@ def require_token(
     if iap_jwt:
         user = _verify_iap_jwt(iap_jwt, is_iap_assertion=True)
         if user:
+            user["auth_source"] = "iap"
             # If the IAP JWT verified as a service account and the
             # caller forwarded the real user, prefer the forwarded user.
             return _maybe_resolve_forwarded_user(request, user)
@@ -251,6 +253,7 @@ def require_token(
     if effective_bearer:
         user = _verify_iap_jwt(effective_bearer)
         if user:
+            user["auth_source"] = "bearer"
             return _maybe_resolve_forwarded_user(request, user)
 
     raise HTTPException(
@@ -261,8 +264,8 @@ def require_token(
 
 def _maybe_resolve_forwarded_user(
     request: Request,
-    service_user: dict[str, str],
-) -> dict[str, str]:
+    service_user: dict[str, Any],
+) -> dict[str, Any]:
     """Swap the service identity for the forwarded browser user if present.
 
     The ``X-I4G-Forwarded-User`` header is set by the Next.js SSR layer
@@ -281,7 +284,10 @@ def _maybe_resolve_forwarded_user(
     if username and "@" in username and not username.endswith(".iam.gserviceaccount.com"):
         return service_user
     role = _resolve_role(forwarded)
-    return {"username": forwarded, "role": role}
+    resolved: dict[str, Any] = {"username": forwarded, "role": role}
+    if "auth_source" in service_user:
+        resolved["auth_source"] = service_user["auth_source"]
+    return resolved
 
 
 def require_role(required_role: str) -> Callable:
