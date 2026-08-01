@@ -33,6 +33,7 @@ from i4g.api.phishdestroy_discoveries import router as phishdestroy_discoveries_
 from i4g.api.reports import router as reports_router
 from i4g.api.response_models import TaskStatusResponse, TaskUpdateResponse
 from i4g.api.review import router as review_router
+from i4g.api.scopes import require_internal_session
 from i4g.api.ssi_events import router as ssi_events_router
 from i4g.api.ssi_evidence import router as ssi_evidence_router
 from i4g.api.ssi_investigations import router as ssi_investigations_router
@@ -48,7 +49,7 @@ logger = logging.getLogger(__name__)
 # Task Status API (Step 2 of M6.3)
 # ----------------------------------------
 
-task_router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(require_token)])
+task_router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(require_internal_session)])
 
 # Scans that have been "running" longer than this with no DB update are
 # considered orphaned (e.g. SSI process killed mid-investigation).

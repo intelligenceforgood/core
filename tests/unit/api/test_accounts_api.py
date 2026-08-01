@@ -255,3 +255,39 @@ class TestReactivateAccount:
         assert r.status_code == 404
 
         app.dependency_overrides.clear()
+
+
+class TestAccountsInternalSession:
+    """Enforcement of internal session restriction on accounts router."""
+
+    def test_db_api_key_without_internal_scope_blocked(self):
+        mock_store = _mock_store()
+        app.dependency_overrides[require_token] = lambda: {
+            "username": "admin@test.io",
+            "role": "admin",
+            "auth_source": "db_api_key",
+            "scopes": ["partner:feed"],
+        }
+        app.dependency_overrides[get_account_store] = lambda: mock_store
+
+        client = TestClient(app)
+        r = client.get("/accounts")
+        assert r.status_code == 403
+        assert "API key access not permitted" in r.json()["detail"]
+
+        app.dependency_overrides.clear()
+
+    def test_iap_user_allowed(self):
+        mock_store = _mock_store()
+        app.dependency_overrides[require_token] = lambda: {
+            "username": "admin@test.io",
+            "role": "admin",
+            "auth_source": "iap",
+        }
+        app.dependency_overrides[get_account_store] = lambda: mock_store
+
+        client = TestClient(app)
+        r = client.get("/accounts")
+        assert r.status_code == 200
+
+        app.dependency_overrides.clear()

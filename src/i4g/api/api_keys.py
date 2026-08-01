@@ -15,6 +15,7 @@ from pydantic import ConfigDict, Field, field_validator
 
 from i4g.api.auth import require_role, require_token
 from i4g.api.camel import CamelModel
+from i4g.api.scopes import require_internal_session
 from i4g.services.factories import build_api_key_store
 
 logger = logging.getLogger(__name__)
@@ -179,7 +180,7 @@ def revoke_user_api_key(
 # ------------------------------------------------------------------
 
 
-@router.get("/admin/api-keys", response_model=ApiKeyListResponse)
+@router.get("/admin/api-keys", response_model=ApiKeyListResponse, dependencies=[Depends(require_internal_session)])
 def admin_list_api_keys(
     key_type: str | None = None,
     active_only: bool = False,
@@ -192,7 +193,11 @@ def admin_list_api_keys(
     return ApiKeyListResponse(keys=keys)
 
 
-@router.delete("/admin/api-keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/admin/api-keys/{key_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_internal_session)],
+)
 def admin_revoke_api_key(
     key_id: str,
     current_user: dict[str, Any] = Depends(require_role("admin")),
@@ -207,7 +212,12 @@ def admin_revoke_api_key(
         )
 
 
-@router.post("/admin/api-keys/partner", response_model=CreateApiKeyResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/admin/api-keys/partner",
+    response_model=CreateApiKeyResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_internal_session)],
+)
 def admin_create_partner_api_key(
     req: CreatePartnerKeyRequest,
     current_user: dict[str, Any] = Depends(require_role("admin")),

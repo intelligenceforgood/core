@@ -18,12 +18,13 @@ from pydantic import BaseModel, Field
 
 from i4g.api.auth import require_role, require_token
 from i4g.api.camel import CamelModel
+from i4g.api.scopes import require_internal_session
 from i4g.store.account_store import AccountStore
 from i4g.store.sql import session_factory
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/accounts", tags=["accounts"])
+router = APIRouter(prefix="/accounts", tags=["accounts"], dependencies=[Depends(require_internal_session)])
 
 
 # ---------------------------------------------------------------------------

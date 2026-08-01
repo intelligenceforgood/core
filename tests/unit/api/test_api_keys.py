@@ -213,3 +213,33 @@ class TestAdminApiKeyEndpoints:
         target = next(k for k in data["keys"] if k["keyId"] == rec["key_id"])
         assert target["scopes"] == []
         assert target["keyType"] == "partner"
+
+    def test_admin_list_api_keys_db_api_key_blocked(self, client):
+        app.dependency_overrides[require_token] = lambda: {
+            "username": "admin@example.com",
+            "role": "admin",
+            "auth_source": "db_api_key",
+            "scopes": ["partner:feed"],
+        }
+        app.dependency_overrides[require_role("admin")] = lambda: {
+            "username": "admin@example.com",
+            "role": "admin",
+            "auth_source": "db_api_key",
+            "scopes": ["partner:feed"],
+        }
+
+        res = client.get("/admin/api-keys")
+        assert res.status_code == status.HTTP_403_FORBIDDEN
+        assert "API key access not permitted" in res.json()["detail"]
+
+    def test_self_service_api_key_allowed_for_db_api_key(self, client, api_key_store):
+        app.dependency_overrides[require_token] = lambda: {
+            "username": "user@example.com",
+            "role": "user",
+            "auth_source": "db_api_key",
+        }
+
+        api_key_store.create_key(owner_email="user@example.com", key_type="user", description="My Key")
+
+        res = client.get("/api-keys")
+        assert res.status_code == status.HTTP_200_OK
