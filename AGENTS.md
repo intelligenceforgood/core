@@ -4,9 +4,9 @@
 
 ## Environment
 
-- **Conda env:** `i4g`
+- **Conda env:** `core`
 - **Language:** Python 3.13+ (FastAPI, Pydantic v2, SQLAlchemy)
-- **All commands prefix:** `conda run -n i4g ...`
+- **All commands prefix:** `conda run -n core ...`
 
 ## Build & Test
 
@@ -50,9 +50,9 @@ Requires `gcloud` auth. UI image: `cd ui/ && scripts/build_image.sh i4g-console 
 ## Pre-Commit
 
 ```bash
-conda run -n i4g pre-commit run --all-files   # Pass 1 — auto-fixes formatting
+conda run -n core pre-commit run --all-files   # Pass 1 — auto-fixes formatting
 git add -u
-conda run -n i4g pre-commit run --all-files   # Pass 2 — must exit clean
+conda run -n core pre-commit run --all-files   # Pass 2 — must exit clean
 ```
 
 ## Coding Conventions
@@ -69,4 +69,4 @@ conda run -n i4g pre-commit run --all-files   # Pass 2 — must exit clean
 
 ## Env + Smoke Discipline
 
-When adding/changing settings or job envs: (a) add coverage under `tests/unit/settings/`, (b) refresh `docs/config/` env-var table + YAML manifest, (c) run local smoke (`conda run -n i4g I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g jobs ingest ...`) before any Cloud Run job.
+When adding/changing settings or job envs: (a) add coverage under `tests/unit/settings/`, (b) refresh `docs/config/` env-var table + YAML manifest, (c) run local smoke (`conda run -n core I4G_PROJECT_ROOT=$PWD I4G_ENV=dev I4G_LLM__PROVIDER=mock i4g jobs ingest ...`) before any Cloud Run job.

@@ -29,7 +29,6 @@
 # base_url = "http://127.0.0.1:8000"
 # key = "dev-analyst-token"
 # cors_origins = ["*"]  # Override per environment; default allows all for local dev
-# partner_mode = false
 
 
 [identity]
