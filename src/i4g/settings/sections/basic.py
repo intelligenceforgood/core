@@ -49,11 +49,6 @@ class APISettings(BaseSettings):
         validation_alias=AliasChoices("API_CORS_ORIGINS", "API__CORS_ORIGINS"),
         description="Allowed CORS origins. Defaults to ['*'] for local dev; override in cloud envs.",
     )
-    partner_mode: bool = Field(
-        default=False,
-        validation_alias=AliasChoices("PARTNER_MODE", "API__PARTNER_MODE"),
-        description="DEPRECATED: Use scope-based endpoint restrictions instead. Will be removed in a future release.",
-    )
 
 
 class IdentitySettings(BaseSettings):

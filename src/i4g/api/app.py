@@ -2,7 +2,6 @@
 
 import logging
 import time
-import warnings
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -233,51 +232,40 @@ def create_app() -> FastAPI:
     def health_check() -> dict[str, str]:
         return {"status": "ok"}
 
-    if settings.api.partner_mode:
-        warnings.warn(
-            "partner_mode is deprecated. Use scope-based endpoint restrictions instead. "
-            "See docs/config/ for migration guidance.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        logger.info("Starting API in PARTNER MODE (exposing only partner-accessible routes)")
-        app.include_router(partner_feed_router)
-        app.include_router(api_keys_router)
-    else:
-        app.include_router(review_router, prefix="/reviews", tags=["reviews"])
-        app.include_router(accounts_router)
-        app.include_router(api_keys_router)
-        app.include_router(analytics_router)
-        app.include_router(cases_router)
-        app.include_router(campaigns_router)
-        app.include_router(dashboard_router)
+    app.include_router(review_router, prefix="/reviews", tags=["reviews"])
+    app.include_router(accounts_router)
+    app.include_router(api_keys_router)
+    app.include_router(analytics_router)
+    app.include_router(cases_router)
+    app.include_router(campaigns_router)
+    app.include_router(dashboard_router)
 
-        app.include_router(discovery_router)
-        app.include_router(engagements_router)
-        app.include_router(evidence_router)
-        app.include_router(exports_router)
-        app.include_router(feedback_router)
-        app.include_router(impact_router)
-        app.include_router(intake_router)
-        app.include_router(intelligence_router)
-        # SSI routers registered before investigations_router so static paths
-        # (/history, /active, /wallets) resolve before the catch-all {task_id}.
-        # Wallets + evidence must come before ssi_investigations because the
-        # ssi_investigations router has a /{scan_id} catch-all that would
-        # otherwise swallow /wallets, /*/wallets.csv, etc.
-        # Playbooks have their own prefix (/playbooks/ssi) — no ordering issue.
-        app.include_router(ssi_playbooks_router)
-        app.include_router(ssi_wallets_router)
-        app.include_router(ssi_evidence_router)
-        app.include_router(ssi_events_router)
-        app.include_router(ssi_investigations_router)
-        app.include_router(investigations_router)
-        app.include_router(reports_router)
-        app.include_router(taxonomy_router)
-        app.include_router(partner_feed_router)
-        app.include_router(phishdestroy_discoveries_router)
-        app.include_router(phishdestroy_actors_router)
-        app.include_router(task_router)
+    app.include_router(discovery_router)
+    app.include_router(engagements_router)
+    app.include_router(evidence_router)
+    app.include_router(exports_router)
+    app.include_router(feedback_router)
+    app.include_router(impact_router)
+    app.include_router(intake_router)
+    app.include_router(intelligence_router)
+    # SSI routers registered before investigations_router so static paths
+    # (/history, /active, /wallets) resolve before the catch-all {task_id}.
+    # Wallets + evidence must come before ssi_investigations because the
+    # ssi_investigations router has a /{scan_id} catch-all that would
+    # otherwise swallow /wallets, /*/wallets.csv, etc.
+    # Playbooks have their own prefix (/playbooks/ssi) — no ordering issue.
+    app.include_router(ssi_playbooks_router)
+    app.include_router(ssi_wallets_router)
+    app.include_router(ssi_evidence_router)
+    app.include_router(ssi_events_router)
+    app.include_router(ssi_investigations_router)
+    app.include_router(investigations_router)
+    app.include_router(reports_router)
+    app.include_router(taxonomy_router)
+    app.include_router(partner_feed_router)
+    app.include_router(phishdestroy_discoveries_router)
+    app.include_router(phishdestroy_actors_router)
+    app.include_router(task_router)
 
     # Serve artifacts
     artifacts_dir = Path(settings.data_dir) / "artifacts"
