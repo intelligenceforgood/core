@@ -112,15 +112,6 @@ fields:
   - API_KEY
   - API__KEY
   description: API endpoint configuration shared by CLI + dashboards.
-- path: api.partner_mode
-  section: api
-  type: bool
-  default: false
-  env_vars:
-  - I4G_API__PARTNER_MODE
-  - PARTNER_MODE
-  - API__PARTNER_MODE
-  description: Master switch to run API in partner mode (only exposing partner routes).
 - path: api.rate_limit_per_minute
   section: api
   type: int

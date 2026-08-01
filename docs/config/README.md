@@ -31,7 +31,6 @@ This catalog is assembled by `i4g settings export-manifest` directly from `src/i
 | api | `api.base_url` | `I4G_API__BASE_URL`<br />`API_URL`<br />`API__BASE_URL` | `str` | `http://127.0.0.1:8000` | API endpoint configuration shared by CLI + dashboards. |
 | api | `api.cors_origins` | `I4G_API__CORS_ORIGINS`<br />`API_CORS_ORIGINS`<br />`API__CORS_ORIGINS` | `list[str]` | `["*"]` | Allowed CORS origins. Defaults to ['*'] for local dev; override in cloud envs. |
 | api | `api.key` | `I4G_API__KEY`<br />`API_KEY`<br />`API__KEY` | `str` | `dev-analyst-token` | API endpoint configuration shared by CLI + dashboards. |
-| api | `api.partner_mode` | `I4G_API__PARTNER_MODE`<br />`PARTNER_MODE`<br />`API__PARTNER_MODE` | `bool` | `False` | Master switch to run API in partner mode (only exposing partner routes). |
 | api | `api.rate_limit_per_minute` | `I4G_API__RATE_LIMIT_PER_MINUTE`<br />`API_RATE_LIMIT`<br />`API__RATE_LIMIT_PER_MINUTE` | `int` | `60` | API endpoint configuration shared by CLI + dashboards. |
 | auto_investigate | `auto_investigate.domain_blocklist` | `I4G_AUTO_INVESTIGATE__DOMAIN_BLOCKLIST`<br />`AUTO_INVESTIGATE_DOMAIN_BLOCKLIST`<br />`AUTO_INVESTIGATE__DOMAIN_BLOCKLIST` | `list[str]` | `[]` | Domains to exclude from automatic investigation. |
 | auto_investigate | `auto_investigate.enabled` | `I4G_AUTO_INVESTIGATE__ENABLED`<br />`AUTO_INVESTIGATE_ENABLED`<br />`AUTO_INVESTIGATE__ENABLED` | `bool` | `False` | Enable automatic investigation of case URLs. |
