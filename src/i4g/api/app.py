@@ -2,6 +2,7 @@
 
 import logging
 import time
+import warnings
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -233,6 +234,12 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     if settings.api.partner_mode:
+        warnings.warn(
+            "partner_mode is deprecated. Use scope-based endpoint restrictions instead. "
+            "See docs/config/ for migration guidance.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         logger.info("Starting API in PARTNER MODE (exposing only partner-accessible routes)")
         app.include_router(partner_feed_router)
         app.include_router(api_keys_router)

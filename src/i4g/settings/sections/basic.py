@@ -52,7 +52,7 @@ class APISettings(BaseSettings):
     partner_mode: bool = Field(
         default=False,
         validation_alias=AliasChoices("PARTNER_MODE", "API__PARTNER_MODE"),
-        description="Master switch to run API in partner mode (only exposing partner routes).",
+        description="DEPRECATED: Use scope-based endpoint restrictions instead. Will be removed in a future release.",
     )
 
 

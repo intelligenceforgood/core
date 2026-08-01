@@ -49,3 +49,12 @@ def test_partner_mode_disabled_all_routes_available(monkeypatch: pytest.MonkeyPa
     # Internal endpoint route exists (returns auth error, not 404)
     res_cases = client.get("/cases")
     assert res_cases.status_code != 404
+
+
+def test_partner_mode_deprecation_warning(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When partner_mode=True, a DeprecationWarning should be emitted on app creation."""
+    monkeypatch.setenv("I4G_API__PARTNER_MODE", "true")
+    reload_settings(env="dev")
+
+    with pytest.warns(DeprecationWarning, match="partner_mode is deprecated"):
+        create_app()
