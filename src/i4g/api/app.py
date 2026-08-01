@@ -1,5 +1,6 @@
 """FastAPI app factory for i4g Analyst Review API."""
 
+import copy
 import logging
 import time
 from datetime import UTC, datetime, timedelta
@@ -8,6 +9,9 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from i4g.api.accounts import router as accounts_router
@@ -33,7 +37,7 @@ from i4g.api.phishdestroy_discoveries import router as phishdestroy_discoveries_
 from i4g.api.reports import router as reports_router
 from i4g.api.response_models import TaskStatusResponse, TaskUpdateResponse
 from i4g.api.review import router as review_router
-from i4g.api.scopes import require_internal_session
+from i4g.api.scopes import INTERNAL_ONLY_TAGS, require_internal_session
 from i4g.api.ssi_events import router as ssi_events_router
 from i4g.api.ssi_evidence import router as ssi_evidence_router
 from i4g.api.ssi_investigations import router as ssi_investigations_router
@@ -280,6 +284,134 @@ def create_app() -> FastAPI:
             "POST /investigations/ssi will fail until the SSI Cloud Run Service URL is configured.",
             settings.env,
         )
+
+    @app.get(
+        "/openapi-internal.json",
+        include_in_schema=False,
+        dependencies=[Depends(require_internal_session)],
+    )
+    def get_openapi_internal() -> dict[str, Any]:
+        """Return the complete unfiltered OpenAPI schema for internal management."""
+        if not getattr(app.state, "full_openapi_schema", None):
+            app.openapi()
+        return app.state.full_openapi_schema
+
+    @app.get(
+        "/docs/internal",
+        include_in_schema=False,
+        response_class=HTMLResponse,
+        dependencies=[Depends(require_internal_session)],
+    )
+    def get_docs_internal() -> HTMLResponse:
+        """Render Swagger UI pointing to the internal OpenAPI spec."""
+        return get_swagger_ui_html(
+            openapi_url="/openapi-internal.json",
+            title=f"{app.title} - Internal Docs",
+        )
+
+    def custom_openapi() -> dict[str, Any]:
+        if getattr(app, "_partner_openapi_schema", None) is not None:
+            return app._partner_openapi_schema
+
+        full_schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            openapi_version=app.openapi_version,
+            description=app.description,
+            routes=app.routes,
+            tags=app.openapi_tags,
+            servers=app.servers,
+            terms_of_service=app.terms_of_service,
+            contact=app.contact,
+            license_info=app.license_info,
+        )
+        app.state.full_openapi_schema = full_schema
+        app._full_openapi_schema = full_schema
+
+        filtered_schema = copy.deepcopy(full_schema)
+        paths = filtered_schema.get("paths", {})
+        paths_to_remove = []
+
+        for path, path_item in list(paths.items()):
+            methods_to_remove = []
+            for method, operation in list(path_item.items()):
+                if method.lower() in {"get", "post", "put", "delete", "patch", "options", "head", "trace"}:
+                    op_tags = set(operation.get("tags", []))
+                    if op_tags and op_tags.issubset(INTERNAL_ONLY_TAGS):
+                        methods_to_remove.append(method)
+
+            for method in methods_to_remove:
+                del path_item[method]
+
+            remaining_methods = [
+                m
+                for m in path_item
+                if m.lower() in {"get", "post", "put", "delete", "patch", "options", "head", "trace"}
+            ]
+            if not remaining_methods:
+                paths_to_remove.append(path)
+
+        for path in paths_to_remove:
+            del paths[path]
+
+        # Clean up orphaned tags
+        used_tags: set[str] = set()
+        for path_item in paths.values():
+            for method, operation in path_item.items():
+                if method.lower() in {"get", "post", "put", "delete", "patch", "options", "head", "trace"}:
+                    used_tags.update(operation.get("tags", []))
+
+        if "tags" in filtered_schema:
+            filtered_schema["tags"] = [t for t in filtered_schema["tags"] if t.get("name") in used_tags]
+
+        # Clean up orphaned component schemas
+        if "components" in filtered_schema and "schemas" in filtered_schema["components"]:
+            reachable_schemas: set[str] = set()
+
+            def _extract_refs(obj: Any) -> None:
+                if isinstance(obj, dict):
+                    for k, v in obj.items():
+                        if k == "$ref" and isinstance(v, str) and v.startswith("#/components/schemas/"):
+                            reachable_schemas.add(v[len("#/components/schemas/") :])
+                        else:
+                            _extract_refs(v)
+                elif isinstance(obj, list):
+                    for item in obj:
+                        _extract_refs(item)
+
+            _extract_refs(filtered_schema.get("paths", {}))
+
+            queue = list(reachable_schemas)
+            all_schemas = filtered_schema["components"]["schemas"]
+            while queue:
+                curr = queue.pop()
+                if curr in all_schemas:
+                    schema_refs: set[str] = set()
+
+                    def _extract_sub_refs(obj: Any, ref_acc: set[str]) -> None:
+                        if isinstance(obj, dict):
+                            for k, v in obj.items():
+                                if k == "$ref" and isinstance(v, str) and v.startswith("#/components/schemas/"):
+                                    ref_acc.add(v[len("#/components/schemas/") :])
+                                else:
+                                    _extract_sub_refs(v, ref_acc)
+                        elif isinstance(obj, list):
+                            for item in obj:
+                                _extract_sub_refs(item, ref_acc)
+
+                    _extract_sub_refs(all_schemas[curr], schema_refs)
+                    for ref in schema_refs:
+                        if ref not in reachable_schemas:
+                            reachable_schemas.add(ref)
+                            queue.append(ref)
+
+            filtered_schema["components"]["schemas"] = {k: v for k, v in all_schemas.items() if k in reachable_schemas}
+
+        app._partner_openapi_schema = filtered_schema
+        app.openapi_schema = filtered_schema
+        return app.openapi_schema
+
+    app.openapi = custom_openapi
 
     return app
 
